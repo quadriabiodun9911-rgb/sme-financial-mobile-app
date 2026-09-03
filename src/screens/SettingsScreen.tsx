@@ -24,6 +24,7 @@ import { canManageTeam, canManagePaymentSettings, canDeleteBusinessData } from '
 import PinConfirmModal from '../components/PinConfirmModal';
 import { PaymentProvider, savePaymentSecret, deletePaymentSecret, getConnectedProviders } from '../utils/paymentSecrets';
 import { setBackupPassword, deleteBackupPassword, getBackupPasswordStatus } from '../utils/backupPassword';
+import { WhatsAppLinkStatus, WHATSAPP_BOT_NUMBER, getWhatsAppLinkStatus, createWhatsAppLinkRequest, disconnectWhatsApp } from '../utils/whatsappTransactions';
 
 const ROLE_BADGE_COLOR: Record<string, string> = {
     admin: Colors.expense,
@@ -108,6 +109,8 @@ export default function SettingsScreen() {
     // Tracked here (not just inside each ProviderKeyField) so "Create Payment
     // Link →" below can gate on whether ANY provider is connected.
     const [connectedProviders, setConnectedProviders] = useState({ paystack: false, korapay: false, flutterwave: false });
+    const [whatsappStatus, setWhatsappStatus] = useState<WhatsAppLinkStatus>({ linked: false });
+    const [whatsappConnecting, setWhatsappConnecting] = useState(false);
 
     // Re-sync the whole form once real settings arrive from storage/Supabase.
     // settings hydrates asynchronously (a network round-trip, then an
@@ -126,6 +129,43 @@ export default function SettingsScreen() {
     useEffect(() => {
         setForm({ ...settings });
     }, [settings]);
+
+    useEffect(() => {
+        let cancelled = false;
+        getWhatsAppLinkStatus().then(status => { if (!cancelled) setWhatsappStatus(status); });
+        return () => { cancelled = true; };
+    }, []);
+
+    const handleConnectWhatsApp = async () => {
+        if (!WHATSAPP_BOT_NUMBER) {
+            showAlert('Not available yet', "WhatsApp logging isn't live yet — check back soon.");
+            return;
+        }
+        setWhatsappConnecting(true);
+        try {
+            const request = await createWhatsAppLinkRequest();
+            if (!request) {
+                showAlert('Could not start linking', 'Please try again in a moment.');
+                return;
+            }
+            if (Platform.OS === 'web') {
+                const win = window.open(request.deepLink, '_blank');
+                if (!win || win.closed) window.location.href = request.deepLink;
+            } else {
+                Linking.openURL(request.deepLink).catch(() => showAlert('Error', 'Could not open WhatsApp.'));
+            }
+            showAlert('One more step', 'Tap Send in WhatsApp to finish connecting — then come back here.');
+        } finally {
+            setWhatsappConnecting(false);
+        }
+    };
+
+    const handleDisconnectWhatsApp = () => {
+        confirmAction('Disconnect WhatsApp?', "You'll stop being able to log transactions or get updates by text.", 'Disconnect', async () => {
+            const ok = await disconnectWhatsApp();
+            if (ok) setWhatsappStatus({ linked: false });
+        });
+    };
 
     // Change PIN
     const [currentPin, setCurrentPin] = useState('');
@@ -867,6 +907,44 @@ export default function SettingsScreen() {
                                 <Text style={styles.dataBtnText}>Import Bank Statement or Scan a Photo →</Text>
                             </View>
                         </TouchableOpacity>
+                    </CollapsibleSection>
+
+                    {/* WhatsApp -- log a sale/expense by text instead of opening
+                        the app, plus a daily cash-position message. See
+                        whatsappTransactions.ts / whatsapp-webhook/index.ts.
+                        WHATSAPP_BOT_NUMBER is still blank (no Twilio WhatsApp
+                        sender provisioned yet), same "built, not live yet"
+                        state the Bank Aggregator connect flow above was in --
+                        the card stays visible rather than hidden, matching how
+                        every other not-yet-deployed integration in this app
+                        (AI Advisor, AI categorization) shipped its full UI
+                        ahead of the backend going live. */}
+                    <CollapsibleSection title="WhatsApp" icon="message-circle" defaultOpen={false}>
+                        <Text style={styles.hint}>
+                            Log a sale or expense by texting it -- no need to open the app. You'll also get a daily message with yesterday's numbers and your cash position.
+                        </Text>
+                        {whatsappStatus.linked ? (
+                            <View style={styles.dataSafetyCard}>
+                                <View style={styles.btnIconRow}>
+                                    <Icon name="check-circle" size={14} color={Colors.textPrimary} />
+                                    <Text style={styles.dataSafetyTitle}>Connected</Text>
+                                </View>
+                                <Text style={styles.dataSafetyBody}>{whatsappStatus.whatsappNumber}</Text>
+                                <TouchableOpacity style={[styles.dataBtn, { marginTop: 8 }]} onPress={handleDisconnectWhatsApp}>
+                                    <Text style={styles.dataBtnText}>Disconnect</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <TouchableOpacity style={styles.dataBtn} onPress={handleConnectWhatsApp} disabled={whatsappConnecting}>
+                                <View style={styles.btnIconRow}>
+                                    <Icon name="message-circle" size={14} color={Colors.primary} />
+                                    <Text style={styles.dataBtnText}>{whatsappConnecting ? 'Opening WhatsApp…' : 'Connect WhatsApp →'}</Text>
+                                </View>
+                            </TouchableOpacity>
+                        )}
+                        {!WHATSAPP_BOT_NUMBER && (
+                            <Text style={styles.hint}>Not live yet -- check back soon.</Text>
+                        )}
                     </CollapsibleSection>
 
                     {/* ANALYTICS */}

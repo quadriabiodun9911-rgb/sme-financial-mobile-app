@@ -13,6 +13,7 @@ import Header from '../components/Header';
 import { trackDemoConvertTapped, trackScreenViewed } from '../utils/analytics';
 import { getWorkspaceOwnerId } from '../utils/storage';
 import { claimIncomingPayments } from '../utils/incomingPayments';
+import { claimIncomingWhatsAppTransactions } from '../utils/whatsappTransactions';
 import FooterNav from '../components/FooterNav';
 import { t } from '../utils/i18n';
 import { validateAmount, validateDescription } from '../utils/validation';
@@ -148,6 +149,10 @@ export default function DashboardScreen() {
             if (!ownerUserId || cancelled) return;
             const existingRefs = new Set<string>((transactions || []).map((t: any) => t.reference).filter(Boolean));
             await claimIncomingPayments(ownerUserId, existingRefs, addTransaction, markInvoiceStatus);
+            // Same staging-table claim pattern, for transactions logged over
+            // WhatsApp instead of a payment webhook -- see
+            // whatsappTransactions.ts and whatsapp-webhook/index.ts.
+            await claimIncomingWhatsAppTransactions(ownerUserId, addTransaction);
         })();
         return () => { cancelled = true; };
     }, [isDemoMode]);
