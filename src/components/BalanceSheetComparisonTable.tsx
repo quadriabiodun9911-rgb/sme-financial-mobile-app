@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Transaction, Asset, Loan } from '../types';
@@ -73,6 +73,22 @@ const LIABILITY_ROWS: GroupRow = {
 
 const GROUPS = [ASSET_ROWS, LIABILITY_ROWS];
 
+// Every row this table can render, flattened once so the frozen label
+// column and the scrolling value columns iterate the exact same list --
+// guarantees the two stay in lockstep (same order, same count) rather than
+// risking two independently-written render loops drifting apart.
+type FlatRow =
+    | { kind: 'group'; group: GroupRow; isOpen: boolean }
+    | { kind: 'child'; child: LeafRow }
+    | { kind: 'total' }
+    | { kind: 'workingCapital' };
+
+function flatRowKey(row: FlatRow): string {
+    if (row.kind === 'group') return row.group.key;
+    if (row.kind === 'child') return row.child.label;
+    return row.kind;
+}
+
 // Every row here is something we can honestly reconstruct for a past date —
 // see balanceSheetTrend.ts for exactly what each figure means and its
 // limits. Stock/inventory value is the one line left out entirely: this app
@@ -85,6 +101,7 @@ const GROUPS = [ASSET_ROWS, LIABILITY_ROWS];
 export default function BalanceSheetComparisonTable({ businessName, transactions, assets, loans, currency, manualBalances }: Props) {
     const [grouping, setGrouping] = useState<BalancePeriodGrouping>('monthly');
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
+    const scrollRef = useRef<ScrollView>(null);
 
     const monthly = useMemo(() => computeAllTimeMonthlyBuckets(transactions), [transactions]);
     const monthKeys = useMemo(() => monthly.map(m => m.month), [monthly]);
@@ -128,6 +145,68 @@ export default function BalanceSheetComparisonTable({ businessName, transactions
 
     const expandAll = () => setExpanded(allExpanded ? new Set() : new Set(GROUPS.map(g => g.key)));
 
+    const flatRows = useMemo<FlatRow[]>(() => {
+        const rows: FlatRow[] = [];
+        for (const group of GROUPS) {
+            const isOpen = expanded.has(group.key);
+            rows.push({ kind: 'group', group, isOpen });
+            if (isOpen) {
+                const visibleChildren = group.children.filter(c => !c.showOnlyIfNonZero || points.some(p => c.get(p) !== 0));
+                for (const child of visibleChildren) rows.push({ kind: 'child', child });
+            }
+        }
+        rows.push({ kind: 'total' });
+        rows.push({ kind: 'workingCapital' });
+        return rows;
+    }, [expanded, points]);
+
+    const describeRow = (row: FlatRow) => {
+        if (row.kind === 'group') {
+            return {
+                label: `${row.isOpen ? '⌄' : '›'} ${row.group.label}`,
+                indent: false, bold: true, muted: false,
+                get: row.group.get, color: row.group.color,
+                onPress: () => toggleGroup(row.group.key),
+                rowStyle: [s.row] as any[],
+            };
+        }
+        if (row.kind === 'child') {
+            return {
+                label: row.child.label,
+                indent: true, bold: !!row.child.bold, muted: false,
+                get: row.child.get, color: row.child.color,
+                onPress: undefined as (() => void) | undefined,
+                rowStyle: [s.row, row.child.bold && s.subtotalRow] as any[],
+            };
+        }
+        if (row.kind === 'total') {
+            return {
+                label: "Owners' Equity (Net Worth)",
+                indent: false, bold: true, muted: false,
+                get: (p: BalanceSheetTrendPoint) => p.netWorth,
+                color: (p: BalanceSheetTrendPoint) => p.netWorth >= 0 ? Colors.income : Colors.expense,
+                onPress: undefined as (() => void) | undefined,
+                rowStyle: [s.row, s.totalRow] as any[],
+            };
+        }
+        return {
+            label: 'Working Capital',
+            indent: false, bold: false, muted: true,
+            get: (p: BalanceSheetTrendPoint) => p.cashBuffer,
+            color: (p: BalanceSheetTrendPoint) => p.cashBuffer >= 0 ? Colors.income : Colors.expense,
+            onPress: undefined as (() => void) | undefined,
+            rowStyle: [s.row, { borderBottomWidth: 0 }] as any[],
+        };
+    };
+
+    // Opens already scrolled to the most recent period -- points run oldest
+    // to newest left-to-right, so without this the owner has to manually
+    // scroll all the way across every older column just to see where they
+    // stand today.
+    useEffect(() => {
+        scrollRef.current?.scrollToEnd({ animated: false });
+    }, [grouping, points.length]);
+
     return (
         <StatementCard
             businessName={businessName}
@@ -147,66 +226,65 @@ export default function BalanceSheetComparisonTable({ businessName, transactions
                 </TouchableOpacity>
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+            <View style={s.tableWrap}>
+                {/* Frozen label column -- stays in place while the periods
+                    scroll horizontally beneath it, so the row you're
+                    reading never scrolls out of view. Rendered from the
+                    same flatRows list as the scrolling side below, in the
+                    same order, with matching row heights (numberOfLines={1}
+                    on the label keeps a long name from wrapping and
+                    throwing the two sides out of alignment). */}
                 <View>
-                    <View style={s.headerRow}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabelHeader}>Breakdown</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}><Text style={s.colHeader}>{p.label}{p.key === currentKey ? ' *' : ''}</Text></View>
-                        ))}
-                    </View>
-
-                    {GROUPS.map(group => {
-                        const isOpen = expanded.has(group.key);
-                        const visibleChildren = group.children.filter(c => !c.showOnlyIfNonZero || points.some(p => c.get(p) !== 0));
-                        return (
-                            <React.Fragment key={group.key}>
-                                <TouchableOpacity style={s.row} onPress={() => toggleGroup(group.key)} activeOpacity={0.6}>
-                                    <View style={[s.cell, s.rowLabelCell]}>
-                                        <Text style={[s.rowLabel, s.rowLabelBold]}>{isOpen ? '⌄' : '›'} {group.label}</Text>
-                                    </View>
-                                    {points.map(p => (
-                                        <View key={p.key} style={s.cell}>
-                                            <Text style={[s.val, s.valBold, { color: group.color(p) }]}>{fmt(group.get(p))}</Text>
-                                        </View>
-                                    ))}
-                                </TouchableOpacity>
-
-                                {isOpen && visibleChildren.map(child => (
-                                    <View key={child.label} style={[s.row, child.bold && s.subtotalRow]}>
-                                        <View style={[s.cell, s.rowLabelCell, s.rowLabelIndent]}>
-                                            <Text style={[s.rowLabel, child.bold && s.rowLabelBold]}>{child.label}</Text>
-                                        </View>
-                                        {points.map(p => (
-                                            <View key={p.key} style={s.cell}>
-                                                <Text style={[s.val, child.bold && s.valBold, { color: child.color(p) }]}>{fmt(child.get(p))}</Text>
-                                            </View>
-                                        ))}
-                                    </View>
-                                ))}
-                            </React.Fragment>
+                    <View style={[s.cell, s.rowLabelCell, s.headerRow]}><Text style={s.rowLabelHeader}>Breakdown</Text></View>
+                    {flatRows.map(row => {
+                        const d = describeRow(row);
+                        const content = (
+                            <View style={[d.rowStyle, s.cell, s.rowLabelCell, d.indent && s.rowLabelIndent]}>
+                                <Text
+                                    style={[s.rowLabel, d.bold && s.rowLabelBold, d.muted && s.rowLabelMuted]}
+                                    numberOfLines={1}
+                                >
+                                    {d.label}
+                                </Text>
+                            </View>
+                        );
+                        return d.onPress ? (
+                            <TouchableOpacity key={flatRowKey(row)} onPress={d.onPress} activeOpacity={0.6}>{content}</TouchableOpacity>
+                        ) : (
+                            <View key={flatRowKey(row)}>{content}</View>
                         );
                     })}
-
-                    <View style={[s.row, s.totalRow]}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelBold]}>Owners' Equity (Net Worth)</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}>
-                                <Text style={[s.val, s.valBold, { color: p.netWorth >= 0 ? Colors.income : Colors.expense }]}>{fmt(p.netWorth)}</Text>
-                            </View>
-                        ))}
-                    </View>
-
-                    <View style={[s.row, { borderBottomWidth: 0 }]}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelMuted]}>Working Capital</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}>
-                                <Text style={[s.val, s.valMuted, { color: p.cashBuffer >= 0 ? Colors.income : Colors.expense }]}>{fmt(p.cashBuffer)}</Text>
-                            </View>
-                        ))}
-                    </View>
                 </View>
-            </ScrollView>
+
+                <ScrollView ref={scrollRef} horizontal showsHorizontalScrollIndicator={true} style={s.scrollArea}>
+                    <View>
+                        <View style={s.headerRow}>
+                            {points.map(p => (
+                                <View key={p.key} style={s.cell}><Text style={s.colHeader}>{p.label}{p.key === currentKey ? ' *' : ''}</Text></View>
+                            ))}
+                        </View>
+                        {flatRows.map(row => {
+                            const d = describeRow(row);
+                            const content = (
+                                <View style={d.rowStyle}>
+                                    {points.map(p => (
+                                        <View key={p.key} style={s.cell}>
+                                            <Text style={[s.val, d.bold && s.valBold, d.muted && s.valMuted, { color: d.color(p) }]}>
+                                                {fmt(d.get(p))}
+                                            </Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            );
+                            return d.onPress ? (
+                                <TouchableOpacity key={flatRowKey(row)} onPress={d.onPress} activeOpacity={0.6}>{content}</TouchableOpacity>
+                            ) : (
+                                <View key={flatRowKey(row)}>{content}</View>
+                            );
+                        })}
+                    </View>
+                </ScrollView>
+            </View>
             <Text style={s.hint}>As of the end of each {PERIOD_NOUN[grouping]}. Tap a bold row to expand it.</Text>
             <Text style={s.hint}>Accounts Receivable / Accounts Payable only count what's still unpaid today, so older columns can understate what was actually owed at the time.</Text>
             <Text style={s.hint}>Inventory value and manually-entered figures have no date attached, so they show today's total repeated in every column, not a real trend.</Text>
@@ -227,6 +305,8 @@ const s = StyleSheet.create({
     toggleText: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted },
     toggleTextActive: { color: '#fff' },
 
+    tableWrap: { flexDirection: 'row' },
+    scrollArea: { flex: 1 },
     headerRow: { flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: Colors.textPrimary },
     row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border },
     subtotalRow: { borderTopWidth: 1, borderTopColor: Colors.border },
