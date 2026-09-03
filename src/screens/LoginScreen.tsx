@@ -13,7 +13,7 @@ import { trackUserLoggedIn, identifyUser } from '../utils/analytics';
 import { supabase, createEphemeralAuthClient } from '../utils/supabase';
 import { savePin, saveProfile, generateAuthSecret, saveAuthSecret, loadAuthSecret, loadProfile, localProfileMatchesEmail, syncFieldEncryptionKey, registerLocalAccount } from '../utils/storage';
 import { verifyBackupPassword, setBackupPassword } from '../utils/backupPassword';
-import { Industry } from '../types';
+import { Industry, BusinessSettings } from '../types';
 
 const CURRENCIES = [
     { label: 'USD ($)',    value: '$',   code: 'USD' },
@@ -37,6 +37,16 @@ const INDUSTRIES: { label: string; value: Industry; hint: string }[] = [
     { label: '🏭 Manufacturing', value: 'manufacturing', hint: 'Makers, assemblers, processors — production & unit cost tools' },
     { label: '💼 Professional Services', value: 'professional-services', hint: 'Consultants, agencies, law firms — project & retainer profitability' },
     { label: '🏢 General / Other', value: 'general', hint: 'Anything else' },
+];
+
+// Drives whether Inventory (and Inventory-only surfaces in Reports/
+// Forecast) shows up at all -- see FooterNav.tsx. 'both' is the safe
+// default for the two answers below that don't rule out ever carrying
+// stock; only 'service' actually hides anything.
+const BUSINESS_TYPES: { label: string; value: BusinessSettings['businessType']; hint: string }[] = [
+    { label: 'I sell physical products', value: 'product', hint: 'Retail, food, manufacturing — anything with stock to track' },
+    { label: 'I sell a service, no stock', value: 'service', hint: 'Consulting, transport & logistics, cleaning, salons — hides Inventory since there\'s nothing to track there' },
+    { label: 'Both', value: 'both', hint: 'A mix, or not sure yet' },
 ];
 
 // A device's PIN is purely local -- it only ever unlocks the app on that
@@ -205,6 +215,17 @@ export default function LoginScreen() {
     // the owner happened to notice and re-pick it here. Still fully
     // editable via the picker below either way.
     const [industry, setIndustry]   = useState<Industry>(() => (isDemoMode && settings.industry) ? settings.industry : 'general');
+    // Was ONLY ever reachable post-signup via Settings -- no signup path
+    // (fresh or Guest Mode conversion) asked this at all, so every new
+    // real account defaulted to 'both' regardless of what kind of
+    // business it actually is. That silently hid the service-only
+    // customization (FooterNav/Reports/Forecast dropping Inventory-only
+    // surfaces, see FooterNav.tsx) from exactly the businesses it exists
+    // for -- a transport/logistics company, a consultancy, a cleaning
+    // service -- unless the owner happened to discover Business Type
+    // buried in Settings later. Same guest-session prefill reasoning as
+    // industry above.
+    const [businessType, setBusinessType] = useState<BusinessSettings['businessType']>(() => (isDemoMode && settings.businessType) ? settings.businessType : 'both');
     const [setupLang, setSetupLang] = useState<Language>(language);
     const [submitting, setSubmitting] = useState(false);
     const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -387,10 +408,10 @@ export default function LoginScreen() {
             // be silently overwritten back to defaults by that reset.
             await setupAccount(
                 email.trim(), business.trim(), pin, false, phone.trim(),
-                isDemoMode ? { ...settings, currency, currencyCode, industry } : { currency, currencyCode, industry },
+                isDemoMode ? { ...settings, currency, currencyCode, industry, businessType } : { currency, currencyCode, industry, businessType },
                 guestData,
             );
-            updateSettings({ currency, currencyCode, industry });
+            updateSettings({ currency, currencyCode, industry, businessType });
             // Fire-and-forget: recording consent must never block a
             // signup that already succeeded — see recordConsent's own
             // no-op-on-failure contract in storage.ts.
@@ -1654,6 +1675,31 @@ export default function LoginScreen() {
                                 <Text style={styles.industryHint}>{ind.hint}</Text>
                             </View>
                             {industry === ind.value && <Icon name="check" size={16} color={Colors.primary} />}
+                        </TouchableOpacity>
+                    ))}
+                </Field>
+
+                {/* Business Type -- separate from Industry above (a Food
+                    Service business and a Professional Services one can
+                    each be Product/Service/Both), and specifically drives
+                    whether Inventory shows up at all. Previously only
+                    reachable post-signup via Settings, so a transport/
+                    logistics company, a consultancy, or any other
+                    service-only business defaulted to 'both' and saw
+                    Inventory-only surfaces meant for a business that
+                    actually carries stock. */}
+                <Field label="Do you sell physical products, a service, or both?">
+                    {BUSINESS_TYPES.map(bt => (
+                        <TouchableOpacity
+                            key={bt.value}
+                            style={[styles.industryOption, businessType === bt.value && styles.industryOptionActive]}
+                            onPress={() => setBusinessType(bt.value)}
+                        >
+                            <View style={styles.flex}>
+                                <Text style={[styles.industryLabel, businessType === bt.value && styles.industryLabelActive]}>{bt.label}</Text>
+                                <Text style={styles.industryHint}>{bt.hint}</Text>
+                            </View>
+                            {businessType === bt.value && <Icon name="check" size={16} color={Colors.primary} />}
                         </TouchableOpacity>
                     ))}
                 </Field>
