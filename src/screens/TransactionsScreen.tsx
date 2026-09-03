@@ -69,8 +69,16 @@ function joinVendorCustomer(name: string, phone: string): string {
     return `${n} | ${p}`;
 }
 
-function todayStr() {
-    return new Date().toISOString().split('T')[0];
+// Local Y-M-D, not toISOString() -- toISOString() converts to UTC, which
+// reports the PREVIOUS calendar day for the early hours of the local day in
+// any timezone far enough ahead of UTC (mirrors dailyRecap.ts's own fix for
+// the identical bug). Without this, a transaction logged at 3am local could
+// silently default to yesterday's date, or a correctly-dated 3am
+// transaction could still be grouped under "Yesterday" by formatDateHeader
+// below -- either way, money the owner just entered looking like it
+// vanished from "Today".
+function todayStr(now: Date = new Date()): string {
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
 const EMPTY_FORM: FormState = {
@@ -140,8 +148,13 @@ function groupByDate(txs: Transaction[]): Array<{ date: string; items: Transacti
 
 function formatDateHeader(iso: string): string {
     const d = new Date(iso + 'T00:00:00');
-    const today    = todayStr();
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    const today = todayStr();
+    // Same local-date reasoning as todayStr() above -- subtracting a day
+    // from the local Date object and re-formatting it locally, not from a
+    // UTC-converted "now".
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterday = todayStr(yesterdayDate);
     if (iso === today)     return 'Today';
     if (iso === yesterday) return 'Yesterday';
     return d.toLocaleDateString('default', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });

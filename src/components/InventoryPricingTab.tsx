@@ -397,5 +397,10 @@ const s = StyleSheet.create({
     noSalesData: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic' },
     productName: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
     productCategory: { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
-    priceInput: { flex: 1, backgroundColor: Colors.bg, borderRadius: 6, borderWidth: 1, borderColor: Colors.border, paddingVertical: 6, paddingHorizontal: 8, fontSize: 12, color: Colors.textPrimary },
+    // minWidth: 0 overrides a browser default that plain Text siblings
+    // don't have -- without it, this <input> (via react-native-web) refuses
+    // to shrink as much as the other flex:1 columns on a narrow phone
+    // screen, so it ends up visibly wider than "Current"/"Margin"/"Monthly
+    // Profit" despite sharing the exact same flex value.
+    priceInput: { flex: 1, minWidth: 0, backgroundColor: Colors.bg, borderRadius: 6, borderWidth: 1, borderColor: Colors.border, paddingVertical: 6, paddingHorizontal: 6, fontSize: 12, color: Colors.textPrimary },
 });
