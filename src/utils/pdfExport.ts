@@ -1,4 +1,6 @@
 import { Platform } from 'react-native';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 
 export interface ExportData {
   title: string;
@@ -10,20 +12,41 @@ export interface ExportData {
   summary?: { label: string; value: string | number }[];
 }
 
+// Renders `data` into a real PDF, cross-platform. This used to write the
+// raw HTML string to a path merely NAMED "*.pdf" (and hand it to sharePDF
+// with an application/pdf mime type) -- the bytes on disk were never
+// actually a PDF, so every export in this app (Business Passport, Funding
+// Readiness Pack, Lender Summary, Post-Financing share -- the documents
+// this app hands to an actual lender) would fail to open, or show raw
+// markup, in whatever PDF reader received it. expo-sharing, the share step
+// itself, also wasn't a declared dependency at all, so on a real device
+// tapping Export would throw "module not found" before any of that even
+// mattered.
 export const generatePDF = async (data: ExportData): Promise<string> => {
   const htmlContent = generateHTMLContent(data);
-  const fileName = `quad360-${data.title.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
 
   if (Platform.OS === 'web') {
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    return URL.createObjectURL(blob);
+    // expo-print's web shim ignores whatever `html` it's given and just
+    // calls window.print() on the CURRENT page -- there's no web
+    // equivalent of "render this HTML to a PDF file" the way native has.
+    // Opening the report in its own window and invoking THAT window's own
+    // print dialog lets the browser's native "Save as PDF" produce a real
+    // PDF instead. sharePDF is a no-op on web (see below) -- this is the
+    // complete web flow, nothing left to hand off afterward.
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      throw new Error("Could not open the print window — check your browser's popup blocker.");
+    }
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    return '';
   }
 
   try {
-    const FileSystem = require('expo-file-system');
-    const filePath = `${FileSystem.documentDirectory}${fileName}`;
-    await FileSystem.writeAsStringAsync(filePath, htmlContent, { encoding: 'utf8' });
-    return filePath;
+    const { uri } = await Print.printToFileAsync({ html: htmlContent, base64: false });
+    return uri;
   } catch (error) {
     console.error('PDF generation error:', error);
     throw error;
@@ -103,25 +126,16 @@ const generateHTMLContent = (data: ExportData): string => {
 };
 
 export const sharePDF = async (filePath: string, title: string): Promise<void> => {
-  try {
-    if (Platform.OS === 'web') {
-      if (filePath.startsWith('blob:')) {
-        const link = document.createElement('a');
-        link.href = filePath;
-        link.download = `${title}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-      return;
-    }
+  // generatePDF already handled the whole web flow by opening the
+  // browser's own print dialog -- nothing left to share.
+  if (Platform.OS === 'web') return;
 
-    const Sharing = require('expo-sharing');
+  try {
     const isAvailable = await Sharing.isAvailableAsync();
     if (!isAvailable) {
       throw new Error('Sharing is not available on this device');
     }
-    await Sharing.shareAsync(filePath, { mimeType: 'application/pdf', UTType: 'com.adobe.pdf' });
+    await Sharing.shareAsync(filePath, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: title });
   } catch (error) {
     console.error('Error sharing PDF:', error);
     throw error;
