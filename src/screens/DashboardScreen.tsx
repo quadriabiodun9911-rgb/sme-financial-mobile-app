@@ -62,6 +62,7 @@ import { computeBusinessHealthIntelligence } from '../utils/metricIntelligence';
 import { computeStockVelocity, computeInventoryValue } from '../utils/stockVelocity';
 import { computeDataQuality } from '../utils/dataQuality';
 import { computeCostExposure, MODEL as COST_EXPOSURE_MODEL } from '../utils/costExposure';
+import { computeDailyTrend } from '../utils/trendAnalysis';
 import { registerForPushNotificationsAsync, syncCashPositionSummary } from '../utils/pushRegistration';
 import { categorizeTransactionAI, AICategorizationResult } from '../utils/aiCategorization';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
@@ -669,7 +670,8 @@ export default function DashboardScreen() {
     // evening recap (how did today compare to a typical day like it).
     const weekdayPattern = useMemo(() => computeWeekdayPattern(transactions), [transactions]);
 
-    // Morning briefing / evening recap -- see notifications.ts's
+    // Morning briefing (incl. the daily financial pulse -- see
+    // dailyBriefing.ts) / evening recap -- see notifications.ts's
     // scheduleMorningBriefing/scheduleEveningRecap for why these are
     // rescheduled (not just scheduled once): this is a fully client-side app
     // with no backend to compute "today's real numbers" at 7am/6pm server-
@@ -677,11 +679,8 @@ export default function DashboardScreen() {
     // freshest data available every time the Dashboard renders, replacing
     // whatever was scheduled before. A business that never reopens the app
     // gets whichever version was last built, not fabricated content.
-    const dailyBriefing = useMemo(() => buildDailyBriefing(priorities, weekdayPattern), [priorities, weekdayPattern]);
-    useEffect(() => {
-        if (isDemoMode) return;
-        scheduleMorningBriefing(dailyBriefing).catch(() => {});
-    }, [isDemoMode, dailyBriefing]);
+    // buildDailyBriefing itself is defined further down (needs runwayDays,
+    // computed below alongside the runway gauge) -- see that block.
 
     const dailyRecap = useMemo(
         () => buildDailyRecap(transactions, weekdayPattern, null, null, settings?.currency ?? '₦'),
@@ -950,6 +949,34 @@ export default function DashboardScreen() {
     const runwayDays = dashboardDailyBurn > 0 ? computedRunwayDays : null;
     const runwayColor = runwayDays === null ? Colors.income : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
 
+    // Yesterday's actual revenue/expense bucket for the morning briefing's
+    // pulse numbers below -- local Y-M-D, not toISOString() (see
+    // dailyRecap.ts's own note on why: toISOString() reports the wrong day
+    // for part of any positive-UTC-offset local day, e.g. Nigeria).
+    const yesterdayBucket = useMemo(() => {
+        const y = new Date();
+        y.setDate(y.getDate() - 1);
+        const yStr = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+        const bucket = computeDailyTrend(transactions).find(d => d.date === yStr);
+        return { revenue: bucket?.revenue ?? 0, expense: bucket?.expense ?? 0 };
+    }, [transactions]);
+
+    const dailyBriefing = useMemo(
+        () => buildDailyBriefing(priorities, weekdayPattern, {
+            yesterdayRevenue: yesterdayBucket.revenue,
+            yesterdayExpense: yesterdayBucket.expense,
+            cashBalance: finance.cashBalance,
+            runwayDays,
+            currency: settings?.currency ?? '₦',
+            businessName: settings?.businessName,
+        }),
+        [priorities, weekdayPattern, yesterdayBucket, finance.cashBalance, runwayDays, settings?.currency, settings?.businessName]
+    );
+    useEffect(() => {
+        if (isDemoMode) return;
+        scheduleMorningBriefing(dailyBriefing).catch(() => {});
+    }, [isDemoMode, dailyBriefing]);
+
     // Same <30-day threshold that already drives runwayColor above -- reuse
     // it here rather than introduce a second, independently-tuned "low
     // cash" number.
@@ -1128,6 +1155,71 @@ export default function DashboardScreen() {
                             style={styles.demoBannerBtn}
                         >
                             <Text style={styles.demoBannerBtnText}>Create Account →</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                {/* Daily Pulse -- the in-app home for dailyBriefing.ts's
+                    content, which until now only ever reached anyone as a
+                    push notification (scheduleMorningBriefing) that's easy
+                    to miss or dismiss, and whose OS-truncated body could
+                    only ever show a one-line summary. This is the same
+                    "good morning" content -- yesterday's numbers, cash
+                    position, runway, today's top priority -- with room to
+                    actually show all of it, plus a direct line to the AI
+                    Advisor for a fuller answer. */}
+                {canViewFinancials && (
+                    <View style={styles.pulseCard}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Icon name="sunrise" size={16} color={Colors.primary} />
+                            <Text style={styles.pulseGreeting}>{dailyBriefing.greeting}</Text>
+                        </View>
+                        <View style={styles.pulseRow}>
+                            <View style={styles.pulseStat}>
+                                <Icon name="trending-up" size={14} color={Colors.income} />
+                                <Text style={styles.pulseStatLabel}>Money in</Text>
+                                <Text style={[styles.pulseStatValue, { color: Colors.income }]}>
+                                    {currency}{Math.round(dailyBriefing.pulse.yesterdayRevenue).toLocaleString()}
+                                </Text>
+                            </View>
+                            <View style={styles.pulseStat}>
+                                <Icon name="trending-down" size={14} color={Colors.expense} />
+                                <Text style={styles.pulseStatLabel}>Money out</Text>
+                                <Text style={[styles.pulseStatValue, { color: Colors.expense }]}>
+                                    {currency}{Math.round(dailyBriefing.pulse.yesterdayExpense).toLocaleString()}
+                                </Text>
+                            </View>
+                            <View style={styles.pulseStat}>
+                                <Icon name="activity" size={14} color={dailyBriefing.pulse.netMovement >= 0 ? Colors.income : Colors.expense} />
+                                <Text style={styles.pulseStatLabel}>Net</Text>
+                                <Text style={[styles.pulseStatValue, { color: dailyBriefing.pulse.netMovement >= 0 ? Colors.income : Colors.expense }]}>
+                                    {dailyBriefing.pulse.netMovement >= 0 ? '+' : '-'}{currency}{Math.round(Math.abs(dailyBriefing.pulse.netMovement)).toLocaleString()}
+                                </Text>
+                            </View>
+                        </View>
+                        <View style={styles.pulseDivider} />
+                        <View style={styles.pulseRow}>
+                            <View style={styles.pulseStat}>
+                                <Icon name="dollar-sign" size={14} color={Colors.textPrimary} />
+                                <Text style={styles.pulseStatLabel}>Estimated cash</Text>
+                                <Text style={styles.pulseStatValue}>{currency}{Math.round(dailyBriefing.pulse.cashBalance).toLocaleString()}</Text>
+                            </View>
+                            <View style={styles.pulseStat}>
+                                <Icon name="shield" size={14} color={runwayColor} />
+                                <Text style={styles.pulseStatLabel}>Cash runway</Text>
+                                <Text style={[styles.pulseStatValue, { color: runwayColor }]}>
+                                    {dailyBriefing.pulse.runwayDays === null ? '∞' : `${dailyBriefing.pulse.runwayDays} days`}
+                                </Text>
+                            </View>
+                        </View>
+                        {dailyBriefing.topPriorities.length > 0 && (
+                            <Text style={styles.pulsePriorityNote}>
+                                {dailyBriefing.topPriorities[0].title}{dailyBriefing.topPriorities[0].subtitle ? ` — ${dailyBriefing.topPriorities[0].subtitle}` : ''}
+                            </Text>
+                        )}
+                        <TouchableOpacity style={styles.pulseAskBtn} onPress={() => navigate('cfo', { tab: 'questions' })}>
+                            <Icon name="message-square" size={13} color={Colors.primary} />
+                            <Text style={styles.pulseAskBtnText}>Ask: "How is my business doing?"</Text>
                         </TouchableOpacity>
                     </View>
                 )}
@@ -2822,6 +2914,18 @@ const styles = StyleSheet.create({
     eodPaymentChipTextActive: { color: Colors.primary },
     modalSubmit:      { paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 4 },
     modalSubmitText:  { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+
+    // Daily Pulse card
+    pulseCard:          { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.md, marginBottom: 16, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    pulseGreeting:      { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
+    pulseRow:           { flexDirection: 'row', marginTop: 10, gap: 8 },
+    pulseStat:          { flex: 1, alignItems: 'flex-start', gap: 2 },
+    pulseStatLabel:     { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+    pulseStatValue:     { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
+    pulseDivider:       { height: 1, backgroundColor: Colors.border, marginTop: 12 },
+    pulsePriorityNote:  { fontSize: 12.5, color: Colors.textSecondary, marginTop: 12, lineHeight: 18 },
+    pulseAskBtn:        { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, alignSelf: 'flex-start' },
+    pulseAskBtnText:    { fontSize: 12.5, fontWeight: '600', color: Colors.primary },
 
     // Section Styles (7-Section Architecture)
     sectionHeader:    { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12, marginTop: 8 },
