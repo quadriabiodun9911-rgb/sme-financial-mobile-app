@@ -1,11 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-    SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet,
+    SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, Animated, Easing,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
+import RadialGauge from '../components/RadialGauge';
 import ProfitWaterfall from '../components/ProfitWaterfall';
 import ProfitByDimension from '../components/ProfitByDimension';
 import ProfitDriversInsights from '../components/ProfitDriversInsights';
@@ -43,6 +44,29 @@ function fmt(n: number, currency: string): string {
     return `${sign}${currency}${Math.round(abs).toLocaleString()}`;
 }
 
+// One pillar's fill bar -- owns its own Animated.Value so it grows in
+// independently, matching the motion language used across the rest of the
+// app's list-of-bars breakdowns.
+function PillarBar({ pct, color }: { pct: number; color: string }) {
+    const anim = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        Animated.timing(anim, {
+            toValue: Math.min(Math.max(pct, 0), 100),
+            duration: 600,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+        }).start();
+    }, [pct]);
+    return (
+        <View style={gs.pillarTrack}>
+            <Animated.View style={[gs.pillarFill, {
+                backgroundColor: color,
+                width: anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
+            }]} />
+        </View>
+    );
+}
+
 // ─── Growth Score Tab ─────────────────────────────────────────────────────────
 function ScoreTab({ currency }: { currency: string }) {
     const { transactions, settings } = useApp();
@@ -50,16 +74,28 @@ function ScoreTab({ currency }: { currency: string }) {
     const momentum = useMemo(() => computeMomentum(transactions), [transactions]);
     const breakeven = useMemo(() => computeBreakeven(transactions, settings), [transactions, settings]);
     const performers = useMemo(() => computeTopPerformers(transactions), [transactions]);
-    const circumference = 2 * Math.PI * 44;
-    const filled = (result.score / 100) * circumference;
+
+    const scoreAnim = useRef(new Animated.Value(0)).current;
+    const [animatedScore, setAnimatedScore] = useState(0);
+    useEffect(() => {
+        const id = scoreAnim.addListener(({ value }) => setAnimatedScore(value));
+        Animated.timing(scoreAnim, { toValue: result.score, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+        return () => scoreAnim.removeListener(id);
+    }, [result.score]);
 
     return (
         <ScrollView showsVerticalScrollIndicator={false}>
             {/* Score circle */}
             <View style={gs.scoreCard}>
-                <View style={[gs.scoreRing, { borderColor: result.color }]}>
-                    <Text style={[gs.scoreNum, { color: result.color }]}>{result.score}</Text>
-                    <Text style={gs.scoreMax}>/100</Text>
+                <View style={{ marginBottom: Spacing.md }}>
+                    <RadialGauge
+                        displayValue={`${Math.round(animatedScore)}`}
+                        label="/100"
+                        progress={result.score / 100}
+                        color={result.color}
+                        size={100}
+                        strokeWidth={8}
+                    />
                 </View>
                 <Text style={[gs.scoreLabel, { color: result.color }]}>{result.label}</Text>
                 <Text style={gs.scoreVerdict}>{momentum.growthVerdict}</Text>
@@ -77,9 +113,7 @@ function ScoreTab({ currency }: { currency: string }) {
                                 <Text style={gs.pillarName}>{p.name}</Text>
                                 <Text style={[gs.pillarScore, { color: barColor }]}>{p.score}/{p.max}</Text>
                             </View>
-                            <View style={gs.pillarTrack}>
-                                <View style={[gs.pillarFill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
-                            </View>
+                            <PillarBar pct={pct} color={barColor} />
                             <Text style={gs.pillarNote}>{p.note}</Text>
                         </View>
                     );
@@ -504,9 +538,6 @@ const gs = StyleSheet.create({
 
     // Score tab
     scoreCard:   { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.xl, alignItems: 'center', marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
-    scoreRing:   { width: 100, height: 100, borderRadius: 50, borderWidth: 6, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.md },
-    scoreNum:    { fontSize: 32, fontWeight: '900' },
-    scoreMax:    { fontSize: 12, color: Colors.textMuted, marginTop: -4 },
     scoreLabel:  { fontSize: 20, fontWeight: '800', marginBottom: 6 },
     scoreVerdict:{ fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
     pillarsCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },

@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-    SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions,
+    SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, Animated, Easing, Dimensions,
 } from 'react-native';
+import RadialGauge from '../components/RadialGauge';
 import { useApp } from '../contexts/AppContext';
 import { monthlyPayment as calcMonthlyPayment } from '../utils/loanMath';
 import { showAlert } from '../utils/webAlert';
@@ -73,6 +74,32 @@ function fmtCompact(currency: string, amount: number): string {
 }
 
 type PageTab = 'profile' | 'funding-pack';
+
+// A single animated fill bar, reused for every factor/priority/goal-risk row
+// on this screen (and the Visibility Score bar) -- each instance owns its
+// own Animated.Value so it grows in independently rather than snapping to
+// its final width, matching the motion language used elsewhere in the app.
+function AnimatedBar({ pct, color, trackStyle, fillStyle }: {
+    pct: number; color: string; trackStyle: object; fillStyle: object;
+}) {
+    const anim = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        Animated.timing(anim, {
+            toValue: Math.min(Math.max(pct, 0), 100),
+            duration: 600,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+        }).start();
+    }, [pct]);
+    return (
+        <View style={trackStyle}>
+            <Animated.View style={[fillStyle, {
+                backgroundColor: color,
+                width: anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
+            }]} />
+        </View>
+    );
+}
 
 export default function CreditWorthinessScreen() {
     const { user, finance, transactions, invoices, loans, navigate, navParams, settings, inventory, assets, readinessHistory, goals } = useApp();
@@ -269,6 +296,14 @@ export default function CreditWorthinessScreen() {
     // just no longer drive the headline number.
     const risk = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
     const overallCreditScore = risk.score;
+
+    const creditScoreAnim = useRef(new Animated.Value(0)).current;
+    const [animatedCreditScore, setAnimatedCreditScore] = useState(0);
+    useEffect(() => {
+        const id = creditScoreAnim.addListener(({ value }) => setAnimatedCreditScore(value));
+        Animated.timing(creditScoreAnim, { toValue: overallCreditScore, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+        return () => creditScoreAnim.removeListener(id);
+    }, [overallCreditScore]);
 
     const BAND_COLOR: Record<RiskScore['band'], string> = {
         Excellent: Colors.income,
@@ -530,10 +565,15 @@ export default function CreditWorthinessScreen() {
                 <View style={[s.scoreCard, { borderTopColor: creditRating.color, borderTopWidth: 4 }]}>
                     <Text style={s.scoreEmoji}>{creditRating.emoji}</Text>
                     <Text style={s.scoreLabel}>Your Credit Score</Text>
-                    <Text style={[s.scoreValue, { color: creditRating.color }]}>
-                        {Math.round(overallCreditScore)}
-                    </Text>
-                    <Text style={s.scoreRating}>{creditRating.label} Credit Profile</Text>
+                    <RadialGauge
+                        displayValue={`${Math.round(animatedCreditScore)}`}
+                        label="/100"
+                        progress={overallCreditScore / 100}
+                        color={creditRating.color}
+                        size={120}
+                        strokeWidth={10}
+                    />
+                    <Text style={[s.scoreRating, { marginTop: Spacing.md }]}>{creditRating.label} Credit Profile</Text>
 
                     {/* Score Composition — this score IS computeRiskScore
                         (overallCreditScore = risk.score above), and the
@@ -677,17 +717,12 @@ export default function CreditWorthinessScreen() {
                                     <Text style={s.factorStatus}>{factor.status}</Text>
                                 </View>
                             </View>
-                            <View style={s.progressBar}>
-                                <View
-                                    style={[
-                                        s.progressFill,
-                                        {
-                                            width: `${factor.score}%`,
-                                            backgroundColor: factor.score >= 70 ? Colors.income : Colors.warning,
-                                        },
-                                    ]}
-                                />
-                            </View>
+                            <AnimatedBar
+                                pct={factor.score}
+                                color={factor.score >= 70 ? Colors.income : Colors.warning}
+                                trackStyle={s.progressBar}
+                                fillStyle={s.progressFill}
+                            />
                         </View>
                     ))}
                 </View>
@@ -699,9 +734,12 @@ export default function CreditWorthinessScreen() {
                         How much of your business's real history is actually visible right now — the more a lender can see, the more they can act on it before a problem becomes a missed payment.
                     </Text>
                     <View style={s.visibilityRow}>
-                        <View style={s.visibilityBar}>
-                            <View style={[s.visibilityBarFill, { width: `${Math.round(dataQuality.coveragePct)}%`, backgroundColor: dataQuality.confidence === 'strong' ? Colors.income : dataQuality.confidence === 'partial' ? Colors.warning : Colors.expense }]} />
-                        </View>
+                        <AnimatedBar
+                            pct={dataQuality.coveragePct}
+                            color={dataQuality.confidence === 'strong' ? Colors.income : dataQuality.confidence === 'partial' ? Colors.warning : Colors.expense}
+                            trackStyle={s.visibilityBar}
+                            fillStyle={s.visibilityBarFill}
+                        />
                         <Text style={s.visibilityPct}>{Math.round(dataQuality.coveragePct)}%</Text>
                     </View>
                     <Text style={s.visibilityDetail}>{dataQuality.summary}</Text>
@@ -881,17 +919,12 @@ export default function CreditWorthinessScreen() {
                                 <Text style={s.improvementDescription}>
                                     {factor.status === 'danger' ? 'High risk' : 'Watch'} — {Math.round(factor.weight)}% of your score
                                 </Text>
-                                <View style={s.progressBar}>
-                                    <View
-                                        style={[
-                                            s.progressFill,
-                                            {
-                                                width: `${factor.score}%`,
-                                                backgroundColor: factor.score >= 70 ? Colors.income : Colors.warning,
-                                            },
-                                        ]}
-                                    />
-                                </View>
+                                <AnimatedBar
+                                    pct={factor.score}
+                                    color={factor.score >= 70 ? Colors.income : Colors.warning}
+                                    trackStyle={s.progressBar}
+                                    fillStyle={s.progressFill}
+                                />
                             </View>
                         ))}
                     </View>
@@ -918,9 +951,12 @@ export default function CreditWorthinessScreen() {
                                         </Text>
                                     </View>
                                     <Text style={s.improvementDescription}>{goalRisk.narrative}</Text>
-                                    <View style={s.progressBar}>
-                                        <View style={[s.progressFill, { width: `${goalRisk.growthReadiness}%`, backgroundColor: FP_BAND_COLOR[goalRisk.readinessBand] }]} />
-                                    </View>
+                                    <AnimatedBar
+                                        pct={goalRisk.growthReadiness}
+                                        color={FP_BAND_COLOR[goalRisk.readinessBand]}
+                                        trackStyle={s.progressBar}
+                                        fillStyle={s.progressFill}
+                                    />
                                 </View>
                             );
                         })}
@@ -1202,7 +1238,6 @@ const s = StyleSheet.create({
     },
     scoreEmoji: { fontSize: 48, marginBottom: 8 },
     scoreLabel: { fontSize: 14, color: Colors.textSecondary, marginBottom: 4 },
-    scoreValue: { fontSize: 56, fontWeight: 'bold', marginBottom: 4 },
     scoreRating: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary, marginBottom: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.muted, width: '100%', textAlign: 'center' },
     section: { marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 12, padding: 16, borderLeftWidth: 4, borderLeftColor: Colors.primary },
     sectionTitle: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary, marginBottom: 12 },
