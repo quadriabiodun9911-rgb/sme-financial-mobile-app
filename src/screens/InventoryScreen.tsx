@@ -30,6 +30,7 @@ import { InventoryItem } from '../types';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import InventoryPricingTab from '../components/InventoryPricingTab';
 import { localDateStr } from '../utils/localDate';
+import { computeExpiringStock } from '../utils/foodExpiry';
 
 type InventoryTab = 'stock' | 'analytics' | 'pricing';
 
@@ -43,6 +44,8 @@ type FormState = {
     sellingPrice: string;
     lowStockThreshold: string;
     supplier: string;
+    expiryDate: string;
+    itemType: '' | 'raw_material' | 'finished_good';
 };
 
 const EMPTY_FORM: FormState = {
@@ -52,6 +55,8 @@ const EMPTY_FORM: FormState = {
     quantity: '',
     unit: '',
     costPrice: '',
+    expiryDate: '',
+    itemType: '',
     sellingPrice: '',
     lowStockThreshold: '5',
     supplier: '',
@@ -182,6 +187,10 @@ export default function InventoryScreen() {
         () => computeInventoryHealth(inventory, transactions, finance?.cashBalance ?? 0, currency),
         [inventory, transactions, finance?.cashBalance, currency],
     );
+    // Food Service only -- see foodExpiry.ts's own comment for why
+    // perishability needs a separate signal from Inventory Health's
+    // cash-tied-up framing above.
+    const expiringStock = useMemo(() => computeExpiringStock(inventory), [inventory]);
     const workingCapital = useMemo(() => computeWorkingCapitalMetrics(transactions), [transactions]);
     const totalWorkingCapitalTiedUp = (finance?.cashBalance ?? 0) + totalStockValue + workingCapital.accountsReceivable;
 
@@ -250,6 +259,8 @@ export default function InventoryScreen() {
             sellingPrice: item.sellingPrice != null ? String(item.sellingPrice) : '',
             lowStockThreshold: String(item.lowStockThreshold),
             supplier: item.supplier ?? '',
+            expiryDate: item.expiryDate ?? '',
+            itemType: item.itemType ?? '',
         });
         setModalOpen(true);
     };
@@ -281,6 +292,8 @@ export default function InventoryScreen() {
             sellingPrice: sell,
             lowStockThreshold: threshold,
             supplier: form.supplier.trim() || undefined,
+            expiryDate: form.expiryDate.trim() || undefined,
+            itemType: form.itemType || undefined,
         };
 
         if (editingId) {
@@ -604,6 +617,36 @@ export default function InventoryScreen() {
                 {/* ── ANALYTICS TAB ──────────────────────────────────────── */}
                 {activeTab === 'analytics' && (
                     <>
+                        {/* Expiring Stock -- Food Service only, and only when
+                            there's something to actually warn about. Placed
+                            ahead of Inventory Health: a batch that's about
+                            to spoil is more urgent than cash tied up in
+                            stock that's merely slow to sell. */}
+                        {settings.industry === 'food-service' && (expiringStock.itemsExpired.length > 0 || expiringStock.itemsExpiringSoon.length > 0) && (
+                            <View style={[styles.analyticsCard, { borderColor: Colors.expense, borderWidth: 1 }]}>
+                                <Text style={styles.analyticsCardTitle}>⏰ Expiring Stock</Text>
+                                <Text style={styles.cardSubtitle}>
+                                    {currency}{Math.round(expiringStock.totalValueAtRisk).toLocaleString()} at risk of becoming a total write-off, not just a slow sale.
+                                </Text>
+                                {expiringStock.itemsExpired.map(e => (
+                                    <View key={e.item.id} style={[styles.insightBanner, { borderColor: Colors.expense }]}>
+                                        <Text style={[styles.insightTitle, { color: Colors.expense }]}>
+                                            🔴 {e.item.name} — expired {Math.abs(e.daysUntilExpiry)} day{Math.abs(e.daysUntilExpiry) === 1 ? '' : 's'} ago
+                                        </Text>
+                                        <Text style={styles.insightDetail}>{e.item.quantity} {e.item.unit} · {currency}{Math.round(e.valueAtRisk).toLocaleString()} at cost</Text>
+                                    </View>
+                                ))}
+                                {expiringStock.itemsExpiringSoon.map(e => (
+                                    <View key={e.item.id} style={[styles.insightBanner, { borderColor: Colors.warning }]}>
+                                        <Text style={[styles.insightTitle, { color: Colors.warning }]}>
+                                            🟡 {e.item.name} — expires {e.daysUntilExpiry === 0 ? 'today' : `in ${e.daysUntilExpiry} day${e.daysUntilExpiry === 1 ? '' : 's'}`}
+                                        </Text>
+                                        <Text style={styles.insightDetail}>{e.item.quantity} {e.item.unit} · {currency}{Math.round(e.valueAtRisk).toLocaleString()} at cost</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
+
                         {/* Inventory Health */}
                         <View style={styles.analyticsCard}>
                             <View style={styles.inventoryHealthHeader}>
@@ -951,6 +994,46 @@ export default function InventoryScreen() {
                             value={form.lowStockThreshold}
                             onChangeText={v => setForm(f => ({ ...f, lowStockThreshold: v }))}
                         />
+
+                        {/* Expiry Date — Food Service only. Perishability is
+                            THIS industry's version of "slow moving stock":
+                            an ingredient can go from asset to write-off on
+                            its own, with no sale involved, which
+                            inventoryHealth's cash-tied-up framing doesn't
+                            capture. See foodExpiry.ts. */}
+                        {settings.industry === 'food-service' && (
+                            <View style={{ marginBottom: 12 }}>
+                                <Text style={styles.discountLabel}>Expiry Date (optional)</Text>
+                                <DateInput value={form.expiryDate} onChange={v => setForm(f => ({ ...f, expiryDate: v }))} />
+                            </View>
+                        )}
+
+                        {/* Raw Material vs. Finished Good — Manufacturing
+                            only, so the Production Cost Calculator's
+                            material picker doesn't offer a business's own
+                            finished product as an input into building
+                            itself. Untagged items still show up there --
+                            this only starts excluding an item once it's
+                            explicitly marked Finished Good. */}
+                        {settings.industry === 'manufacturing' && (
+                            <View style={{ marginBottom: 12 }}>
+                                <Text style={styles.discountLabel}>Item Type (optional)</Text>
+                                <View style={{ flexDirection: 'row', gap: 8 }}>
+                                    {([
+                                        { value: 'raw_material' as const, label: 'Raw Material' },
+                                        { value: 'finished_good' as const, label: 'Finished Good' },
+                                    ]).map(opt => (
+                                        <TouchableOpacity
+                                            key={opt.value}
+                                            style={[styles.discountTypePill, form.itemType === opt.value && styles.discountTypePillActive]}
+                                            onPress={() => setForm(f => ({ ...f, itemType: f.itemType === opt.value ? '' : opt.value }))}
+                                        >
+                                            <Text style={[styles.discountTypePillText, form.itemType === opt.value && styles.discountTypePillTextActive]}>{opt.label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+                        )}
 
                         {/* Margin preview — same "harmful gets a fix" pattern as the
                             rest of the app, applied to what this item actually earns. */}

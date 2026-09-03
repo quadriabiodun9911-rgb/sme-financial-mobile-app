@@ -41,6 +41,15 @@ interface Props {
 // Raw materials come straight from Inventory — same cost-per-unit data
 // used everywhere else, not a second list a user has to keep in sync.
 export default function ProductionCostCalculator({ inventory, currency }: Props) {
+    // A business's own finished product is never a valid input into
+    // building itself -- excluded from the picker once an item is
+    // explicitly tagged Finished Good (InventoryItem.itemType). Untagged
+    // items still show up here: this is additive, not a requirement to
+    // tag everything before the calculator works.
+    const rawMaterialCandidates = useMemo(
+        () => inventory.filter(i => i.itemType !== 'finished_good'),
+        [inventory],
+    );
     const [batchName, setBatchName] = useState('');
     const [unitsProduced, setUnitsProduced] = useState('');
     const [laborCost, setLaborCost] = useState('');
@@ -103,12 +112,14 @@ export default function ProductionCostCalculator({ inventory, currency }: Props)
         setSavedBatches(prev => prev.filter(b => b.id !== id));
     };
 
-    if (inventory.length === 0) {
+    if (rawMaterialCandidates.length === 0) {
         return (
             <View style={s.card}>
                 <Text style={s.title}>🏭 Production / Unit Cost Calculator</Text>
                 <Text style={s.emptyHint}>
-                    Add raw materials to Inventory first — this builds a batch's unit cost from the same cost-per-unit data already tracked there.
+                    {inventory.length === 0
+                        ? 'Add raw materials to Inventory first — this builds a batch\'s unit cost from the same cost-per-unit data already tracked there.'
+                        : 'Everything in Inventory is currently tagged Finished Good — add or re-tag at least one raw material to build a batch from.'}
                 </Text>
             </View>
         );
@@ -192,7 +203,7 @@ export default function ProductionCostCalculator({ inventory, currency }: Props)
             <Text style={s.fieldLabel}>Raw Materials (from Inventory)</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipScroll}>
                 <View style={s.chipRow}>
-                    {inventory.map(item => {
+                    {rawMaterialCandidates.map(item => {
                         const isSelected = selected.some(sm => sm.inventoryItemId === item.id);
                         return (
                             <TouchableOpacity

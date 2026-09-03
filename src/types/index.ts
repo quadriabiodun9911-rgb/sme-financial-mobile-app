@@ -466,6 +466,21 @@ export interface InventoryItem {
     // implied, actualQuantity is a real count the owner just took, so
     // neither side is guessed.
     stockCountHistory?: StockCountEntry[];
+    // Food Service only -- when this stock is no longer safe/sellable.
+    // Perishability is THE defining operational risk for a food business
+    // in a way it isn't for durable retail/manufacturing stock: "slow
+    // moving" there means cash tied up, but here it can mean spoiled and
+    // worthless. Optional and never inferred -- only the owner knows a
+    // real expiry date, so it's absent until they enter one.
+    expiryDate?: string;
+    // Manufacturing only -- distinguishes a purchased input from a
+    // produced output, so the Production Cost Calculator's material
+    // picker doesn't offer a business's own finished product as an
+    // ingredient of itself. Untagged items (and every item for a business
+    // that's never touched this field) are treated as available raw
+    // material -- see ProductionCostCalculator.tsx -- so this is additive
+    // and never breaks an existing user who hasn't started tagging.
+    itemType?: 'raw_material' | 'finished_good';
 }
 
 export interface PriceHistoryEntry {
