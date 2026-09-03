@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -7,8 +7,21 @@ import Icon from './ui/Icon';
 import { CapitalCommitment, CommitmentDecision, CommitmentStatus } from '../types';
 import { computeCommitmentMonitor, SuggestedDecision } from '../utils/capitalCommitmentMonitor';
 
+export interface CommitmentPrefill {
+    name: string;
+    purpose: string;
+    amount: number;
+}
+
 interface Props {
     currency: string;
+    // A decision the owner already worked out elsewhere on the same screen
+    // (e.g. Decision Comparison's "Track this decision") -- opens the form
+    // pre-filled instead of blank, so the name/amount don't have to be
+    // retyped. Each distinct object opens the form fresh; onPrefillConsumed
+    // tells the caller to clear it so it doesn't keep re-triggering.
+    prefill?: CommitmentPrefill | null;
+    onPrefillConsumed?: () => void;
 }
 
 const STATUS_META: Record<CommitmentStatus, { label: string; color: string }> = {
@@ -52,7 +65,7 @@ function addMonths(iso: string, months: number): string {
 // (capitalCommitmentMonitor.ts) -- both already existed (persistence and
 // CRUD were already wired into OptimizedContexts.tsx) but had no UI. This
 // component is that missing UI, not a new data model.
-export default function CapitalCommitmentTracker({ currency }: Props) {
+export default function CapitalCommitmentTracker({ currency, prefill, onPrefillConsumed }: Props) {
     const { capitalCommitments, addCommitment, updateCommitment, deleteCommitment } = useApp();
     const [showForm, setShowForm] = useState(false);
     const [name, setName] = useState('');
@@ -61,6 +74,15 @@ export default function CapitalCommitmentTracker({ currency }: Props) {
     const [targetMonths, setTargetMonths] = useState<number | null>(3);
     const [assumptionsText, setAssumptionsText] = useState('');
     const [kpiDrafts, setKpiDrafts] = useState<{ name: string; target: string }[]>([{ name: '', target: '' }]);
+
+    useEffect(() => {
+        if (!prefill) return;
+        setName(prefill.name);
+        setPurpose(prefill.purpose);
+        setAmount(prefill.amount > 0 ? String(Math.round(prefill.amount)) : '');
+        setShowForm(true);
+        onPrefillConsumed?.();
+    }, [prefill]);
 
     // Local draft of each KPI's "actual" TextInput value, keyed by
     // `${commitmentId}:${kpiId}` -- committed to context onBlur, not on

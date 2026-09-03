@@ -11,7 +11,7 @@ import BuyVsFinanceCalculator from '../components/BuyVsFinanceCalculator';
 import BreakevenAnalysis from '../components/BreakevenAnalysis';
 import LoanAffordabilityChecker from '../components/LoanAffordabilityChecker';
 import DecisionSimulator from '../components/DecisionSimulator';
-import CapitalCommitmentTracker from '../components/CapitalCommitmentTracker';
+import CapitalCommitmentTracker, { CommitmentPrefill } from '../components/CapitalCommitmentTracker';
 import DecisionComparisonTable from '../components/DecisionComparisonTable';
 import { computeCashRunway } from '../utils/cashRunway';
 import { computeRiskScore, loanMonthlyPayment } from '../utils/finance';
@@ -36,6 +36,10 @@ export default function BeforeYouDecideScreen() {
     const { finance, transactions, loans, inventory, assets, settings, navigate } = useApp();
     const { currency } = settings;
     const [affordabilityMode, setAffordabilityMode] = useState<'quick' | 'detailed'>('quick');
+    // Compare Decisions' "Track this decision" hands its scenario here,
+    // which reveals and pre-fills Investment Decision Tracker below --
+    // see CapitalCommitmentTracker's own prefill prop for why.
+    const [commitmentPrefill, setCommitmentPrefill] = useState<CommitmentPrefill | null>(null);
 
     // Same risk/resilience/pillar pipeline the Scoreboard already computes
     // for its "Financial Health -- By Pillar" card -- reused here only for
@@ -101,7 +105,12 @@ export default function BeforeYouDecideScreen() {
                     <Text style={styles.decisionHelp}>Put a hire, a price change, and a loan side by side instead of checking them one at a time.</Text>
                 </View>
                 <Collapsible title="Compare Decisions">
-                    <DecisionComparisonTable currency={currency} transactions={transactions} currentCashBalance={finance.cashBalance} />
+                    <DecisionComparisonTable
+                        currency={currency}
+                        transactions={transactions}
+                        currentCashBalance={finance.cashBalance}
+                        onTrackDecision={setCommitmentPrefill}
+                    />
                 </Collapsible>
 
                 <View style={styles.decisionCard}>
@@ -197,8 +206,12 @@ export default function BeforeYouDecideScreen() {
                     <Text style={styles.decisionQuestion}>Already committed to something?</Text>
                     <Text style={styles.decisionHelp}>Track whether a past hire, purchase, or investment is actually delivering what you expected — not just what it cost.</Text>
                 </View>
-                <Collapsible title="Investment Decision Tracker">
-                    <CapitalCommitmentTracker currency={currency} />
+                <Collapsible title="Investment Decision Tracker" forceOpen={commitmentPrefill !== null}>
+                    <CapitalCommitmentTracker
+                        currency={currency}
+                        prefill={commitmentPrefill}
+                        onPrefillConsumed={() => setCommitmentPrefill(null)}
+                    />
                 </Collapsible>
             </ScrollView>
             <FooterNav />

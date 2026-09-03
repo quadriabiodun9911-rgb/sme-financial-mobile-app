@@ -14,6 +14,12 @@ interface Props {
     currency: string;
     transactions: Transaction[];
     currentCashBalance: number;
+    // Hands a scenario the owner actually decides to go ahead with straight
+    // into the Capital Commitment Tracker instead of making them retype the
+    // name and amount they just entered here seconds earlier. Optional so
+    // this table still works standalone wherever a caller doesn't have
+    // anywhere to send that handoff.
+    onTrackDecision?: (input: { name: string; purpose: string; amount: number }) => void;
 }
 
 interface DraftScenario {
@@ -43,7 +49,7 @@ const MAX_SCENARIOS = 5;
 // (financialDecisionSimulator.ts, via decisionComparison.ts), just run once
 // per named scenario and laid out side by side so the comparison itself is
 // the point, not a re-derived judgment.
-export default function DecisionComparisonTable({ currency, transactions, currentCashBalance }: Props) {
+export default function DecisionComparisonTable({ currency, transactions, currentCashBalance, onTrackDecision }: Props) {
     const [scenarios, setScenarios] = useState<DraftScenario[]>([emptyDraft(), emptyDraft()]);
 
     const updateScenario = (id: string, patch: Partial<DraftScenario>) => {
@@ -150,6 +156,7 @@ export default function DecisionComparisonTable({ currency, transactions, curren
                             <Text style={[styles.cell, styles.headerCell, styles.numCol]}>Profit</Text>
                             <Text style={[styles.cell, styles.headerCell, styles.badgeCol]}>Risk</Text>
                             <Text style={[styles.cell, styles.headerCell, styles.badgeCol]}>Funding Capacity</Text>
+                            {onTrackDecision && <Text style={[styles.cell, styles.headerCell, styles.trackCol]}></Text>}
                         </View>
                         {rows.map(row => (
                             <View key={row.id} style={styles.tableRow}>
@@ -177,6 +184,21 @@ export default function DecisionComparisonTable({ currency, transactions, curren
                                                 <Text style={[styles.badgeText, { color: CAPACITY_COLOR[row.fundingCapacity] }]}>{row.fundingCapacity}</Text>
                                             </View>
                                         </View>
+                                        {onTrackDecision && (
+                                            <View style={[styles.trackCol, styles.badgeCell]}>
+                                                <TouchableOpacity
+                                                    onPress={() => onTrackDecision({
+                                                        name: row.label,
+                                                        purpose: `Monthly cash impact: ${fmt(row.monthlyCashImpact)}. ${row.assessment}`,
+                                                        amount: Math.abs(row.monthlyCashImpact),
+                                                    })}
+                                                    style={styles.trackBtn}
+                                                >
+                                                    <Icon name="bookmark" size={13} color={Colors.primary} />
+                                                    <Text style={styles.trackBtnText}>Track</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        )}
                                     </>
                                 )}
                             </View>
@@ -221,6 +243,9 @@ const styles = StyleSheet.create({
     numCol: { width: 100, fontWeight: '600' },
     badgeCol: { width: 110, justifyContent: 'center' },
     badgeCell: { paddingVertical: 6, paddingHorizontal: Spacing.sm },
+    trackCol: { width: 84, justifyContent: 'center' },
+    trackBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
+    trackBtnText: { fontSize: 11.5, fontWeight: '700', color: Colors.primary },
     badge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.pill },
     badgeText: { fontSize: 10.5, fontWeight: '700' },
     unavailableCell: { flex: 1, fontStyle: 'italic', color: Colors.textMuted },
