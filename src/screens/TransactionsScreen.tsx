@@ -161,7 +161,7 @@ function formatDateHeader(iso: string): string {
 }
 
 export default function TransactionsScreen() {
-    const { transactions, addTransaction, deleteTransaction, updateTransaction, settings, setCurrentScreen, navParams, invoices, markInvoiceStatus, navigate, language, isDemoMode, userRole } = useApp();
+    const { transactions, addTransaction, deleteTransaction, updateTransaction, settings, setCurrentScreen, navParams, invoices, markInvoiceStatus, language, isDemoMode, userRole } = useApp();
     const canDelete = canDeleteTransactions(userRole);
 
     // Cost Exposure moved here from Inventory & Stock: it's fundamentally
@@ -206,6 +206,11 @@ export default function TransactionsScreen() {
         });
     };
     const [page, setPage]             = useState(1);
+    // Collapsed by default -- Income/Expense/Net was permanently eating
+    // screen height above the actual transaction list, worst on a phone
+    // where there's little room to spare. A tap reveals it; the net figure
+    // stays visible in the collapsed header so it's not fully hidden.
+    const [totalsOpen, setTotalsOpen] = useState(false);
     const PAGE_SIZE = 50;
     const [form, setForm]             = useState<FormState>({ ...EMPTY_FORM, taxRate: defaultTaxRate });
     const [csvModalOpen, setCsvModalOpen] = useState(false);
@@ -527,17 +532,26 @@ export default function TransactionsScreen() {
                 <Text style={styles.countBadge}>{filtered.length}</Text>
             </View>
 
-            {/* ── Totals strip ─────────────────────────────────────────── */}
-            <View style={styles.totalsRow}>
-                <TotalPill label={t(language, 'income')}  value={`+${currency}${totals.income.toLocaleString()}`}  color={Colors.income} />
-                <TotalPill label={t(language, 'expense')} value={`-${currency}${totals.expense.toLocaleString()}`} color={Colors.expense} />
-                <TotalPill
-                    label={t(language, 'net')}
-                    value={`${totals.net >= 0 ? '+' : ''}${currency}${totals.net.toLocaleString()}`}
-                    color={totals.net >= 0 ? Colors.income : Colors.expense}
-                    bold
-                />
-            </View>
+            {/* ── Totals strip — collapsed by default ─────────────────── */}
+            <TouchableOpacity style={styles.totalsSummaryRow} onPress={() => setTotalsOpen(v => !v)} activeOpacity={0.7}>
+                <Text style={styles.totalsSummaryLabel}>{t(language, 'net')}</Text>
+                <Text style={[styles.totalsSummaryValue, { color: totals.net >= 0 ? Colors.income : Colors.expense }]}>
+                    {totals.net >= 0 ? '+' : ''}{currency}{totals.net.toLocaleString()}
+                </Text>
+                <Icon name={totalsOpen ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
+            </TouchableOpacity>
+            {totalsOpen && (
+                <View style={styles.totalsRow}>
+                    <TotalPill label={t(language, 'income')}  value={`+${currency}${totals.income.toLocaleString()}`}  color={Colors.income} />
+                    <TotalPill label={t(language, 'expense')} value={`-${currency}${totals.expense.toLocaleString()}`} color={Colors.expense} />
+                    <TotalPill
+                        label={t(language, 'net')}
+                        value={`${totals.net >= 0 ? '+' : ''}${currency}${totals.net.toLocaleString()}`}
+                        color={totals.net >= 0 ? Colors.income : Colors.expense}
+                        bold
+                    />
+                </View>
+            )}
 
             {/* ── Category breakdown chart ─────────────────────────────── */}
             {filtered.length > 0 && (
@@ -571,16 +585,6 @@ export default function TransactionsScreen() {
                     text={`${overdueCollections.length} payment${overdueCollections.length > 1 ? 's' : ''} overdue — ${currency}${overdueCollections.reduce((s, o) => s + (o.transaction.amount ?? 0), 0).toLocaleString()} to collect`}
                     onPress={() => { setTypeFilter('collect'); setPage(1); }}
                     emphasis="button"
-                />
-            )}
-
-            {/* Daily/weekly/monthly pace already lives on Profit & Loss's
-                Period Comparison table — link there instead of showing the
-                same table twice. */}
-            {typeFilter === 'all' && transactions.length > 0 && (
-                <NextStepLink
-                    text="Compare daily, weekly and monthly performance"
-                    onPress={() => navigate('reports', { reportSection: 'statements', reportTab: 'pnl' })}
                 />
             )}
 
@@ -1238,6 +1242,9 @@ const styles = StyleSheet.create({
     countBadge:   { paddingHorizontal: 10, fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
 
     totalsRow: { flexDirection: 'row', backgroundColor: Colors.surface, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, gap: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    totalsSummaryRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surface, paddingHorizontal: Spacing.md, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    totalsSummaryLabel: { fontSize: 12, fontWeight: '600', color: Colors.textMuted },
+    totalsSummaryValue: { flex: 1, fontSize: 14, fontWeight: '800' },
 
     // Date group
     dateHeader:     { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm, marginTop: Spacing.xs },
