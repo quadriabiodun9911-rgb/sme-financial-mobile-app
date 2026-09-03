@@ -75,6 +75,30 @@ describe('classifyByDescription', () => {
         expect(r.subCategory).toBe('POS Purchase');
     });
 
+    it('recognizes a real capital asset purchase for an ordinary business', () => {
+        const r = classifyByDescription('New office furniture', 'expense');
+        expect(r.subCategory).toBe('Asset Purchase');
+    });
+
+    it('does not force a durable-goods retailer/dealer\'s own inventory restocking into Asset Purchase', () => {
+        // "furniture"/"generator"/"laptop"/"vehicle" describe a one-off
+        // capital purchase for most businesses, but for a furniture store,
+        // generator dealer, or vehicle dealership -- real Retail/Wholesale
+        // businesses -- these same words describe routine inventory
+        // restocking. Registering that as a depreciating fixed Asset would
+        // corrupt the numbers built on top of the Asset Register.
+        const descriptions = ['Furniture purchase - dining sets for resale', 'Generator unit purchase for showroom', 'Laptop purchase for resale'];
+        for (const d of descriptions) {
+            const r = classifyByDescription(d, 'expense', 'retail');
+            expect(r.subCategory).not.toBe('Asset Purchase');
+        }
+    });
+
+    it('still recognizes a real capital asset purchase for a non-retail industry', () => {
+        const r = classifyByDescription('New office furniture', 'expense', 'professional-services');
+        expect(r.subCategory).toBe('Asset Purchase');
+    });
+
     it('never memorizes an "unknown" (Not Sure) correction', () => {
         learnCategory('Totally Ambiguous Row', 'unknown', 'Uncategorized');
         const r = classifyByDescription('Totally Ambiguous Row', 'income');

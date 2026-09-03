@@ -19,7 +19,7 @@ export interface CategoryResult {
     flagged: boolean;
 }
 
-export const CATEGORY_RULES: { keywords: string[]; category: TxCategory; subCategory: string }[] = [
+export const CATEGORY_RULES: { keywords: string[]; category: TxCategory; subCategory: string; excludedIndustries?: string[] }[] = [
     { keywords: ['salary', 'payroll', 'wage', 'staff pay'],                                         category: 'expense',  subCategory: 'Payroll' },
     { keywords: ['rent', 'lease', 'office rent'],                                                   category: 'expense',  subCategory: 'Rent' },
     { keywords: ['diesel', 'fuel', 'petrol', 'gas station'],                                        category: 'expense',  subCategory: 'Fuel & Generator' },
@@ -28,7 +28,21 @@ export const CATEGORY_RULES: { keywords: string[]; category: TxCategory; subCate
     { keywords: ['water', 'lawma', 'waste'],                                                        category: 'expense',  subCategory: 'Utilities' },
     { keywords: ['internet', 'wifi', 'spectranet', 'smile', 'ipnx', 'swift'],                      category: 'expense',  subCategory: 'Internet' },
     { keywords: ['supplier', 'stock', 'inventory', 'goods', 'raw material', 'merchandise'],        category: 'cost',     subCategory: 'Cost of Goods' },
-    { keywords: ['equipment', 'laptop', 'machine', 'vehicle', 'generator', 'furniture', 'asset'],  category: 'asset',    subCategory: 'Asset Purchase' },
+    // For most businesses, buying "furniture"/"equipment"/"a vehicle"/"a
+    // machine"/"a generator" is a one-off capital purchase for the
+    // business's own use -- computeUnregisteredAssetPurchases (finance.ts)
+    // uses this exact category to nudge the owner to register it as a real
+    // Asset, feeding depreciation/current-value/replacement-forecast math.
+    // For a furniture store, generator dealer, electronics/laptop retailer,
+    // or vehicle dealership -- all real Retail/Wholesale businesses (see
+    // LoginScreen's "distributors" hint) -- these same words describe their
+    // ROUTINE INVENTORY restocking, not a capital purchase; nudging them to
+    // register resale stock as a depreciating fixed asset would corrupt
+    // exactly the numbers that comment warns about. Excluded for Retail
+    // only, where a durable-goods dealer buying its own resale stock is
+    // common enough that the rule can't safely assume "asset" by default --
+    // falls through to the honest flagged default instead of guessing.
+    { keywords: ['equipment', 'laptop', 'machine', 'vehicle', 'generator', 'furniture', 'asset'],  category: 'asset',    subCategory: 'Asset Purchase', excludedIndustries: ['retail'] },
     { keywords: ['software', 'license', 'licence', 'subscription', 'saas', 'renewal', 'app store', 'play store'], category: 'expense', subCategory: 'Software & Subscriptions' },
     { keywords: ['advert', 'marketing', 'promotion', 'flyer', 'banner', 'social media', 'google'], category: 'expense',  subCategory: 'Marketing' },
     { keywords: ['transport', 'uber', 'bolt', 'taxi', 'logistics', 'dispatch', 'delivery'],        category: 'expense',  subCategory: 'Transport' },
@@ -112,16 +126,18 @@ function ruleMatchesDirection(category: TxCategory, direction: 'income' | 'expen
     return category === 'income' ? direction === 'income' : direction === 'expense';
 }
 
-export function classifyByDescription(desc: string, direction: 'income' | 'expense'): CategoryResult {
+export function classifyByDescription(desc: string, direction: 'income' | 'expense', industry?: string): CategoryResult {
     const d = normalise(desc);
 
     // Check learned rules first -- a user's own explicit correction is
-    // never gated by direction; they taught the app this exact mapping.
+    // never gated by direction or industry; they taught the app this exact
+    // mapping.
     for (const [pattern, result] of learnedRules.entries()) {
         if (d.includes(pattern)) return { ...result, flagged: false };
     }
 
     for (const rule of CATEGORY_RULES) {
+        if (rule.excludedIndustries && industry && rule.excludedIndustries.includes(industry)) continue;
         if (rule.keywords.some(k => d.includes(k)) && ruleMatchesDirection(rule.category, direction)) {
             return { category: rule.category, subCategory: rule.subCategory, flagged: false };
         }

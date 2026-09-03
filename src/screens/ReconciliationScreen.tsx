@@ -200,7 +200,7 @@ export default function ReconciliationScreen() {
             // regardless of description, so the same real transaction could
             // land in a different category depending on which screen it was
             // imported from.
-            const { subCategory } = classifyByDescription(b.description, txType);
+            const { subCategory } = classifyByDescription(b.description, txType, settings.industry);
             addTransaction({
                 date: b.date,
                 description: b.description,

@@ -164,7 +164,7 @@ function isSummaryRow(desc: string): boolean {
 
 // ─── CSV/Excel parser ─────────────────────────────────────────────────────────
 
-function parseRows(raw: Record<string, string>[]): {
+function parseRows(raw: Record<string, string>[], industry?: string): {
     rows: ParsedRow[]; error?: string; summaryRowsSkipped?: number;
     openingBalance?: number; closingBalance?: number;
 } {
@@ -283,7 +283,7 @@ function parseRows(raw: Record<string, string>[]): {
         // guard) — neither is a real transaction worth importing as noise.
         if (amount <= 0) continue;
         const direction: 'income' | 'expense' = credit > 0 ? 'income' : 'expense';
-        const { category, subCategory, flagged } = classifyByDescription(descRaw, direction);
+        const { category, subCategory, flagged } = classifyByDescription(descRaw, direction, industry);
 
         rows.push({
             id:          `imp_${Date.now()}_${i++}`,
@@ -309,9 +309,9 @@ function parseRows(raw: Record<string, string>[]): {
 // Reuses the same classifyByDescription auto-categoriser the CSV/Excel/PDF
 // path uses, so a scanned receipt lands in the identical review step
 // (flagged rows, category picker, dedup) instead of a separate flow.
-function rowsFromScan(transactions: ScannedTransaction[]): ParsedRow[] {
+function rowsFromScan(transactions: ScannedTransaction[], industry?: string): ParsedRow[] {
     const rows = transactions.map((t, i) => {
-        const { category, subCategory, flagged } = classifyByDescription(t.description, t.direction);
+        const { category, subCategory, flagged } = classifyByDescription(t.description, t.direction, industry);
         return {
             id:          `scan_${Date.now()}_${i}`,
             date:        parseDate(t.date),
@@ -484,7 +484,7 @@ export default function ImportTransactionsScreen() {
                 rawRows = parsed.data;
             }
 
-            const { rows: parsed, error: parseError, summaryRowsSkipped, openingBalance: ob, closingBalance: cb } = parseRows(rawRows);
+            const { rows: parsed, error: parseError, summaryRowsSkipped, openingBalance: ob, closingBalance: cb } = parseRows(rawRows, settings.industry);
             if (parseError) { setError(parseError); return; }
             setRows(parsed);
             setOpeningBalance(ob);
@@ -563,7 +563,7 @@ export default function ImportTransactionsScreen() {
         setScanWarning('');
         try {
             const result = await scanStatementImage(base64, mediaType);
-            const parsed = rowsFromScan(result.transactions);
+            const parsed = rowsFromScan(result.transactions, settings.industry);
             if (parsed.length === 0) {
                 setError(result.warning || 'No transactions could be read from this photo. Try a clearer, well-lit shot.');
                 return;
@@ -579,7 +579,7 @@ export default function ImportTransactionsScreen() {
         } finally {
             setScanning(false);
         }
-    }, []);
+    }, [settings.industry]);
 
     // Native (iOS/Android) — expo-image-picker handles both camera capture
     // and the photo library with one API and returns base64 directly.
