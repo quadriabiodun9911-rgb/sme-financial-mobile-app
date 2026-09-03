@@ -61,6 +61,26 @@ export interface CashPositionSummaryInput {
     payrollDaysLeft?: number | null;
     payrollPeriodLabel?: string | null;
     taxShortfall?: number | null;
+    // Phase 3 -- see 030_proactive_alerts_push_v3.sql. Covers the rest of
+    // notifications.ts's alert vocabulary, so nothing the app can warn
+    // about only ever reaches someone with the app already open.
+    overdueTransactionsCount?: number | null;
+    overdueTransactionsTotal?: number | null;
+    taxDeadlineStatus?: 'overdue' | 'due_soon' | null;
+    taxDeadlineDays?: number | null;
+    taxDeadlineDate?: string | null;
+    goalsMissedCount?: number | null;
+    goalsOffTrackCount?: number | null;
+    recurringOverdueCount?: number | null;
+    recurringDueSoonCount?: number | null;
+    budgetPeriodLapsed?: boolean | null;
+    budgetCurrentPeriod?: string | null;
+    assetsReplacementCount?: number | null;
+    assetsReplacementValue?: number | null;
+    stockoutRiskCount?: number | null;
+    stockoutRiskValue?: number | null;
+    slowMovingStockCount?: number | null;
+    slowMovingStockValue?: number | null;
 }
 
 export async function syncCashPositionSummary(input: CashPositionSummaryInput): Promise<void> {
@@ -84,6 +104,23 @@ export async function syncCashPositionSummary(input: CashPositionSummaryInput): 
                 payroll_days_left: input.payrollDaysLeft ?? null,
                 payroll_period_label: input.payrollPeriodLabel ?? null,
                 tax_shortfall: input.taxShortfall ?? null,
+                overdue_transactions_count: input.overdueTransactionsCount ?? null,
+                overdue_transactions_total: input.overdueTransactionsTotal ?? null,
+                tax_deadline_status: input.taxDeadlineStatus ?? null,
+                tax_deadline_days: input.taxDeadlineDays ?? null,
+                tax_deadline_date: input.taxDeadlineDate ?? null,
+                goals_missed_count: input.goalsMissedCount ?? null,
+                goals_off_track_count: input.goalsOffTrackCount ?? null,
+                recurring_overdue_count: input.recurringOverdueCount ?? null,
+                recurring_due_soon_count: input.recurringDueSoonCount ?? null,
+                budget_period_lapsed: input.budgetPeriodLapsed ?? null,
+                budget_current_period: input.budgetCurrentPeriod ?? null,
+                assets_replacement_count: input.assetsReplacementCount ?? null,
+                assets_replacement_value: input.assetsReplacementValue ?? null,
+                stockout_risk_count: input.stockoutRiskCount ?? null,
+                stockout_risk_value: input.stockoutRiskValue ?? null,
+                slow_moving_stock_count: input.slowMovingStockCount ?? null,
+                slow_moving_stock_value: input.slowMovingStockValue ?? null,
                 updated_at: new Date().toISOString(),
             },
             { onConflict: 'user_id' },

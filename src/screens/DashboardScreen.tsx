@@ -972,15 +972,19 @@ export default function DashboardScreen() {
     // while the app is open. Runs regardless of whether any threshold is
     // currently crossed, so the server always has a fresh picture
     // (including "things got better") rather than only ever hearing about
-    // bad news. Phase 2 (see 029_proactive_alerts_push_v2.sql) folds in the
-    // same overdue-reminders/loan-payment/payroll/tax-shortfall signals
-    // their local-notification counterparts already use just above and in
-    // the effect near taxAbilityToPay below -- one row, one sync, rather
-    // than four separate round-trips.
+    // bad news. Phase 2 (029_proactive_alerts_push_v2.sql) and Phase 3
+    // (030_proactive_alerts_push_v3.sql) fold in every other local
+    // notification signal computed above and below this effect -- one row,
+    // one sync, rather than fourteen separate round-trips. The point isn't
+    // just the highest-stakes cash alerts anymore; it's that nothing the
+    // app can warn about should only ever reach someone with the app
+    // already open.
     useEffect(() => {
         if (isDemoMode) return;
         const top = costExposure.available ? costExposure.topCategory : null;
         const soonestLoan = loansDueSoon[0];
+        const overdueTxTotal = overdueTransactions.reduce((s, t) => s + (t.amount ?? 0), 0);
+        const assetsReplacementTotal = assetsNearingReplacement.reduce((s, a) => s + computeAssetCurrentValue(a), 0);
         syncCashPositionSummary({
             currency: settings?.currency ?? '₦',
             runwayDays,
@@ -994,8 +998,29 @@ export default function DashboardScreen() {
             payrollDaysLeft: payrollStatus.kind === 'due_soon' ? payrollStatus.daysLeftInMonth : null,
             payrollPeriodLabel: payrollStatus.kind === 'overdue' ? payrollStatus.missedPeriod : payrollStatus.kind === 'due_soon' ? payrollStatus.period : null,
             taxShortfall: taxAbilityToPay.canCover ? null : taxAbilityToPay.shortfall,
+            overdueTransactionsCount: overdueTransactions.length > 0 ? overdueTransactions.length : null,
+            overdueTransactionsTotal: overdueTransactions.length > 0 ? overdueTxTotal : null,
+            taxDeadlineStatus: taxDeadlineStatus.kind === 'overdue' || taxDeadlineStatus.kind === 'due_soon' ? taxDeadlineStatus.kind : null,
+            taxDeadlineDays: taxDeadlineStatus.kind === 'overdue' ? taxDeadlineStatus.daysOverdue : taxDeadlineStatus.kind === 'due_soon' ? taxDeadlineStatus.daysUntilDeadline : null,
+            taxDeadlineDate: taxDeadlineStatus.kind === 'overdue' || taxDeadlineStatus.kind === 'due_soon' ? taxDeadlineStatus.deadline : null,
+            goalsMissedCount: goalsMissedCount > 0 ? goalsMissedCount : null,
+            goalsOffTrackCount: goalsOffTrackCount > 0 ? goalsOffTrackCount : null,
+            recurringOverdueCount: overdueRecurringTransactions.length > 0 ? overdueRecurringTransactions.length : null,
+            recurringDueSoonCount: recurringDueSoonCount > 0 ? recurringDueSoonCount : null,
+            budgetPeriodLapsed: budgetPeriodLapsed || null,
+            budgetCurrentPeriod: budgetPeriodLapsed ? currentPeriodString() : null,
+            assetsReplacementCount: assetsNearingReplacement.length > 0 ? assetsNearingReplacement.length : null,
+            assetsReplacementValue: assetsNearingReplacement.length > 0 ? assetsReplacementTotal : null,
+            stockoutRiskCount: stockoutRiskItems.length > 0 ? stockoutRiskItems.length : null,
+            stockoutRiskValue: stockoutRiskItems.length > 0 ? computeInventoryValue(stockoutRiskItems) : null,
+            slowMovingStockCount: slowMovingItems.length > 0 ? slowMovingItems.length : null,
+            slowMovingStockValue: slowMovingItems.length > 0 ? computeInventoryValue(slowMovingItems) : null,
         }).catch(() => {});
-    }, [isDemoMode, runwayDays, settings?.currency, costExposure, remindersDueCount, loansDueSoon, payrollStatus, taxAbilityToPay]);
+    }, [
+        isDemoMode, runwayDays, settings?.currency, costExposure, remindersDueCount, loansDueSoon, payrollStatus, taxAbilityToPay,
+        overdueTransactions, taxDeadlineStatus, goalsMissedCount, goalsOffTrackCount, overdueRecurringTransactions, recurringDueSoonCount,
+        budgetPeriodLapsed, assetsNearingReplacement, stockoutRiskItems, slowMovingItems,
+    ]);
 
     // Last 30 days of cash balance, reconstructed by walking today's real
     // balance (finance.cashBalance) backward through paid transactions in
