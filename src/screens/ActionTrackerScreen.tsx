@@ -13,6 +13,7 @@ import {
   TacticExecution, TacticOutcome,
 } from '../utils/outcomeTrackingEngine';
 import { syncTacticOutcomeSample, loadTacticOutcomeStats, TacticOutcomeStats } from '../utils/tacticOutcomeStats';
+import { mergeShownTacticIds, computeRecommendationConversion } from '../utils/recommendationConversion';
 import NextStepLink from '../components/NextStepLink';
 import { computeCashRunway } from '../utils/cashRunway';
 import { getMonthlyExpenseAverage } from '../utils/finance';
@@ -22,6 +23,7 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 const EXECUTIONS_KEY = 'quad360_tactic_executions_v1';
 const OUTCOMES_KEY = 'quad360_tactic_outcomes_v1';
+const SHOWN_TACTICS_KEY = 'quad360_tactics_shown_v1';
 
 // finance.income/expense/profit are all-time cumulative totals, not a
 // recent-activity figure — comparing them before/after a few-week tactic
@@ -78,6 +80,14 @@ export default function ActionTrackerScreen() {
   const [outcomes, setOutcomes] = useState<TacticOutcome[]>([]);
   const [outcomesLoaded, setOutcomesLoaded] = useState(false);
 
+  // Every distinct tactic id this business has ever had recommended to it,
+  // across every visit -- the "shown" half of the shown-vs-acted-on funnel
+  // computeRecommendationConversion needs (recommendationConversion.ts).
+  // executions/outcomes above only ever contain tactics that WERE acted on;
+  // nothing else in the app remembers what was merely recommended.
+  const [shownTacticIds, setShownTacticIds] = useState<string[]>([]);
+  const [shownTacticIdsLoaded, setShownTacticIdsLoaded] = useState(false);
+
   useEffect(() => {
     AsyncStorage.getItem(EXECUTIONS_KEY)
       .then(raw => { if (raw) setExecutions(JSON.parse(raw)); })
@@ -87,6 +97,10 @@ export default function ActionTrackerScreen() {
       .then(raw => { if (raw) setOutcomes(JSON.parse(raw)); })
       .catch(() => {})
       .finally(() => setOutcomesLoaded(true));
+    AsyncStorage.getItem(SHOWN_TACTICS_KEY)
+      .then(raw => { if (raw) setShownTacticIds(JSON.parse(raw)); })
+      .catch(() => {})
+      .finally(() => setShownTacticIdsLoaded(true));
   }, []);
 
   useEffect(() => {
@@ -98,6 +112,11 @@ export default function ActionTrackerScreen() {
     if (!outcomesLoaded) return;
     AsyncStorage.setItem(OUTCOMES_KEY, JSON.stringify(outcomes)).catch(() => {});
   }, [outcomes, outcomesLoaded]);
+
+  useEffect(() => {
+    if (!shownTacticIdsLoaded) return;
+    AsyncStorage.setItem(SHOWN_TACTICS_KEY, JSON.stringify(shownTacticIds)).catch(() => {});
+  }, [shownTacticIds, shownTacticIdsLoaded]);
 
   const startTracking = (action: ActionTactic) => {
     const today = new Date().toISOString().split('T')[0];
@@ -189,6 +208,18 @@ export default function ActionTrackerScreen() {
     return generateActionPlan(diagnosis, diagnosis.metrics, settings.currency, outcomeHistory, settings.primaryGoal);
   }, [diagnosis, settings.currency, outcomeHistory, settings.primaryGoal]);
 
+  // Records that this render's recommended tactics were actually shown --
+  // the only place in the app a tactic id is ever seen before (or without)
+  // being acted on, so this is the only place the "shown" set can be built.
+  useEffect(() => {
+    if (!shownTacticIdsLoaded) return;
+    const allTactics = [...actionPlan.immediateActions, ...actionPlan.shortTermActions, ...actionPlan.strategicActions];
+    setShownTacticIds(prev => {
+      const merged = mergeShownTacticIds(prev, allTactics);
+      return merged.length === prev.length ? prev : merged;
+    });
+  }, [actionPlan, shownTacticIdsLoaded]);
+
   // Land on whichever tab actually has actions instead of always defaulting
   // to "Immediate" — a warning-but-not-critical account often has zero
   // immediate/crisis actions, so the default view was an empty page even
@@ -223,6 +254,7 @@ export default function ActionTrackerScreen() {
   const executionList = Object.values(executions);
   const inProgressCount = executionList.filter(e => e.status === 'in-progress').length;
   const completedCount = executionList.filter(e => e.status === 'completed').length;
+  const conversion = computeRecommendationConversion(shownTacticIds, executionList, outcomes);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -263,6 +295,26 @@ export default function ActionTrackerScreen() {
             </View>
           )}
         </View>
+
+        {/* Did surfacing a recommendation actually change what the owner
+            did -- the product's own success metric (see
+            recommendationConversion.ts), distinct from the Track Record
+            card below (which only covers tactics that WERE started).
+            Shown once at least one recommendation has ever been
+            surfaced -- i.e. essentially always once this screen has
+            rendered once, but never before that. */}
+        {conversion.shown > 0 && (
+          <View style={styles.trackRecordCard}>
+            <View style={[styles.titleRow, { marginBottom: 3 }]}>
+              <Icon name="zap" size={15} color={Colors.textPrimary} />
+              <Text style={styles.trackRecordTitle}>Does This Actually Change What You Do?</Text>
+            </View>
+            <Text style={styles.trackRecordSub}>
+              You've acted on {conversion.actedOn} of {conversion.shown} recommendation{conversion.shown === 1 ? '' : 's'} we've surfaced
+              {conversion.conversionRate !== null ? ` (${Math.round(conversion.conversionRate * 100)}%)` : ''}.
+            </Text>
+          </View>
+        )}
 
         {/* Track Record — what's actually worked for this business before,
             not just what's planned. Empty until at least one tactic has
