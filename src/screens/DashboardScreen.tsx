@@ -791,8 +791,8 @@ export default function DashboardScreen() {
         });
     }, []);
     const personalSpending = useMemo(
-        () => detectPersonalSpending(transactions, settings?.currency ?? '₦', dismissedPersonalIds),
-        [transactions, settings?.currency, dismissedPersonalIds]
+        () => detectPersonalSpending(transactions, settings?.currency ?? '₦', dismissedPersonalIds, settings?.industry),
+        [transactions, settings?.currency, dismissedPersonalIds, settings?.industry]
     );
 
     const openFab = (type: 'income' | 'expense' = 'income') => {

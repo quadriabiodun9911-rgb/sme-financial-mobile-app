@@ -226,8 +226,8 @@ export default function TransactionsScreen() {
     );
 
     const personalReport = useMemo(
-        () => detectPersonalSpending(transactions, currency, dismissedPersonalIds),
-        [transactions, currency, dismissedPersonalIds]
+        () => detectPersonalSpending(transactions, currency, dismissedPersonalIds, settings?.industry),
+        [transactions, currency, dismissedPersonalIds, settings?.industry]
     );
     const personalFlagIds = useMemo(
         () => new Map(personalReport.flagged.map(f => [f.transactionId, f.reason])),

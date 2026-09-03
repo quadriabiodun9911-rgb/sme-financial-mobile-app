@@ -39,12 +39,23 @@ export interface PersonalSpendingReport {
     summary: string;
 }
 
+// The "nightlife" rule is kept separate from PERSONAL_RULES below --
+// "lounge"/"nightclub"/"bar tab" catches a genuine personal outing for
+// most businesses, but for a bar, lounge, or nightclub itself (which
+// registers under the 'food-service' industry -- see SettingsScreen's
+// INDUSTRIES list), those exact words describe the business's own normal
+// operations ("Lounge furniture restock", "Nightclub sound equipment").
+// Applying it there would flag the business for being itself. Excluded
+// only for food-service; every other industry keeps this rule exactly as
+// before, since the same wording genuinely would be anomalous for a
+// retailer, manufacturer, or professional-services firm.
+const NIGHTLIFE_RULE = { keywords: ['nightclub', 'night club', 'lounge', 'bar tab', 'club vip'], reason: 'Looks like personal nightlife spending' };
+
 const PERSONAL_RULES: { keywords: string[]; reason: string }[] = [
     { keywords: ['school fees', 'school fee', 'tuition'], reason: 'Looks like a school-fees payment' },
     { keywords: ['family support', 'family upkeep', 'send family', 'family expense', 'family feeding'], reason: 'Looks like a family expense' },
     { keywords: ['salon', 'spa', 'barbing', 'barber', 'hairdresser', 'manicure', 'pedicure'], reason: 'Looks like personal grooming' },
     { keywords: ['netflix', 'spotify', 'dstv', 'gotv', 'showmax', 'amazon prime', 'apple music'], reason: 'Looks like a personal entertainment subscription' },
-    { keywords: ['nightclub', 'night club', 'lounge', 'bar tab', 'club vip'], reason: 'Looks like personal nightlife spending' },
     { keywords: ['owambe', 'birthday party', 'wedding contribution', 'aso ebi', 'wedding gift'], reason: 'Looks like a personal social/celebration expense' },
     { keywords: ['gym membership', 'fitness club'], reason: 'Looks like a personal gym/fitness expense' },
     { keywords: ['personal shopping', 'personal purchase'], reason: 'Looks like personal shopping' },
@@ -60,16 +71,20 @@ function normalise(s: string): string {
  * @param dismissedIds transaction ids the owner has already reviewed and
  * confirmed are real business spending -- excluded from the report so a
  * false positive doesn't keep nagging every time the list re-renders.
+ * @param industry settings.industry -- gates out the nightlife rule for a
+ * food-service business (see NIGHTLIFE_RULE's own comment). Every other
+ * industry, and the unset/undefined default, keeps that rule active.
  */
-export function detectPersonalSpending(transactions: Transaction[], currency: string = '₦', dismissedIds: string[] = []): PersonalSpendingReport {
+export function detectPersonalSpending(transactions: Transaction[], currency: string = '₦', dismissedIds: string[] = [], industry?: string): PersonalSpendingReport {
     const dismissed = new Set(dismissedIds);
     const flagged: PersonalSpendingFlag[] = [];
     let estimatedPersonalAmount = 0;
+    const rules = industry === 'food-service' ? PERSONAL_RULES : [...PERSONAL_RULES, NIGHTLIFE_RULE];
 
     for (const t of transactions) {
         if (t.type !== 'expense' || dismissed.has(t.id)) continue;
         const d = normalise(t.description);
-        const rule = PERSONAL_RULES.find(r => r.keywords.some(k => d.includes(k)));
+        const rule = rules.find(r => r.keywords.some(k => d.includes(k)));
         if (rule) {
             flagged.push({ transactionId: t.id, reason: rule.reason });
             estimatedPersonalAmount += t.amount ?? 0;

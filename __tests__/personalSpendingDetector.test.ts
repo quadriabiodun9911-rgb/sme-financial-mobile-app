@@ -69,4 +69,32 @@ describe('detectPersonalSpending', () => {
         const report = detectPersonalSpending(txs, '₦', ['a']);
         expect(report.flaggedCount).toBe(0);
     });
+
+    it('flags nightlife-sounding spending by default (no industry given)', () => {
+        const txs = [makeTx({ id: 'a', description: 'Paid at Loft Nightclub', amount: 40000 })];
+        const report = detectPersonalSpending(txs, '₦', [], undefined);
+        expect(report.flaggedCount).toBe(1);
+    });
+
+    it('flags nightlife-sounding spending for a non-food-service industry', () => {
+        const txs = [makeTx({ id: 'a', description: 'New lounge furniture', amount: 200000 })];
+        const report = detectPersonalSpending(txs, '₦', [], 'retail');
+        expect(report.flaggedCount).toBe(1);
+    });
+
+    it('does not flag a food-service business\'s own lounge/nightclub/bar operating expenses', () => {
+        const txs = [
+            makeTx({ id: 'a', description: 'Lounge furniture restock', amount: 200000 }),
+            makeTx({ id: 'b', description: 'Nightclub sound equipment repair', amount: 80000 }),
+            makeTx({ id: 'c', description: 'Bar tab reconciliation software', amount: 15000 }),
+        ];
+        const report = detectPersonalSpending(txs, '₦', [], 'food-service');
+        expect(report.flaggedCount).toBe(0);
+    });
+
+    it('still flags genuinely unrelated personal spending for a food-service business', () => {
+        const txs = [makeTx({ id: 'a', description: 'School fees for the kids', amount: 150000 })];
+        const report = detectPersonalSpending(txs, '₦', [], 'food-service');
+        expect(report.flaggedCount).toBe(1);
+    });
 });
