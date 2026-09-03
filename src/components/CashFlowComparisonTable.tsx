@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Transaction } from '../types';
-import { computeCashFlowTrend, CashFlowPeriodGrouping } from '../utils/cashFlowTrend';
+import { computeCashFlowTrend, CashFlowPeriodGrouping, CashFlowTrendPoint } from '../utils/cashFlowTrend';
 import { isoWeekKey } from '../utils/trendAnalysis';
 import { StatementCard } from './FormalStatement';
+import PeriodTrendTable, { PeriodTrendRow } from './PeriodTrendTable';
 
 interface Props {
     businessName: string;
@@ -36,6 +37,7 @@ export default function CashFlowComparisonTable({ businessName, transactions, cu
     }, [grouping]);
 
     const fmt = (n: number) => `${n < 0 ? '-' : ''}${currency}${Math.round(Math.abs(n)).toLocaleString()}`;
+    const pointByKey = useMemo(() => new Map(points.map(p => [p.key, p] as [string, CashFlowTrendPoint])), [points]);
 
     if (points.length === 0) {
         return (
@@ -46,6 +48,25 @@ export default function CashFlowComparisonTable({ businessName, transactions, cu
     }
 
     const hasPartial = points.some(p => p.key === currentKey);
+    const columns = points.map(p => ({ key: p.key, label: `${p.label}${p.key === currentKey ? ' *' : ''}` }));
+
+    const rows: PeriodTrendRow[] = [
+        { key: 'cashIn', label: 'Cash Receipts', getValue: k => fmt(pointByKey.get(k)!.cashIn), getColor: () => Colors.income },
+        { key: 'cashOut', label: 'Cash Disbursements', getValue: k => fmt(pointByKey.get(k)!.cashOut), getColor: () => Colors.expense },
+        // Same three activities the formal Statement of Cash Flows breaks
+        // out (Operating/Investing/Financing), so this trend answers not
+        // just "how much went out" but "was it running the business,
+        // buying equipment, or paying down debt" -- indented under
+        // Disbursements since they sum to it.
+        { key: 'operatingOut', label: 'Operating', indent: true, muted: true, getValue: k => fmt(pointByKey.get(k)!.operatingOut) },
+        { key: 'investingOut', label: 'Investing', indent: true, muted: true, getValue: k => fmt(pointByKey.get(k)!.investingOut) },
+        { key: 'financingOut', label: 'Financing', indent: true, muted: true, getValue: k => fmt(pointByKey.get(k)!.financingOut) },
+        {
+            key: 'netCashFlow', label: 'Net Cash Flow', bold: true, doubleTopBorder: true, noBottomBorder: true,
+            getValue: k => fmt(pointByKey.get(k)!.netCashFlow),
+            getColor: k => pointByKey.get(k)!.netCashFlow >= 0 ? Colors.income : Colors.expense,
+        },
+    ];
 
     return (
         <StatementCard
@@ -61,64 +82,8 @@ export default function CashFlowComparisonTable({ businessName, transactions, cu
                 ))}
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-                <View>
-                    <View style={s.headerRow}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabelHeader}>Breakdown</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}><Text style={s.colHeader}>{p.label}{p.key === currentKey ? ' *' : ''}</Text></View>
-                        ))}
-                    </View>
+            <PeriodTrendTable columns={columns} rows={rows} labelColumnWidth={120} columnWidth={98} scrollDep={grouping} />
 
-                    <View style={s.row}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Cash Receipts</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}><Text style={[s.val, { color: Colors.income }]}>{fmt(p.cashIn)}</Text></View>
-                        ))}
-                    </View>
-
-                    <View style={s.row}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Cash Disbursements</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}><Text style={[s.val, { color: Colors.expense }]}>{fmt(p.cashOut)}</Text></View>
-                        ))}
-                    </View>
-
-                    {/* Same three activities the formal Statement of Cash
-                        Flows breaks out (Operating/Investing/Financing), so
-                        this trend answers not just "how much went out" but
-                        "was it running the business, buying equipment, or
-                        paying down debt" -- indented under Disbursements
-                        since they sum to it. */}
-                    <View style={s.row}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelIndent]}>Operating</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}><Text style={s.valMuted}>{fmt(p.operatingOut)}</Text></View>
-                        ))}
-                    </View>
-                    <View style={s.row}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelIndent]}>Investing</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}><Text style={s.valMuted}>{fmt(p.investingOut)}</Text></View>
-                        ))}
-                    </View>
-                    <View style={s.row}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelIndent]}>Financing</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}><Text style={s.valMuted}>{fmt(p.financingOut)}</Text></View>
-                        ))}
-                    </View>
-
-                    <View style={[s.row, s.totalRow, { borderBottomWidth: 0 }]}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelBold]}>Net Cash Flow</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}>
-                                <Text style={[s.val, s.valBold, { color: p.netCashFlow >= 0 ? Colors.income : Colors.expense }]}>{fmt(p.netCashFlow)}</Text>
-                            </View>
-                        ))}
-                    </View>
-                </View>
-            </ScrollView>
             <Text style={s.hint}>Only money that actually moved (paid transactions), summed within each {PERIOD_NOUN[grouping]} — not a running balance, and not the same as Revenue/Expenses on Profit &amp; Loss, which counts unpaid transactions too.</Text>
             {hasPartial && (
                 <Text style={s.hint}>* still in progress — not a full {PERIOD_NOUN[grouping]} yet, so it's not a fair comparison against earlier columns.</Text>
@@ -133,20 +98,6 @@ const s = StyleSheet.create({
     toggleBtnActive: { backgroundColor: Colors.primary },
     toggleText: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted },
     toggleTextActive: { color: '#fff' },
-
-    headerRow: { flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: Colors.textPrimary },
-    row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border },
-    totalRow: { borderTopWidth: 2, borderTopColor: Colors.textPrimary, marginTop: 2 },
-    cell: { width: 98, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'flex-end', justifyContent: 'center' },
-    rowLabelCell: { width: 120, alignItems: 'flex-start' },
-    rowLabelHeader: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
-    rowLabel: { fontSize: 12.5, color: Colors.textSecondary },
-    rowLabelBold: { fontWeight: '700', color: Colors.textPrimary },
-    rowLabelIndent: { fontSize: 11.5, color: Colors.textMuted, fontStyle: 'italic', paddingLeft: 10 },
-    colHeader: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', textAlign: 'right' },
-    val: { fontSize: 12.5, color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
-    valBold: { fontWeight: '700' },
-    valMuted: { fontSize: 11.5, color: Colors.textMuted, fontVariant: ['tabular-nums'], fontStyle: 'italic' },
 
     empty: { backgroundColor: Colors.surface, borderRadius: 14, padding: 20 },
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' },

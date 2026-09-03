@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Transaction } from '../types';
-import { computeTaxTrend, TaxPeriodGrouping } from '../utils/taxTrend';
+import { computeTaxTrend, TaxPeriodGrouping, TaxTrendPoint } from '../utils/taxTrend';
+import PeriodTrendTable, { PeriodTrendRow } from './PeriodTrendTable';
 
 interface Props {
     transactions: Transaction[];
@@ -27,6 +28,7 @@ export default function TaxComparisonTable({ transactions, currency }: Props) {
     }, [grouping]);
 
     const fmt = (n: number) => `${n < 0 ? '-' : ''}${currency}${Math.round(Math.abs(n)).toLocaleString()}`;
+    const pointByKey = useMemo(() => new Map(points.map(p => [p.key, p] as [string, TaxTrendPoint])), [points]);
 
     if (points.length === 0) {
         return (
@@ -37,6 +39,16 @@ export default function TaxComparisonTable({ transactions, currency }: Props) {
     }
 
     const hasPartial = points.some(p => p.key === currentKey);
+    const columns = points.map(p => ({ key: p.key, label: `${p.label}${p.key === currentKey ? ' *' : ''}` }));
+    const rows: PeriodTrendRow[] = [
+        { key: 'taxCollected', label: 'Tax Collected', getValue: k => fmt(pointByKey.get(k)!.taxCollected), getColor: () => Colors.income },
+        { key: 'taxPaid', label: 'Tax Paid', getValue: k => fmt(pointByKey.get(k)!.taxPaid), getColor: () => Colors.expense },
+        {
+            key: 'netTaxPosition', label: 'Net Tax Position', bold: true, noBottomBorder: true,
+            getValue: k => fmt(pointByKey.get(k)!.netTaxPosition),
+            getColor: k => pointByKey.get(k)!.netTaxPosition >= 0 ? Colors.income : Colors.expense,
+        },
+    ];
 
     return (
         <View style={s.card}>
@@ -49,39 +61,8 @@ export default function TaxComparisonTable({ transactions, currency }: Props) {
                 ))}
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-                <View>
-                    <View style={s.row}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabelHeader}>Breakdown</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}><Text style={s.colHeader}>{p.label}{p.key === currentKey ? ' *' : ''}</Text></View>
-                        ))}
-                    </View>
+            <PeriodTrendTable columns={columns} rows={rows} labelColumnWidth={140} columnWidth={98} scrollDep={grouping} />
 
-                    <View style={s.row}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Tax Collected</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}><Text style={[s.val, { color: Colors.income }]}>{fmt(p.taxCollected)}</Text></View>
-                        ))}
-                    </View>
-
-                    <View style={s.row}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Tax Paid</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}><Text style={[s.val, { color: Colors.expense }]}>{fmt(p.taxPaid)}</Text></View>
-                        ))}
-                    </View>
-
-                    <View style={[s.row, { borderBottomWidth: 0 }]}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelBold]}>Net Tax Position</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}>
-                                <Text style={[s.val, s.valBold, { color: p.netTaxPosition >= 0 ? Colors.income : Colors.expense }]}>{fmt(p.netTaxPosition)}</Text>
-                            </View>
-                        ))}
-                    </View>
-                </View>
-            </ScrollView>
             <Text style={s.hint}>Tax charged/paid on transactions dated within each {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'}.</Text>
             {hasPartial && (
                 <Text style={s.hint}>* still in progress — not a full {grouping === 'monthly' ? 'month' : grouping === 'quarterly' ? 'quarter' : 'year'} yet, so it's not a fair comparison against earlier columns.</Text>
@@ -98,16 +79,6 @@ const s = StyleSheet.create({
     toggleBtnActive: { backgroundColor: Colors.primary },
     toggleText: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted },
     toggleTextActive: { color: '#fff' },
-
-    row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border },
-    cell: { width: 98, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'flex-end', justifyContent: 'center' },
-    rowLabelCell: { width: 140, alignItems: 'flex-start' },
-    rowLabelHeader: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
-    rowLabel: { fontSize: 12.5, color: Colors.textSecondary },
-    rowLabelBold: { fontWeight: '700', color: Colors.textPrimary },
-    colHeader: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', textAlign: 'right' },
-    val: { fontSize: 12.5, color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
-    valBold: { fontWeight: '700' },
 
     empty: { backgroundColor: Colors.surface, borderRadius: 14, padding: 20 },
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' },

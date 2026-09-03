@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Transaction, Asset, Loan } from '../types';
 import { computeAllTimeMonthlyBuckets, isoWeekKey } from '../utils/trendAnalysis';
 import { computeBalanceSheetTrend, BalancePeriodGrouping, BalanceSheetTrendPoint, ManualBalances } from '../utils/balanceSheetTrend';
 import { StatementCard } from './FormalStatement';
+import PeriodTrendTable, { PeriodTrendRow } from './PeriodTrendTable';
 
 interface Props {
     businessName: string;
@@ -73,22 +74,6 @@ const LIABILITY_ROWS: GroupRow = {
 
 const GROUPS = [ASSET_ROWS, LIABILITY_ROWS];
 
-// Every row this table can render, flattened once so the frozen label
-// column and the scrolling value columns iterate the exact same list --
-// guarantees the two stay in lockstep (same order, same count) rather than
-// risking two independently-written render loops drifting apart.
-type FlatRow =
-    | { kind: 'group'; group: GroupRow; isOpen: boolean }
-    | { kind: 'child'; child: LeafRow }
-    | { kind: 'total' }
-    | { kind: 'workingCapital' };
-
-function flatRowKey(row: FlatRow): string {
-    if (row.kind === 'group') return row.group.key;
-    if (row.kind === 'child') return row.child.label;
-    return row.kind;
-}
-
 // Every row here is something we can honestly reconstruct for a past date —
 // see balanceSheetTrend.ts for exactly what each figure means and its
 // limits. Stock/inventory value is the one line left out entirely: this app
@@ -98,10 +83,13 @@ function flatRowKey(row: FlatRow): string {
 // Styled as a formal statement (StatementCard header + ruled ledger rows)
 // rather than a generic app card, so it reads as the same kind of document
 // as the Balance Sheet above it, just spread across periods instead of one.
+// The table itself is PeriodTrendTable (frozen label column + auto-scroll
+// to the most recent period) -- this component's only job is turning the
+// asset/liability group tree + expand state into that shared shell's flat
+// rows list, never a second table-layout implementation.
 export default function BalanceSheetComparisonTable({ businessName, transactions, assets, loans, currency, manualBalances }: Props) {
     const [grouping, setGrouping] = useState<BalancePeriodGrouping>('monthly');
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
-    const scrollRef = useRef<ScrollView>(null);
 
     const monthly = useMemo(() => computeAllTimeMonthlyBuckets(transactions), [transactions]);
     const monthKeys = useMemo(() => monthly.map(m => m.month), [monthly]);
@@ -145,67 +133,58 @@ export default function BalanceSheetComparisonTable({ businessName, transactions
 
     const expandAll = () => setExpanded(allExpanded ? new Set() : new Set(GROUPS.map(g => g.key)));
 
-    const flatRows = useMemo<FlatRow[]>(() => {
-        const rows: FlatRow[] = [];
+    const pointByKey = useMemo(() => new Map(points.map(p => [p.key, p])), [points]);
+
+    const trendRows = useMemo<PeriodTrendRow[]>(() => {
+        const rows: PeriodTrendRow[] = [];
         for (const group of GROUPS) {
             const isOpen = expanded.has(group.key);
-            rows.push({ kind: 'group', group, isOpen });
+            rows.push({
+                key: group.key,
+                label: `${isOpen ? '⌄' : '›'} ${group.label}`,
+                bold: true,
+                onPress: () => toggleGroup(group.key),
+                getValue: (colKey) => fmt(group.get(pointByKey.get(colKey)!)),
+                getColor: (colKey) => group.color(pointByKey.get(colKey)!),
+            });
             if (isOpen) {
                 const visibleChildren = group.children.filter(c => !c.showOnlyIfNonZero || points.some(p => c.get(p) !== 0));
-                for (const child of visibleChildren) rows.push({ kind: 'child', child });
+                for (const child of visibleChildren) {
+                    rows.push({
+                        key: child.label,
+                        label: child.label,
+                        indent: true,
+                        bold: !!child.bold,
+                        topBorder: !!child.bold,
+                        getValue: (colKey) => fmt(child.get(pointByKey.get(colKey)!)),
+                        getColor: (colKey) => child.color(pointByKey.get(colKey)!),
+                    });
+                }
             }
         }
-        rows.push({ kind: 'total' });
-        rows.push({ kind: 'workingCapital' });
-        return rows;
-    }, [expanded, points]);
-
-    const describeRow = (row: FlatRow) => {
-        if (row.kind === 'group') {
-            return {
-                label: `${row.isOpen ? '⌄' : '›'} ${row.group.label}`,
-                indent: false, bold: true, muted: false,
-                get: row.group.get, color: row.group.color,
-                onPress: () => toggleGroup(row.group.key),
-                rowStyle: [s.row] as any[],
-            };
-        }
-        if (row.kind === 'child') {
-            return {
-                label: row.child.label,
-                indent: true, bold: !!row.child.bold, muted: false,
-                get: row.child.get, color: row.child.color,
-                onPress: undefined as (() => void) | undefined,
-                rowStyle: [s.row, row.child.bold && s.subtotalRow] as any[],
-            };
-        }
-        if (row.kind === 'total') {
-            return {
-                label: "Owners' Equity (Net Worth)",
-                indent: false, bold: true, muted: false,
-                get: (p: BalanceSheetTrendPoint) => p.netWorth,
-                color: (p: BalanceSheetTrendPoint) => p.netWorth >= 0 ? Colors.income : Colors.expense,
-                onPress: undefined as (() => void) | undefined,
-                rowStyle: [s.row, s.totalRow] as any[],
-            };
-        }
-        return {
+        rows.push({
+            key: 'total',
+            label: "Owners' Equity (Net Worth)",
+            bold: true,
+            doubleTopBorder: true,
+            getValue: (colKey) => fmt(pointByKey.get(colKey)!.netWorth),
+            getColor: (colKey) => pointByKey.get(colKey)!.netWorth >= 0 ? Colors.income : Colors.expense,
+        });
+        rows.push({
+            key: 'workingCapital',
             label: 'Working Capital',
-            indent: false, bold: false, muted: true,
-            get: (p: BalanceSheetTrendPoint) => p.cashBuffer,
-            color: (p: BalanceSheetTrendPoint) => p.cashBuffer >= 0 ? Colors.income : Colors.expense,
-            onPress: undefined as (() => void) | undefined,
-            rowStyle: [s.row, { borderBottomWidth: 0 }] as any[],
-        };
-    };
+            muted: true,
+            noBottomBorder: true,
+            getValue: (colKey) => fmt(pointByKey.get(colKey)!.cashBuffer),
+            getColor: (colKey) => pointByKey.get(colKey)!.cashBuffer >= 0 ? Colors.income : Colors.expense,
+        });
+        return rows;
+    }, [expanded, points, pointByKey, currency]);
 
-    // Opens already scrolled to the most recent period -- points run oldest
-    // to newest left-to-right, so without this the owner has to manually
-    // scroll all the way across every older column just to see where they
-    // stand today.
-    useEffect(() => {
-        scrollRef.current?.scrollToEnd({ animated: false });
-    }, [grouping, points.length]);
+    const columns = useMemo(
+        () => points.map(p => ({ key: p.key, label: `${p.label}${p.key === currentKey ? ' *' : ''}` })),
+        [points, currentKey]
+    );
 
     return (
         <StatementCard
@@ -226,65 +205,8 @@ export default function BalanceSheetComparisonTable({ businessName, transactions
                 </TouchableOpacity>
             </View>
 
-            <View style={s.tableWrap}>
-                {/* Frozen label column -- stays in place while the periods
-                    scroll horizontally beneath it, so the row you're
-                    reading never scrolls out of view. Rendered from the
-                    same flatRows list as the scrolling side below, in the
-                    same order, with matching row heights (numberOfLines={1}
-                    on the label keeps a long name from wrapping and
-                    throwing the two sides out of alignment). */}
-                <View>
-                    <View style={[s.cell, s.rowLabelCell, s.headerRow]}><Text style={s.rowLabelHeader}>Breakdown</Text></View>
-                    {flatRows.map(row => {
-                        const d = describeRow(row);
-                        const content = (
-                            <View style={[d.rowStyle, s.cell, s.rowLabelCell, d.indent && s.rowLabelIndent]}>
-                                <Text
-                                    style={[s.rowLabel, d.bold && s.rowLabelBold, d.muted && s.rowLabelMuted]}
-                                    numberOfLines={1}
-                                >
-                                    {d.label}
-                                </Text>
-                            </View>
-                        );
-                        return d.onPress ? (
-                            <TouchableOpacity key={flatRowKey(row)} onPress={d.onPress} activeOpacity={0.6}>{content}</TouchableOpacity>
-                        ) : (
-                            <View key={flatRowKey(row)}>{content}</View>
-                        );
-                    })}
-                </View>
+            <PeriodTrendTable columns={columns} rows={trendRows} labelColumnWidth={210} scrollDep={grouping} />
 
-                <ScrollView ref={scrollRef} horizontal showsHorizontalScrollIndicator={true} style={s.scrollArea}>
-                    <View>
-                        <View style={s.headerRow}>
-                            {points.map(p => (
-                                <View key={p.key} style={s.cell}><Text style={s.colHeader}>{p.label}{p.key === currentKey ? ' *' : ''}</Text></View>
-                            ))}
-                        </View>
-                        {flatRows.map(row => {
-                            const d = describeRow(row);
-                            const content = (
-                                <View style={d.rowStyle}>
-                                    {points.map(p => (
-                                        <View key={p.key} style={s.cell}>
-                                            <Text style={[s.val, d.bold && s.valBold, d.muted && s.valMuted, { color: d.color(p) }]}>
-                                                {fmt(d.get(p))}
-                                            </Text>
-                                        </View>
-                                    ))}
-                                </View>
-                            );
-                            return d.onPress ? (
-                                <TouchableOpacity key={flatRowKey(row)} onPress={d.onPress} activeOpacity={0.6}>{content}</TouchableOpacity>
-                            ) : (
-                                <View key={flatRowKey(row)}>{content}</View>
-                            );
-                        })}
-                    </View>
-                </ScrollView>
-            </View>
             <Text style={s.hint}>As of the end of each {PERIOD_NOUN[grouping]}. Tap a bold row to expand it.</Text>
             <Text style={s.hint}>Accounts Receivable / Accounts Payable only count what's still unpaid today, so older columns can understate what was actually owed at the time.</Text>
             <Text style={s.hint}>Inventory value and manually-entered figures have no date attached, so they show today's total repeated in every column, not a real trend.</Text>
@@ -304,24 +226,6 @@ const s = StyleSheet.create({
     toggleBtnActive: { backgroundColor: Colors.primary },
     toggleText: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted },
     toggleTextActive: { color: '#fff' },
-
-    tableWrap: { flexDirection: 'row' },
-    scrollArea: { flex: 1 },
-    headerRow: { flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: Colors.textPrimary },
-    row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border },
-    subtotalRow: { borderTopWidth: 1, borderTopColor: Colors.border },
-    totalRow: { borderTopWidth: 2, borderTopColor: Colors.textPrimary, marginTop: 2 },
-    cell: { width: 112, paddingVertical: 9, paddingHorizontal: 6, alignItems: 'flex-end', justifyContent: 'center' },
-    rowLabelCell: { width: 210, alignItems: 'flex-start' },
-    rowLabelIndent: { paddingLeft: 16 },
-    rowLabelHeader: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
-    rowLabel: { fontSize: 12.5, color: Colors.textSecondary },
-    rowLabelBold: { fontWeight: '700', color: Colors.textPrimary },
-    rowLabelMuted: { color: Colors.textMuted, fontStyle: 'italic', fontSize: 11.5 },
-    colHeader: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', textAlign: 'right' },
-    val: { fontSize: 12.5, color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
-    valBold: { fontWeight: '700' },
-    valMuted: { color: Colors.textMuted, fontStyle: 'italic', fontSize: 11.5 },
 
     empty: { backgroundColor: Colors.surface, borderRadius: 14, padding: 20 },
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' },

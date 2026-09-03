@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Transaction } from '../types';
-import { computeInventorySalesTrend, InventorySalesGrouping } from '../utils/inventorySalesTrend';
+import { computeInventorySalesTrend, InventorySalesGrouping, InventorySalesTrendPoint } from '../utils/inventorySalesTrend';
 import { isoWeekKey } from '../utils/trendAnalysis';
 import { StatementCard } from './FormalStatement';
+import PeriodTrendTable, { PeriodTrendRow } from './PeriodTrendTable';
 
 interface Props {
     businessName: string;
@@ -40,6 +41,7 @@ export default function StockSalesComparisonTable({ businessName, transactions, 
     }, [grouping]);
 
     const fmt = (n: number) => `${n < 0 ? '-' : ''}${currency}${Math.round(Math.abs(n)).toLocaleString()}`;
+    const pointByKey = useMemo(() => new Map(points.map(p => [p.key, p] as [string, InventorySalesTrendPoint])), [points]);
 
     const hasAnyStockSales = points.some(p => p.stockSold > 0);
 
@@ -52,6 +54,18 @@ export default function StockSalesComparisonTable({ businessName, transactions, 
     }
 
     const hasPartial = points.some(p => p.key === currentKey);
+    const columns = points.map(p => ({ key: p.key, label: `${p.label}${p.key === currentKey ? ' *' : ''}` }));
+    const rows: PeriodTrendRow[] = [
+        { key: 'stockSold', label: 'Inventory Sold', getValue: k => fmt(pointByKey.get(k)!.stockSold), getColor: () => Colors.income },
+        { key: 'cogs', label: 'Cost of Goods Sold', getValue: k => fmt(pointByKey.get(k)!.costOfGoodsSold), getColor: () => Colors.expense },
+        {
+            key: 'grossProfit', label: 'Gross Profit', bold: true, topBorder: true,
+            getValue: k => fmt(pointByKey.get(k)!.grossProfit),
+            getColor: k => pointByKey.get(k)!.grossProfit >= 0 ? Colors.income : Colors.expense,
+        },
+        { key: 'grossMargin', label: 'Gross Margin', muted: true, getValue: k => `${pointByKey.get(k)!.grossMarginPct.toFixed(0)}%` },
+        { key: 'pctOfRevenue', label: '% of Total Revenue', muted: true, noBottomBorder: true, getValue: k => `${pointByKey.get(k)!.pctOfRevenue.toFixed(0)}%` },
+    ];
 
     return (
         <StatementCard
@@ -73,53 +87,8 @@ export default function StockSalesComparisonTable({ businessName, transactions, 
                 </Text>
             )}
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-                <View>
-                    <View style={s.headerRow}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabelHeader}>Breakdown</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}><Text style={s.colHeader}>{p.label}{p.key === currentKey ? ' *' : ''}</Text></View>
-                        ))}
-                    </View>
+            <PeriodTrendTable columns={columns} rows={rows} labelColumnWidth={140} columnWidth={98} scrollDep={grouping} />
 
-                    <View style={s.row}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Inventory Sold</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}><Text style={[s.val, { color: Colors.income }]}>{fmt(p.stockSold)}</Text></View>
-                        ))}
-                    </View>
-
-                    <View style={s.row}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={s.rowLabel}>Cost of Goods Sold</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}><Text style={[s.val, { color: Colors.expense }]}>{fmt(p.costOfGoodsSold)}</Text></View>
-                        ))}
-                    </View>
-
-                    <View style={[s.row, s.subtotalRow]}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelBold]}>Gross Profit</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}>
-                                <Text style={[s.val, s.valBold, { color: p.grossProfit >= 0 ? Colors.income : Colors.expense }]}>{fmt(p.grossProfit)}</Text>
-                            </View>
-                        ))}
-                    </View>
-
-                    <View style={s.row}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelMuted]}>Gross Margin</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}><Text style={s.valMuted}>{p.grossMarginPct.toFixed(0)}%</Text></View>
-                        ))}
-                    </View>
-
-                    <View style={[s.row, { borderBottomWidth: 0 }]}>
-                        <View style={[s.cell, s.rowLabelCell]}><Text style={[s.rowLabel, s.rowLabelMuted]}>% of Total Revenue</Text></View>
-                        {points.map(p => (
-                            <View key={p.key} style={s.cell}><Text style={s.valMuted}>{p.pctOfRevenue.toFixed(0)}%</Text></View>
-                        ))}
-                    </View>
-                </View>
-            </ScrollView>
             <Text style={s.hint}>Only sales recorded through Inventory's Sell button — revenue logged any other way isn't counted here.</Text>
             <Text style={s.hint}>Cost of Goods Sold is only tracked for sales recorded after this feature was added — earlier sales show as {currency}0 cost, understating Gross Profit for periods that include them.</Text>
             {hasPartial && (
@@ -135,20 +104,6 @@ const s = StyleSheet.create({
     toggleBtnActive: { backgroundColor: Colors.primary },
     toggleText: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted },
     toggleTextActive: { color: '#fff' },
-
-    headerRow: { flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: Colors.textPrimary },
-    row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border },
-    subtotalRow: { borderTopWidth: 1, borderTopColor: Colors.border },
-    cell: { width: 98, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'flex-end', justifyContent: 'center' },
-    rowLabelCell: { width: 140, alignItems: 'flex-start' },
-    rowLabelHeader: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
-    rowLabel: { fontSize: 12.5, color: Colors.textSecondary },
-    rowLabelBold: { fontWeight: '700', color: Colors.textPrimary },
-    rowLabelMuted: { color: Colors.textMuted, fontStyle: 'italic', fontSize: 11.5 },
-    colHeader: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', textAlign: 'right' },
-    val: { fontSize: 12.5, color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
-    valBold: { fontWeight: '700' },
-    valMuted: { fontSize: 12.5, color: Colors.textMuted, fontVariant: ['tabular-nums'] },
 
     empty: { backgroundColor: Colors.surface, borderRadius: 14, padding: 20 },
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' },
