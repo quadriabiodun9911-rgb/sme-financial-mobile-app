@@ -34,7 +34,7 @@ const CURRENCIES = [
 const INDUSTRIES: { label: string; value: Industry; hint: string }[] = [
     { label: '🏬 Retail / Wholesale', value: 'retail', hint: 'Shops, boutiques, distributors, pharmacies, fresh produce — stock velocity, expiry tracking for perishable stock, and inventory-backed lending tools (shared with any business that carries stock)' },
     { label: '🍽️ Food Service', value: 'food-service', hint: 'Restaurants, catering, food stalls — recipe & food cost tools' },
-    { label: '🏭 Manufacturing', value: 'manufacturing', hint: 'Makers, assemblers, processors — production & unit cost tools' },
+    { label: '🏭 Manufacturing', value: 'manufacturing', hint: 'Makers, assemblers, processors, building & construction contractors — production & unit cost tools (materials + labour + overhead, per project or per unit)' },
     { label: '💼 Professional Services', value: 'professional-services', hint: 'Consultants, agencies, law firms — project & retainer profitability' },
     { label: '🏢 General / Other', value: 'general', hint: 'Anything else' },
 ];
