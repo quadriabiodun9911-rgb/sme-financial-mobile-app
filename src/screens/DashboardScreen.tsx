@@ -1131,6 +1131,8 @@ export default function DashboardScreen() {
                     finance={finance}
                     staff={staff}
                     minReserve={parseFloat(settings?.minReserve || '') || DEFAULT_THRESHOLDS.lowCashThreshold}
+                    macroAssumptions={settings?.macroAssumptions ?? []}
+                    onAddMacroAssumption={() => setCurrentScreen('macro-assumptions')}
                   />
                 )}
 
