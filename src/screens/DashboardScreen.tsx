@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
     TouchableOpacity, StyleSheet, ActivityIndicator,
-    Modal, TextInput, KeyboardAvoidingView, Platform, Animated, useWindowDimensions,
+    Modal, TextInput, KeyboardAvoidingView, Platform, Animated, Easing, useWindowDimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
@@ -34,6 +34,7 @@ import TodaysNumbersCard from '../components/TodaysNumbersCard';
 import WeeklyReportModal from '../components/WeeklyReportModal';
 import { showAlert } from '../utils/webAlert';
 import Icon, { IconName } from '../components/ui/Icon';
+import PressScale from '../components/ui/PressScale';
 import StatTile from '../components/ui/StatTile';
 import RadialGauge from '../components/RadialGauge';
 import TrendSparkline from '../components/TrendSparkline';
@@ -373,6 +374,20 @@ export default function DashboardScreen() {
         () => ({ ...RISK_BAND_STYLE[businessHealth.band], color: HEALTH_BAND_COLOR[businessHealth.band] }),
         [businessHealth.band]
     );
+
+    // Animates from whatever it currently shows to the new score (not a
+    // reset-to-0 restart each time, since this is a live value that can
+    // shift after every transaction, not a one-off "generate" event) --
+    // the single most prominent number on this screen deserves the same
+    // real chart + motion treatment RadialGauge already gives Cash Runway
+    // a few cards below it, not flat text.
+    const healthScoreAnim = useRef(new Animated.Value(0)).current;
+    const [animatedHealthScore, setAnimatedHealthScore] = useState(0);
+    useEffect(() => {
+        const id = healthScoreAnim.addListener(({ value }) => setAnimatedHealthScore(Math.round(value)));
+        Animated.timing(healthScoreAnim, { toValue: Math.round(businessHealth.score), duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+        return () => healthScoreAnim.removeListener(id);
+    }, [businessHealth.score]);
 
     const financingOpportunity = useMemo(() => {
         const fitInput = buildFinancingFitInput(transactions, loans, settings, user);
@@ -1046,13 +1061,20 @@ export default function DashboardScreen() {
                 {canViewFinancials && (
                     <View style={[styles.operationsSection, isWideDashboard && styles.dashboardCol]}>
                       <Text style={styles.operationsSectionTitle}>🩺 BUSINESS HEALTH</Text>
-                      <TouchableOpacity
+                      <PressScale
                         style={[styles.healthScoreCard, { borderColor: healthBandMeta.color }]}
                         activeOpacity={0.85}
                         onPress={() => setCurrentScreen('scoreboard')}
                       >
                         <View style={styles.healthScoreRow}>
-                            <Text style={[styles.healthScoreValue, { color: healthBandMeta.color }]}>{Math.round(businessHealth.score)}</Text>
+                            <RadialGauge
+                                displayValue={String(animatedHealthScore)}
+                                label="/ 100"
+                                progress={animatedHealthScore / 100}
+                                color={healthBandMeta.color}
+                                size={72}
+                                strokeWidth={7}
+                            />
                             <View style={[styles.healthBandBadge, { backgroundColor: healthBandMeta.color + '22' }]}>
                                 <Text style={[styles.healthBandBadgeText, { color: healthBandMeta.color }]}>
                                     {healthBandMeta.emoji} {healthBandMeta.label} · {businessHealth.grade}
@@ -1093,7 +1115,7 @@ export default function DashboardScreen() {
                         )}
 
                         <Text style={styles.healthLinkText}>See full breakdown & trend →</Text>
-                      </TouchableOpacity>
+                      </PressScale>
                     </View>
                 )}
 
@@ -2292,10 +2314,6 @@ const styles = StyleSheet.create({
       alignItems: 'center',
       gap: Spacing.md,
       marginBottom: Spacing.md,
-    },
-    healthScoreValue: {
-      fontSize: 36,
-      fontWeight: '800',
     },
     healthBandBadge: {
       paddingHorizontal: 10,

@@ -19,32 +19,10 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, Animated, Easing }
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Icon, { IconName } from './ui/Icon';
+import PressScale from './ui/PressScale';
 import RadialGauge from './RadialGauge';
 import { RiskScore } from '../utils/finance';
 import { computeQuickHealthCheck, QuickHealthCheckResult } from '../utils/quickHealthCheck';
-
-// A pressable that gives real tactile feedback (a slight scale-down on
-// press, springing back on release) instead of TouchableOpacity's flat
-// opacity dim -- the same Animated API SkeletonLoader.tsx/RetentionNudges.tsx
-// already use elsewhere in this app, no new dependency.
-function PressScale({ children, onPress, disabled, style }: { children: React.ReactNode; onPress?: () => void; disabled?: boolean; style?: any }) {
-    const scale = useRef(new Animated.Value(1)).current;
-    const animateTo = (v: number) => Animated.spring(scale, { toValue: v, useNativeDriver: true, speed: 40, bounciness: 6 }).start();
-    return (
-        <Animated.View style={{ transform: [{ scale }] }}>
-            <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={onPress}
-                disabled={disabled}
-                onPressIn={() => !disabled && animateTo(0.97)}
-                onPressOut={() => animateTo(1)}
-                style={style}
-            >
-                {children}
-            </TouchableOpacity>
-        </Animated.View>
-    );
-}
 
 // Same band->color convention every other score-band screen in the app
 // defines locally (Colors are theme-dependent, so this isn't shared from
