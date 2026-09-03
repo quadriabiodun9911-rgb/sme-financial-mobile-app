@@ -135,7 +135,7 @@ const RENTAL_AGENCY_RULE_EXCLUDED_INDUSTRIES = new Set(['professional-services']
 
 const PERSONAL_RULES: { keywords: string[]; reason: string }[] = [
     { keywords: ['school fees', 'school fee', 'tuition'], reason: 'Looks like a school-fees payment' },
-    { keywords: ['family support', 'family upkeep', 'send family', 'family expense'], reason: 'Looks like a family expense' },
+    { keywords: ['family support', 'family upkeep', 'family expense'], reason: 'Looks like a family expense' },
     { keywords: ['owner withdrawal', 'personal withdrawal', 'director drawing', "owner's drawing", 'proprietor drawing', "owner's personal"], reason: 'Recorded as an owner drawing from the business' },
 ];
 
@@ -149,6 +149,19 @@ const PERSONAL_RULES: { keywords: string[]; reason: string }[] = [
 const FAMILY_MEAL_RULE = { keywords: ['family feeding'], reason: 'Looks like a family expense' };
 const FAMILY_MEAL_RULE_EXCLUDED_INDUSTRIES = new Set(['food-service']);
 
+// Also split out of the family-expense rule -- "send family" specifically
+// (as opposed to "family support"/"family upkeep"/"family expense", which
+// stay above) is also the core EXPENSE side of a money-transfer/remittance
+// agent's business: this detector only ever looks at expense transactions
+// (see the t.type !== 'expense' skip below), and completing a client's
+// transfer -- "Send family money — payout to recipient, UK" -- is real
+// business spending fulfilling that transfer, not the owner sending money
+// to their own family. Excluded for Professional Services only, the
+// closest fit for a remittance/money-transfer agency (same pattern as
+// RENTAL_AGENCY_RULE for a letting agency).
+const MONEY_TRANSFER_RULE = { keywords: ['send family'], reason: 'Looks like a family expense' };
+const MONEY_TRANSFER_RULE_EXCLUDED_INDUSTRIES = new Set(['professional-services']);
+
 function normalise(s: string): string {
     return (s || '').toLowerCase().trim();
 }
@@ -160,10 +173,10 @@ function normalise(s: string): string {
  * @param industry settings.industry -- gates out several rules for the one
  * or two industries whose own normal vocabulary would otherwise collide
  * with them (see each rule's own comment: NIGHTLIFE_RULE, EVENT_SUPPLY_RULE,
- * FAMILY_MEAL_RULE, GROOMING_RULE, FITNESS_RULE, SUBSCRIPTION_RESELLER_RULE,
- * CONCIERGE_RULE, RENTAL_AGENCY_RULE). GIFT_RULE has no exclusion at all --
- * it stays active for every industry. Every other industry, and the
- * unset/undefined default, keeps all of them active.
+ * FAMILY_MEAL_RULE, MONEY_TRANSFER_RULE, GROOMING_RULE, FITNESS_RULE,
+ * SUBSCRIPTION_RESELLER_RULE, CONCIERGE_RULE, RENTAL_AGENCY_RULE). GIFT_RULE
+ * has no exclusion at all -- it stays active for every industry. Every
+ * other industry, and the unset/undefined default, keeps all of them active.
  */
 export function detectPersonalSpending(transactions: Transaction[], currency: string = '₦', dismissedIds: string[] = [], industry?: string): PersonalSpendingReport {
     const dismissed = new Set(dismissedIds);
@@ -172,6 +185,7 @@ export function detectPersonalSpending(transactions: Transaction[], currency: st
     const rules = [...PERSONAL_RULES, GIFT_RULE];
     if (industry !== 'food-service') rules.push(NIGHTLIFE_RULE);
     if (!industry || !FAMILY_MEAL_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(FAMILY_MEAL_RULE);
+    if (!industry || !MONEY_TRANSFER_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(MONEY_TRANSFER_RULE);
     if (!industry || !EVENT_SUPPLY_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(EVENT_SUPPLY_RULE);
     if (!industry || !GROOMING_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(GROOMING_RULE);
     if (!industry || !FITNESS_RULE_EXCLUDED_INDUSTRIES.has(industry)) rules.push(FITNESS_RULE);

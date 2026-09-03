@@ -274,6 +274,26 @@ describe('detectPersonalSpending', () => {
         expect(report.flaggedCount).toBe(2);
     });
 
+    it('flags "send family" as personal by default and for a non-professional-services industry (no legitimate reading there)', () => {
+        for (const industry of [undefined, 'retail']) {
+            const txs = [makeTx({ id: 'a', description: 'Send family money for upkeep', amount: 80000 })];
+            const report = detectPersonalSpending(txs, '₦', [], industry);
+            expect(report.flaggedCount).toBe(1);
+        }
+    });
+
+    it('does not flag a money-transfer/remittance agent\'s own client-payout transactions when registered as Professional Services', () => {
+        const txs = [makeTx({ id: 'a', description: 'Send family money — payout to recipient, UK', amount: 250000 })];
+        const report = detectPersonalSpending(txs, '₦', [], 'professional-services');
+        expect(report.flaggedCount).toBe(0);
+    });
+
+    it('still flags other family-expense wording for a professional-services business', () => {
+        const txs = [makeTx({ id: 'a', description: 'Family support for the month', amount: 60000 })];
+        const report = detectPersonalSpending(txs, '₦', [], 'professional-services');
+        expect(report.flaggedCount).toBe(1);
+    });
+
     it('does not flag a property management/letting agency\'s own tenant rent transactions when registered as Professional Services', () => {
         const txs = [
             makeTx({ id: 'a', description: 'House rent collected for landlord — Flat 3B', amount: 450000 }),
