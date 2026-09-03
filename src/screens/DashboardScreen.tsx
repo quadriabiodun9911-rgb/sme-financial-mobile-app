@@ -61,6 +61,7 @@ import { computeBusinessHealthIntelligence } from '../utils/metricIntelligence';
 import { computeStockVelocity, computeInventoryValue } from '../utils/stockVelocity';
 import { computeDataQuality } from '../utils/dataQuality';
 import { computeCostExposure, MODEL as COST_EXPOSURE_MODEL } from '../utils/costExposure';
+import { registerForPushNotificationsAsync, syncCashPositionSummary } from '../utils/pushRegistration';
 import { categorizeTransactionAI, AICategorizationResult } from '../utils/aiCategorization';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeTaxAbilityToPay } from '../utils/taxFilingReadiness';
@@ -621,6 +622,11 @@ export default function DashboardScreen() {
             if (granted) {
                 scheduleDailyReminder();
                 scheduleWeeklySummaryReminder();
+                // Tier-2 (server-side) push registration -- separate from
+                // the local scheduling above, but gated on the same
+                // permission grant since there's no point registering a
+                // device for push it's not allowed to show.
+                registerForPushNotificationsAsync().catch(() => {});
             }
         });
     }, [isDemoMode]);
@@ -958,6 +964,26 @@ export default function DashboardScreen() {
         if (!top || top.pctPointChange <= COST_EXPOSURE_MODEL.breadthThresholdPctPoints) return;
         notifyRisingCostCategory(top.category, top.pctPointChange, top.currentPctOfRevenue).catch(() => {});
     }, [isDemoMode, costExposure]);
+
+    // Keeps the server's cash_position_summary row current so
+    // send-proactive-alerts (a scheduled Edge Function) can push to this
+    // user even when they haven't opened the app in days -- the tier-2
+    // counterpart to the two local-notification effects above, which only
+    // fire while the app is open. Runs regardless of whether either
+    // threshold is currently crossed, so the server always has a fresh
+    // picture (including "things got better") rather than only ever
+    // hearing about bad news.
+    useEffect(() => {
+        if (isDemoMode) return;
+        const top = costExposure.available ? costExposure.topCategory : null;
+        syncCashPositionSummary({
+            currency: settings?.currency ?? '₦',
+            runwayDays,
+            topCostCategory: top?.category ?? null,
+            topCostPctPointChange: top?.pctPointChange ?? null,
+            topCostCurrentPctOfRevenue: top?.currentPctOfRevenue ?? null,
+        }).catch(() => {});
+    }, [isDemoMode, runwayDays, settings?.currency, costExposure]);
 
     // Last 30 days of cash balance, reconstructed by walking today's real
     // balance (finance.cashBalance) backward through paid transactions in
