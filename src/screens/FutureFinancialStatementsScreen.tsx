@@ -379,7 +379,7 @@ export default function FutureFinancialStatementsScreen() {
                                 <Text style={s.headlineRange}>{RISK_BAND_STYLE[hf.projectedScore.band].emoji} {RISK_BAND_STYLE[hf.projectedScore.band].label}</Text>
                             </View>
                         </View>
-                        <Text style={s.headlineConfidenceText}>Confidence: {forecastSummary.confidencePct}% — wider range on longer horizons and thinner history</Text>
+                        <Text style={s.headlineConfidenceText}>Confidence (rough estimate, not a statistical measure): {forecastSummary.confidencePct}% — wider range on longer horizons and thinner history</Text>
 
                         {/* Biggest Risk -- the single most severe thing the
                             forecast is currently warning about, synthesized
@@ -442,7 +442,7 @@ export default function FutureFinancialStatementsScreen() {
                                 value={forecastSummary.externalFactors.items.length === 0 ? 'None added' : `${forecastSummary.externalFactors.items.length}`}
                             />
                             <Row label="Expected collection period" value={`${Math.round(forecastSummary.expectedCollectionDays)} days`} />
-                            <Row label="Forecast confidence" value={`${forecastSummary.confidencePct}%`} bold />
+                            <Row label="Forecast confidence (estimate)" value={`${forecastSummary.confidencePct}%`} bold />
 
                             {/* Rolling Forecast -- both this and the rows above
                                 are context ABOUT the forecast, shown before the
@@ -552,7 +552,7 @@ export default function FutureFinancialStatementsScreen() {
                                         Revenue is projected to {revenueChangePct >= 0 ? 'increase' : 'decrease'} approximately {Math.abs(revenueChangePct).toFixed(0)}%
                                         over the next {PERIOD_LABELS[forecastPeriod].toLowerCase()}, based on your recent sales trend.
                                     </Text>
-                                    <Text style={s.confidenceText}>Forecast confidence: {forecastSummary.confidencePct}%</Text>
+                                    <Text style={s.confidenceText}>Forecast confidence (rough estimate, not a statistical measure): {forecastSummary.confidencePct}%</Text>
                                 </View>
                             )}
                             {forecastSummary.detectedRevenueGrowthPctPerMonth != null && Math.abs(forecastSummary.detectedRevenueGrowthPctPerMonth - (parseFloat(revenueGrowth) || 0)) >= 1 && (

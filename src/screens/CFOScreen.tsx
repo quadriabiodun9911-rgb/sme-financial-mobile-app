@@ -320,7 +320,7 @@ function ForecastTab() {
                         </Text>
                     ))}
                     <Text style={s.outlookAssumptionRow}>• Expected collection period: {outlook.profitBridge.revenue > 0 ? 'based on recent invoice timing' : 'not enough invoice history yet'}</Text>
-                    <Text style={[s.outlookAssumptionRow, { fontWeight: '700', marginTop: 4 }]}>Forecast confidence: {outlook.confidencePct}%</Text>
+                    <Text style={[s.outlookAssumptionRow, { fontWeight: '700', marginTop: 4 }]}>Forecast confidence (rough estimate, not a statistical measure): {outlook.confidencePct}%</Text>
                 </View>
 
                 {/* One clear recommendation */}
