@@ -371,6 +371,7 @@ export default function ImportTransactionsScreen() {
     const [rows,       setRows]       = useState<ParsedRow[]>([]);
     const [error,      setError]      = useState('');
     const [pickerRow,  setPickerRow]  = useState<string | null>(null);
+    const [customCategoryLabel, setCustomCategoryLabel] = useState('');
     const [editAmountRow, setEditAmountRow] = useState<string | null>(null);
     const [editAmountValue, setEditAmountValue] = useState('');
     const [skippedNote, setSkippedNote] = useState('');
@@ -648,6 +649,27 @@ export default function ImportTransactionsScreen() {
             return { ...r, category: opt.category, subCategory: opt.subCategory, flagged: false };
         }));
         setPickerRow(null);
+        setCustomCategoryLabel('');
+    };
+
+    // CATEGORY_OPTIONS is a fixed, generic 16-bucket list -- same gap as the
+    // one just fixed on TransactionsScreen's and Dashboard's own category
+    // pickers, here on the bank-statement import path instead. Keeps the
+    // row's already-inferred income/expense/cost/asset bucket (r.category --
+    // that classification stays structurally meaningful, it drives
+    // transactionCategory on the saved Transaction) and only overrides the
+    // display label, so a business can name the category to match what it
+    // already uses in TransactionsScreen without breaking P&L bucketing.
+    const applyCustomCategoryLabel = (rowId: string, label: string) => {
+        const trimmed = label.trim();
+        if (!trimmed) return;
+        setRows(prev => prev.map(r => {
+            if (r.id !== rowId) return r;
+            learnCategory(r.description, r.category, trimmed);
+            return { ...r, subCategory: trimmed, flagged: false };
+        }));
+        setPickerRow(null);
+        setCustomCategoryLabel('');
     };
 
     // ── Correct a row's amount ───────────────────────────────────────────────
@@ -1166,8 +1188,8 @@ export default function ImportTransactionsScreen() {
             </View>
 
             {/* Category picker modal */}
-            <Modal visible={!!pickerRow} transparent animationType="slide" onRequestClose={() => setPickerRow(null)}>
-                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setPickerRow(null)}>
+            <Modal visible={!!pickerRow} transparent animationType="slide" onRequestClose={() => { setPickerRow(null); setCustomCategoryLabel(''); }}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => { setPickerRow(null); setCustomCategoryLabel(''); }}>
                     <View style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
                         <Text style={styles.modalTitle}>Select Category</Text>
                         <ScrollView>
@@ -1181,6 +1203,20 @@ export default function ImportTransactionsScreen() {
                                 </TouchableOpacity>
                             ))}
                         </ScrollView>
+                        <TextInput
+                            style={styles.amountEditInput}
+                            placeholder="Or type your own category..."
+                            placeholderTextColor={Colors.textMuted}
+                            value={customCategoryLabel}
+                            onChangeText={setCustomCategoryLabel}
+                        />
+                        <TouchableOpacity
+                            style={[styles.amountEditSaveBtn, !customCategoryLabel.trim() && { opacity: 0.5 }]}
+                            disabled={!customCategoryLabel.trim()}
+                            onPress={() => pickerRow && applyCustomCategoryLabel(pickerRow, customCategoryLabel)}
+                        >
+                            <Text style={styles.amountEditSaveBtnText}>Use This Category</Text>
+                        </TouchableOpacity>
                     </View>
                 </TouchableOpacity>
             </Modal>
