@@ -12,6 +12,7 @@ import BuyVsFinanceCalculator from './BuyVsFinanceCalculator';
 import GrowthAffordabilityCalculator from './GrowthAffordabilityCalculator';
 import LoanAffordabilityChecker from './LoanAffordabilityChecker';
 import DebtStructurePlanner from './DebtStructurePlanner';
+import { localDateStr } from '../utils/localDate';
 
 interface Props {
     finance: FinanceData;
@@ -105,7 +106,7 @@ export default function LoansAndDebt({
     const last30 = new Date();
     last30.setDate(last30.getDate() - 30);
     const last30Str = last30.toISOString().split('T')[0];
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = localDateStr();
     const income30 = transactions
         .filter(t => t.type === 'income' && t.status === 'paid' && t.date >= last30Str && t.date <= todayStr)
         .reduce((s, t) => s + (t.amount ?? 0), 0);

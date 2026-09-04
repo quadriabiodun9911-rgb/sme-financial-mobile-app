@@ -22,6 +22,7 @@ import { MACRO_ASSUMPTION_SUGGESTIONS } from '../utils/macroAssumptionSuggestion
 import { fetchLiveFxRate, computeFxChangeSuggestion, recordFxSnapshot, LiveFxRate, FxChangeSuggestion } from '../utils/macroFeed';
 import { loadFxSnapshots, saveFxSnapshots } from '../utils/storage';
 import { computeSupplierIntelligence } from '../utils/supplierIntelligence';
+import { localDateStr } from '../utils/localDate';
 
 type Tab = 'overview' | 'concentration' | 'seasonal' | 'economic';
 
@@ -526,7 +527,7 @@ function LiveFxSuggestionCard() {
             if (cancelled) return;
             if (!live) { setStatus('unavailable'); return; }
 
-            const today = new Date().toISOString().split('T')[0];
+            const today = localDateStr();
             // Demo businesses promise "nothing will be saved" -- still show
             // the live rate, just don't persist a snapshot history for them.
             const history = isDemoMode ? [] : (await loadFxSnapshots()) ?? [];

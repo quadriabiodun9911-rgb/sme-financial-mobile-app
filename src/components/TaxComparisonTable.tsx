@@ -4,6 +4,7 @@ import { Colors } from '../theme/colors';
 import { Transaction } from '../types';
 import { computeTaxTrend, TaxPeriodGrouping, TaxTrendPoint } from '../utils/taxTrend';
 import PeriodTrendTable, { PeriodTrendRow } from './PeriodTrendTable';
+import { localDateStr } from '../utils/localDate';
 
 interface Props {
     transactions: Transaction[];
@@ -21,7 +22,7 @@ export default function TaxComparisonTable({ transactions, currency }: Props) {
     const points = useMemo(() => computeTaxTrend(grouping, transactions), [grouping, transactions]);
 
     const currentKey = useMemo(() => {
-        const todayISO = new Date().toISOString().slice(0, 10);
+        const todayISO = localDateStr();
         if (grouping === 'monthly') return todayISO.slice(0, 7);
         if (grouping === 'quarterly') return `${todayISO.slice(0, 4)}-Q${Math.ceil(Number(todayISO.slice(5, 7)) / 3)}`;
         return todayISO.slice(0, 4);

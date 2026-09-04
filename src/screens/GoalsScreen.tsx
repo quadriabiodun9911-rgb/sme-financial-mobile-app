@@ -24,6 +24,7 @@ import { computeRiskRadar } from '../utils/riskRadar';
 import { assessGoalRisk, GoalRiskSeverity } from '../utils/goalRiskLinkage';
 import { computeGoalBudgetAlignment, computeGoalForecastAlignment, computeRevenueMarginForecastAlignment } from '../utils/goalAlignment';
 import { computeGoalForecastGap } from '../utils/goalForecastGap';
+import { localDateStr } from '../utils/localDate';
 
 // Maps each goal type to the closest matching solution category — a
 // revenue/margin goal is fundamentally a pricing/growth problem, a cost or
@@ -855,7 +856,7 @@ export default function GoalsScreen() {
 }
 
 function DailyActionsSection({ goal, transactions, currency }: { goal: FinancialGoal; transactions: Transaction[]; currency: string }) {
-    const today = new Date().toISOString().split('T')[0];
+    const today = localDateStr();
     const todayTx = transactions.filter(t => t.date === today);
     const todayRevenue = todayTx.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
     // Loan principal excluded -- "today's profit"/"spending budget" below are

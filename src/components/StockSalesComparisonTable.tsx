@@ -6,6 +6,7 @@ import { computeInventorySalesTrend, InventorySalesGrouping, InventorySalesTrend
 import { isoWeekKey } from '../utils/trendAnalysis';
 import { StatementCard } from './FormalStatement';
 import PeriodTrendTable, { PeriodTrendRow } from './PeriodTrendTable';
+import { localDateStr } from '../utils/localDate';
 
 interface Props {
     businessName: string;
@@ -32,7 +33,7 @@ export default function StockSalesComparisonTable({ businessName, transactions, 
     const points = useMemo(() => computeInventorySalesTrend(grouping, transactions), [grouping, transactions]);
 
     const currentKey = useMemo(() => {
-        const todayISO = new Date().toISOString().slice(0, 10);
+        const todayISO = localDateStr();
         if (grouping === 'daily') return todayISO;
         if (grouping === 'weekly') return isoWeekKey(todayISO);
         if (grouping === 'monthly') return todayISO.slice(0, 7);

@@ -5,6 +5,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../theme/colors';
 import { Transaction } from '../types';
+import { localDateStr } from '../utils/localDate';
 
 const KEYS = {
     lastSeen:        '@quad360/retention_last_seen',
@@ -15,7 +16,7 @@ const KEYS = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function todayStr() { return new Date().toISOString().split('T')[0]; }
+function todayStr() { return localDateStr(); }
 
 function daysBetween(a: string, b: string): number {
     return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);

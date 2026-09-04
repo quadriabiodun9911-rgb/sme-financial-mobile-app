@@ -53,6 +53,7 @@ import { computeInventoryValue } from '../utils/stockVelocity';
 import { computeMarginPct } from '../utils/priceHistory';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { localDateStr } from '../utils/localDate';
 
 // ─── Section groups ────────────────────────────────────────────────────────────
 type SectionKey = 'statements' | 'customers' | 'tax' | 'planning' | 'growth';
@@ -149,7 +150,7 @@ export default function ReportsScreen() {
     // toggle anymore: the formal statement is its only view.
     const [showFormalBS, setShowFormalBS]   = useState(true);
     const [showFormalCF, setShowFormalCF]   = useState(true);
-    const today = new Date().toISOString().split('T')[0];
+    const today = localDateStr();
     const inventoryValue = useMemo(
         () => computeInventoryValue(inventory),
         [inventory],

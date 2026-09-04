@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { localDateStr } from '../utils/localDate';
 
 interface Props {
     visible: boolean;
@@ -28,7 +29,7 @@ export default function OnboardingWizard({ visible, onDone }: Props) {
             description: desc.trim(),
             category: txType === 'income' ? 'Sales' : 'General',
             status: 'paid',
-            date: new Date().toISOString().split('T')[0],
+            date: localDateStr(),
         });
         setStep(2);
     };

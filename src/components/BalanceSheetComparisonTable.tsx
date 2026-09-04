@@ -6,6 +6,7 @@ import { computeAllTimeMonthlyBuckets, isoWeekKey } from '../utils/trendAnalysis
 import { computeBalanceSheetTrend, BalancePeriodGrouping, BalanceSheetTrendPoint, ManualBalances } from '../utils/balanceSheetTrend';
 import { StatementCard } from './FormalStatement';
 import PeriodTrendTable, { PeriodTrendRow } from './PeriodTrendTable';
+import { localDateStr } from '../utils/localDate';
 
 interface Props {
     businessName: string;
@@ -100,7 +101,7 @@ export default function BalanceSheetComparisonTable({ businessName, transactions
     );
 
     const currentKey = useMemo(() => {
-        const todayISO = new Date().toISOString().slice(0, 10);
+        const todayISO = localDateStr();
         if (grouping === 'daily') return todayISO;
         if (grouping === 'weekly') return isoWeekKey(todayISO);
         if (grouping === 'monthly') return todayISO.slice(0, 7);

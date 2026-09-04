@@ -4,6 +4,7 @@
  */
 
 import { ActionTactic } from './actionRecommendationEngine';
+import { localDateStr } from './localDate';
 
 export interface TacticExecution {
   tacticId: string;
@@ -54,7 +55,7 @@ function daysBetween(fromDateStr: string, toDateStr: string): number {
 // 'abandoned' is never measurable regardless of dates.
 export function canMeasureOutcome(
   execution: TacticExecution,
-  referenceDate: string = new Date().toISOString().split('T')[0],
+  referenceDate: string = localDateStr(),
 ): boolean {
   if (execution.status !== 'completed') return false;
   return daysBetween(execution.startDate, referenceDate) >= OUTCOME_MEASUREMENT_WINDOW_DAYS;
@@ -65,7 +66,7 @@ export function canMeasureOutcome(
 // a premature number or silence.
 export function daysUntilMeasurable(
   execution: TacticExecution,
-  referenceDate: string = new Date().toISOString().split('T')[0],
+  referenceDate: string = localDateStr(),
 ): number {
   return Math.max(0, OUTCOME_MEASUREMENT_WINDOW_DAYS - daysBetween(execution.startDate, referenceDate));
 }
@@ -205,7 +206,7 @@ export function recordTacticOutcome(
     metricsAchieved,
     learnings,
     nextSteps: generateNextSteps(actualImpact, succeeded, hasBaseline),
-    completionDate: new Date().toISOString().split('T')[0],
+    completionDate: localDateStr(),
     healthBefore: health?.before,
     healthAfter: health?.after,
     healthDelta: health ? health.after - health.before : undefined,
@@ -255,7 +256,7 @@ export function calculateProgressMetric(
     target,
     current,
     unit: '₦',
-    lastUpdated: new Date().toISOString().split('T')[0],
+    lastUpdated: localDateStr(),
     trend,
   };
 }

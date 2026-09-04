@@ -1,6 +1,7 @@
 import { Transaction, BusinessSettings } from '../types';
 import { computeCustomerConcentration } from './finance';
 import { entityKey, entityDisplayName } from './entityName';
+import { localDateStr } from './localDate';
 
 export interface WaterfallItem {
     label: string;
@@ -35,7 +36,7 @@ function getPeriodBounds(transactions: Transaction[]): { currentStart: string; c
     for (const t of transactions) {
         if (t.date && t.date > currentEnd) currentEnd = t.date;
     }
-    if (!currentEnd) currentEnd = new Date().toISOString().slice(0, 10);
+    if (!currentEnd) currentEnd = localDateStr();
 
     const currentStart = shiftDateStr(currentEnd, -29); // 30 days inclusive
     const prevEnd = shiftDateStr(currentStart, -1);     // day before currentStart -- no overlap

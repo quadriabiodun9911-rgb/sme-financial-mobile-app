@@ -58,6 +58,7 @@ import { getMyLenderMembership, joinLenderWithCode } from '../utils/lenderAuth';
 import { Language } from '../utils/i18n';
 import { applyStockIn } from '../utils/inventoryCosting';
 import CryptoJS from 'crypto-js';
+import { localDateStr } from '../utils/localDate';
 
 const PIN_SALT = 'Q360_SME_2025';
 function hashPin(pin: string): string {
@@ -735,7 +736,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           termMonths: 0,
           lenderName: 'Awaiting lender match',
           lenderId: '',
-          appliedDate: new Date().toISOString().split('T')[0],
+          appliedDate: localDateStr(),
           monthlyProfitAtApproval: 0,
           monthlyProfitCurrent: 0,
         };
@@ -754,7 +755,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       recordFinancingOutcome: (outcome) => {
         setFinancing((prev) => {
           if (!prev.application) return prev;
-          const today = new Date().toISOString().split('T')[0];
+          const today = localDateStr();
           if (outcome.status === 'rejected') {
             const resolved: MerchantFinancingApplication = {
               ...prev.application,
@@ -978,7 +979,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       // than erasing evidence of when it actually happened).
       markInvoiceStatus: (id, status) => setInvoices((prev) => prev.map((inv) => (
         inv.id === id
-          ? { ...inv, status, paidDate: status === 'paid' ? (inv.paidDate || new Date().toISOString().slice(0, 10)) : inv.paidDate }
+          ? { ...inv, status, paidDate: status === 'paid' ? (inv.paidDate || localDateStr()) : inv.paidDate }
           : inv
       ))),
       updateInvoice: (id, invoice) => setInvoices((prev) =>
@@ -2630,7 +2631,7 @@ export function useApp() {
         // Invoice predates transaction-linking, or was created as a draft —
         // back-fill the link now instead of leaving this collection invisible.
         finance.addTransaction({
-          date: new Date().toISOString().split('T')[0],
+          date: localDateStr(),
           description: `Invoice ${inv.invoiceNumber}: ${inv.clientName || 'Customer'}`,
           type: 'income',
           category: 'Sales',

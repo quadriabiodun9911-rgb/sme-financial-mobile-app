@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, Platform, u
 import { Colors } from '../theme/colors';
 import { FinancialGoal, Transaction } from '../types';
 import { showAlert, confirmAction } from '../utils/webAlert';
+import { localDateStr } from '../utils/localDate';
 
 interface Props {
     goals: FinancialGoal[];
@@ -37,7 +38,7 @@ export default function DailyTargetCard({ goals, transactions, currency, onSetGo
         ['revenue_growth', 'custom', 'margin_improvement', 'cost_reduction'].includes(g.type)
     );
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = localDateStr();
     const todayTx = transactions.filter(t => t.date === today);
     const todayRevenue = todayTx.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
     // Loan principal excluded -- this feeds a "today's profit" P&L figure.

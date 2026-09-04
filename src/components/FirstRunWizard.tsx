@@ -6,6 +6,7 @@ import {
 import { Colors } from '../theme/colors';
 import { useApp } from '../contexts/AppContext';
 import { Industry } from '../types';
+import { localDateStr } from '../utils/localDate';
 
 interface Props {
     visible: boolean;
@@ -52,7 +53,7 @@ export default function FirstRunWizard({ visible, onDone }: Props) {
     const isProfit = profit >= 0;
 
     const handleFinish = () => {
-        const today = new Date().toISOString().split('T')[0];
+        const today = localDateStr();
         const inc = parseFloat(income) || 0;
         const exp = parseFloat(expense) || 0;
         if (inc > 0) {

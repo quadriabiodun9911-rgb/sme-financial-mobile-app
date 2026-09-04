@@ -9,6 +9,7 @@ import { FutureEvent, FutureEventCategory } from '../types';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { localDateStr } from '../utils/localDate';
 
 const CATEGORY_OPTIONS: { value: FutureEventCategory; label: string; icon: IconName }[] = [
     { value: 'expansion', label: 'Expansion', icon: 'trending-up' },
@@ -24,7 +25,7 @@ function categoryMeta(category: FutureEventCategory) {
 }
 
 function todayIso(): string {
-    return new Date().toISOString().slice(0, 10);
+    return localDateStr();
 }
 
 export default function FutureEventsScreen() {

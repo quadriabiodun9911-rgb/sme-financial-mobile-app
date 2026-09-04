@@ -84,6 +84,7 @@ import { detectPersonalSpending, DISMISSED_PERSONAL_KEY } from '../utils/persona
 import { GoalType } from '../types';
 import { buildDashboardPriorities, PriorityKind, PriorityTier, OverspentBudget } from '../utils/dashboardPriorities';
 import { resolveMonthlyMission, StoredMission } from '../utils/monthlyMission';
+import { localDateStr } from '../utils/localDate';
 
 const CELEBRATED_GOALS_KEY = '@quad360/celebrated_goal_ids';
 const MONTHLY_MISSION_KEY = '@quad360/monthly_mission';
@@ -333,7 +334,7 @@ export default function DashboardScreen() {
     const categories = qaType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
     // ── Date strings (stable across renders within same month) ───────────────
-    const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+    const today = useMemo(() => localDateStr(), []);
     const thisMonthStr = useMemo(() => new Date().toISOString().slice(0, 7), []);
     const lastMonthStr = useMemo(() => {
         const d = new Date();
@@ -1186,7 +1187,7 @@ export default function DashboardScreen() {
                 amount: amt,
                 description: qaDesc.trim(),
                 category: qaCategory.trim() || (qaType === 'income' ? 'Sales' : 'Other'),
-                date: new Date().toISOString().split('T')[0],
+                date: localDateStr(),
                 paymentMethod: qaPaymentMethod,
                 // Quick Add is always "this just happened" (unlike the
                 // manual add form on Transactions, which can back-date to

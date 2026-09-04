@@ -20,6 +20,7 @@ import { getMonthlyExpenseAverage } from '../utils/finance';
 import { showAlert } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { localDateStr } from '../utils/localDate';
 
 const EXECUTIONS_KEY = 'quad360_tactic_executions_v1';
 const OUTCOMES_KEY = 'quad360_tactic_outcomes_v1';
@@ -142,13 +143,13 @@ export default function ActionTrackerScreen() {
   }, [shownTacticIds, shownTacticIdsLoaded]);
 
   const startTracking = (action: ActionTactic) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = localDateStr();
     setExecutions(prev => ({ ...prev, [action.id]: initiateTacticTracking(action, today, trailingSnapshot(transactions), diagnosis.overallHealth) }));
   };
 
   const advanceTracking = (action: ActionTactic, pct: number) => {
     setExecutions(prev => {
-      const existing = prev[action.id] ?? initiateTacticTracking(action, new Date().toISOString().split('T')[0], trailingSnapshot(transactions), diagnosis.overallHealth);
+      const existing = prev[action.id] ?? initiateTacticTracking(action, localDateStr(), trailingSnapshot(transactions), diagnosis.overallHealth);
       const updated = updateTacticProgress(existing, `${pct}%`, pct);
       // Marking a tactic "completed" here does NOT measure its outcome --
       // see the measurement effect below for why (the trailing-window
@@ -189,7 +190,7 @@ export default function ActionTrackerScreen() {
   // at all (the underlying problem it addressed may already be resolved).
   useEffect(() => {
     if (!executionsLoaded || !outcomesLoaded) return;
-    const today = new Date().toISOString().split('T')[0];
+    const today = localDateStr();
     const newlyMeasurable = Object.values(executions).filter(
       e => e.baseline && canMeasureOutcome(e, today) && !outcomes.some(o => o.tacticId === e.tacticId)
     );

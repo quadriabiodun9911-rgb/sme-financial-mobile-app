@@ -19,6 +19,7 @@ import { computeBreakeven } from '../utils/profitability';
 import { computeInventoryDecisions, summarizeInventoryDecisions } from '../utils/inventoryDecisions';
 import { computeBusinessExposure, computeBusinessResilience } from '../utils/businessExposure';
 import { computeFinancialHealthPillars } from '../utils/financialHealthPillars';
+import { localDateStr } from '../utils/localDate';
 
 /**
  * These four checks already existed — GrowthAffordabilityCalculator and
@@ -63,7 +64,7 @@ export default function BeforeYouDecideScreen() {
     const last30 = new Date();
     last30.setDate(last30.getDate() - 30);
     const last30Str = last30.toISOString().split('T')[0];
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = localDateStr();
     const income30 = transactions
         .filter(t => t.type === 'income' && t.status === 'paid' && t.date >= last30Str && t.date <= todayStr)
         .reduce((s, t) => s + (t.amount ?? 0), 0);

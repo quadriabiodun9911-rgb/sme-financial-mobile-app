@@ -6,6 +6,7 @@ import { computeDailyTrend, computeWeeklyTrend, computeAllTimeMonthlyBuckets, co
 import { projectionFactor } from '../utils/periodProjection';
 import { StatementCard } from './FormalStatement';
 import PeriodTrendTable, { PeriodTrendRow } from './PeriodTrendTable';
+import { localDateStr } from '../utils/localDate';
 
 interface Props {
     transactions: Transaction[];
@@ -61,7 +62,7 @@ export default function PeriodComparisonTable({ transactions, currency, defaultG
     // this month/quarter/year) — flag it so a naturally-lower number doesn't
     // read as a real decline against a fully-elapsed prior period.
     const currentKeys = useMemo(() => {
-        const todayISO = new Date().toISOString().slice(0, 10);
+        const todayISO = localDateStr();
         const month = todayISO.slice(5, 7);
         return {
             daily: todayISO,

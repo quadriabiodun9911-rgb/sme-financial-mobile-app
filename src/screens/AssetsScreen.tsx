@@ -22,6 +22,7 @@ import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { parseAssetQuickAddText } from '../utils/assetQuickAddParser';
+import { localDateStr } from '../utils/localDate';
 
 const CATEGORIES: AssetCategory[] = ['equipment', 'vehicle', 'furniture', 'property', 'intangible', 'other'];
 
@@ -77,7 +78,7 @@ export default function AssetsScreen() {
 
     const resetForm = () => {
         setName(''); setCategory('equipment'); setDesc('');
-        setPDate(new Date().toISOString().split('T')[0]);
+        setPDate(localDateStr());
         setPCost(''); setLife('5'); setResidual('0');
         setAcqMethod('cash'); setAcqTerm('24'); setAcqRate('20');
         setEditingId(null);
@@ -127,7 +128,7 @@ export default function AssetsScreen() {
 
         const payload = {
             name: name.trim(), category, description: description.trim(),
-            purchaseDate: purchaseDate || new Date().toISOString().split('T')[0],
+            purchaseDate: purchaseDate || localDateStr(),
             purchaseCost: cost, usefulLifeYears: life, residualValue: resid,
             status: 'active' as const,
         };
@@ -180,7 +181,7 @@ export default function AssetsScreen() {
 
     const handleDispose = (id: string) => {
         const dVal = parseFloat(disposalValue) || 0;
-        const dDate = disposalDate || new Date().toISOString().split('T')[0];
+        const dDate = disposalDate || localDateStr();
         disposeAsset(id, dDate, dVal);
         setShowDispose(null);
         setDispDate(''); setDispVal('0');
@@ -192,7 +193,7 @@ export default function AssetsScreen() {
 
     const handleOpenDispose = useCallback((id: string) => {
         setShowDispose(id);
-        setDispDate(new Date().toISOString().split('T')[0]);
+        setDispDate(localDateStr());
     }, []);
 
     const filtered = useMemo(() => {

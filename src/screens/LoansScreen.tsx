@@ -45,6 +45,7 @@ import { computeTenorCycleCheck } from '../utils/tenorCycleMatch';
 import { computeRepaymentSeasonalAlignment } from '../utils/repaymentSeasonalAlignment';
 import { computeRepaymentWeekdayAlignment } from '../utils/repaymentWeekdayAlignment';
 import { parseLoanQuickAddText } from '../utils/loanQuickAddParser';
+import { localDateStr } from '../utils/localDate';
 
 function totalPaid(loan: Loan): number {
     return (loan.payments ?? []).reduce((s, p) => s + p.amount, 0);
@@ -128,7 +129,7 @@ export default function LoansScreen() {
     const [principal, setPrincipal] = useState('');
     const [rate, setRate] = useState('');
     const [term, setTerm] = useState('');
-    const [startDate, setStart] = useState(new Date().toISOString().split('T')[0]);
+    const [startDate, setStart] = useState(localDateStr());
     const [status, setStatus] = useState<LoanStatus>('active');
     const [fromMarketplace, setFromMarketplace] = useState(false);
     const [collateralPledged, setCollateralPledged] = useState('');
@@ -136,12 +137,12 @@ export default function LoansScreen() {
 
     // Payment form
     const [payAmount, setPayAmount] = useState('');
-    const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0]);
+    const [payDate, setPayDate] = useState(localDateStr());
     const [payNote, setPayNote] = useState('');
 
     const resetForm = () => {
         setLender(''); setPurpose(''); setPrincipal(''); setRate('');
-        setTerm(''); setStart(new Date().toISOString().split('T')[0]);
+        setTerm(''); setStart(localDateStr());
         setStatus('active'); setFromMarketplace(false); setEditingId(null);
         setCollateralPledged(''); setCovenants('');
         setQaText('');
@@ -202,7 +203,7 @@ export default function LoansScreen() {
         addLoanPayment(loanId, { amount: amt, date: payDate, note: payNote.trim() || undefined });
         setShowPayment(null);
         setPayAmount(''); setPayNote('');
-        setPayDate(new Date().toISOString().split('T')[0]);
+        setPayDate(localDateStr());
     };
 
     const confirmDelete = useCallback((id: string) => {
@@ -215,7 +216,7 @@ export default function LoansScreen() {
 
     const handleOpenPayment = useCallback((id: string) => {
         setShowPayment(id);
-        setPayDate(new Date().toISOString().split('T')[0]);
+        setPayDate(localDateStr());
     }, []);
 
     // Bank-statement import can tag a row "Loan Repayment" but can't know

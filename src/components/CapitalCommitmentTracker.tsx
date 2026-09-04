@@ -6,6 +6,7 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Icon from './ui/Icon';
 import { CapitalCommitment, CommitmentDecision, CommitmentStatus } from '../types';
 import { computeCommitmentMonitor, SuggestedDecision } from '../utils/capitalCommitmentMonitor';
+import { localDateStr } from '../utils/localDate';
 
 export interface CommitmentPrefill {
     name: string;
@@ -108,7 +109,7 @@ export default function CapitalCommitmentTracker({ currency, prefill, onPrefillC
             .filter(k => k.name.trim().length > 0)
             .map(k => ({ id: Math.random().toString(36).slice(2), name: k.name.trim(), target: parseFloat(k.target) || 0, actual: 0 }));
         if (!name.trim() || amountNum <= 0) return;
-        const today = new Date().toISOString().slice(0, 10);
+        const today = localDateStr();
         addCommitment({
             name: name.trim(),
             purpose: purpose.trim(),
@@ -134,7 +135,7 @@ export default function CapitalCommitmentTracker({ currency, prefill, onPrefillC
     }
 
     function recordDecision(commitment: CapitalCommitment, decision: CommitmentDecision) {
-        updateCommitment(commitment.id, { decision, decidedAt: new Date().toISOString().slice(0, 10) });
+        updateCommitment(commitment.id, { decision, decidedAt: localDateStr() });
     }
 
     return (

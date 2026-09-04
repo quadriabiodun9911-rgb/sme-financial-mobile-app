@@ -1,4 +1,5 @@
 import { StaffMember, PayrollItem, PayrollRun } from '../types';
+import { localDateStr } from './localDate';
 
 /**
  * Abstraction over "who actually runs payroll" — so the rest of the app
@@ -81,7 +82,7 @@ export class ManualPayrollProvider implements PayrollProvider {
         const run: PayrollRun = {
             id: makeId(),
             period,
-            runDate: new Date().toISOString().split('T')[0],
+            runDate: localDateStr(),
             items,
             totalGross: items.reduce((s, i) => s + i.grossSalary, 0),
             totalDeductions: items.reduce((s, i) => s + i.deductions, 0),

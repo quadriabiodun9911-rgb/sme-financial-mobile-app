@@ -25,6 +25,7 @@ import { computeReadinessDelta } from '../utils/readinessHistory';
 import AIAdvisorCard from './AIAdvisorCard';
 import CashConversionCycleVisual from './CashConversionCycleVisual';
 import { computeRevenueStressTest, StressRiskTier } from '../utils/revenueStressTest';
+import { localDateStr } from '../utils/localDate';
 
 // Same 4-color gradient this app's other Band-style scores already use
 // (CashFlowHealthBand/WorkingCapitalHealthBand's BAND_COLOR: income ->
@@ -202,7 +203,7 @@ export default function CFOQuestionsTab() {
             name: form.name.trim(),
             amountApproved: parseFloat(form.amountApproved) || 0,
             purpose: form.purpose.trim(),
-            approvedDate: new Date().toISOString().split('T')[0],
+            approvedDate: localDateStr(),
             kpis,
             status: 'not-started',
         });

@@ -19,12 +19,13 @@ import PayrollProviderCard from '../components/PayrollProviderCard';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import { getPayrollReminderStatus } from '../utils/payrollReminders';
 import { computePayrollActivitySummary, describePayrollActivity, computeUnlinkedPayrollTransactions } from '../utils/payrollActivity';
+import { localDateStr } from '../utils/localDate';
 
 type Tab = 'staff' | 'run' | 'history';
 
 const EMPTY_STAFF: Omit<StaffMember, 'id' | 'createdAt'> = {
     name: '', role: '', salary: 0, salaryType: 'monthly',
-    startDate: new Date().toISOString().split('T')[0],
+    startDate: localDateStr(),
     status: 'active', email: '', phone: '', bankName: '', accountNumber: '',
 };
 

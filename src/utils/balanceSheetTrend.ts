@@ -31,6 +31,7 @@
 import { Transaction, Asset, Loan } from '../types';
 import { computeLoanAmortizationSplit } from './finance';
 import { isoWeekOf } from './trendAnalysis';
+import { localDateStr } from './localDate';
 
 export interface BalanceSheetTrendPoint {
     key: string;
@@ -222,7 +223,7 @@ function datesWithData(transactions: Transaction[]): string[] {
 // mismatch against computeLeverageRatios' "as of right now" net worth for
 // the same business. Capping at today makes both agree.
 function capAtToday(endDate: string): string {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateStr();
     return endDate > today ? today : endDate;
 }
 
