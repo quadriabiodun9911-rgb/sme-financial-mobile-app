@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import { Transaction, InventoryItem } from '../types';
 import { computeInventoryValue, computeStockVelocity } from '../utils/stockVelocity';
 import { computeMarginPct } from '../utils/priceHistory';
@@ -387,6 +388,9 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         padding: 12,
         marginBottom: 16,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        ...Shadow.sm,
     },
     summaryLabel: {
         fontSize: 12,
@@ -428,6 +432,7 @@ const styles = StyleSheet.create({
         marginBottom: 10,
         borderLeftWidth: 4,
         borderLeftColor: Colors.primary,
+        ...Shadow.sm,
     },
     productHeader: {
         flexDirection: 'row',
@@ -484,6 +489,7 @@ const styles = StyleSheet.create({
         marginVertical: 16,
         borderLeftWidth: 4,
         borderLeftColor: Colors.warning,
+        ...Shadow.sm,
     },
     insightTitle: {
         fontSize: 13,
@@ -504,6 +510,7 @@ const styles = StyleSheet.create({
         marginBottom: 24,
         borderLeftWidth: 4,
         borderLeftColor: Colors.income,
+        ...Shadow.sm,
     },
     matrixTitle: {
         fontSize: 13,

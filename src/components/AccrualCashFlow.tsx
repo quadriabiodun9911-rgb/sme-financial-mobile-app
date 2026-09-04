@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Transaction, Invoice, FinanceData } from '../types';
 import { Colors } from '../theme/colors';
+import { Radius, Shadow } from '../theme/tokens';
 import { trailingCutoffDateString } from '../utils/cfoMetrics';
 
 interface Props {
@@ -134,7 +135,7 @@ function CFRow({ label, value, currency, total = false, indent = false }: {
 }
 
 const s = StyleSheet.create({
-    card:         { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12 },
+    card:         { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle:    { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 10 },
 
     cfRow:        { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: Colors.border },

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Radius, Shadow } from '../theme/tokens';
 import { FinanceData, Transaction } from '../types';
 import { computeMonthlyTrend, latestTransactionDate } from '../utils/finance';
 import { computeMarginPct } from '../utils/priceHistory';
@@ -467,7 +468,7 @@ const s = StyleSheet.create({
     kpiLabel: { fontSize: 11, color: Colors.textSecondary, marginBottom: 6 },
     kpiValue: { fontSize: 16, fontWeight: 'bold' },
 
-    card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12 },
+    card: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
     cardSub: { fontSize: 11, color: Colors.textSecondary, marginBottom: 8 },
 

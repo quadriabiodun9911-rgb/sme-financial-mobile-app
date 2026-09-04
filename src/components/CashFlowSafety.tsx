@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Radius, Shadow } from '../theme/tokens';
 import { FinanceData, Transaction, Invoice } from '../types';
 import { computeAgingBuckets } from '../utils/finance';
 import { computeCashRunway } from '../utils/cashRunway';
@@ -309,7 +310,7 @@ const styles = StyleSheet.create({
 
     ratioRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
 
-    card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12 },
+    card: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle: { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
     cardSub: { fontSize: 12, color: Colors.textMuted, marginBottom: 12 },
 

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Radius, Shadow } from '../theme/tokens';
 import { Transaction, InventoryItem } from '../types';
 import { computeWorkingCapitalHealth, WorkingCapitalHealthBand, WorkingCapitalRiskFlag, WorkingCapitalTrendPoint } from '../utils/workingCapitalHealth';
 import { computeSupplierPaymentPressure, SupplierPaymentPressureLevel } from '../utils/supplierPaymentPressure';
@@ -195,7 +196,7 @@ const s = StyleSheet.create({
     scoreLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: 10 },
     verdict: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, marginTop: 12 },
 
-    card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
+    card: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
     pressureHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
     pressureBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },

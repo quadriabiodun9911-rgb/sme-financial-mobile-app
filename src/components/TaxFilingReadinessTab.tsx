@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import { computeTaxFilingReadiness } from '../utils/taxFilingReadiness';
 import { computeComplianceObligations } from '../utils/complianceMapping';
 
@@ -115,6 +116,7 @@ const s = StyleSheet.create({
         padding: 18,
         alignItems: 'center',
         marginBottom: 12,
+        ...Shadow.sm,
     },
     deadlineLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.6, marginBottom: 6 },
     deadlineValue: { fontSize: 30, fontWeight: '900', marginBottom: 2 },
@@ -127,6 +129,7 @@ const s = StyleSheet.create({
         padding: 18,
         alignItems: 'center',
         marginBottom: 16,
+        ...Shadow.sm,
     },
     summaryScore: { fontSize: 32, fontWeight: '900', marginBottom: 4 },
     summaryLabel: { fontSize: 13, color: Colors.textSecondary },
@@ -139,6 +142,7 @@ const s = StyleSheet.create({
         padding: 12,
         marginBottom: 8,
         alignItems: 'flex-start',
+        ...Shadow.sm,
     },
     checkIcon: { fontSize: 16 },
     checkLabel: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary, marginBottom: 3 },
@@ -150,6 +154,7 @@ const s = StyleSheet.create({
         marginTop: 12,
         borderWidth: 1,
         borderColor: Colors.border,
+        ...Shadow.sm,
     },
     noticeTitle: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
     noticeText: { fontSize: 11.5, color: Colors.textMuted, lineHeight: 17 },
@@ -161,6 +166,7 @@ const s = StyleSheet.create({
         marginTop: 12,
         borderWidth: 1,
         borderColor: Colors.border,
+        ...Shadow.sm,
     },
     complianceTitle: { fontSize: 11, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, marginBottom: 10 },
     complianceLiability: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginBottom: 14 },

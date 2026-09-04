@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Transaction, Asset } from '../types';
 import { Colors } from '../theme/colors';
+import { Radius, Shadow } from '../theme/tokens';
 import { computeProperCashFlow } from '../utils/finance';
 import { computeCashFlowTrend, CashFlowPeriodGrouping } from '../utils/cashFlowTrend';
 import BarList from './BarList';
@@ -220,7 +221,7 @@ const s = StyleSheet.create({
     groupingText:       { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted },
     groupingTextActive: { color: '#fff' },
 
-    card:      { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12 },
+    card:      { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 10 },
 
     cfRow:        { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: Colors.border },

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Radius, Shadow } from '../theme/tokens';
 import { Transaction, Asset, InventoryItem, Loan } from '../types';
 import { computeCashFlowHealth, CashFlowHealthBand, CashFlowRiskFlag, TrajectoryPoint } from '../utils/cashFlowHealth';
 import RadialGauge from './RadialGauge';
@@ -191,7 +192,7 @@ const s = StyleSheet.create({
     scoreLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: 10 },
     verdict: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, marginTop: 12 },
 
-    card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
+    card: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
     divider: { height: 1, backgroundColor: Colors.border, marginVertical: 14 },
 

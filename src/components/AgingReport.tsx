@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { useApp } from '../contexts/AppContext';
 import { computeAgingBuckets } from '../utils/finance';
 import { Colors } from '../theme/colors';
+import { Radius, Shadow } from '../theme/tokens';
 import { Transaction } from '../types';
 import BarList from './BarList';
 
@@ -148,14 +149,14 @@ const styles = StyleSheet.create({
     tabActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
     tabText: { color: Colors.textMuted, fontSize: 12, fontWeight: '500', textAlign: 'center' },
     tabTextActive: { color: Colors.textPrimary, fontWeight: 'bold' },
-    summaryCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12, alignItems: 'center' },
+    summaryCard: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 16, marginBottom: 12, alignItems: 'center', borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     summaryTitle: { fontSize: 13, color: Colors.textMuted, marginBottom: 6 },
     summaryAmount: { fontSize: 28, fontWeight: 'bold', marginBottom: 4 },
     summaryHint: { fontSize: 11, color: Colors.textMuted, textAlign: 'center' },
-    emptyCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 24, alignItems: 'center', marginBottom: 12 },
+    emptyCard: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 24, alignItems: 'center', marginBottom: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     emptyTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.income, marginBottom: 8 },
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
-    bucketCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12, borderLeftWidth: 4 },
+    bucketCard: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, marginBottom: 12, borderLeftWidth: 4, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     bucketHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
     bucketLabel: { fontSize: 13, fontWeight: 'bold' },
     bucketTotal: { fontSize: 15, fontWeight: 'bold' },
@@ -170,6 +171,6 @@ const styles = StyleSheet.create({
     txAmount: { fontSize: 14, fontWeight: 'bold' },
     markPaidBtn: { paddingHorizontal: 8, paddingVertical: 3, backgroundColor: 'rgba(16,185,129,0.15)', borderRadius: 6 },
     markPaidText: { fontSize: 11, color: Colors.income, fontWeight: '600' },
-    summaryBar: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12 },
+    summaryBar: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     summaryBarTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
 });

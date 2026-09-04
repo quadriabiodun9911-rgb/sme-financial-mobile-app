@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { Radius, Shadow } from '../theme/tokens';
 import { analyzeTrend, computeDailyTrend, computeWeeklyTrend, computeQuarterlyTrend, computeYearlyBusinessSnapshot } from '../utils/trendAnalysis';
 import GroupedBarChart from './GroupedBarChart';
 
@@ -264,7 +265,7 @@ const s = StyleSheet.create({
     statVal:  { fontSize: 18, fontWeight: '800', color: Colors.textPrimary },
     statLabel: { fontSize: 10, color: Colors.textMuted, marginTop: 4, textAlign: 'center' },
 
-    card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
+    card: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
     cardSub:   { fontSize: 11, color: Colors.textMuted, marginBottom: 12 },
 

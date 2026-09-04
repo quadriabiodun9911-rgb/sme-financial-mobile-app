@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Radius, Shadow } from '../theme/tokens';
 import { computeTaxTotals } from '../utils/finance';
 import { Transaction } from '../types';
 import TaxComparisonTable from './TaxComparisonTable';
@@ -162,7 +163,7 @@ const rowStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-    card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 14 },
+    card: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle: { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
     row: { flexDirection: 'row', gap: 10, marginBottom: 12 },
     statBox: { flex: 1, borderRadius: 10, borderWidth: 1, padding: 12, alignItems: 'center' },

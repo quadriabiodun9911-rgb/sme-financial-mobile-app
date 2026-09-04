@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import NextStepLink from './NextStepLink';
 import { getTaxRatePercent } from '../utils/finance';
 import { showAlert } from '../utils/webAlert';
@@ -405,7 +406,7 @@ function ChecklistItem({ text }: { text: string }) {
 
 const s = StyleSheet.create({
     subtitle: { fontSize: 12, color: Colors.textSecondary, marginBottom: 16, lineHeight: 17 },
-    section: { marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 12, padding: 16, borderLeftWidth: 4, borderLeftColor: Colors.primary },
+    section: { marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 12, padding: 16, borderLeftWidth: 4, borderLeftColor: Colors.primary, ...Shadow.sm },
     sectionTitle: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary, marginBottom: 12 },
     sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     addBtn: { backgroundColor: Colors.primary, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6 },

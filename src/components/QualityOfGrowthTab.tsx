@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
-import { Radius, Spacing } from '../theme/tokens';
+import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { Transaction, Asset, Loan } from '../types';
 import { computeQualityOfGrowth, GrowthSignal, QualityBand } from '../utils/qualityOfGrowth';
 import { computeQualityOfGrowthIntelligence } from '../utils/metricIntelligence';
@@ -157,7 +157,7 @@ const s = StyleSheet.create({
     flagBullet: { fontSize: 12, color: Colors.textMuted },
     flagText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
-    card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
+    card: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
 
     tableHeader: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 8, marginBottom: 6 },
