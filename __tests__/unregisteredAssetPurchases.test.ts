@@ -53,4 +53,13 @@ describe('computeUnregisteredAssetPurchases', () => {
         const r = computeUnregisteredAssetPurchases([makeTx({ type: 'income' })], []);
         expect(r).toHaveLength(0);
     });
+
+    it('ignores a Stock In cash-purchase transaction even though it also uses transactionCategory purchase', () => {
+        // stockInInventory (OptimizedContexts.tsx) stamps the same
+        // transactionCategory: 'purchase' on its optional cash-purchase
+        // transaction, but tags it with inventoryItemId since it's already
+        // fully accounted for as stock -- not an unregistered fixed asset.
+        const r = computeUnregisteredAssetPurchases([makeTx({ inventoryItemId: 'inv-1' })], []);
+        expect(r).toHaveLength(0);
+    });
 });

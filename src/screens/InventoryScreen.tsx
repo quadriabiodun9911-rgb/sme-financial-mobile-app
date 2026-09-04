@@ -23,7 +23,7 @@ import { appendPriceChange, computeMarginPct } from '../utils/priceHistory';
 import { appendStockCount, describeStockCount } from '../utils/stockCount';
 import { computeInventoryPace, computeSlowMovingValue } from '../utils/inventoryIntelligence';
 import { computeInventoryHealth } from '../utils/inventoryHealth';
-import { computeWorkingCapitalMetrics } from '../utils/finance';
+import { computeWorkingCapitalMetrics, computeUnlinkedInventoryCostPurchases } from '../utils/finance';
 import { computeStockReconciliation } from '../utils/stockReconciliation';
 import RecipeCostCalculator from '../components/RecipeCostCalculator';
 import ProductionCostCalculator from '../components/ProductionCostCalculator';
@@ -131,7 +131,7 @@ function StockBar({ quantity, threshold, color }: { quantity: number; threshold:
 }
 
 export default function InventoryScreen() {
-    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, settings, navigate, addTransaction, transactions, finance, navParams } = useApp();
+    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, linkInventoryCostTransaction, settings, navigate, addTransaction, transactions, finance, navParams } = useApp();
     const { currency } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -157,6 +157,9 @@ export default function InventoryScreen() {
     const [countModal, setCountModal] = useState<{ item: InventoryItem } | null>(null);
     const [countQty, setCountQty] = useState('');
     const [countNote, setCountNote] = useState('');
+    const [linkModal, setLinkModal] = useState<{ transactionId: string; date: string; description: string; amount: number } | null>(null);
+    const [linkItemId, setLinkItemId] = useState<string | null>(null);
+    const [linkQty, setLinkQty] = useState('');
 
     // ── Summary calculations ──────────────────────────────────────────────────
     // computeInventoryValue and the category breakdown both scan the full
@@ -169,6 +172,26 @@ export default function InventoryScreen() {
         () => computeStockReconciliation(transactions, inventory.length > 0, currency),
         [transactions, inventory.length, currency]
     );
+    // A bank-statement import can tag a row "Cost of Goods" (see
+    // transactionCategorization.ts) but has no quantity to work with -- this
+    // finds those so they can be applied to an actual item's stock levels
+    // instead of just sitting in the transaction list unlinked.
+    const unlinkedCostPurchases = useMemo(() => computeUnlinkedInventoryCostPurchases(transactions), [transactions]);
+
+    const openLinkModal = (p: { transactionId: string; date: string; description: string; amount: number }) => {
+        setLinkModal(p);
+        setLinkItemId(inventory[0]?.id ?? null);
+        setLinkQty('');
+    };
+    const confirmLink = () => {
+        if (!linkModal || !linkItemId) return;
+        const qty = parseFloat(linkQty);
+        if (!qty || qty <= 0) { showAlert('Enter a valid quantity', 'How many units did this purchase add to stock?'); return; }
+        const item = inventory.find(i => i.id === linkItemId);
+        linkInventoryCostTransaction(linkModal.transactionId, linkItemId, qty);
+        showAlert('Linked', `"${linkModal.description}" was applied to ${item?.name ?? 'that item'}'s stock and won't be flagged again.`);
+        setLinkModal(null); setLinkItemId(null); setLinkQty('');
+    };
 
     // ── Analytics calculations ────────────────────────────────────────────────
     const { totalPotentialRevenue, grossProfitIfAllSold, overallMargin } = useMemo(() => {
@@ -551,6 +574,33 @@ export default function InventoryScreen() {
                             <View style={styles.lowStockBanner}>
                                 <Icon name="alert-triangle" size={14} color={Colors.warning} />
                                 <Text style={styles.lowStockBannerText}>{stockReconciliation.summary}</Text>
+                            </View>
+                        )}
+
+                        {/* Unlinked stock purchases -- same "found in your
+                            transaction history" pattern as Assets' unregistered-
+                            purchase nudge. Deliberately doesn't auto-apply: a
+                            bank line has a total, not a quantity, so someone
+                            has to say which item and how many units arrived. */}
+                        {inventory.length > 0 && unlinkedCostPurchases.length > 0 && (
+                            <View style={styles.detectedAlert}>
+                                <View style={styles.replaceAlertRow}>
+                                    <Icon name="upload" size={14} color={Colors.primary} />
+                                    <Text style={[styles.replaceAlertText, { color: Colors.primary }]}>
+                                        {unlinkedCostPurchases.length} stock purchase{unlinkedCostPurchases.length > 1 ? 's' : ''} found in your transaction history {unlinkedCostPurchases.length > 1 ? "aren't" : "isn't"} reflected in your stock levels yet.
+                                    </Text>
+                                </View>
+                                {unlinkedCostPurchases.slice(0, 3).map(p => (
+                                    <View key={p.transactionId} style={styles.unregisteredRow}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.unregisteredName} numberOfLines={1}>{p.description}</Text>
+                                            <Text style={styles.unregisteredMeta}>{p.date} · {currency}{p.amount.toLocaleString()}</Text>
+                                        </View>
+                                        <TouchableOpacity onPress={() => openLinkModal(p)}>
+                                            <Text style={styles.unregisteredAdd}>Link to an item →</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
                             </View>
                         )}
 
@@ -1363,6 +1413,76 @@ export default function InventoryScreen() {
                 </KeyboardAvoidingView>
             </Modal>
 
+            {/* ── Link Purchase to Item Modal ──────────────────────────────────────
+                For an unlinked cost-category transaction (see
+                computeUnlinkedInventoryCostPurchases): a bank line has a
+                total, not a quantity, so this asks which item it was and how
+                many units arrived, then applies the same weighted-average
+                costing Stock In uses -- without creating a second
+                transaction for money already recorded once. */}
+            <Modal visible={!!linkModal} transparent animationType="slide" onRequestClose={() => { setLinkModal(null); setLinkItemId(null); setLinkQty(''); }}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => { setLinkModal(null); setLinkItemId(null); setLinkQty(''); }} />
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
+                    <View style={styles.modalHandle} />
+                    <Text style={styles.modalTitle}>Link Purchase to Item</Text>
+                    {linkModal && (() => {
+                        const selectedItem = inventory.find(i => i.id === linkItemId);
+                        const qty = parseFloat(linkQty);
+                        const costPerUnit = selectedItem && qty > 0 ? linkModal.amount / qty : null;
+                        const preview = selectedItem && costPerUnit !== null ? applyStockIn(selectedItem, qty, costPerUnit) : null;
+                        return (
+                            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                                <Text style={{ color: Colors.textSecondary, marginBottom: 8 }}>
+                                    "{linkModal.description}" — {linkModal.date} · {currency}{linkModal.amount.toLocaleString()}
+                                </Text>
+                                <Text style={styles.fieldLabel}>Which item did this restock?</Text>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                                    {inventory.map(item => (
+                                        <TouchableOpacity
+                                            key={item.id}
+                                            style={[styles.linkItemChip, linkItemId === item.id && styles.linkItemChipActive]}
+                                            onPress={() => setLinkItemId(item.id)}
+                                        >
+                                            <Text style={[styles.linkItemChipText, linkItemId === item.id && styles.linkItemChipTextActive]}>{item.name}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder={`Quantity received${selectedItem ? ` (${selectedItem.unit})` : ''}`}
+                                    placeholderTextColor={Colors.textMuted}
+                                    keyboardType="decimal-pad"
+                                    value={linkQty}
+                                    onChangeText={setLinkQty}
+                                />
+                                {preview && costPerUnit !== null && (
+                                    <View style={styles.previewCard}>
+                                        <View style={styles.previewRow}>
+                                            <Text style={styles.previewLabel}>Cost per unit (from this purchase)</Text>
+                                            <Text style={styles.previewVal}>{currency}{costPerUnit.toLocaleString(undefined, { maximumFractionDigits: 2 })}</Text>
+                                        </View>
+                                        <View style={[styles.previewRow, styles.previewBorderTop]}>
+                                            <Text style={[styles.previewLabel, { fontWeight: '700', color: Colors.textPrimary }]}>New stock</Text>
+                                            <Text style={[styles.previewVal, { fontWeight: '700' }]}>{preview.quantity} {selectedItem!.unit}</Text>
+                                        </View>
+                                        <View style={styles.previewRow}>
+                                            <Text style={styles.previewLabel}>New avg. cost/unit</Text>
+                                            <Text style={styles.previewVal}>{currency}{preview.costPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</Text>
+                                        </View>
+                                    </View>
+                                )}
+                                <TouchableOpacity style={styles.submitBtn} onPress={confirmLink}>
+                                    <Text style={styles.submitBtnText}>Confirm Link</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setLinkModal(null); setLinkItemId(null); setLinkQty(''); }}>
+                                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                                </TouchableOpacity>
+                            </ScrollView>
+                        );
+                    })()}
+                </KeyboardAvoidingView>
+            </Modal>
+
             {/* ── Change Price Modal ────────────────────────────────────────────── */}
             <Modal visible={!!priceModal} transparent animationType="slide" onRequestClose={() => { setPriceModal(null); setPriceForm(null); }}>
                 <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => { setPriceModal(null); setPriceForm(null); }} />
@@ -1573,6 +1693,17 @@ const styles = StyleSheet.create({
     },
     lowStockBannerText: { flex: 1, color: Colors.warning, fontWeight: '600', fontSize: 13 },
 
+    // Same "found in your transaction history" nudge card as AssetsScreen's
+    // unregistered-purchase alert -- kept visually identical since it's the
+    // same pattern (an imported transaction not yet reflected elsewhere).
+    detectedAlert: { backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
+    replaceAlertRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+    replaceAlertText: { flex: 1, fontSize: 12, lineHeight: 18 },
+    unregisteredRow: { flexDirection: 'row', alignItems: 'center', paddingTop: Spacing.sm, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.primary + '30', gap: Spacing.sm },
+    unregisteredName: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
+    unregisteredMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+    unregisteredAdd: { fontSize: 11.5, color: Colors.primary, fontWeight: '700' },
+
     emptyState:    { alignItems: 'center', paddingVertical: 60 },
     emptyIconWrap: { marginBottom: Spacing.lg },
     emptyText:     { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 6 },
@@ -1699,4 +1830,10 @@ const styles = StyleSheet.create({
     previewLabel:    { fontSize: 12, color: Colors.textSecondary },
     previewVal:      { fontSize: 12, color: Colors.textPrimary },
     previewBorderTop:{ borderTopWidth: 1, borderTopColor: Colors.border, marginTop: 2, paddingTop: 7 },
+
+    fieldLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
+    linkItemChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg, marginRight: 8 },
+    linkItemChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    linkItemChipText: { fontSize: 12, color: Colors.textSecondary },
+    linkItemChipTextActive: { color: '#fff' },
 });

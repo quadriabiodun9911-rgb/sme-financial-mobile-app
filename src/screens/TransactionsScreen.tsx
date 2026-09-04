@@ -29,6 +29,7 @@ import { canDeleteTransactions } from '../utils/rolePermissions';
 import { convertToBaseCurrency } from '../utils/foreignCurrency';
 import { categorizeTransactionAI, AICategorizationResult } from '../utils/aiCategorization';
 import { computeExpenseIntelligence, ExpenseTier } from '../utils/expenseIntelligence';
+import { filterNewTransactions } from '../utils/transactionDedup';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
@@ -498,11 +499,16 @@ export default function TransactionsScreen() {
     };
 
     const handleImportCSV = () => {
-        const rows = parseCSV(csvText);
-        if (rows.length === 0) {
+        const parsed = parseCSV(csvText);
+        if (parsed.length === 0) {
             showAlert('No valid rows', 'Could not parse any valid transactions from the CSV. Check the format and try again.');
             return;
         }
+        // Same guard as ImportTransactionsScreen/ReconciliationScreen --
+        // without it, re-pasting the same (or an overlapping) CSV here
+        // would silently double every transaction in it, with no warning.
+        const rows = filterNewTransactions(parsed, transactions as any);
+        const duplicateCount = parsed.length - rows.length;
         let imported = 0;
         let skipped = 0;
         const total = csvText.trim().split('\n').filter(l => l.trim()).length - 1;
@@ -521,7 +527,7 @@ export default function TransactionsScreen() {
                 skipped++;
             }
         }
-        skipped += Math.max(0, total - rows.length);
+        skipped += Math.max(0, total - parsed.length) + duplicateCount;
         setCsvModalOpen(false);
         setCsvText('');
         showAlert('Import Complete', `Imported ${imported} transaction${imported !== 1 ? 's' : ''}${skipped > 0 ? `, skipped ${skipped} row${skipped !== 1 ? 's' : ''}` : ''}.`);

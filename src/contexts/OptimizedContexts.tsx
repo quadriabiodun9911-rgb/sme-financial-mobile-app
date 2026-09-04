@@ -153,6 +153,12 @@ interface FinanceContextValue {
   // the matching cash-outflow transaction, since buying inventory is a real
   // Cash ↓ / Inventory ↑ event the app previously never recorded.
   stockInInventory: (id: string, params: { quantityAdded: number; costPerUnit: number; supplier?: string; purchaseDate: string; recordCashPurchase: boolean }) => void;
+  // For a stock purchase that arrived as an ordinary imported transaction
+  // (see computeUnlinkedInventoryCostPurchases) rather than through Stock
+  // In -- applies the same weighted-average costing against the amount
+  // already on that transaction and tags it with inventoryItemId, without
+  // creating a second transaction for money that's already recorded once.
+  linkInventoryCostTransaction: (transactionId: string, itemId: string, quantityAdded: number) => void;
 
   staff: StaffMember[];
   payrollRuns: PayrollRun[];
@@ -596,6 +602,25 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             inventoryItemId: id,
           } as Transaction]);
         }
+      },
+      linkInventoryCostTransaction: (transactionId, itemId, quantityAdded) => {
+        const item = inventory.find((i) => i.id === itemId);
+        const tx = transactions.find((t) => t.id === transactionId);
+        if (!item || !tx || !(quantityAdded > 0)) return;
+        const costPerUnit = (tx.amount ?? 0) / quantityAdded;
+        const { quantity: newQuantity, costPrice: newCostPrice } = applyStockIn(item, quantityAdded, costPerUnit);
+        setInventory((prev) =>
+          prev.map((i) => (i.id === itemId ? {
+            ...i,
+            quantity: newQuantity,
+            costPrice: newCostPrice,
+            supplier: tx.vendorCustomer || i.supplier,
+            updatedAt: new Date().toISOString(),
+          } : i))
+        );
+        setTransactions((prev) =>
+          prev.map((t) => (t.id === transactionId ? { ...t, inventoryItemId: itemId } : t))
+        );
       },
 
       staff,
@@ -2468,6 +2493,7 @@ export function useApp() {
     addInventoryItem: finance?.addInventoryItem || (() => {}),
     deleteInventoryItem: finance?.deleteInventoryItem || (() => {}),
     stockInInventory: finance?.stockInInventory || (() => {}),
+    linkInventoryCostTransaction: finance?.linkInventoryCostTransaction || (() => {}),
     updateCashPocket: finance?.updateCashPocket || (() => {}),
     addCashPocket: finance?.addCashPocket || (() => {}),
     deleteCashPocket: finance?.deleteCashPocket || (() => {}),

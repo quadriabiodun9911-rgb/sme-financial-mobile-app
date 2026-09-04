@@ -344,7 +344,14 @@ export function computeUnregisteredAssetPurchases(transactions: Transaction[], a
     const key = (date: string, amount: number) => `${date}|${Math.round(amount * 100)}`;
     const registered = new Set(assets.map(a => key(a.purchaseDate, a.purchaseCost)));
     return transactions
-        .filter(t => t.type === 'expense' && t.transactionCategory === 'purchase')
+        // Inventory's own Stock In action (see stockInInventory in
+        // OptimizedContexts.tsx) also stamps transactionCategory: 'purchase'
+        // on the cash-purchase transaction it optionally creates -- but
+        // tags it with inventoryItemId, since it's already fully accounted
+        // for as stock, not an unregistered fixed asset. Without this
+        // exclusion, every "record cash purchase" Stock In showed up here
+        // asking to be re-added to the Asset Register.
+        .filter(t => t.type === 'expense' && t.transactionCategory === 'purchase' && !t.inventoryItemId)
         .filter(t => !registered.has(key(t.date, t.amount ?? 0)))
         .map(t => ({ transactionId: t.id, date: t.date, description: t.description || 'Asset purchase', amount: t.amount ?? 0 }));
 }
@@ -434,6 +441,33 @@ export function computeUnlinkedInvoicePayments(invoices: Invoice[], transactions
         }
     }
     return results;
+}
+
+export interface UnlinkedInventoryCostPurchase {
+    transactionId: string;
+    date: string;
+    description: string;
+    amount: number;
+}
+
+// The Inventory equivalent of computeUnregisteredAssetPurchases: a bank
+// statement/CSV import already classifies a row as a stock/supplier
+// purchase (see transactionCategorization.ts's 'Cost of Goods' keywords,
+// which ImportTransactionsScreen/ReconciliationScreen map to
+// transactionCategory: 'cost') -- this finds ones that never got reflected
+// in actual stock levels, so Inventory can prompt to apply them via Stock
+// In instead of silently losing the signal. Excludes anything already
+// carrying inventoryItemId (linked here, or created by Stock In's own
+// "record cash purchase" option, which uses transactionCategory: 'purchase'
+// instead and so wouldn't match anyway -- the check is defensive).
+// Deliberately does NOT try to guess which item or how many units: a bank
+// line has a lump amount, not a quantity, so unlike an asset purchase this
+// needs a person to pick the item and say how much arrived before Stock
+// In's weighted-average costing can be applied.
+export function computeUnlinkedInventoryCostPurchases(transactions: Transaction[]): UnlinkedInventoryCostPurchase[] {
+    return transactions
+        .filter(t => t.type === 'expense' && t.transactionCategory === 'cost' && !t.inventoryItemId)
+        .map(t => ({ transactionId: t.id, date: t.date, description: t.description || 'Stock purchase', amount: t.amount ?? 0 }));
 }
 
 export interface AssetPaybackInfo {
