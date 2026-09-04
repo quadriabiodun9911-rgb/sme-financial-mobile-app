@@ -65,6 +65,8 @@ import { computeCostExposure, MODEL as COST_EXPOSURE_MODEL } from '../utils/cost
 import { computeDailyTrend } from '../utils/trendAnalysis';
 import { registerForPushNotificationsAsync, syncCashPositionSummary } from '../utils/pushRegistration';
 import { categorizeTransactionAI, AICategorizationResult } from '../utils/aiCategorization';
+import { parseQuickAddText } from '../utils/quickAddParser';
+import { classifyByDescription } from '../utils/transactionCategorization';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeTaxAbilityToPay } from '../utils/taxFilingReadiness';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
@@ -177,6 +179,17 @@ export default function DashboardScreen() {
     const [qaDesc, setQaDesc]             = useState('');
     const [qaCategory, setQaCategory]     = useState('');
     const [qaSubmitting, setQaSubmitting] = useState(false);
+    // Quick Add's primary input is now one free-text sentence ("Sold 3 bags
+    // of rice for 15000") -- see quickAddParser.ts. qaText is the raw draft;
+    // qaType/qaAmount/qaDesc/qaCategory below are auto-filled from it on
+    // every keystroke but stay fully editable, since a lightweight offline
+    // parse can misread an unusual sentence and the user needs a way to
+    // correct it before submitting, not just trust it silently.
+    const [qaText, setQaText]             = useState('');
+    const [qaTypeConfident, setQaTypeConfident] = useState(true);
+    // Set once the user manually taps a category chip or types a custom one,
+    // so further edits to qaText stop overwriting their explicit choice.
+    const [qaCategoryTouched, setQaCategoryTouched] = useState(false);
     const [qaPaymentMethod, setQaPaymentMethod] = useState<'cash' | 'bank' | undefined>(undefined);
     const [qaAiSuggesting, setQaAiSuggesting]   = useState(false);
     const [qaAiSuggestion, setQaAiSuggestion]   = useState<AICategorizationResult | null>(null);
@@ -208,13 +221,6 @@ export default function DashboardScreen() {
     // a guessed constant so it stays correct if the banner's text wraps.
     const [logTodayBannerHeight, setLogTodayBannerHeight] = useState(0);
     const [eodOpen, setEodOpen]                 = useState(false);
-    const [eodIncome, setEodIncome]             = useState('');
-    const [eodExpense, setEodExpense]           = useState('');
-    // Optional -- left unset keeps today's numbers exactly as before
-    // (payment method unspecified). Tagging it lets a cash-heavy business
-    // build a real Cash Sales vs Bank Sales split over repeated EOD logs
-    // without adding a mandatory field to the fastest entry point in the app.
-    const [eodPaymentMethod, setEodPaymentMethod] = useState<'cash' | 'bank' | undefined>(undefined);
     const [lastSynced, setLastSynced]           = useState<Date>(new Date());
     // Which achieved goals have already had their "what's next" banner shown
     // (either accepted or dismissed) -- status/progress are recomputed fresh
@@ -827,12 +833,35 @@ export default function DashboardScreen() {
     const openFab = (type: 'income' | 'expense' = 'income') => {
         setQaType(type);
         setQaCategory('');
+        setQaCategoryTouched(false);
         setQaAmount('');
         setQaDesc('');
+        setQaText('');
+        setQaTypeConfident(true);
         setQaPaymentMethod(undefined);
         setQaAiSuggestion(null);
         setQaAiError(null);
         setFabOpen(true);
+    };
+
+    // Drives Quick Add's live preview -- re-parses on every keystroke (see
+    // quickAddParser.ts) and fills in type/amount/description, plus a
+    // category guess from the same keyword engine ReconciliationScreen's
+    // import flow uses. Never overwrites a category the user picked
+    // themselves (see qaCategoryTouched) so later edits to the sentence
+    // don't silently undo an explicit correction.
+    const handleQaTextChange = (text: string) => {
+        setQaText(text);
+        const parsed = parseQuickAddText(text);
+        setQaType(parsed.type);
+        setQaTypeConfident(parsed.confidentType);
+        setQaAmount(parsed.amount !== null ? String(parsed.amount) : '');
+        setQaDesc(parsed.description);
+        setQaAiSuggestion(null);
+        setQaAiError(null);
+        if (!qaCategoryTouched) {
+            setQaCategory(text.trim() ? classifyByDescription(parsed.description, parsed.type, settings.industry).subCategory : '');
+        }
     };
 
     const showToast = (msg: string) => {
@@ -840,19 +869,33 @@ export default function DashboardScreen() {
         setTimeout(() => setToast(null), 3000);
     };
 
-    const submitEod = () => {
-        const inc = parseFloat(eodIncome) || 0;
-        const exp = parseFloat(eodExpense) || 0;
-        if (inc <= 0 && exp <= 0) { showAlert('Nothing to save', 'Enter at least one amount.'); return; }
-        const today = new Date().toISOString().split('T')[0];
-        if (inc > 0) addTransaction({ type: 'income',  amount: inc, description: 'End of day income',   category: 'Sales', date: today, paymentMethod: eodPaymentMethod });
-        if (exp > 0) addTransaction({ type: 'expense', amount: exp, description: 'End of day expenses', category: 'Other', date: today, paymentMethod: eodPaymentMethod });
-        setEodIncome(''); setEodExpense(''); setEodPaymentMethod(undefined); setEodOpen(false);
+    // Today's already-recorded activity, for the End of Day check-in below --
+    // same filter DailyReportModal/DailyTargetCard/GoalsScreen each already
+    // compute independently for their own "today" figures. Reuses this
+    // screen's own `today` (already declared above).
+    const todayTxns = useMemo(() => transactions.filter(t => t.date === today), [transactions, today]);
+    const todayIncomeTotal = useMemo(
+        () => todayTxns.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0),
+        [todayTxns]
+    );
+    const todayExpenseTotal = useMemo(
+        () => todayTxns.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0) - (Number(t.principalPortion) || 0), 0),
+        [todayTxns]
+    );
+
+    // End of Day is now a confirmation of what's already been recorded --
+    // via Quick Add through the day, WhatsApp, or an earlier import -- not a
+    // second place asking the owner to compute and type in the day's totals
+    // from memory. "Something's missing" routes straight into Quick Add
+    // (now one sentence, not a form) instead.
+    const confirmEod = () => {
+        setEodOpen(false);
         setLastSynced(new Date());
-        // The Daily Report recap already shows this exact number alongside a
-        // verdict and tomorrow's action plan -- a toast saying the same thing
-        // a beat before the recap opens would just be redundant.
         setShowDailyReport(true);
+    };
+    const eodSomethingMissing = () => {
+        setEodOpen(false);
+        openFab();
     };
 
     // Same idea as TransactionsScreen's own AI category suggester -- the
@@ -903,6 +946,7 @@ export default function DashboardScreen() {
                 paymentMethod: qaPaymentMethod,
             });
             setQaAmount(''); setQaDesc(''); setQaCategory(''); setQaPaymentMethod(undefined);
+            setQaText(''); setQaCategoryTouched(false); setQaTypeConfident(true);
             setQaAiSuggestion(null); setQaAiError(null); setFabOpen(false);
             const newProfit = finance.profit + (qaType === 'income' ? amt : -amt);
             showToast(`Saved! This month's profit: ${settings.currency}${(isNaN(newProfit) ? 0 : newProfit).toLocaleString()}`);
@@ -2008,15 +2052,53 @@ export default function DashboardScreen() {
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
                     <View style={styles.modalHandle} />
                     <Text style={styles.modalTitle}>Quick Add</Text>
+                    <Text style={[styles.insightAction, { marginBottom: 12 }]}>
+                        Say what happened, in your own words — Quad360 fills in the rest.
+                    </Text>
 
-                    <View style={styles.typeRow}>
-                        <TouchableOpacity style={[styles.typeBtn, qaType === 'income' && styles.typeBtnIncome]} onPress={() => { setQaType('income'); setQaCategory(''); }}>
+                    <TextInput
+                        style={[styles.modalInput, { minHeight: 60, textAlignVertical: 'top' }]}
+                        placeholder="e.g. Sold 3 bags of rice for ₦15,000"
+                        placeholderTextColor={Colors.textMuted}
+                        value={qaText}
+                        onChangeText={handleQaTextChange}
+                        multiline
+                        autoFocus
+                    />
+
+                    {qaText.trim().length > 0 && (
+                    <>
+                    <View style={[styles.typeRow, { marginTop: 14 }]}>
+                        <TouchableOpacity style={[styles.typeBtn, qaType === 'income' && styles.typeBtnIncome]} onPress={() => setQaType('income')}>
                             <Text style={[styles.typeBtnText, qaType === 'income' && { color: '#fff' }]}>+ Income</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={[styles.typeBtn, qaType === 'expense' && styles.typeBtnExpense]} onPress={() => { setQaType('expense'); setQaCategory(''); }}>
+                        <TouchableOpacity style={[styles.typeBtn, qaType === 'expense' && styles.typeBtnExpense]} onPress={() => setQaType('expense')}>
                             <Text style={[styles.typeBtnText, qaType === 'expense' && { color: '#fff' }]}>− Expense</Text>
                         </TouchableOpacity>
                     </View>
+                    {/* The parser only flags direction as uncertain when it
+                        genuinely can't tell -- confirmed by neither an
+                        income nor an expense word appearing at all, or both
+                        appearing an equal number of times. */}
+                    {!qaTypeConfident && (
+                        <Text style={styles.aiSuggestHint}>Couldn't tell if this was money in or out — check the toggle above.</Text>
+                    )}
+
+                    <TextInput
+                        style={styles.modalInput}
+                        placeholder={`Amount (${settings.currency})`}
+                        placeholderTextColor={Colors.textMuted}
+                        keyboardType="decimal-pad"
+                        value={qaAmount}
+                        onChangeText={setQaAmount}
+                    />
+                    <TextInput
+                        style={styles.modalInput}
+                        placeholder="Description (e.g. Client payment, Rent)"
+                        placeholderTextColor={Colors.textMuted}
+                        value={qaDesc}
+                        onChangeText={v => { setQaDesc(v); setQaAiSuggestion(null); setQaAiError(null); }}
+                    />
 
                     {/* Category chips */}
                     <Text style={styles.catLabel}>Category</Text>
@@ -2025,7 +2107,7 @@ export default function DashboardScreen() {
                             <TouchableOpacity
                                 key={cat}
                                 style={[styles.catChip, qaCategory === cat && { backgroundColor: Colors.primary, borderColor: Colors.primary }]}
-                                onPress={() => setQaCategory(cat)}
+                                onPress={() => { setQaCategory(cat); setQaCategoryTouched(true); }}
                             >
                                 <Text style={[styles.catChipText, qaCategory === cat && { color: '#fff' }]}>{cat}</Text>
                             </TouchableOpacity>
@@ -2043,23 +2125,7 @@ export default function DashboardScreen() {
                         placeholder="Or type your own category..."
                         placeholderTextColor={Colors.textMuted}
                         value={qaCategory}
-                        onChangeText={setQaCategory}
-                    />
-
-                    <TextInput
-                        style={styles.modalInput}
-                        placeholder={`Amount (${settings.currency})`}
-                        placeholderTextColor={Colors.textMuted}
-                        keyboardType="decimal-pad"
-                        value={qaAmount}
-                        onChangeText={setQaAmount}
-                    />
-                    <TextInput
-                        style={styles.modalInput}
-                        placeholder="Description (e.g. Client payment, Rent)"
-                        placeholderTextColor={Colors.textMuted}
-                        value={qaDesc}
-                        onChangeText={v => { setQaDesc(v); setQaAiSuggestion(null); setQaAiError(null); }}
+                        onChangeText={v => { setQaCategory(v); setQaCategoryTouched(true); }}
                     />
 
                     {/* Same opt-in AI category suggester as TransactionsScreen's
@@ -2079,9 +2145,6 @@ export default function DashboardScreen() {
                             {qaAiSuggesting ? 'Asking AI…' : 'Suggest category with AI'}
                         </Text>
                     </TouchableOpacity>
-                    {!qaDesc.trim() && (
-                        <Text style={styles.aiSuggestHint}>Add a description above first</Text>
-                    )}
 
                     {qaAiError && <Text style={styles.aiError}>{qaAiError}</Text>}
 
@@ -2125,6 +2188,8 @@ export default function DashboardScreen() {
                     >
                         <Text style={styles.modalSubmitText}>Add {qaType === 'income' ? 'Income' : 'Expense'}</Text>
                     </TouchableOpacity>
+                    </>
+                    )}
                 </KeyboardAvoidingView>
             </Modal>
             <DailyReportModal
@@ -2164,42 +2229,29 @@ export default function DashboardScreen() {
                 <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setEodOpen(false)} />
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
                     <View style={styles.modalHandle} />
-                    <Text style={styles.modalTitle}>🌙 End of Day Quick Log</Text>
-                    <Text style={[styles.insightAction, { marginBottom: 16 }]}>Just two numbers — quick and done</Text>
-                    <Text style={styles.catLabel}>Total money received today ({currency})</Text>
-                    <TextInput
-                        style={styles.modalInput}
-                        placeholder="0"
-                        placeholderTextColor={Colors.textMuted}
-                        keyboardType="decimal-pad"
-                        value={eodIncome}
-                        onChangeText={setEodIncome}
-                    />
-                    <Text style={styles.catLabel}>Total money spent today ({currency})</Text>
-                    <TextInput
-                        style={styles.modalInput}
-                        placeholder="0"
-                        placeholderTextColor={Colors.textMuted}
-                        keyboardType="decimal-pad"
-                        value={eodExpense}
-                        onChangeText={setEodExpense}
-                    />
-                    <Text style={styles.catLabel}>Was this mostly cash or bank? (optional)</Text>
-                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                        {(['cash', 'bank'] as const).map(m => (
-                            <TouchableOpacity
-                                key={m}
-                                style={[styles.eodPaymentChip, eodPaymentMethod === m && styles.eodPaymentChipActive]}
-                                onPress={() => setEodPaymentMethod(prev => prev === m ? undefined : m)}
-                            >
-                                <Text style={[styles.eodPaymentChipText, eodPaymentMethod === m && styles.eodPaymentChipTextActive]}>
-                                    {m === 'cash' ? '💵 Cash' : '🏦 Bank'}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
+                    <Text style={styles.modalTitle}>🌙 End of Day Check-In</Text>
+                    <Text style={[styles.insightAction, { marginBottom: 16 }]}>
+                        {todayTxns.length > 0
+                            ? "Here's what Quad360 has recorded for today — does this match what actually happened?"
+                            : "Nothing's been logged today yet — is that right?"}
+                    </Text>
+
+                    <View style={styles.eodSummaryRow}>
+                        <View style={styles.eodSummaryItem}>
+                            <Text style={styles.eodSummaryLabel}>Received</Text>
+                            <Text style={[styles.eodSummaryValue, { color: Colors.income }]}>+{currency}{todayIncomeTotal.toLocaleString()}</Text>
+                        </View>
+                        <View style={styles.eodSummaryItem}>
+                            <Text style={styles.eodSummaryLabel}>Spent</Text>
+                            <Text style={[styles.eodSummaryValue, { color: Colors.expense }]}>-{currency}{todayExpenseTotal.toLocaleString()}</Text>
+                        </View>
                     </View>
-                    <TouchableOpacity style={[styles.modalSubmit, { backgroundColor: Colors.primary }]} onPress={submitEod}>
-                        <Text style={styles.modalSubmitText}>Save Today's Numbers</Text>
+
+                    <TouchableOpacity style={[styles.modalSubmit, { backgroundColor: Colors.primary, marginTop: 20 }]} onPress={confirmEod}>
+                        <Text style={styles.modalSubmitText}>✅ Yes, that's everything</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.modalSubmit, { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: Colors.border, marginTop: 10 }]} onPress={eodSomethingMissing}>
+                        <Text style={[styles.modalSubmitText, { color: Colors.textPrimary }]}>✏️ Something's missing</Text>
                     </TouchableOpacity>
                 </KeyboardAvoidingView>
             </Modal>
@@ -2875,6 +2927,11 @@ const styles = StyleSheet.create({
     eodPaymentChipActive: { backgroundColor: Colors.primary + '22', borderColor: Colors.primary },
     eodPaymentChipText:       { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' },
     eodPaymentChipTextActive: { color: Colors.primary },
+
+    eodSummaryRow:   { flexDirection: 'row', gap: 12 },
+    eodSummaryItem:  { flex: 1, backgroundColor: Colors.bg, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, padding: 16, alignItems: 'center' },
+    eodSummaryLabel: { fontSize: 12, color: Colors.textMuted, marginBottom: 4 },
+    eodSummaryValue: { fontSize: 20, fontWeight: '800' },
     modalSubmit:      { paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 4 },
     modalSubmitText:  { color: '#fff', fontWeight: 'bold', fontSize: 15 },
 
