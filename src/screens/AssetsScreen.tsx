@@ -21,6 +21,7 @@ import { computeProfitCashImpact } from '../utils/impactChain';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { parseAssetQuickAddText } from '../utils/assetQuickAddParser';
 
 const CATEGORIES: AssetCategory[] = ['equipment', 'vehicle', 'furniture', 'property', 'intangible', 'other'];
 
@@ -56,6 +57,11 @@ export default function AssetsScreen() {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [showDispose, setShowDispose] = useState<string | null>(null);
 
+    // Quick-add: one sentence ("Bought a laptop for 350000") parsed live into
+    // the name/cost fields below, same progressive-disclosure pattern as
+    // Dashboard's Quick Add -- only shown for a brand new asset, not editing.
+    const [qaText, setQaText] = useState('');
+
     // Form state
     const [name, setName]             = useState('');
     const [category, setCategory]     = useState<AssetCategory>('equipment');
@@ -75,9 +81,17 @@ export default function AssetsScreen() {
         setPCost(''); setLife('5'); setResidual('0');
         setAcqMethod('cash'); setAcqTerm('24'); setAcqRate('20');
         setEditingId(null);
+        setQaText('');
     };
 
     const openAdd = () => { resetForm(); setShowForm(true); };
+
+    const handleQaTextChange = (text: string) => {
+        setQaText(text);
+        const parsed = parseAssetQuickAddText(text);
+        setName(parsed.name);
+        if (parsed.cost !== null) setPCost(String(parsed.cost));
+    };
 
     // Prefills the same Add Asset form with what the bank statement already
     // told us for real (name, cost, date) -- useful life/category/residual
@@ -382,6 +396,23 @@ export default function AssetsScreen() {
                         <ScrollView keyboardShouldPersistTaps="handled">
                             <Text style={s.modalTitle}>{editingId ? t(language, 'edit') : t(language, 'addAsset')}</Text>
 
+                            {!editingId && (
+                                <>
+                                    <Label text="Quick add" />
+                                    <TextInput
+                                        style={[s.input, { minHeight: 60, textAlignVertical: 'top' }]}
+                                        value={qaText}
+                                        onChangeText={handleQaTextChange}
+                                        placeholderTextColor={Colors.muted}
+                                        placeholder="e.g. Bought a laptop for 350000"
+                                        multiline
+                                        autoFocus
+                                    />
+                                </>
+                            )}
+
+                            {(!!editingId || qaText.trim().length > 0) && (
+                            <>
                             <Label text={t(language, 'assetName')} />
                             <TextInput style={s.input} value={name} onChangeText={setName} placeholderTextColor={Colors.muted} placeholder="e.g. Dell Laptop" />
 
@@ -500,6 +531,8 @@ export default function AssetsScreen() {
                                     </View>
                                 );
                             })()}
+                            </>
+                            )}
 
                             <View style={s.btnRow}>
                                 <TouchableOpacity style={[s.btn, s.btnSecondary]} onPress={() => { setShowForm(false); resetForm(); }}>

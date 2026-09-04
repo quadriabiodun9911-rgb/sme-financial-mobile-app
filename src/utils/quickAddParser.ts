@@ -11,7 +11,20 @@
  * this only ever guesses direction, amount, and a cleaned-up description,
  * and always shows its guess back to the user to confirm or correct rather
  * than silently trusting it.
+ *
+ * Designed as the landing point for other input channels, not just typing:
+ * a future voice note only needs an external transcription step (e.g.
+ * Whisper/Deepgram -- not wired up yet, needs a provider decision + API
+ * key) to turn speech into text, then hand that text to this same function
+ * exactly like a typed sentence. A photographed receipt is a different
+ * shape -- reuse statementScan.ts's scanStatementImage (already handles
+ * documentType: 'receipt') instead, since the AI there extracts a
+ * structured {date, description, amount, direction} directly from the
+ * image and can populate Quick Add's fields straight from that, with no
+ * need to round-trip through this text parser at all.
  */
+
+import { extractAmount, stripSpanAndClean } from './textCaptureShared';
 
 export interface ParsedQuickAdd {
     type: 'income' | 'expense';
@@ -34,25 +47,6 @@ const EXPENSE_WORDS = [
     'salary', 'salaries', 'wage', 'wages', 'bill', 'fee', 'repair',
 ];
 
-// Picks the largest number in the text as the amount -- in casual retail
-// phrasing ("Sold 3 bags of rice for 15000") the transaction amount is
-// almost always the biggest figure, while quantities/unit prices are small.
-// Supports a trailing k/K suffix ("15k") and comma-grouped or currency-
-// prefixed numbers ("₦15,000").
-function extractAmount(text: string): { amount: number | null; start: number; end: number } {
-    const re = /[₦$€£]?\s*(\d[\d,]*(?:\.\d+)?)\s*(k\b|K\b)?/g;
-    let best: { amount: number; start: number; end: number } | null = null;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(text)) !== null) {
-        let n = parseFloat(m[1].replace(/,/g, ''));
-        if (isNaN(n) || n === 0) continue;
-        if (m[2]) n *= 1000;
-        if (!best || n > best.amount) best = { amount: n, start: m.index, end: m.index + m[0].length };
-    }
-    if (!best) return { amount: null, start: -1, end: -1 };
-    return best;
-}
-
 export function parseQuickAddText(text: string): ParsedQuickAdd {
     const trimmed = text.trim();
     const lower = trimmed.toLowerCase();
@@ -70,17 +64,7 @@ export function parseQuickAddText(text: string): ParsedQuickAdd {
     const type: 'income' | 'expense' = incomePresent && !expensePresent ? 'income' : 'expense';
     const confidentType = incomePresent !== expensePresent;
 
-    // Strip the matched amount token out of the description, drop leftover
-    // connective words ("for 15000" -> just remove "for" too), collapse
-    // whitespace, and capitalize the first letter so it reads like a real
-    // transaction description rather than a sentence fragment.
-    let description = start >= 0 ? trimmed.slice(0, start) + trimmed.slice(end) : trimmed;
-    description = description
-        .replace(/\s+/g, ' ')
-        .replace(/^\s*(for|of|at|-|:)\s+/i, '')
-        .replace(/\s+(for|of|at)\s*$/i, '')
-        .trim();
-    if (description) description = description[0].toUpperCase() + description.slice(1);
+    const description = stripSpanAndClean(trimmed, { start, end });
 
     return { type, amount, description: description || trimmed, confidentType };
 }
