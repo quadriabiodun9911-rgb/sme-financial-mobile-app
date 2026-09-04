@@ -203,7 +203,7 @@ function formatDateHeader(iso: string): string {
 }
 
 export default function TransactionsScreen() {
-    const { transactions, addTransaction, deleteTransaction, updateTransaction, settings, setCurrentScreen, navParams, invoices, markInvoiceStatus, language, isDemoMode, userRole } = useApp();
+    const { transactions, addTransaction, deleteTransaction, updateTransaction, settings, setCurrentScreen, navParams, invoices, markInvoiceStatus, language, isDemoMode, userRole, canViewFinancials } = useApp();
     const canDelete = canDeleteTransactions(userRole);
     // 'viewer'/'external_accountant' can open this screen (see
     // rolePermissions.ts's EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS/
@@ -663,6 +663,15 @@ export default function TransactionsScreen() {
             </View>
 
             {/* ── Totals strip — collapsed by default ─────────────────── */}
+            {/* Aggregate Net/Income/Expense across everything in the list is
+                a P&L rollup, not an individual transaction -- 'staff' can
+                open this screen to log day-to-day sales/expenses
+                (STAFF_ALLOWED_SCREENS) but is documented (canViewFinancials's
+                own comment) as having no visibility into the business's
+                aggregate financial position. Individual transaction rows
+                stay visible either way -- staff needs those to do the job;
+                a running business-wide total doesn't serve that. */}
+            {canViewFinancials && (
             <TouchableOpacity style={styles.totalsSummaryRow} onPress={() => setTotalsOpen(v => !v)} activeOpacity={0.7}>
                 <Text style={styles.totalsSummaryLabel}>{t(language, 'net')}</Text>
                 <Text style={[styles.totalsSummaryValue, { color: totals.net >= 0 ? Colors.income : Colors.expense }]}>
@@ -670,7 +679,8 @@ export default function TransactionsScreen() {
                 </Text>
                 <Icon name={totalsOpen ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
             </TouchableOpacity>
-            {totalsOpen && (
+            )}
+            {totalsOpen && canViewFinancials && (
                 <View style={styles.totalsRow}>
                     <TotalPill label={t(language, 'income')}  value={`+${currency}${totals.income.toLocaleString()}`}  color={Colors.income} />
                     <TotalPill label={t(language, 'expense')} value={`-${currency}${totals.expense.toLocaleString()}`} color={Colors.expense} />
@@ -684,7 +694,7 @@ export default function TransactionsScreen() {
             )}
 
             {/* ── Category breakdown chart ─────────────────────────────── */}
-            {filtered.length > 0 && (
+            {filtered.length > 0 && canViewFinancials && (
                 <>
                     <CategoryChart
                         incomeMap={categoryBreakdown.incomeMap}
