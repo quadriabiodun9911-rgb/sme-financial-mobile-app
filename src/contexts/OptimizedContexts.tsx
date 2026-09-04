@@ -321,6 +321,21 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // delete logic (see saveAssets's own comment) would then actually carry
   // out against the real data. A role that can never load this data must
   // also never be the one who persists (or wipes) it.
+  //
+  // Deliberately not debounced, even though every one of these fires on
+  // every state change with no batching window. A debounce here would
+  // delay the AsyncStorage.setItem each save*() does first (see
+  // saveTransactions's own "always save locally first" comment) -- so the
+  // one thing a debounce would actually risk, for a financial app, is
+  // losing the user's last edit if the app closes or crashes inside that
+  // delay window. The real cost of saving on every change is bounded
+  // already: AsyncStorage writes are local and cheap, and the delta-sync
+  // cache (storage.ts) means the Supabase upload only ever sends rows that
+  // actually changed, not the whole array. Reaching for a debounce would
+  // mean decoupling the instant local write from the network sync first
+  // (splitting every save*() into a local half and a debounced remote
+  // half) -- a real restructuring of the persistence layer, not a one-line
+  // change, and not worth the risk without a measured problem driving it.
   useEffect(() => { if (hydrated && !isDemoMode) saveTransactions(transactions).catch(() => {}); }, [transactions, hydrated, isDemoMode]);
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveAssets(assets).catch(() => {}); }, [assets, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveLoans(loans).catch(() => {}); }, [loans, hydrated, isDemoMode, isStaffRole]);
@@ -865,6 +880,7 @@ export function GoalProvider({ children }: { children: ReactNode }) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncUserId, isDemoMode, isStaffRole]);
+  // Not debounced -- see FinanceProvider's save-effect comment for why.
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveGoals(goals).catch(() => {}); }, [goals, hydrated, isDemoMode, isStaffRole]);
 
   const value: GoalContextValue = useMemo(
@@ -941,6 +957,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncUserId, isDemoMode, demoBusinessId]);
+  // Not debounced -- see FinanceProvider's save-effect comment for why.
   useEffect(() => { if (hydrated && !isDemoMode) saveInvoices(invoices).catch(() => {}); }, [invoices, hydrated, isDemoMode]);
 
   const value: InvoiceContextValue = useMemo(
@@ -1047,6 +1064,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncUserId, isDemoMode, demoBusinessId]);
+  // Not debounced -- see FinanceProvider's save-effect comment for why.
   useEffect(() => { if (hydrated && !isDemoMode) saveSettings(settings).catch(() => {}); }, [settings, hydrated, isDemoMode]);
 
   const value: SettingsContextValue = useMemo(
