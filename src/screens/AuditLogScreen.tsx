@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
-import { Radius, Spacing } from '../theme/tokens';
+import { Radius, Spacing, Shadow } from '../theme/tokens';
 import Icon from '../components/ui/Icon';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
@@ -75,13 +75,14 @@ const styles = StyleSheet.create({
     subtitle: { fontSize: 13, color: Colors.textMuted, lineHeight: 19, marginBottom: Spacing.lg },
     emptyCard: {
         alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Radius.lg,
-        padding: Spacing.xl, gap: 8,
+        padding: Spacing.xl, gap: 8, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
     },
     emptyTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary },
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' },
     row: {
         flexDirection: 'row', alignItems: 'flex-start', backgroundColor: Colors.surface,
         borderRadius: Radius.md, padding: Spacing.md, marginBottom: 8, gap: 10,
+        borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
     },
     dot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
     rowLabel: { fontSize: 14, color: Colors.textPrimary, fontWeight: '600' },

@@ -833,7 +833,7 @@ const s = StyleSheet.create({
     emptyProgressBarFill: { height: 6, backgroundColor: Colors.primary, borderRadius: 3 },
     emptyBtn:             { backgroundColor: Colors.primary, paddingVertical: 13, paddingHorizontal: 32, borderRadius: 10 },
     emptyBtnText:         { color: '#fff', fontWeight: 'bold', fontSize: 15 },
-    healthCard:           { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, marginHorizontal: 16, marginTop: 12, marginBottom: 4, borderRadius: 14, padding: 14, borderLeftWidth: 3, borderLeftColor: Colors.primary },
+    healthCard:           { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, marginHorizontal: 16, marginTop: 12, marginBottom: 4, borderRadius: 14, padding: 14, borderLeftWidth: 3, borderLeftColor: Colors.primary, ...Shadow.sm },
     healthTitle:          { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
     healthSub:            { fontSize: 11, color: Colors.textMuted },
     healthArrow:          { fontSize: 18, color: Colors.primary, fontWeight: '700' },
@@ -847,7 +847,7 @@ const s = StyleSheet.create({
     tabTextActive: { color: '#fff' },
 
     sectionHdr:   { fontSize: 12, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.8, marginBottom: 8, marginTop: 4, textTransform: 'uppercase' },
-    card:         { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12 },
+    card:         { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle:    { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
     cardSub:      { fontSize: 12, color: Colors.textMuted, marginBottom: 10, lineHeight: 18 },
     empty:        { fontSize: 13, color: Colors.textMuted, textAlign: 'center', paddingVertical: 12 },
@@ -881,7 +881,7 @@ const s = StyleSheet.create({
     forecastVal:   { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
     forecastRange: { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
 
-    ratioRow:     { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 10, padding: 14, marginBottom: 8, borderLeftWidth: 3 },
+    ratioRow:     { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 10, padding: 14, marginBottom: 8, borderLeftWidth: 3, ...Shadow.sm },
     ratioLabel:   { fontSize: 13, color: Colors.textPrimary, fontWeight: '600' },
     ratioExplain: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
     ratioVal:     { fontSize: 18, fontWeight: 'bold' },
