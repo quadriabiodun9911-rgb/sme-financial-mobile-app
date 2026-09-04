@@ -44,6 +44,7 @@ import PinConfirmModal from '../components/PinConfirmModal';
 import { computeTenorCycleCheck } from '../utils/tenorCycleMatch';
 import { computeRepaymentSeasonalAlignment } from '../utils/repaymentSeasonalAlignment';
 import { computeRepaymentWeekdayAlignment } from '../utils/repaymentWeekdayAlignment';
+import { parseLoanQuickAddText } from '../utils/loanQuickAddParser';
 
 function totalPaid(loan: Loan): number {
     return (loan.payments ?? []).reduce((s, p) => s + p.amount, 0);
@@ -115,6 +116,12 @@ export default function LoansScreen() {
         setLinkingLoanId(null);
     }, [linkingLoanId, updateLoan]);
 
+    // Quick-add: one sentence ("Borrowed 500000 from GTBank at 20% for 12
+    // months") parsed live into the fields below, same progressive-
+    // disclosure pattern as Dashboard's Quick Add and Assets' quick add --
+    // only shown for a brand new loan, not editing.
+    const [qaText, setQaText] = useState('');
+
     // Loan form
     const [lender, setLender] = useState('');
     const [purpose, setPurpose] = useState('');
@@ -137,9 +144,19 @@ export default function LoansScreen() {
         setTerm(''); setStart(new Date().toISOString().split('T')[0]);
         setStatus('active'); setFromMarketplace(false); setEditingId(null);
         setCollateralPledged(''); setCovenants('');
+        setQaText('');
     };
 
     const openAdd = () => { resetForm(); setShowForm(true); };
+
+    const handleQaTextChange = (text: string) => {
+        setQaText(text);
+        const parsed = parseLoanQuickAddText(text);
+        if (parsed.lenderName) setLender(parsed.lenderName);
+        if (parsed.principal !== null) setPrincipal(String(parsed.principal));
+        if (parsed.interestRate !== null) setRate(String(parsed.interestRate));
+        if (parsed.termMonths !== null) setTerm(String(parsed.termMonths));
+    };
 
     // useCallback with an empty dep array is safe here: every call inside
     // is a setState setter, and React guarantees those are referentially
@@ -593,6 +610,23 @@ export default function LoansScreen() {
                         <ScrollView keyboardShouldPersistTaps="handled">
                             <Text style={s.modalTitle}>{editingId ? t(language, 'editLoanTitle') : t(language, 'addLoanTitle')}</Text>
 
+                            {!editingId && (
+                                <>
+                                    <FieldLabel text="Quick add" />
+                                    <TextInput
+                                        style={[s.input, { minHeight: 60, textAlignVertical: 'top' }]}
+                                        value={qaText}
+                                        onChangeText={handleQaTextChange}
+                                        placeholderTextColor={Colors.muted}
+                                        placeholder="e.g. Borrowed 500000 from GTBank at 20% for 12 months"
+                                        multiline
+                                        autoFocus
+                                    />
+                                </>
+                            )}
+
+                            {(!!editingId || qaText.trim().length > 0) && (
+                            <>
                             <FieldLabel text={t(language, 'lenderNameLabel')} />
                             <TextInput style={s.input} value={lender} onChangeText={setLender}
                                 placeholder="e.g. GTBank, Family Friend" placeholderTextColor={Colors.muted} />
@@ -740,6 +774,8 @@ export default function LoansScreen() {
                                     </View>
                                 );
                             })()}
+                            </>
+                            )}
 
                             <View style={s.btnRow}>
                                 <TouchableOpacity style={[s.btn, s.btnSec]} onPress={() => { setShowForm(false); resetForm(); }}>
