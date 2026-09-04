@@ -60,7 +60,6 @@ import DataPermissionCentreScreen from './src/screens/DataPermissionCentreScreen
 import LenderPipelineScreen from './src/screens/LenderPipelineScreen';
 import RestrictedAccessScreen from './src/screens/RestrictedAccessScreen';
 import { isScreenAllowedForRole } from './src/utils/rolePermissions';
-import { isFinancingAdmin } from './src/utils/financingAdmin';
 import { UserRole, Screen } from './src/types';
 
 function NavigatorContent() {
@@ -215,10 +214,20 @@ function NavigatorContent() {
             {currentScreen === 'financing-marketplace' && <FinancingMarketplaceScreen />}
             {/* No entry point anywhere in the UI -- reached only by typing
                 /admin/financing directly (see getInitialScreenFromUrl in
-                OptimizedContexts.tsx). isFinancingAdmin() is checked here,
-                not just as a "show the button" gate in Settings, since a
-                URL-reached screen has no button to hide in the first place. */}
-            {currentScreen === 'financing-admin' && isFinancingAdmin(user?.email) && <FinancingAdminScreen />}
+                OptimizedContexts.tsx). FinancingAdminScreen does its own
+                isFinancingAdmin(user?.email) check internally and renders a
+                proper "Access Restricted" page (with Header/FooterNav/back
+                button) for anyone who fails it -- gating admin access is
+                its job, not this switch's. An identical check used to sit
+                here too, which meant a non-admin hitting the URL directly
+                saw a completely blank screen (nothing else in this list
+                matched, so the whole app rendered empty) instead of that
+                restricted page, since the component never got to mount and
+                run its own check. Both gates called the exact same
+                function on the exact same value, so removing the outer one
+                changes nothing about who can reach the real admin content
+                -- only what a blocked visitor sees. */}
+            {currentScreen === 'financing-admin' && <FinancingAdminScreen />}
             {currentScreen === 'onboarding-choice' && <OnboardingChoiceScreen />}
             {currentScreen === 'data-integrity' && <DataIntegrityScreen />}
             {currentScreen === 'audit-log' && <AuditLogScreen />}
