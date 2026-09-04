@@ -305,7 +305,7 @@ export default function FutureFinancialStatementsScreen() {
         <SafeAreaView style={s.safe}>
             <Header />
             <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
-                <TouchableOpacity onPress={goBack}><Text style={s.back}>← Back</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => { if (!goBack()) navigate('dashboard'); }}><Text style={s.back}>← Back</Text></TouchableOpacity>
                 <View style={s.titleRow}>
                     <Text style={s.titleEmoji}>🔮</Text>
                     <Text style={s.title}>Financial Forecast</Text>
