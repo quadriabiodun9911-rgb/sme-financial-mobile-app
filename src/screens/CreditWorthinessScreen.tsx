@@ -1119,7 +1119,7 @@ export default function CreditWorthinessScreen() {
                     </Text>
                     {pack.documents.map(d => (
                         <View key={d.id} style={fp.docRow}>
-                            <Text style={fp.docIcon}>{d.ready ? '✅' : '⚠️'}</Text>
+                            <Icon name={d.ready ? 'check-circle' : 'alert-triangle'} size={14} color={d.ready ? Colors.income : Colors.warning} />
                             <View style={{ flex: 1 }}>
                                 <Text style={fp.docLabel}>{d.label}</Text>
                                 <Text style={fp.docDetail}>{d.detail}</Text>
@@ -1159,9 +1159,7 @@ function LenderCheckpoint({ label, status, description }: { label: string; statu
     return (
         <View style={s.checkpoint}>
             <View style={[s.checkpointIcon, { backgroundColor: status ? Colors.income + '20' : Colors.expense + '20' }]}>
-                <Text style={{ fontSize: 18, color: status ? Colors.income : Colors.expense }}>
-                    {status ? '✅' : '⏳'}
-                </Text>
+                <Icon name={status ? 'check-circle' : 'alert-circle'} size={18} color={status ? Colors.income : Colors.expense} />
             </View>
             <View style={{ flex: 1 }}>
                 <Text style={s.checkpointLabel}>{label}</Text>
@@ -1198,7 +1196,7 @@ const s = StyleSheet.create({
     fiveCRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
     fiveCHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
     fiveCName: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary },
-    fiveCBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+    fiveCBadge: { borderRadius: Radius.pill, paddingHorizontal: 8, paddingVertical: 3 },
     fiveCBadgeText: { fontSize: 10, fontWeight: '700' },
     fiveCQuestion: { fontSize: 11.5, color: Colors.textMuted, fontStyle: 'italic', marginBottom: 5 },
     fiveCSummary: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
@@ -1332,7 +1330,6 @@ const fp = StyleSheet.create({
     improvementCaveat: { fontSize: 10.5, color: Colors.textMuted, marginTop: 6, fontStyle: 'italic' },
     docsHint: { fontSize: 11, color: Colors.textMuted, marginBottom: 12, lineHeight: 16, fontStyle: 'italic' },
     docRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 10 },
-    docIcon: { fontSize: 14 },
     docLabel: { fontSize: 12.5, fontWeight: '600', color: Colors.textPrimary },
     docDetail: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
     profileBox: { width: '31%', backgroundColor: Colors.bg, borderRadius: 10, padding: 10 },

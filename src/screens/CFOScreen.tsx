@@ -903,6 +903,6 @@ const s = StyleSheet.create({
     payDesc:      { fontSize: 14, color: Colors.textPrimary, fontWeight: '600', marginBottom: 2 },
     payAmount:    { fontSize: 12, color: Colors.textSecondary, marginBottom: 2 },
     payImpact:    { fontSize: 11, color: Colors.textMuted },
-    urgencyBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+    urgencyBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: Radius.pill },
     urgencyText:  { fontSize: 9, fontWeight: '700' },
 });

@@ -3,7 +3,7 @@ import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, ActivityIndicat
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Spacing, Shadow } from '../theme/tokens';
-import Icon from '../components/ui/Icon';
+import Icon, { IconName } from '../components/ui/Icon';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { getTwoFactorStatus, TwoFactorStatus } from '../utils/twoFactorAuth';
@@ -11,10 +11,10 @@ import { countMyActiveLoanMonitoringShares } from '../utils/loanMonitoringShare'
 import { computeSecurityPosture, PostureStatus } from '../utils/securityPosture';
 import { confirmAction } from '../utils/webAlert';
 
-const STATUS_META: Record<PostureStatus, { color: string; label: string; dot: string }> = {
-    on:      { color: Colors.income,  label: 'Active',  dot: '🟢' },
-    partial: { color: Colors.warning, label: 'Partial',  dot: '🟡' },
-    off:     { color: Colors.expense, label: 'Off',      dot: '🔴' },
+const STATUS_META: Record<PostureStatus, { color: string; label: string; icon: IconName }> = {
+    on:      { color: Colors.income,  label: 'Active',  icon: 'check-circle' },
+    partial: { color: Colors.warning, label: 'Partial',  icon: 'alert-triangle' },
+    off:     { color: Colors.expense, label: 'Off',      icon: 'x-circle' },
 };
 
 export default function SecurityCenterScreen() {
@@ -78,7 +78,7 @@ export default function SecurityCenterScreen() {
                         {posture.items.map(item => (
                             <View key={item.key} style={styles.card}>
                                 <View style={styles.cardHeaderRow}>
-                                    <Text style={styles.dot}>{STATUS_META[item.status].dot}</Text>
+                                    <Icon name={STATUS_META[item.status].icon} size={15} color={STATUS_META[item.status].color} />
                                     <Text style={styles.cardTitle}>{item.label}</Text>
                                     <View style={[styles.badge, { backgroundColor: STATUS_META[item.status].color + '22', marginLeft: 'auto' }]}>
                                         <Text style={[styles.badgeText, { color: STATUS_META[item.status].color }]}>{STATUS_META[item.status].label}</Text>
@@ -141,7 +141,6 @@ const styles = StyleSheet.create({
         marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
     },
     cardHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-    dot: { fontSize: 10 },
     cardTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
     badge: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: Radius.pill },
     badgeText: { fontSize: 10.5, fontWeight: '800' },
