@@ -20,7 +20,7 @@
       "bundleIdentifier": "com.quad360.sme",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "Used to scan QR codes for team invite codes.",
+        "NSCameraUsageDescription": "Used to scan product barcodes, and to photograph receipts and bank statements for automatic entry.",
         "NSPhotoLibraryUsageDescription": "Used to attach receipts to transactions.",
         "UIFileSharingEnabled": true,
         "LSSupportsOpeningDocumentsInPlace": true,
@@ -37,7 +37,8 @@
       },
       "permissions": [
         "INTERNET",
-        "ACCESS_NETWORK_STATE"
+        "ACCESS_NETWORK_STATE",
+        "CAMERA"
       ]
     },
     "web": {

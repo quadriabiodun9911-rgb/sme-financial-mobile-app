@@ -33,6 +33,8 @@ import { showAlert, confirmAction } from '../utils/webAlert';
 import InventoryPricingTab from '../components/InventoryPricingTab';
 import { localDateStr } from '../utils/localDate';
 import { computeExpiringStock } from '../utils/foodExpiry';
+import BarcodeScannerModal from '../components/BarcodeScannerModal';
+import { matchInventoryBySku } from '../utils/barcodeMatch';
 
 type InventoryTab = 'stock' | 'analytics' | 'pricing';
 
@@ -160,6 +162,16 @@ export default function InventoryScreen() {
     const [linkModal, setLinkModal] = useState<{ transactionId: string; date: string; description: string; amount: number } | null>(null);
     const [linkItemId, setLinkItemId] = useState<string | null>(null);
     const [linkQty, setLinkQty] = useState('');
+    // Scans a barcode straight into the SKU field on the Add/Edit form --
+    // separate from restockScannerOpen below since they land in different
+    // places (a form field vs an item lookup) even though both open the
+    // same BarcodeScannerModal.
+    const [skuScannerOpen, setSkuScannerOpen] = useState(false);
+    // "Scan to Restock" from the list header -- looks the scanned code up
+    // against every item's sku and jumps straight to that item's existing
+    // Stock In modal, so restocking a product already in the catalog is
+    // "point camera, done" instead of scrolling/searching the list by name.
+    const [restockScannerOpen, setRestockScannerOpen] = useState(false);
 
     // ── Summary calculations ──────────────────────────────────────────────────
     // computeInventoryValue and the category breakdown both scan the full
@@ -329,6 +341,27 @@ export default function InventoryScreen() {
         setModalOpen(false);
         setEditingId(null);
         setForm(EMPTY_FORM);
+    };
+
+    const handleSkuScanned = (code: string) => {
+        setForm(f => ({ ...f, sku: code.trim() }));
+        setSkuScannerOpen(false);
+    };
+
+    const handleRestockScanned = (code: string) => {
+        const match = matchInventoryBySku(inventory, code);
+        setRestockScannerOpen(false);
+        if (match) {
+            openStockIn(match);
+        } else {
+            confirmAction(
+                'No item found',
+                `No inventory item has the barcode "${code.trim()}". Add it as a new item?`,
+                'Add New Item',
+                () => { openAdd(); setForm(f => ({ ...f, sku: code.trim() })); },
+                false,
+            );
+        }
     };
 
     const submitForm = () => {
@@ -530,9 +563,14 @@ export default function InventoryScreen() {
                 {/* ── Title row ──────────────────────────────────────────── */}
                 <View style={styles.titleRow}>
                     <Text style={styles.title}>Inventory & Stock</Text>
-                    <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
-                        <Text style={styles.addBtnText}>+ Add Item</Text>
-                    </TouchableOpacity>
+                    <View style={styles.titleActions}>
+                        <TouchableOpacity style={styles.scanBtn} onPress={() => setRestockScannerOpen(true)}>
+                            <Icon name="camera" size={15} color={Colors.primary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
+                            <Text style={styles.addBtnText}>+ Add Item</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* ── STOCK TAB ──────────────────────────────────────────── */}
@@ -1032,11 +1070,14 @@ export default function InventoryScreen() {
                         <View style={styles.inputRow}>
                             <TextInput
                                 style={[styles.input, styles.flex, { marginRight: 8 }]}
-                                placeholder="SKU / product code (optional)"
+                                placeholder="SKU / barcode (optional)"
                                 placeholderTextColor={Colors.textMuted}
                                 value={form.sku}
                                 onChangeText={v => setForm(f => ({ ...f, sku: v }))}
                             />
+                            <TouchableOpacity style={[styles.scanBtn, { marginRight: 8 }]} onPress={() => setSkuScannerOpen(true)}>
+                                <Icon name="camera" size={15} color={Colors.primary} />
+                            </TouchableOpacity>
                             <TextInput
                                 style={[styles.input, styles.flex]}
                                 placeholder="Category (e.g. Electronics, Food)"
@@ -1659,6 +1700,21 @@ export default function InventoryScreen() {
                     })()}
                 </KeyboardAvoidingView>
             </Modal>
+
+            <BarcodeScannerModal
+                visible={skuScannerOpen}
+                onClose={() => setSkuScannerOpen(false)}
+                onScanned={handleSkuScanned}
+                title="Scan Product Barcode"
+                hint="Fills the SKU field with the scanned code."
+            />
+            <BarcodeScannerModal
+                visible={restockScannerOpen}
+                onClose={() => setRestockScannerOpen(false)}
+                onScanned={handleRestockScanned}
+                title="Scan to Restock"
+                hint="Scan a product already in your catalog to jump straight to Stock In."
+            />
         </SafeAreaView>
     );
 }
@@ -1677,6 +1733,11 @@ const styles = StyleSheet.create({
     tabTextActive:  { color: Colors.primary, fontWeight: '700' },
 
     titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+    titleActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    scanBtn: {
+        width: 34, height: 34, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center',
+        backgroundColor: Colors.primary + '15', borderWidth: 1, borderColor: Colors.primary + '30',
+    },
     title:    { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary },
     addBtn:   { backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: Spacing.sm, borderRadius: Radius.sm, ...Shadow.sm },
     addBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
