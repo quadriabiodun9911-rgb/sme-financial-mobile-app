@@ -11,11 +11,12 @@ import FooterNav from '../components/FooterNav';
 import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { Transaction } from '../types';
-import { autoDetectColumns, parseCSVWithMapping, parseCSVRow, ColumnMapping } from '../utils/flexibleBankStatementParser';
+import { autoDetectColumns, parseCSVWithMapping, parseCSVRow, extractVendorCustomer, ColumnMapping } from '../utils/flexibleBankStatementParser';
 import { isDuplicateTransaction } from '../utils/transactionDedup';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import { classifyByDescription, loadLearnedRules } from '../utils/transactionCategorization';
 import { findMatchingProfile, saveBankProfile, updateProfileLastUsed } from '../utils/bankProfileManager';
+import { localDateStr } from '../utils/localDate';
 
 // Bank transaction as imported from a statement or manual entry
 interface BankTx {
@@ -131,7 +132,7 @@ export default function ReconciliationScreen() {
     const [tab, setTab] = useState<Tab>('import');
     const [bankTxs, setBankTxs] = useState<BankTx[]>([]);
     const [csvText, setCsvText] = useState('');
-    const [manualForm, setManualForm] = useState({ date: new Date().toISOString().split('T')[0], description: '', amount: '', type: 'credit' as 'credit' | 'debit' });
+    const [manualForm, setManualForm] = useState({ date: localDateStr(), description: '', amount: '', type: 'credit' as 'credit' | 'debit' });
     const [addManualModal, setAddManualModal] = useState(false);
 
     // Manual column-mapping -- opens only when a pasted statement's headers
@@ -289,7 +290,7 @@ export default function ReconciliationScreen() {
             type: manualForm.type,
         };
         setBankTxs(prev => [...prev, tx]);
-        setManualForm({ date: new Date().toISOString().split('T')[0], description: '', amount: '', type: 'credit' });
+        setManualForm({ date: localDateStr(), description: '', amount: '', type: 'credit' });
         setAddManualModal(false);
     };
 
@@ -318,6 +319,13 @@ export default function ReconciliationScreen() {
                 category: subCategory,
                 amount: b.amount,
                 status: 'paid',
+                // Same extraction flexibleBankStatementParser uses for its
+                // own transactions -- without it, a payment imported here
+                // could never auto-match an outstanding invoice (see
+                // computeUnlinkedInvoicePayments) and was invisible to
+                // Customer Concentration/Profitability and Supplier
+                // Intelligence, which all key off vendorCustomer.
+                vendorCustomer: extractVendorCustomer(b.description),
                 // Same transactionCategory mapping and Internal Transfer ->
                 // principalPortion special case as ImportTransactionsScreen's
                 // importRows -- without these, the same statement row

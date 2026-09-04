@@ -19,6 +19,7 @@ import { getMonthlyExpenseAverage } from '../utils/finance';
 import { scanStatementImage, ScannedTransaction, ScanMediaType } from '../utils/statementScan';
 import { confirmAction } from '../utils/webAlert';
 import { TxCategory, classifyByDescription, loadLearnedRules, learnCategory, normalise } from '../utils/transactionCategorization';
+import { extractVendorCustomer } from '../utils/flexibleBankStatementParser';
 import { auditEvents } from '../utils/auditLog';
 import DataConfidenceBadge from '../components/DataConfidenceBadge';
 import AhaMomentFeedback from '../components/AhaMomentFeedback';
@@ -713,6 +714,15 @@ export default function ImportTransactionsScreen() {
                 type:                r.type === 'income' ? 'income' : 'expense',
                 category:            r.subCategory,
                 amount:              r.amount,
+                // Same extraction flexibleBankStatementParser uses for its
+                // own transactions -- without it, imported history is
+                // invisible to everything keyed off vendorCustomer:
+                // Customer Concentration, Customer Profitability, Supplier
+                // Intelligence, the Aging Report, and unlinked-invoice-
+                // payment matching (an imported payment could never
+                // auto-mark an invoice paid, since the match requires a
+                // vendorCustomer name to compare against the client name).
+                vendorCustomer:      extractVendorCustomer(r.description),
                 // A statement row already cleared the bank -- same 'paid'
                 // convention the manual add form and Reconciliation's import
                 // both use. Without this, finance.ts's strict `status ===

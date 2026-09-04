@@ -448,7 +448,7 @@ function normalizeDate(dateStr: string): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
-function extractVendorCustomer(description: string): string {
+export function extractVendorCustomer(description: string): string {
   const parts = description.split(/[#\-:\|]/);
   return parts[0]?.trim() || description;
 }
