@@ -2204,6 +2204,27 @@ export function useBudgets(): Budget[] {
  *
  * Usage: const { user, transactions, finance, settings, navigate, ... } = useApp();
  */
+// The return object below is hand-assembled, not a spread of auth/finance/
+// goals/invoices/settings -- most of it is safe-defaulted/renamed
+// passthroughs (`x: finance?.x ?? []`), but addInvoice/updateInvoice/
+// deleteInvoice/markInvoiceStatus carry real business logic (keeping each
+// invoice's linked income transaction in sync -- see their own comments
+// below), and user/goals/transactions/etc. are recomputed, not raw context
+// values. That mix is exactly why this stays a literal return rather than
+// `{...auth, ...finance, ...goals, ...invoices, ...settings}`: a spread
+// would silently let a raw context field (e.g. goals.goals, the
+// un-recomputed array) leak through ahead of its override if the ordering
+// ever shifted, with no compiler error to catch it.
+//
+// The real consequence: a new method added to FinanceContextValue (or any
+// of the other four interfaces) is NOT automatically exposed here. It has
+// to be added to this return object by hand, in addition to the interface
+// and the provider's own returned object. Forgetting this third copy does
+// get caught by TypeScript -- but only once some screen actually tries to
+// read the new field from useApp(); until then it fails silently. Always
+// add a new context method here in the same change that adds it to the
+// provider, don't wait for a screen to need it and a `tsc` error to remind
+// you.
 export function useApp() {
   const auth = useAuth();
   const finance = useFinance();
