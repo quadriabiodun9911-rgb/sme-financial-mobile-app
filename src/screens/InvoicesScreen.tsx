@@ -126,7 +126,7 @@ ${inv.notes ? `<div class="notes" style="clear:both;margin-top:60px"><b>Notes:</
 
 
 export default function InvoicesScreen() {
-    const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, updateSettings, user, navigate, language, transactions, updateTransaction } = useApp();
+    const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, updateSettings, user, navigate, language, transactions, updateTransaction, canViewFinancials } = useApp();
     const currency = settings.currency;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -455,9 +455,17 @@ export default function InvoicesScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Summary strip */}
+                    {/* Summary strip -- Outstanding is an aggregate ₦
+                        receivables figure (a cash-position number), unlike
+                        sent/paid/overdue below (invoice counts, not amounts)
+                        -- 'staff' can open Invoices (STAFF_ALLOWED_SCREENS)
+                        but is documented as having no visibility into the
+                        business's aggregate financial position
+                        (canViewFinancials's own comment). */}
                     <View style={styles.summaryRow}>
-                        <SummaryCard label={t(language, 'outstanding')} value={`${currency}${summary.outstanding.toLocaleString()}`} color={Colors.warning} />
+                        {canViewFinancials && (
+                            <SummaryCard label={t(language, 'outstanding')} value={`${currency}${summary.outstanding.toLocaleString()}`} color={Colors.warning} />
+                        )}
                         <SummaryCard label={t(language, 'sent')} value={String(summary.sent)} color={Colors.primary} />
                         <SummaryCard label={t(language, 'paid')} value={String(summary.paid)} color={Colors.income} />
                         <SummaryCard label={t(language, 'overdue')} value={String(summary.overdue)} color={Colors.expense} />
