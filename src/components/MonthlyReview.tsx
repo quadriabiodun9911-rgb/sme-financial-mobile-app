@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { Screen } from '../types';
 
 interface Props {
     visible: boolean;
@@ -92,7 +93,7 @@ export default function MonthlyReview({ visible, onClose }: Props) {
 
     const isProfit = review.thisProfit >= 0;
 
-    const navigate = (screen: string) => { onClose(); setCurrentScreen(screen as any); };
+    const navigate = (screen: Screen) => { onClose(); setCurrentScreen(screen); };
 
     return (
         <Modal visible={visible} animationType="slide" onRequestClose={onClose}>

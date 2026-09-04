@@ -145,7 +145,7 @@ function NavigatorContent() {
     // (P&L, cash balance, bank details, loan terms). Checked here, once,
     // rather than in each screen, so a new screen defaults to restricted
     // instead of accidentally exposed — see rolePermissions.ts.
-    if (!isScreenAllowedForRole(currentScreen as Screen, userRole)) {
+    if (!isScreenAllowedForRole(currentScreen, userRole)) {
         return (
             <View style={{ flex: 1 }}>
                 <RestrictedAccessScreen />
@@ -163,7 +163,7 @@ function NavigatorContent() {
     // screen's own isWide/isWideWebSetup checks) and manage their own
     // width, so they're excluded here rather than double-constrained.
     const UNCONSTRAINED_SCREENS = new Set<Screen>(['landing', 'contact', 'blog', 'blog-post', 'privacy-policy', 'login']);
-    const constrainWidth = Platform.OS === 'web' && windowWidth >= 720 && !UNCONSTRAINED_SCREENS.has(currentScreen as Screen);
+    const constrainWidth = Platform.OS === 'web' && windowWidth >= 720 && !UNCONSTRAINED_SCREENS.has(currentScreen);
 
     return (
         <View style={[{ flex: 1 }, constrainWidth && styles.centeredAppColumn]}>

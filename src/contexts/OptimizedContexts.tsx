@@ -10,7 +10,7 @@
 
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Platform } from 'react-native';
-import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, UserRole } from '../types';
+import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, UserRole, Screen } from '../types';
 import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore, computeLoanPaymentSplit } from '../utils/finance';
 import { buildLoanFromMerchantFinancing } from '../utils/merchantFinancingConversion';
 import { buildReadinessSnapshot, shouldRecordSnapshot, appendReadinessSnapshot } from '../utils/readinessHistory';
@@ -1083,9 +1083,9 @@ export interface GuestSeedData {
 interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
-  currentScreen: string;
-  setCurrentScreen: (screen: string) => void;
-  navigate: (screen: string, params?: any) => void;
+  currentScreen: Screen;
+  setCurrentScreen: (screen: Screen) => void;
+  navigate: (screen: Screen, params?: any) => void;
   goBack: () => boolean;
   navParams: any;
   login: (pin: string) => Promise<boolean>;
@@ -1186,7 +1186,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 // setCurrentScreen/navigate below, which always push an empty-url history
 // entry). A shared/bookmarked article link needs to land on that article on
 // a cold load, not always on 'landing'.
-function getInitialScreenFromUrl(): string {
+function getInitialScreenFromUrl(): Screen {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return 'landing';
   const path = window.location.pathname;
   if (path === '/blog' || path === '/blog/') return 'blog';
@@ -1222,7 +1222,7 @@ function getInitialNavParamsFromUrl(): any {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentScreen, setCurrentScreenState] = useState(getInitialScreenFromUrl);
+  const [currentScreen, setCurrentScreenState] = useState<Screen>(getInitialScreenFromUrl);
   const [navParams, setNavParams] = useState<any>(getInitialNavParamsFromUrl);
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [demoBusinessId, setDemoBusinessId] = useState<string | null>(null);
@@ -1255,7 +1255,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // instead of the actual previous screen. This ref is the real back
   // stack; on web it's kept in lockstep with browser history via
   // pushState/popstate so the native back button/gesture uses it too.
-  const backStackRef = useRef<{ screen: string; params: any }[]>([]);
+  const backStackRef = useRef<{ screen: Screen; params: any }[]>([]);
 
   const popToPrevious = useCallback(() => {
     const prev = backStackRef.current.pop();
@@ -1536,13 +1536,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
       currentScreen,
       navParams,
-      setCurrentScreen: (screen: string) => {
+      setCurrentScreen: (screen: Screen) => {
         backStackRef.current.push({ screen: currentScreen, params: navParams });
         if (Platform.OS === 'web' && typeof window !== 'undefined') window.history.pushState({}, '');
         setNavParams(null);
         setCurrentScreenState(screen);
       },
-      navigate: (screen: string, params?: any) => {
+      navigate: (screen: Screen, params?: any) => {
         backStackRef.current.push({ screen: currentScreen, params: navParams });
         if (Platform.OS === 'web' && typeof window !== 'undefined') window.history.pushState({}, '');
         setNavParams(params ?? null);

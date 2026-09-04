@@ -46,7 +46,15 @@ export type Screen =
     | 'business-timeline'
     | 'data-permission-centre'
     | 'before-you-decide'
-    | 'macroshield-detail';
+    | 'macroshield-detail'
+    // Set on a lender session (see routeAfterAuth in OptimizedContexts.tsx)
+    // but never matched in App.tsx's currentScreen switch -- isLenderSession
+    // intercepts and renders LenderPipelineScreen before that switch is ever
+    // reached. Still a real, meaningful value (not a placeholder): it's what
+    // the hardware-back-button handler in App.tsx sees while in a lender
+    // session, so it has to be a distinct value from 'dashboard'/'login'/
+    // 'landing' to get the right back-button behavior there.
+    | 'lender-pipeline';
 
 export interface Budget {
     id: string;
