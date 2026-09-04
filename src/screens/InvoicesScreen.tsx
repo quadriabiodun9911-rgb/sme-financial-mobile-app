@@ -323,6 +323,18 @@ export default function InvoicesScreen() {
             showAlert('Required', 'All line items need a description.');
             return;
         }
+        if (lineItems.some(li => !(li.quantity > 0))) {
+            showAlert('Invalid quantity', 'Every line item needs a quantity greater than zero.');
+            return;
+        }
+        if (lineItems.some(li => li.unitPrice < 0)) {
+            showAlert('Invalid price', 'Unit price can\'t be negative.');
+            return;
+        }
+        if (lineItems.some(li => (li.taxRate ?? 0) < 0)) {
+            showAlert('Invalid tax rate', 'Tax rate can\'t be negative.');
+            return;
+        }
 
         const today = localDateStr();
         const payload = {
