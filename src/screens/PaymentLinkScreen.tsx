@@ -129,13 +129,20 @@ export default function PaymentLinkScreen() {
 
     // Best-effort: generates a real, ready-to-pay checkout link the same way
     // the "Pay with X" buttons do, but for embedding in a shared message
-    // instead of opening it here. Needs a customer email (Paystack/
-    // Flutterwave both require one) and a connected provider -- silently
+    // instead of opening it here. Needs a connected provider -- silently
     // returns null otherwise so callers fall back to buildMessage's
     // no-link copy rather than blocking the share entirely. Korapay is
     // skipped (still "Coming Soon" -- see the gateway card above).
+    //
+    // Does NOT require a customer email, even though Paystack/Flutterwave's
+    // own APIs mandate one: payment-init (see its own body below) already
+    // falls back to the merchant's own login email when none is passed, so
+    // requiring one here on top of that was purely an overcautious client-
+    // side guard, never a real backend constraint -- and it was the one
+    // thing standing between "Scan & Pay In Person" and actually working
+    // for a walk-up customer whose email nobody at the till would know.
     const getCheckoutLink = async (): Promise<string | null> => {
-        if (!customerEmail || (!hasPaystack && !hasFlutterwave)) return null;
+        if (!hasPaystack && !hasFlutterwave) return null;
         try {
             const ownerUserId = await getWorkspaceOwnerId();
             if (hasPaystack) {
@@ -248,21 +255,18 @@ export default function PaymentLinkScreen() {
     // WhatsApp/Email/SMS embed in text) rendered as a QR code instead, so a
     // customer standing in front of the seller can scan it and pay on the
     // spot with no typing, no waiting for a message to arrive, and no
-    // manual entry on either side. Uses the exact same getCheckoutLink()
-    // as every other channel here, so it inherits the same requirements
-    // (a connected gateway, a customer email for Paystack/Flutterwave) and
-    // the exact same payment-webhook-verified confirmation once paid --
-    // this is not a separate, lower-trust payment path.
+    // manual entry on either side -- deliberately doesn't ask for a
+    // customer email first (see getCheckoutLink's own comment): nobody at
+    // a till knows a walk-up customer's email, and the backend doesn't
+    // actually need one to open a working checkout session. Uses the exact
+    // same getCheckoutLink() as every other channel here, so it inherits
+    // the same payment-webhook-verified confirmation once paid -- this is
+    // not a separate, lower-trust payment path.
     const handleShowQr = async () => {
         if (!validate()) return;
         if (!hasPaystack && !hasFlutterwave) {
             const msg = 'Connect Paystack or Flutterwave in Settings → Payment Gateways to generate a scan-to-pay QR code.';
             if (Platform.OS === 'web') window.alert(msg); else Alert.alert('Connect a gateway first', msg);
-            return;
-        }
-        if (!customerEmail) {
-            const msg = "Enter the customer's email above first — Paystack/Flutterwave both require one to open a checkout session.";
-            if (Platform.OS === 'web') window.alert(msg); else Alert.alert('Email required', msg);
             return;
         }
         setLoading(true);
