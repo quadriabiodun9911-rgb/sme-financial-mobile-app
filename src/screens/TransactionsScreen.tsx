@@ -28,6 +28,7 @@ import RevenueExposureTab from '../components/RevenueExposureTab';
 import { canDeleteTransactions } from '../utils/rolePermissions';
 import { convertToBaseCurrency } from '../utils/foreignCurrency';
 import { categorizeTransactionAI, AICategorizationResult } from '../utils/aiCategorization';
+import { computeExpenseIntelligence, ExpenseTier } from '../utils/expenseIntelligence';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
@@ -71,6 +72,17 @@ type FormState = {
 // not the full ISO 4217 list, just the ones that show up across the same
 // countries CURRENCIES (SettingsScreen) already supports as a base currency.
 const FOREIGN_CURRENCY_CODES = ['USD', 'GBP', 'EUR', 'NGN', 'ZAR', 'KES', 'GHS', 'EGP', 'AED', 'INR', 'CNY', 'CAD', 'AUD'];
+
+// Same values as CostExposureTab's own TIER_META -- kept in sync by hand
+// since the two live in different component files and pulling in theme
+// colors from a shared utils module isn't this codebase's pattern.
+const TIER_META: Record<ExpenseTier, { label: string; color: string }> = {
+    protect: { label: 'Protect', color: Colors.income },
+    invest: { label: 'Invest', color: Colors.primary },
+    optimize: { label: 'Optimize', color: Colors.textMuted },
+    review: { label: 'Review', color: Colors.warning },
+    reduce: { label: 'Reduce', color: Colors.expense },
+};
 
 // Parse vendorCustomer "Name | phone" → { name, phone }
 function parseVendorCustomer(raw: string | undefined): { name: string; phone: string } {
@@ -296,6 +308,21 @@ export default function TransactionsScreen() {
         [personalReport]
     );
 
+    // Same Protect/Optimize/Review/Reduce/Invest tiers CostExposureTab shows
+    // per category -- surfaced here per-transaction too, so "is this expense
+    // important to protect vs worth cutting" is visible while scanning the
+    // list itself, not only inside the Insights tab. Silently absent
+    // (rather than a stale/misleading guess) until there's enough history
+    // for computeExpenseIntelligence to say anything at all.
+    const expenseTierByCategory = useMemo(() => {
+        const result = computeExpenseIntelligence(transactions, currency);
+        const map = new Map<string, { tier: ExpenseTier; tierReason: string }>();
+        if (result.available) {
+            for (const c of result.categories) map.set(c.category, { tier: c.tier, tierReason: c.tierReason });
+        }
+        return map;
+    }, [transactions, currency]);
+
     const filtered = useMemo(() => {
         return transactions.filter(tx => {
             if (typeFilter === 'collect') {
@@ -502,6 +529,11 @@ export default function TransactionsScreen() {
 
     const statusColor = (s?: TransactionStatus) =>
         s === 'overdue' ? Colors.expense : s === 'pending' ? Colors.warning : Colors.income;
+
+    // Same labels/colors as CostExposureTab's own TIER_META, so a category
+    // reads the same whether it's seen here or in the Insights tab.
+    const showTierExplanation = (tier: ExpenseTier, reason: string) =>
+        showAlert(TIER_META[tier].label, reason);
 
     const taxPreview = form.amount && form.taxRate
         ? (parseFloat(form.amount || '0') * (parseFloat(form.taxRate) / 100)).toFixed(2)
@@ -728,6 +760,17 @@ export default function TransactionsScreen() {
                                 {/* Second row: category + vendor */}
                                 <View style={styles.txRow2}>
                                     <Text style={styles.catChip}>{tx.category}</Text>
+                                    {tx.type === 'expense' && tx.category && expenseTierByCategory.has(tx.category) ? (() => {
+                                        const { tier, tierReason } = expenseTierByCategory.get(tx.category)!;
+                                        return (
+                                            <TouchableOpacity
+                                                onPress={() => showTierExplanation(tier, tierReason)}
+                                                style={[styles.tierChip, { backgroundColor: TIER_META[tier].color + '22' }]}
+                                            >
+                                                <Text style={[styles.tierChipText, { color: TIER_META[tier].color }]}>{TIER_META[tier].label}</Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })() : null}
                                     {tx.originalCurrencyCode ? (
                                         <Text style={styles.metaText}>
                                             {tx.originalCurrencyCode} {(tx.originalAmount ?? 0).toLocaleString()} @ {tx.exchangeRate}
@@ -1504,6 +1547,8 @@ const styles = StyleSheet.create({
     expAmt:    { fontSize: 14, fontWeight: 'bold', color: Colors.expense },
     txRow2:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: 6 },
     catChip:   { fontSize: 11, color: Colors.primary, backgroundColor: 'rgba(37,99,235,0.15)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: Radius.sm },
+    tierChip:      { paddingHorizontal: 7, paddingVertical: 2, borderRadius: Radius.sm },
+    tierChipText:  { fontSize: 9.5, fontWeight: '800' },
     metaText:  { fontSize: 11, color: Colors.textMuted },
     txBadges:  { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 },
     statusBadge: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingHorizontal: 7, paddingVertical: 2, borderRadius: Radius.sm },

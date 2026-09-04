@@ -67,6 +67,7 @@ import { registerForPushNotificationsAsync, syncCashPositionSummary } from '../u
 import { categorizeTransactionAI, AICategorizationResult } from '../utils/aiCategorization';
 import { parseQuickAddText } from '../utils/quickAddParser';
 import { classifyByDescription } from '../utils/transactionCategorization';
+import { computeExpenseIntelligence, ExpenseTier } from '../utils/expenseIntelligence';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeTaxAbilityToPay } from '../utils/taxFilingReadiness';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
@@ -105,6 +106,17 @@ const HEALTH_BAND_COLOR: Record<string, string> = {
     Critical: Colors.expense,
 };
 const HEALTH_FACTOR_STATUS_COLOR: Record<string, string> = { good: Colors.income, warning: Colors.warning, danger: Colors.expense };
+
+// Same values as TransactionsScreen/CostExposureTab's own tier metadata --
+// kept in sync by hand since each file lives separately and pulling theme
+// colors into a shared utils module isn't this codebase's pattern.
+const EXPENSE_TIER_META: Record<ExpenseTier, { label: string; color: string }> = {
+    protect: { label: 'Protect', color: Colors.income },
+    invest: { label: 'Invest', color: Colors.primary },
+    optimize: { label: 'Optimize', color: Colors.textMuted },
+    review: { label: 'Review', color: Colors.warning },
+    reduce: { label: 'Reduce', color: Colors.expense },
+};
 
 const PRIORITY_TIER_META: Record<PriorityTier, { emoji: string; label: string; color: string; tinted: boolean }> = {
     attention:   { emoji: '🔴', label: 'Attention',   color: Colors.expense, tinted: true },
@@ -882,6 +894,19 @@ export default function DashboardScreen() {
         () => todayTxns.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0) - (Number(t.principalPortion) || 0), 0),
         [todayTxns]
     );
+
+    // Same Protect/Optimize/Review/Reduce/Invest tiers TransactionsScreen
+    // surfaces per category -- looked up live as the owner picks a Quick
+    // Add category, so "is this an important, ongoing cost" is visible
+    // before the transaction is even saved, not just after the fact.
+    const qaExpenseTierByCategory = useMemo(() => {
+        const result = computeExpenseIntelligence(transactions, settings.currency);
+        const map = new Map<string, { tier: ExpenseTier; tierReason: string }>();
+        if (result.available) {
+            for (const c of result.categories) map.set(c.category, { tier: c.tier, tierReason: c.tierReason });
+        }
+        return map;
+    }, [transactions, settings.currency]);
 
     // End of Day is now a confirmation of what's already been recorded --
     // via Quick Add through the day, WhatsApp, or an earlier import -- not a
@@ -2147,6 +2172,20 @@ export default function DashboardScreen() {
                         onChangeText={v => { setQaCategory(v); setQaCategoryTouched(true); }}
                     />
 
+                    {/* Same Protect/Optimize/Review/Reduce/Invest read shown
+                        on the transaction list -- surfaced here too, before
+                        the transaction is even saved. Silent until there's
+                        enough history for this category to have a tier at all. */}
+                    {qaType === 'expense' && qaCategory.trim() && qaExpenseTierByCategory.has(qaCategory.trim()) && (() => {
+                        const { tier, tierReason } = qaExpenseTierByCategory.get(qaCategory.trim())!;
+                        return (
+                            <View style={[styles.qaTierHint, { backgroundColor: EXPENSE_TIER_META[tier].color + '18' }]}>
+                                <Text style={[styles.qaTierHintLabel, { color: EXPENSE_TIER_META[tier].color }]}>{EXPENSE_TIER_META[tier].label}</Text>
+                                <Text style={styles.qaTierHintText}>{tierReason}</Text>
+                            </View>
+                        );
+                    })()}
+
                     {/* Same opt-in AI category suggester as TransactionsScreen's
                         edit form (see aiCategorization.ts) -- a tap, never
                         automatic, since Quick Add is built for speed and a
@@ -2934,6 +2973,9 @@ const styles = StyleSheet.create({
     aiSuggestBtn:     { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: -4, marginBottom: 8, paddingHorizontal: Spacing.md, paddingVertical: 8, borderWidth: 1, borderColor: Colors.primary, borderRadius: Radius.pill },
     aiSuggestBtnText: { color: Colors.primary, fontSize: 12.5, fontWeight: '600' },
     aiSuggestHint:    { fontSize: 11, color: Colors.textMuted, marginBottom: 8, marginTop: -4 },
+    qaTierHint:       { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginTop: -4, marginBottom: 12 },
+    qaTierHintLabel:  { fontSize: 10.5, fontWeight: '800', textTransform: 'uppercase' },
+    qaTierHintText:   { flex: 1, fontSize: 11.5, color: Colors.textSecondary, lineHeight: 15 },
     aiError:          { fontSize: 12, color: Colors.expense, marginBottom: Spacing.sm },
     aiSuggestionBox:  { marginBottom: 12, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, padding: Spacing.sm },
     aiSuggestionTop:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
