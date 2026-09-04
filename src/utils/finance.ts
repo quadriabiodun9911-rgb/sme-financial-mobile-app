@@ -4,6 +4,7 @@ import { computeLeverageRatios } from './debtRatios';
 import { computeCashRunway } from './cashRunway';
 import { computeStockVelocity } from './stockVelocity';
 import { activeBudgetsForPeriod } from './budgetPeriod';
+import { entityKey, entityDisplayName } from './entityName';
 
 // ─── Currency formatting ───────────────────────────────────────────────────
 // Abbreviates large amounts (₦1.2M / ₦450K) for space-constrained copy like
@@ -416,7 +417,6 @@ export interface UnlinkedInvoicePayment {
 // unlike an asset purchase, an ordinary sale has no reliable signal that it
 // was ever meant to be a formal invoice in the first place.
 export function computeUnlinkedInvoicePayments(invoices: Invoice[], transactions: Transaction[]): UnlinkedInvoicePayment[] {
-    const normalize = (s: string | undefined | null) => (s ?? '').split(' | ')[0]?.trim().toLowerCase();
     const usedTransactionIds = new Set<string>();
     const results: UnlinkedInvoicePayment[] = [];
     for (const inv of invoices) {
@@ -425,7 +425,7 @@ export function computeUnlinkedInvoicePayments(invoices: Invoice[], transactions
             t.type === 'income' &&
             !usedTransactionIds.has(t.id) &&
             Math.abs((t.amount ?? 0) - inv.total) < 0.01 &&
-            normalize(t.vendorCustomer) === normalize(inv.clientName) &&
+            entityKey(t.vendorCustomer) === entityKey(inv.clientName) &&
             t.date >= inv.issueDate
         );
         if (match) {
@@ -1266,6 +1266,12 @@ export function computeFinancialRatios(finance: FinanceData, loans: Loan[], tran
 // 6. Customer concentration risk
 export interface CustomerConcentration {
     customer: string;
+    // Case-insensitive grouping key (see entityName.ts) -- lets a caller
+    // that needs to re-associate individual transactions with this entity
+    // (e.g. supplierIntelligence.ts) match on the same identity this was
+    // grouped by, instead of re-parsing (and potentially mis-casing) the
+    // display name.
+    key: string;
     amount: number;
     txCount: number;
     percentage: number;
@@ -1281,15 +1287,22 @@ export interface CustomerConcentration {
  * one screen and two on another) and a different risk cutoff (a strict
  * boolean >40% there vs a three-tier low/medium/high >=40%/>=20% here).
  * Both screens now read the same customers with the same risk tiers.
+ *
+ * Grouped by entityKey (case-insensitive), not the raw string -- a customer
+ * typed by hand ("Adaeze Stores") and the same customer's name as it
+ * appears in an imported bank statement (often "ADAEZE STORES") used to
+ * count as two separate customers here, silently understating concentration
+ * risk for exactly the customers most likely to appear both typed and
+ * imported.
  */
 export function computeCustomerConcentration(transactions: Transaction[]): CustomerConcentration[] {
-    const map = new Map<string, { amount: number; txCount: number }>();
+    const map = new Map<string, { display: string; amount: number; txCount: number }>();
     let total = 0;
     for (const t of transactions) {
         if (t.type !== 'income') continue;
-        const raw = t.vendorCustomer?.split(' | ')[0]?.trim();
-        const key = raw || 'Unknown';
-        const e = map.get(key) ?? { amount: 0, txCount: 0 };
+        const key = entityKey(t.vendorCustomer) || 'unknown';
+        const display = entityDisplayName(t.vendorCustomer) || 'Unknown';
+        const e = map.get(key) ?? { display, amount: 0, txCount: 0 };
         e.amount += (t.amount ?? 0);
         e.txCount++;
         map.set(key, e);
@@ -1297,42 +1310,47 @@ export function computeCustomerConcentration(transactions: Transaction[]): Custo
     }
     return Array.from(map.entries())
         .sort((a, b) => b[1].amount - a[1].amount)
-        .map(([customer, { amount, txCount }]) => {
+        .map(([key, { display, amount, txCount }]) => {
             const percentage = total > 0 ? (amount / total) * 100 : 0;
             const risk: CustomerConcentration['risk'] = percentage >= 40 ? 'high' : percentage >= 20 ? 'medium' : 'low';
-            return { customer, amount, txCount, percentage, risk };
+            return { customer: display, key, amount, txCount, percentage, risk };
         });
 }
 
 export interface SupplierConcentration {
     supplier: string;
+    // See CustomerConcentration.key above -- same purpose.
+    key: string;
     amount: number;
     percentage: number;
     risk: 'low' | 'medium' | 'high';
 }
 
 /**
- * Mirrors computeCustomerConcentration's grouping + risk-tier logic, applied
- * to expense transactions instead of income. Previously duplicated in
+ * Mirrors computeCustomerConcentration's grouping + risk-tier logic
+ * (including the case-insensitive entityKey grouping), applied to expense
+ * transactions instead of income. Previously duplicated in
  * businessFinancialDNA.ts with an identical formula — promoted here so
  * there's one canonical implementation, same as computeCustomerConcentration.
  */
 export function computeSupplierConcentration(transactions: Transaction[]): SupplierConcentration[] {
-    const map = new Map<string, number>();
+    const map = new Map<string, { display: string; amount: number }>();
     let total = 0;
     for (const t of transactions) {
         if (t.type !== 'expense') continue;
-        const raw = t.vendorCustomer?.split(' | ')[0]?.trim();
-        const key = raw || 'Unknown';
-        map.set(key, (map.get(key) ?? 0) + (t.amount ?? 0));
+        const key = entityKey(t.vendorCustomer) || 'unknown';
+        const display = entityDisplayName(t.vendorCustomer) || 'Unknown';
+        const e = map.get(key) ?? { display, amount: 0 };
+        e.amount += (t.amount ?? 0);
+        map.set(key, e);
         total += (t.amount ?? 0);
     }
     return Array.from(map.entries())
-        .sort((a, b) => b[1] - a[1])
-        .map(([supplier, amount]) => {
+        .sort((a, b) => b[1].amount - a[1].amount)
+        .map(([key, { display, amount }]) => {
             const percentage = total > 0 ? (amount / total) * 100 : 0;
             const risk: SupplierConcentration['risk'] = percentage >= 40 ? 'high' : percentage >= 20 ? 'medium' : 'low';
-            return { supplier, amount, percentage, risk };
+            return { supplier: display, key, amount, percentage, risk };
         });
 }
 

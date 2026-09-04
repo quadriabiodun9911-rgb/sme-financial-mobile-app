@@ -39,6 +39,7 @@ import { computeSupplierConcentration, computeWorkingCapitalMetrics } from './fi
 import { computeExpenseLeaks } from './expenseLeakDetection';
 import { computeCostExposure } from './costExposure';
 import { computeStockVelocity } from './stockVelocity';
+import { entityKey } from './entityName';
 
 const LOGISTICS_CATEGORY_PATTERN = /logistic|shipping|freight|delivery|transport/i;
 
@@ -87,8 +88,12 @@ const EMPTY_RESULT = (reason: string): SupplierIntelligenceResult => ({
     inventoryTurnover: [],
 });
 
+// Same case-insensitive identity computeSupplierConcentration groups by
+// (entityKey) -- must match it exactly, or a supplier whose transactions
+// differ in case would concentrate correctly in one place and fail to find
+// its own purchase history here.
 function supplierKey(t: Transaction): string {
-    return t.vendorCustomer?.split(' | ')[0]?.trim() || 'Unknown';
+    return entityKey(t.vendorCustomer) || 'unknown';
 }
 
 function frequencyLabel(avgDays: number | null, purchaseCount: number): string {
@@ -140,7 +145,7 @@ export function computeSupplierIntelligence(
     const suppliers: SupplierProfile[] = concentration
         .filter(c => c.supplier !== 'Unknown')
         .map(c => {
-            const txs = (byVendor.get(c.supplier) ?? []).slice().sort((a, b) => a.date.localeCompare(b.date));
+            const txs = (byVendor.get(c.key) ?? []).slice().sort((a, b) => a.date.localeCompare(b.date));
             let avgDaysBetweenPurchases: number | null = null;
             if (txs.length >= 2) {
                 const first = new Date(txs[0].date).getTime();

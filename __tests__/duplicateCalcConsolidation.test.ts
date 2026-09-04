@@ -2,7 +2,7 @@
 // screens computing the "same" concept with different formulas and
 // silently disagreeing (the same bug class as the debt-ratio fix earlier).
 
-import { computeCustomerConcentration } from '../src/utils/finance';
+import { computeCustomerConcentration, computeSupplierConcentration } from '../src/utils/finance';
 import { computeTopPerformers, computeMomentum } from '../src/utils/profitability';
 import { Transaction } from '../src/types';
 
@@ -36,6 +36,37 @@ describe('computeCustomerConcentration — canonical customer grouping', () => {
         expect(byName['Big Co']).toBe('high');   // 50%
         expect(byName['Mid Co']).toBe('medium');  // 25%
         expect(byName['Small Co']).toBe('medium'); // 25%
+    });
+
+    // A customer typed by hand ("Adaeze Stores") and the same customer as it
+    // appears verbatim in an imported bank statement (frequently ALL CAPS)
+    // must count as one customer, not two -- otherwise concentration risk
+    // (one of computeRiskScore's weighted factors, and a figure a lender
+    // reads directly off the Funding Readiness Pack) is silently understated
+    // for exactly the customers most likely to appear both typed and
+    // imported.
+    it('treats differently-cased spellings of the same customer as one entity', () => {
+        const txs = [
+            makeTx({ vendorCustomer: 'Adaeze Stores', amount: 6000 }),
+            makeTx({ vendorCustomer: 'ADAEZE STORES', amount: 4000 }),
+            makeTx({ vendorCustomer: '  adaeze   stores  ', amount: 1000 }),
+        ];
+        const r = computeCustomerConcentration(txs);
+        expect(r).toHaveLength(1);
+        expect(r[0].amount).toBe(11000);
+        expect(r[0].txCount).toBe(3);
+    });
+});
+
+describe('computeSupplierConcentration — case-insensitive supplier grouping', () => {
+    it('treats differently-cased spellings of the same supplier as one entity', () => {
+        const txs = [
+            makeTx({ type: 'expense', vendorCustomer: 'Lagos Wholesale Ltd', amount: 7000 }),
+            makeTx({ type: 'expense', vendorCustomer: 'LAGOS WHOLESALE LTD', amount: 3000 }),
+        ];
+        const r = computeSupplierConcentration(txs);
+        expect(r).toHaveLength(1);
+        expect(r[0].amount).toBe(10000);
     });
 });
 

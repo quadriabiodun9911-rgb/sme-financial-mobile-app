@@ -1,4 +1,5 @@
 import { Transaction } from '../types';
+import { entityKey } from './entityName';
 
 export interface MonthlyCustomerMetrics {
     month: string; // 'YYYY-MM'
@@ -25,12 +26,9 @@ export interface CustomerMetricsResult {
 const MIN_DISTINCT_CUSTOMERS = 3;
 const MIN_MONTHS_WITH_DATA = 2;
 
-function normalizeCustomerKey(vendorCustomer: string | undefined): string | null {
-    if (!vendorCustomer) return null;
-    // vendorCustomer may be stored as "Name | phone" (see TransactionsScreen's joinVendorCustomer)
-    const name = vendorCustomer.split('|')[0].trim().toLowerCase();
-    return name || null;
-}
+// Same case-insensitive identity every other customer/supplier grouping in
+// the app uses -- see entityName.ts for why.
+const normalizeCustomerKey = entityKey;
 
 function isMarketingExpense(tx: Transaction): boolean {
     return tx.type === 'expense' && (tx.category || '').trim().toLowerCase() === 'marketing';
