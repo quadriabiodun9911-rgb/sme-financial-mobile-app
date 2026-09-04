@@ -1,6 +1,7 @@
 import {
     canViewFinancials, isScreenAllowedForRole,
     canManageTeam, canManagePaymentSettings, canDeleteBusinessData, canPublishToLenders,
+    canWriteBusinessData,
 } from '../src/utils/rolePermissions';
 
 describe('canViewFinancials', () => {
@@ -111,5 +112,23 @@ describe('viewer role -- read-only enforcement', () => {
         expect(canManagePaymentSettings('viewer')).toBe(false);
         expect(canPublishToLenders('viewer')).toBe(false);
         expect(canDeleteBusinessData('viewer')).toBe(false);
+    });
+});
+
+describe('canWriteBusinessData -- the general write gate', () => {
+    // Dashboard, Transactions, Macro Assumptions, Reports, and Data
+    // Integrity are all screens viewer/external_accountant can OPEN (per
+    // isScreenAllowedForRole above) that also have an add/edit/delete
+    // action on them -- this is the check that actually stops the write on
+    // each, since screen-level allowlisting alone never did.
+    it('denies viewer and external_accountant -- the two roles documented as never writing anywhere', () => {
+        expect(canWriteBusinessData('viewer')).toBe(false);
+        expect(canWriteBusinessData('external_accountant')).toBe(false);
+    });
+
+    it('allows every other role, including staff -- Quick Add / logging a sale is staff\'s actual job', () => {
+        for (const role of ['owner', 'admin', 'accountant', 'manager', 'staff'] as const) {
+            expect(canWriteBusinessData(role)).toBe(true);
+        }
     });
 });

@@ -9,6 +9,7 @@ import { MacroAssumption, MacroDriver, MacroAssumptionConfidence } from '../type
 import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { canWriteBusinessData } from '../utils/rolePermissions';
 
 const DRIVER_OPTIONS: { value: MacroDriver; label: string; icon: IconName }[] = [
     { value: 'energy', label: 'Energy', icon: 'zap' },
@@ -41,8 +42,13 @@ function driverMeta(driver: MacroDriver) {
 }
 
 export default function MacroAssumptionsScreen() {
-    const { transactions, settings, updateSettings, navigate, navParams } = useApp();
+    const { transactions, settings, updateSettings, navigate, navParams, userRole } = useApp();
     const assumptions = settings.macroAssumptions ?? [];
+    // 'viewer'/'external_accountant' can open this screen (it's on both
+    // EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS and VIEWER_ALLOWED_SCREENS in
+    // rolePermissions.ts) but are documented as never writing anywhere --
+    // adding, editing, and deleting an assumption had no role check at all.
+    const canWrite = canWriteBusinessData(userRole);
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
     // see FooterNav.tsx for the reference fix. Applied here to the bottom
@@ -172,9 +178,11 @@ export default function MacroAssumptionsScreen() {
                     <Text style={s.backBtn}>← Settings</Text>
                 </TouchableOpacity>
                 <Text style={s.screenTitle}>Macro Assumptions</Text>
-                <TouchableOpacity style={s.addBtn} onPress={openAdd}>
-                    <Text style={s.addBtnText}>+ Add</Text>
-                </TouchableOpacity>
+                {canWrite && (
+                    <TouchableOpacity style={s.addBtn} onPress={openAdd}>
+                        <Text style={s.addBtnText}>+ Add</Text>
+                    </TouchableOpacity>
+                )}
             </View>
 
             <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
@@ -191,15 +199,17 @@ export default function MacroAssumptionsScreen() {
                         <Text style={s.emptySub}>
                             e.g. "Diesel price up 20% this quarter" linked to your Fuel/Utilities category
                         </Text>
-                        <TouchableOpacity style={s.emptyBtn} onPress={openAdd}>
-                            <Text style={s.emptyBtnText}>+ Add Your First Assumption</Text>
-                        </TouchableOpacity>
+                        {canWrite && (
+                            <TouchableOpacity style={s.emptyBtn} onPress={openAdd}>
+                                <Text style={s.emptyBtnText}>+ Add Your First Assumption</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 ) : (
                     assumptions.map(a => {
                         const meta = driverMeta(a.driver);
                         return (
-                            <TouchableOpacity key={a.id} style={s.card} onPress={() => openEdit(a)}>
+                            <TouchableOpacity key={a.id} style={s.card} onPress={canWrite ? () => openEdit(a) : undefined} activeOpacity={canWrite ? 0.7 : 1}>
                                 <View style={s.cardHeaderRow}>
                                     <Icon name={meta.icon} size={20} color={Colors.textSecondary} />
                                     <View style={{ flex: 1 }}>

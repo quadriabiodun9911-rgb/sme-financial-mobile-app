@@ -90,6 +90,23 @@ export function canDeleteTransactions(role: UserRole): boolean {
     return role === 'owner' || role === 'admin' || role === 'accountant' || role === 'manager';
 }
 
+// 'viewer' is documented above as pure read-only -- "look but never touch"
+// -- and 'external_accountant' as reporting/reconciliation only, "not run
+// day-to-day operations." Screen-level allowlisting (STAFF_ALLOWED_SCREENS
+// etc. below) only decides whether a role can OPEN a screen; it does
+// nothing to stop a write once they're on one that also has an add/edit/
+// delete action on it (canDeleteTransactions exists for exactly this
+// reason, but only ever covered deleting a transaction -- Quick Add,
+// editing a transaction, editing macro assumptions, editing opening
+// balances, and removing a broken record on Data Integrity were all still
+// wide open to both roles with no check at all). Deliberately broader than
+// canDeleteTransactions: staff IS meant to write here (Quick Add, logging a
+// sale, is literally staff's job), so this only excludes the two roles
+// documented as never writing anywhere.
+export function canWriteBusinessData(role: UserRole): boolean {
+    return role !== 'viewer' && role !== 'external_accountant';
+}
+
 export function canPublishToLenders(role: UserRole): boolean {
     return role === 'owner' || role === 'admin';
 }

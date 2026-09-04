@@ -8,12 +8,19 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { confirmAction, showAlert } from '../utils/webAlert';
 import { auditDataIntegrity, ENTITY_LABELS, IntegrityIssue, IntegrityEntityType } from '../utils/dataIntegrity';
+import { canWriteBusinessData } from '../utils/rolePermissions';
 
 export default function DataIntegrityScreen() {
     const {
         transactions, invoices, assets, inventory, goals, loans, budgets,
         deleteTransaction, deleteInvoice, deleteAsset, deleteInventoryItem, deleteGoal, deleteLoan, deleteBudget,
+        userRole,
     } = useApp();
+    // 'viewer'/'external_accountant' can open Data Integrity
+    // (rolePermissions.ts) but are documented as never writing anywhere --
+    // removing a broken record is still a real, permanent delete and had no
+    // role check at all before this.
+    const canWrite = canWriteBusinessData(userRole);
 
     const [version, setVersion] = useState(0); // bump to force re-audit after a delete
 
@@ -93,10 +100,12 @@ export default function DataIntegrityScreen() {
                                 device's current key. The underlying data isn't retrievable — removing them clears
                                 the blank/zero entries you'd otherwise see across the app.
                             </Text>
-                            <TouchableOpacity style={styles.deleteAllBtn} onPress={deleteAll}>
-                                <Icon name="trash-2" size={15} color="#fff" />
-                                <Text style={styles.deleteAllBtnText}>Remove All {issues.length}</Text>
-                            </TouchableOpacity>
+                            {canWrite && (
+                                <TouchableOpacity style={styles.deleteAllBtn} onPress={deleteAll}>
+                                    <Icon name="trash-2" size={15} color="#fff" />
+                                    <Text style={styles.deleteAllBtnText}>Remove All {issues.length}</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
 
                         {[...grouped.entries()].map(([entityType, list]) => (
@@ -110,9 +119,11 @@ export default function DataIntegrityScreen() {
                                                 Unreadable: {issue.brokenFields.join(', ')}
                                             </Text>
                                         </View>
-                                        <TouchableOpacity style={styles.rowDeleteBtn} onPress={() => deleteOne(issue)}>
-                                            <Icon name="trash-2" size={14} color={Colors.expense} />
-                                        </TouchableOpacity>
+                                        {canWrite && (
+                                            <TouchableOpacity style={styles.rowDeleteBtn} onPress={() => deleteOne(issue)}>
+                                                <Icon name="trash-2" size={14} color={Colors.expense} />
+                                            </TouchableOpacity>
+                                        )}
                                     </View>
                                 ))}
                             </View>

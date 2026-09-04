@@ -25,7 +25,7 @@ import { classifyTransactions } from '../utils/dataQuality';
 import { detectPersonalSpending, DISMISSED_PERSONAL_KEY } from '../utils/personalSpendingDetector';
 import CostExposureTab from '../components/CostExposureTab';
 import RevenueExposureTab from '../components/RevenueExposureTab';
-import { canDeleteTransactions } from '../utils/rolePermissions';
+import { canDeleteTransactions, canWriteBusinessData } from '../utils/rolePermissions';
 import { convertToBaseCurrency } from '../utils/foreignCurrency';
 import { categorizeTransactionAI, AICategorizationResult } from '../utils/aiCategorization';
 import { computeExpenseIntelligence, ExpenseTier } from '../utils/expenseIntelligence';
@@ -205,6 +205,12 @@ function formatDateHeader(iso: string): string {
 export default function TransactionsScreen() {
     const { transactions, addTransaction, deleteTransaction, updateTransaction, settings, setCurrentScreen, navParams, invoices, markInvoiceStatus, language, isDemoMode, userRole } = useApp();
     const canDelete = canDeleteTransactions(userRole);
+    // 'viewer'/'external_accountant' can open this screen (see
+    // rolePermissions.ts's EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS/
+    // VIEWER_ALLOWED_SCREENS) but are documented as never writing anywhere
+    // -- "+ New Entry", pasting a CSV import, and editing an existing
+    // transaction all had no role check at all before this.
+    const canWrite = canWriteBusinessData(userRole);
 
     // Cost Exposure moved here from Inventory & Stock: it's fundamentally
     // about sales/revenue erosion (a category eating a bigger share of
@@ -589,12 +595,16 @@ export default function TransactionsScreen() {
                 <TouchableOpacity style={styles.csvBtn} onPress={handleExportCSV}>
                     <Text style={styles.csvBtnText}>{t(language, 'export')}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.importBtn} onPress={() => { setCsvText(''); setCsvModalOpen(true); }}>
-                    <Text style={styles.csvBtnText}>{t(language, 'importCsv')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.addBtn} onPress={openNew}>
-                    <Text style={styles.addBtnText}>{t(language, 'newEntry')}</Text>
-                </TouchableOpacity>
+                {canWrite && (
+                    <TouchableOpacity style={styles.importBtn} onPress={() => { setCsvText(''); setCsvModalOpen(true); }}>
+                        <Text style={styles.csvBtnText}>{t(language, 'importCsv')}</Text>
+                    </TouchableOpacity>
+                )}
+                {canWrite && (
+                    <TouchableOpacity style={styles.addBtn} onPress={openNew}>
+                        <Text style={styles.addBtnText}>{t(language, 'newEntry')}</Text>
+                    </TouchableOpacity>
+                )}
             </View>
 
             {/* ── Filter row ───────────────────────────────────────────── */}
@@ -714,7 +724,7 @@ export default function TransactionsScreen() {
                     <RecurringTransactionManager
                         recurringTransactions={transactions.filter(t => t.isRecurring) as any[]}
                         currency={currency}
-                        onEdit={openEdit}
+                        onEdit={canWrite ? openEdit : undefined}
                         onDelete={canDelete ? (id => { deleteTransaction(id); if (!isDemoMode) auditEvents.transactionDelete(id); }) : undefined}
                     />
                 </View>
@@ -752,8 +762,8 @@ export default function TransactionsScreen() {
                             <TouchableOpacity
                                 key={tx.id}
                                 style={[styles.txCard, tx.type === 'income' ? styles.incomeCard : styles.expenseCard, tx.status === 'overdue' && styles.overdueCard]}
-                                onPress={() => openEdit(tx)}
-                                activeOpacity={0.8}
+                                onPress={canWrite ? () => openEdit(tx) : undefined}
+                                activeOpacity={canWrite ? 0.8 : 1}
                             >
                                 {/* Top row */}
                                 <View style={styles.txTop}>

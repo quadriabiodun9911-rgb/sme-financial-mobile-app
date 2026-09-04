@@ -8,6 +8,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import InfoTip from '../components/InfoTip';
+import { canWriteBusinessData } from '../utils/rolePermissions';
 import AgingReport from '../components/AgingReport';
 import PeriodComparisonTable from '../components/PeriodComparisonTable';
 import BalanceSheetComparisonTable from '../components/BalanceSheetComparisonTable';
@@ -1047,7 +1048,11 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
 
     // Pull live outstanding loan balances from context — still needed for the
     // "auto-filled from your Loan Register" hint text below.
-    const { loans: loanRegister } = useApp();
+    const { loans: loanRegister, userRole } = useApp();
+    // 'viewer'/'external_accountant' can open Reports (rolePermissions.ts)
+    // but are documented as never writing anywhere -- editing these opening
+    // balances had no role check at all before this.
+    const canWrite = canWriteBusinessData(userRole);
     const liveLoansBalance = loanRegister
         .filter(l => l.status === 'active')
         .reduce((sum, l) => {
@@ -1092,11 +1097,13 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
                     Use this to enter values that aren't tracked as transactions or in the Asset/Loan Register.
                 </Text>
 
-                <TouchableOpacity style={bsStyles.editBtn} onPress={() => setEditing(e => !e)}>
-                    <Text style={bsStyles.editBtnText}>{editing ? 'Cancel' : 'Edit Manual Values'}</Text>
-                </TouchableOpacity>
+                {canWrite && (
+                    <TouchableOpacity style={bsStyles.editBtn} onPress={() => setEditing(e => !e)}>
+                        <Text style={bsStyles.editBtnText}>{editing ? 'Cancel' : 'Edit Manual Values'}</Text>
+                    </TouchableOpacity>
+                )}
 
-                {editing && (
+                {editing && canWrite && (
                     <View style={bsStyles.editPanel}>
                         <Text style={bsStyles.editTitle}>Enter Your Known Values</Text>
                         <InputRow

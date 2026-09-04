@@ -13,6 +13,7 @@ import Header from '../components/Header';
 import { trackDemoConvertTapped, trackScreenViewed } from '../utils/analytics';
 import { getWorkspaceOwnerId } from '../utils/storage';
 import { claimIncomingPayments } from '../utils/incomingPayments';
+import { canWriteBusinessData } from '../utils/rolePermissions';
 import { claimIncomingWhatsAppTransactions } from '../utils/whatsappTransactions';
 import FooterNav from '../components/FooterNav';
 import { t } from '../utils/i18n';
@@ -154,7 +155,13 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen 
 };
 
 export default function DashboardScreen() {
-    const { finance, settings, goals, transactions, invoices, assets, loans, staff, payrollRuns, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, demoBusinessId, cashPockets, addGoal, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory, markInvoiceStatus } = useApp();
+    const { finance, settings, goals, transactions, invoices, assets, loans, staff, payrollRuns, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, demoBusinessId, cashPockets, addGoal, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory, markInvoiceStatus, userRole } = useApp();
+    // 'viewer'/'external_accountant' can open the dashboard but are
+    // documented (rolePermissions.ts) as never writing anywhere -- Quick
+    // Add had no role check at all before this, on any of its several
+    // entry points (the floating button, the onboarding step, the "Log
+    // today's sales" banner, the empty Business Health card's CTA, etc).
+    const canWrite = canWriteBusinessData(userRole);
     const language = rawLanguage as Language;
 
     // Fallback pickup for payments payment-webhook confirmed while the
@@ -865,6 +872,12 @@ export default function DashboardScreen() {
     );
 
     const openFab = (type: 'income' | 'expense' = 'income') => {
+        // Centralized so every entry point that calls openFab() (the
+        // floating button, the onboarding step, the "Log today's sales"
+        // banner, this card's own CTA, and any other tap-to-Quick-Add
+        // shortcut) is covered by one check, rather than needing every
+        // current and future call site to remember to gate itself.
+        if (!canWrite) return;
         setQaType(type);
         setQaCategory('');
         setQaCategoryTouched(false);
@@ -2292,9 +2305,12 @@ export default function DashboardScreen() {
             </ScrollView>
 
             {/* ── FAB ─────────────────────────────────────────────────────── */}
+            {canWrite && (
             <TouchableOpacity style={[styles.fab, { bottom: 80 + (!loggedToday ? logTodayBannerHeight : 0) }]} onPress={() => openFab()}>
                 <Text style={styles.fabText}>+</Text>
             </TouchableOpacity>
+            )}
+            {canWrite && (
             <TouchableOpacity
                 style={[styles.eodFab, { bottom: 140 + (!loggedToday ? logTodayBannerHeight : 0) }]}
                 onPress={() => setEodOpen(true)}
@@ -2302,9 +2318,10 @@ export default function DashboardScreen() {
             >
                 <Icon name="moon" size={20} color={Colors.textPrimary} />
             </TouchableOpacity>
+            )}
 
             {/* ── Daily log-today banner ───────────────────────────────────── */}
-            {!loggedToday && (
+            {canWrite && !loggedToday && (
                 <View style={styles.logTodayBanner} onLayout={e => setLogTodayBannerHeight(e.nativeEvent.layout.height)}>
                     <View style={styles.logTodayLeft}>
                         <Text style={styles.logTodayTitle}>🌙 Log today's sales before you sleep</Text>
