@@ -5,6 +5,7 @@ import { Radius, Shadow } from '../theme/tokens';
 import { Transaction, Asset, InventoryItem, Loan } from '../types';
 import { computeCashFlowHealth, CashFlowHealthBand, CashFlowRiskFlag, TrajectoryPoint } from '../utils/cashFlowHealth';
 import RadialGauge from './RadialGauge';
+import Icon from './ui/Icon';
 
 interface Props {
     transactions: Transaction[];
@@ -175,7 +176,7 @@ function TrajectoryBar({ point, currency, maxAbs }: { point: TrajectoryPoint; cu
 function RiskFlagRow({ flag }: { flag: CashFlowRiskFlag }) {
     return (
         <View style={s.flagRow}>
-            <Text style={s.flagBullet}>{flag.severity === 'critical' ? '🔴' : '🟠'}</Text>
+            <Icon name={flag.severity === 'critical' ? 'alert-circle' : 'alert-triangle'} size={13} color={flag.severity === 'critical' ? Colors.expense : Colors.warning} />
             <Text style={s.flagText}>{flag.message}</Text>
         </View>
     );
@@ -212,7 +213,6 @@ const s = StyleSheet.create({
     trajectoryLabel: { fontSize: 10, color: Colors.textMuted, marginTop: 6 },
 
     flagsCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: Colors.expense },
-    flagRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
-    flagBullet: { fontSize: 12, color: Colors.textMuted },
-    flagText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+    flagRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 },
+    flagText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginTop: 1 },
 });

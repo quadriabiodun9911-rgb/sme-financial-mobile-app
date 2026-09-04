@@ -5,6 +5,7 @@ import { Colors } from '../theme/colors';
 import { Shadow } from '../theme/tokens';
 import { computeTaxFilingReadiness } from '../utils/taxFilingReadiness';
 import { computeComplianceObligations } from '../utils/complianceMapping';
+import Icon from './ui/Icon';
 
 export default function TaxFilingReadinessTab() {
     const { transactions, invoices, settings, finance, setCurrentScreen, user, staff } = useApp();
@@ -62,7 +63,7 @@ export default function TaxFilingReadinessTab() {
 
             {readiness.checks.map(check => (
                 <View key={check.id} style={[s.checkRow, { borderLeftColor: check.passed ? Colors.income : Colors.expense }]}>
-                    <Text style={s.checkIcon}>{check.passed ? '✅' : '⚠️'}</Text>
+                    <Icon name={check.passed ? 'check-circle' : 'alert-triangle'} size={16} color={check.passed ? Colors.income : Colors.expense} />
                     <View style={{ flex: 1 }}>
                         <Text style={s.checkLabel}>{check.label}</Text>
                         <Text style={s.checkDetail}>{check.detail}</Text>
@@ -144,7 +145,6 @@ const s = StyleSheet.create({
         alignItems: 'flex-start',
         ...Shadow.sm,
     },
-    checkIcon: { fontSize: 16 },
     checkLabel: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary, marginBottom: 3 },
     checkDetail: { fontSize: 12, color: Colors.textMuted, lineHeight: 16 },
     noticeCard: {

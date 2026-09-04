@@ -7,6 +7,7 @@ import { computeWorkingCapitalHealth, WorkingCapitalHealthBand, WorkingCapitalRi
 import { computeSupplierPaymentPressure, SupplierPaymentPressureLevel } from '../utils/supplierPaymentPressure';
 import { fmtCompact } from './CashFlowHealthTab';
 import RadialGauge from './RadialGauge';
+import Icon from './ui/Icon';
 
 interface Props {
     transactions: Transaction[];
@@ -148,7 +149,7 @@ export default function WorkingCapitalHealthTab({ transactions, inventory, curre
                     <Text style={[s.narrative, { marginTop: 6 }]}>{pressure.narrative}</Text>
                     {pressure.riskFlags.map((flag, i) => (
                         <View key={i} style={s.flagRow}>
-                            <Text style={s.flagBullet}>{flag.severity === 'critical' ? '🔴' : '🟠'}</Text>
+                            <Icon name={flag.severity === 'critical' ? 'alert-circle' : 'alert-triangle'} size={13} color={flag.severity === 'critical' ? Colors.expense : Colors.warning} />
                             <Text style={s.flagText}>{flag.message}</Text>
                         </View>
                     ))}
@@ -179,7 +180,7 @@ function TrendBar({ point, maxAbs }: { point: WorkingCapitalTrendPoint; maxAbs: 
 function RiskFlagRow({ flag }: { flag: WorkingCapitalRiskFlag }) {
     return (
         <View style={s.flagRow}>
-            <Text style={s.flagBullet}>{flag.severity === 'critical' ? '🔴' : '🟠'}</Text>
+            <Icon name={flag.severity === 'critical' ? 'alert-circle' : 'alert-triangle'} size={13} color={flag.severity === 'critical' ? Colors.expense : Colors.warning} />
             <Text style={s.flagText}>{flag.message}</Text>
         </View>
     );
@@ -218,7 +219,6 @@ const s = StyleSheet.create({
     trendLabel: { fontSize: 10, color: Colors.textMuted, marginTop: 6 },
 
     flagsCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: Colors.expense },
-    flagRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
-    flagBullet: { fontSize: 12, color: Colors.textMuted },
-    flagText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+    flagRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 },
+    flagText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginTop: 1 },
 });

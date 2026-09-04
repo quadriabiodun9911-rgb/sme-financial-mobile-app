@@ -9,6 +9,7 @@ import { Shadow } from '../theme/tokens';
 import NextStepLink from './NextStepLink';
 import { getTaxRatePercent } from '../utils/finance';
 import { showAlert } from '../utils/webAlert';
+import Icon from './ui/Icon';
 
 export default function TaxPlanningTab() {
     const { transactions, settings, navigate, finance, user } = useApp();
@@ -396,9 +397,7 @@ function ChecklistItem({ text }: { text: string }) {
     const [checked, setChecked] = React.useState(false);
     return (
         <TouchableOpacity style={s.checklistItem} onPress={() => setChecked(!checked)}>
-            <Text style={[s.checklistCheckbox, checked && s.checklistCheckboxChecked]}>
-                {checked ? '✅' : '☐'}
-            </Text>
+            <Icon name={checked ? 'check-square' : 'square'} size={18} color={checked ? Colors.income : Colors.textMuted} />
             <Text style={[s.checklistText, checked && s.checklistTextChecked]}>{text}</Text>
         </TouchableOpacity>
     );
@@ -428,9 +427,7 @@ const s = StyleSheet.create({
     deductionQuarter: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
     deductionAmount: { fontSize: 13, fontWeight: '600', color: Colors.income },
     emptyText: { fontSize: 12, color: Colors.textSecondary, fontStyle: 'italic', textAlign: 'center', paddingVertical: 16 },
-    checklistItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.muted },
-    checklistCheckbox: { fontSize: 16, marginRight: 12, width: 20 },
-    checklistCheckboxChecked: { color: Colors.income },
+    checklistItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.muted },
     checklistText: { fontSize: 13, color: Colors.textPrimary, flex: 1 },
     checklistTextChecked: { color: Colors.textSecondary, textDecorationLine: 'line-through' },
     buttonGroup: { gap: 12, marginBottom: 24 },
