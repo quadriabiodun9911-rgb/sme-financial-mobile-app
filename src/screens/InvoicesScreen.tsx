@@ -734,7 +734,7 @@ export default function InvoicesScreen() {
 
                                 <TouchableOpacity style={styles.recurringToggleRow} onPress={() => setIsRecurring(v => !v)}>
                                     <View style={[styles.checkbox, isRecurring && styles.checkboxChecked]}>
-                                        {isRecurring && <Text style={styles.checkboxMark}>✓</Text>}
+                                        {isRecurring && <Icon name="check" size={13} color="#fff" />}
                                     </View>
                                     <Text style={styles.recurringToggleText}>This is a recurring invoice</Text>
                                 </TouchableOpacity>
@@ -1036,7 +1036,7 @@ const styles = StyleSheet.create({
     summaryLabel: { fontSize: 9, color: Colors.textMuted, marginBottom: Spacing.xs, textAlign: 'center' },
     summaryValue: { fontSize: 13, fontWeight: 'bold' },
 
-    detectedAlert: { backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
+    detectedAlert: { backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md, ...Shadow.sm },
     detectedAlertTextRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
     detectedAlertText: { flex: 1, fontSize: 12.5, fontWeight: '600', color: Colors.primary, lineHeight: 18 },
     detectedRow: { flexDirection: 'row', alignItems: 'center', paddingTop: Spacing.sm, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.primary + '30', gap: Spacing.sm },
@@ -1084,14 +1084,13 @@ const styles = StyleSheet.create({
     },
     fieldHint: { fontSize: 11, color: Colors.textMuted, marginTop: 4, lineHeight: 15 },
 
-    creditWarnCard:  { borderRadius: Radius.md, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: Colors.expense, backgroundColor: Colors.expense + '15' },
+    creditWarnCard:  { borderRadius: Radius.md, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: Colors.expense, backgroundColor: Colors.expense + '15', ...Shadow.sm },
     creditWarnTitle: { fontSize: 13, fontWeight: 'bold', marginBottom: 6, color: Colors.expense },
     creditWarnText:  { fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
 
     recurringToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: Spacing.md },
     checkbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
     checkboxChecked: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-    checkboxMark: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
     recurringToggleText: { fontSize: 13, color: Colors.textPrimary, fontWeight: '600' },
 
     lineItem:   { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 10, marginTop: 10 },
