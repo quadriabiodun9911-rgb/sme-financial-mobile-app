@@ -10,7 +10,8 @@ import { generateActionPlan, ActionTactic } from '../utils/actionRecommendationE
 import {
   initiateTacticTracking, updateTacticProgress, recordTacticOutcome, measureActualImpact,
   canMeasureOutcome, daysUntilMeasurable, OUTCOME_MEASUREMENT_WINDOW_DAYS,
-  TacticExecution, TacticOutcome,
+  calculateProgressMetric, evaluateProgressTracker,
+  TacticExecution, TacticOutcome, ProgressTracker,
 } from '../utils/outcomeTrackingEngine';
 import { syncTacticOutcomeSample, loadTacticOutcomeStats, TacticOutcomeStats } from '../utils/tacticOutcomeStats';
 import { mergeShownTacticIds, computeRecommendationConversion } from '../utils/recommendationConversion';
@@ -18,13 +19,23 @@ import NextStepLink from '../components/NextStepLink';
 import { computeCashRunway } from '../utils/cashRunway';
 import { getMonthlyExpenseAverage } from '../utils/finance';
 import { showAlert } from '../utils/webAlert';
-import Icon from '../components/ui/Icon';
+import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { localDateStr } from '../utils/localDate';
 
 const EXECUTIONS_KEY = 'quad360_tactic_executions_v1';
 const OUTCOMES_KEY = 'quad360_tactic_outcomes_v1';
 const SHOWN_TACTICS_KEY = 'quad360_tactics_shown_v1';
+
+const PROGRESS_TREND_LABEL: Record<'accelerating' | 'on-track' | 'lagging', string> = {
+  accelerating: 'Accelerating', 'on-track': 'On Track', lagging: 'Lagging',
+};
+const PROGRESS_TREND_COLOR: Record<'accelerating' | 'on-track' | 'lagging', string> = {
+  accelerating: Colors.income, 'on-track': Colors.primary, lagging: Colors.warning,
+};
+const PROGRESS_TREND_ICON: Record<'accelerating' | 'on-track' | 'lagging', IconName> = {
+  accelerating: 'trending-up', 'on-track': 'check-circle', lagging: 'alert-triangle',
+};
 
 // finance.income/expense/profit are all-time cumulative totals, not a
 // recent-activity figure — comparing them before/after a few-week tactic
@@ -203,12 +214,19 @@ export default function ActionTrackerScreen() {
         title: execution.tacticTitle,
         expectedImpact: execution.expectedImpact ?? 0,
         impactType: execution.impactType ?? 'cash_improvement' as const,
+        category: execution.category ?? 'operations' as const,
       };
       const actualImpact = measureActualImpact(tacticLike, execution.baseline!, current);
       const health = execution.healthAtStart !== undefined
         ? { before: execution.healthAtStart, after: diagnosis.overallHealth }
         : undefined;
-      return recordTacticOutcome(execution, tacticLike, actualImpact, [], [], health);
+      // Same income/expense/profit selection measureActualImpact just used
+      // above, re-expressed as a baseline/target/current/trend metric --
+      // this is what lets formatOutcomeReport show which specific number
+      // moved, not just the net impact figure.
+      const metricField = tacticLike.impactType === 'revenue' ? 'income' : tacticLike.impactType === 'expense_reduction' ? 'expense' : 'profit';
+      const metric = calculateProgressMetric(tacticLike, current[metricField], execution.baseline![metricField]);
+      return recordTacticOutcome(execution, tacticLike, actualImpact, [metric], [], health);
     });
     setOutcomes(prev => [...prev, ...newOutcomes]);
     // Anonymous cross-business sample for each -- feeds the community
@@ -278,7 +296,31 @@ export default function ActionTrackerScreen() {
   const executionList = Object.values(executions);
   const inProgressCount = executionList.filter(e => e.status === 'in-progress').length;
   const completedCount = executionList.filter(e => e.status === 'completed').length;
+  const abandonedCount = executionList.filter(e => e.status === 'abandoned').length;
   const conversion = computeRecommendationConversion(shownTacticIds, executionList, outcomes);
+
+  // Overall pace across every tactic ever started here, not scoped to a
+  // single goal (tactics aren't tied to one) -- omitting goalTargetDate
+  // makes evaluateProgressTracker fall back to its own "50% expected at
+  // the midpoint" default, exactly the case this is.
+  const progressTracker = useMemo(() => {
+    if (executionList.length === 0) return null;
+    const earliestStart = executionList.reduce((min, e) => e.startDate < min ? e.startDate : min, executionList[0].startDate);
+    const tracker: ProgressTracker = {
+      startDate: earliestStart,
+      currentDate: localDateStr(),
+      executions: executionList,
+      outcomes,
+      overallProgress: 0,
+      progressTrend: 'on-track',
+      recommendedAdjustments: [],
+      completedTactics: completedCount,
+      activeTactics: inProgressCount,
+      abandonedTactics: abandonedCount,
+    };
+    return evaluateProgressTracker(tracker);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [executions, outcomes, completedCount, inProgressCount, abandonedCount]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -337,6 +379,36 @@ export default function ActionTrackerScreen() {
               You've acted on {conversion.actedOn} of {conversion.shown} recommendation{conversion.shown === 1 ? '' : 's'} we've surfaced
               {conversion.conversionRate !== null ? ` (${Math.round(conversion.conversionRate * 100)}%)` : ''}.
             </Text>
+          </View>
+        )}
+
+        {/* Overall Progress — the pace of everything started here, not one
+            tactic. Shown once at least one tactic has ever been started
+            (planned tactics with no execution yet have nothing to pace). */}
+        {progressTracker && (
+          <View style={styles.trackRecordCard}>
+            <View style={[styles.titleRow, { marginBottom: 3 }]}>
+              <Icon name="activity" size={15} color={Colors.textPrimary} />
+              <Text style={styles.trackRecordTitle}>Overall Progress</Text>
+            </View>
+            <View style={styles.progressHeaderRow}>
+              <Text style={styles.progressPct}>{progressTracker.overallProgress}%</Text>
+              <View style={[styles.trendBadge, { backgroundColor: PROGRESS_TREND_COLOR[progressTracker.progressTrend] + '22' }]}>
+                <Icon name={PROGRESS_TREND_ICON[progressTracker.progressTrend]} size={12} color={PROGRESS_TREND_COLOR[progressTracker.progressTrend]} />
+                <Text style={[styles.trendBadgeText, { color: PROGRESS_TREND_COLOR[progressTracker.progressTrend] }]}>
+                  {PROGRESS_TREND_LABEL[progressTracker.progressTrend]}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.trackRecordSub}>
+              {progressTracker.completedTactics} completed · {progressTracker.activeTactics} in progress
+              {progressTracker.abandonedTactics > 0 ? ` · ${progressTracker.abandonedTactics} abandoned` : ''}
+            </Text>
+            {progressTracker.recommendedAdjustments.slice(0, 2).map((rec, i) => (
+              // The trend badge above already carries the icon for this --
+              // strip the engine's own leading emoji so it isn't repeated.
+              <Text key={i} style={styles.progressRecommendation}>{rec.replace(/^[^\w]+\s*/u, '')}</Text>
+            ))}
           </View>
         )}
 
@@ -681,6 +753,12 @@ const styles = StyleSheet.create({
   trackedItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   progressDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary },
   impactBannerTracked: { fontSize: 11, color: Colors.textSecondary, fontWeight: '600' },
+
+  progressHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  progressPct: { fontSize: 24, fontWeight: '800', color: Colors.textPrimary },
+  trendBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.pill },
+  trendBadgeText: { fontSize: 11, fontWeight: '700' },
+  progressRecommendation: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginTop: 4 },
 
   trackRecordCard: {
     backgroundColor: Colors.surface,

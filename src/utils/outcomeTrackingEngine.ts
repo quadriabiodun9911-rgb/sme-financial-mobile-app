@@ -31,6 +31,11 @@ export interface TacticExecution {
   // no longer appears in the plan by the time enough days have passed.
   expectedImpact?: number;
   impactType?: 'revenue' | 'expense_reduction' | 'cash_improvement';
+  // Same "captured at start, not re-read later" reasoning as expectedImpact/
+  // impactType above -- feeds calculateProgressMetric's metricName at
+  // measurement time. Optional since executions recorded before this field
+  // existed won't have it.
+  category?: ActionTactic['category'];
 }
 
 // The baseline snapshot is itself a trailing OUTCOME_MEASUREMENT_WINDOW_DAYS
@@ -137,6 +142,7 @@ export function initiateTacticTracking(
     healthAtStart,
     expectedImpact: tactic.expectedImpact,
     impactType: tactic.impactType,
+    category: tactic.category,
   };
 }
 
@@ -237,7 +243,7 @@ function generateNextSteps(
 }
 
 export function calculateProgressMetric(
-  tactic: ActionTactic,
+  tactic: Pick<ActionTactic, 'category' | 'expectedImpact'>,
   currentMetricValue: number,
   startingMetricValue: number
 ): OutcomeMetric {
