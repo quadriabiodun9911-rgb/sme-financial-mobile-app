@@ -136,12 +136,17 @@ export default function AssetsScreen() {
         if (editingId) {
             updateAsset(editingId, payload);
         } else {
-            addAsset(payload);
-
             // Wire the chosen acquisition method into the rest of the app.
             const startDate = payload.purchaseDate;
             const term = parseInt(acqTerm) || 24;
             const rate = parseFloat(acqRate) || 0;
+            if ((acqMethod === 'credit' || acqMethod === 'lease') && (term <= 0 || rate < 0)) {
+                showAlert(t(language, 'error'), 'Enter a valid term (months) and a non-negative rate.');
+                return;
+            }
+
+            addAsset(payload);
+
             if (acqMethod === 'credit') {
                 // Owned asset financed by a loan — create the matching loan record.
                 addLoan({
