@@ -185,6 +185,13 @@ interface FinanceContextValue {
   readinessHistory: ReadinessSnapshot[];
   forecastHistory: ForecastSnapshot[];
   dataConfidenceHistory: DataConfidenceSnapshot[];
+
+  // True once this provider's own async load (AsyncStorage + Supabase) has
+  // resolved for the current identity -- see useAppReady below, which
+  // combines this with the other three data-owning providers' own flags so
+  // a screen never renders while some of them are still loading in the
+  // background.
+  hydrated: boolean;
 }
 
 const FinanceContext = createContext<FinanceContextValue | undefined>(undefined);
@@ -440,6 +447,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       budgets,
       inventory,
       finance,
+      hydrated,
       addTransaction: (tx) => {
         // Demo sessions produce nothing worth measuring in the real
         // product-usage data -- same convention already used above for
@@ -794,7 +802,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         });
       },
     }),
-    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, capitalCommitments, readinessHistory, forecastHistory, dataConfidenceHistory, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency]
+    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, capitalCommitments, readinessHistory, forecastHistory, dataConfidenceHistory, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency, hydrated]
   );
 
   return (
@@ -821,6 +829,7 @@ interface GoalContextValue {
   addGoal: (goal: FinancialGoal) => void;
   updateGoal: (id: string, goal: Partial<FinancialGoal>) => void;
   deleteGoal: (id: string) => void;
+  hydrated: boolean;
 }
 
 const GoalContext = createContext<GoalContextValue | undefined>(undefined);
@@ -871,8 +880,9 @@ export function GoalProvider({ children }: { children: ReactNode }) {
       deleteGoal: (id) => setGoals((prev) =>
         prev.filter((g) => g.id !== id)
       ),
+      hydrated,
     }),
-    [goals, isDemoMode]
+    [goals, isDemoMode, hydrated]
   );
 
   return (
@@ -900,6 +910,7 @@ interface InvoiceContextValue {
   updateInvoice: (id: string, invoice: Partial<Invoice>) => void;
   deleteInvoice: (id: string) => void;
   markInvoiceStatus: (id: string, status: InvoiceStatus) => void;
+  hydrated: boolean;
 }
 
 const InvoiceContext = createContext<InvoiceContextValue | undefined>(undefined);
@@ -959,8 +970,9 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       deleteInvoice: (id) => setInvoices((prev) =>
         prev.filter((i) => i.id !== id)
       ),
+      hydrated,
     }),
-    [invoices]
+    [invoices, hydrated]
   );
 
   return (
@@ -987,6 +999,7 @@ interface SettingsContextValue {
   language: Language;
   updateSettings: (settings: Partial<BusinessSettings>) => void;
   setLanguage: (lang: Language) => void;
+  hydrated: boolean;
 }
 
 const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
@@ -1042,8 +1055,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       language,
       updateSettings: (s: Partial<BusinessSettings>) => setSettings((prev: BusinessSettings) => ({ ...prev, ...s })),
       setLanguage: (lang: Language) => setLanguage(lang),
+      hydrated,
     }),
-    [settings, language]
+    [settings, language, hydrated]
   );
 
   return (
@@ -2098,6 +2112,31 @@ export function useAuth(): AuthContextValue {
   return context;
 }
 
+// App.tsx's boot spinner previously gated only on auth.isLoading (the
+// session/PIN check) -- independent of whether FinanceProvider/GoalProvider/
+// InvoiceProvider/SettingsProvider had actually finished their own async
+// AsyncStorage+Supabase load for this identity. A screen could render the
+// instant auth resolved while transactions/goals/invoices/settings were
+// still loading in the background, showing a brief "looks empty" flash
+// (e.g. a health score computed from zero transactions) before the real
+// data landed a moment later -- most noticeable right after login, when
+// each provider's own hydrated flag drops back to false and reloads for
+// the newly-signed-in identity. Combines all five so the spinner covers
+// the whole boot, not just the auth portion of it.
+//
+// Deliberately its own tiny hook rather than folding this into useApp():
+// useApp() also recomputes financialHealthScore/goalsArray/etc, work
+// App.tsx's top-level render (which re-renders on every screen change) has
+// no reason to pay for just to read one boolean.
+export function useAppReady(): boolean {
+  const auth = useAuth();
+  const finance = useFinance();
+  const goals = useGoals();
+  const invoices = useInvoices();
+  const settings = useSettings();
+  return !auth.isLoading && finance.hydrated && goals.hydrated && invoices.hydrated && settings.hydrated;
+}
+
 // ============================================================================
 // SELECTOR HOOKS - For fine-grained subscriptions (optional but recommended)
 // ============================================================================
@@ -2322,7 +2361,14 @@ export function useApp() {
   return {
     // Auth state
     user: userWithMetrics,
-    isLoading: auth.isLoading,
+    // Combined with the other four providers' own hydrated flags, not just
+    // the auth/session check -- see useAppReady's comment. A screen reading
+    // isLoading from useApp() (e.g. DashboardScreen's first-run-wizard
+    // check, gated on `transactions.length > 0`) would otherwise see
+    // isLoading=false and an empty transactions array simultaneously for a
+    // returning user whose real history just hadn't loaded yet, and wrongly
+    // conclude "no transactions ever recorded."
+    isLoading: auth.isLoading || !finance.hydrated || !goals.hydrated || !invoices.hydrated || !settings.hydrated,
     currentScreen: auth.currentScreen,
     setCurrentScreen: auth.setCurrentScreen,
     navigate: auth.navigate,

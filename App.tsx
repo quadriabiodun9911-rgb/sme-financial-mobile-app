@@ -4,7 +4,7 @@ import { Colors } from './src/theme/colors';
 import * as Updates from 'expo-updates';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from './src/contexts/ThemeContext';
-import { AuthProvider, SettingsProvider, FinanceProvider, GoalProvider, InvoiceProvider, useAuth } from './src/contexts/OptimizedContexts';
+import { AuthProvider, SettingsProvider, FinanceProvider, GoalProvider, InvoiceProvider, useAuth, useAppReady } from './src/contexts/OptimizedContexts';
 import { trackScreenViewed, trackAppOpened } from './src/utils/analytics';
 import { initSentry, setSentryUser } from './src/utils/sentry';
 import ErrorBoundary from './src/components/ErrorBoundary';
@@ -64,7 +64,13 @@ import { isFinancingAdmin } from './src/utils/financingAdmin';
 import { UserRole, Screen } from './src/types';
 
 function NavigatorContent() {
-    const { user, isLoading, currentScreen, navParams, setCurrentScreen, goBack, isLenderSession } = useAuth();
+    const { user, currentScreen, navParams, setCurrentScreen, goBack, isLenderSession } = useAuth();
+    // Covers the whole boot, not just the auth/session check -- see
+    // useAppReady's own comment for why a screen rendering before
+    // Finance/Goal/Invoice/Settings finish their own async load matters
+    // (most visible right after login, when each provider reloads for the
+    // newly-signed-in identity).
+    const isLoading = !useAppReady();
     const userRole = (user?.role === 'Accountant' ? 'accountant' : user?.role === 'Staff' ? 'staff' : 'owner') as UserRole;
     const { width: windowWidth } = useWindowDimensions();
 
