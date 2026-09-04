@@ -205,7 +205,7 @@ export default function SettingsScreen() {
     };
 
     const handleSave = () => {
-        if (!form.businessName.trim()) {
+        if (!form.businessName?.trim()) {
             showAlert('Required', 'Business name can\'t be blank -- it\'s shown on invoices, payment links, and team invites.'); return;
         }
         if (isNaN(parseFloat(form.minReserve)) || parseFloat(form.minReserve) < 0) {

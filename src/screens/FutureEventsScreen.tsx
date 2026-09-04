@@ -31,6 +31,7 @@ function todayIso(): string {
 export default function FutureEventsScreen() {
     const { settings, updateSettings, navigate } = useApp();
     const events = settings.futureEvents ?? [];
+    const currency = settings.currency || '₦';
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
     // see FooterNav.tsx for the reference fix. Applied here to the bottom
@@ -129,7 +130,7 @@ export default function FutureEventsScreen() {
                     <View style={s.emptyState}>
                         <Text style={s.emptyTitle}>No future events yet</Text>
                         <Text style={s.emptySub}>
-                            e.g. "New generator" — a one-time ₦500,000 outflow next month
+                            e.g. "New generator" — a one-time {currency}500,000 outflow next month
                         </Text>
                         <TouchableOpacity style={s.emptyBtn} onPress={openAdd}>
                             <Text style={s.emptyBtnText}>+ Add Your First Event</Text>
@@ -147,7 +148,7 @@ export default function FutureEventsScreen() {
                                         <Text style={s.cardDriver}>{meta.label} · {new Date(`${ev.date}T00:00:00`).toLocaleDateString()}</Text>
                                     </View>
                                     <Text style={[s.cardChange, { color: ev.direction === 'inflow' ? Colors.income : Colors.expense }]}>
-                                        {ev.direction === 'inflow' ? '+' : '-'}₦{ev.amount.toLocaleString()}
+                                        {ev.direction === 'inflow' ? '+' : '-'}{currency}{ev.amount.toLocaleString()}
                                     </Text>
                                 </View>
                                 <View style={s.chipRow}>
@@ -209,7 +210,7 @@ export default function FutureEventsScreen() {
                         <View style={s.row2}>
                             <TextInput
                                 style={[s.input, { flex: 1 }]}
-                                placeholder="Amount (₦)"
+                                placeholder={`Amount (${currency})`}
                                 placeholderTextColor={Colors.textMuted}
                                 keyboardType="numeric"
                                 value={amount}
