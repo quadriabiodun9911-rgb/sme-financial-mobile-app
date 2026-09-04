@@ -1479,61 +1479,83 @@ export default function DashboardScreen() {
                 {canViewFinancials && (
                     <View style={[styles.operationsSection, isWideDashboard && styles.dashboardCol]}>
                       <Text style={styles.operationsSectionTitle}>🩺 BUSINESS HEALTH</Text>
-                      <PressScale
-                        style={[styles.healthScoreCard, { borderColor: healthBandMeta.color }]}
-                        activeOpacity={0.85}
-                        onPress={() => setCurrentScreen('scoreboard')}
-                      >
-                        <View style={styles.healthScoreRow}>
-                            <RadialGauge
-                                displayValue={String(animatedHealthScore)}
-                                label="/ 100"
-                                progress={animatedHealthScore / 100}
-                                color={healthBandMeta.color}
-                                size={72}
-                                strokeWidth={7}
-                            />
-                            <View style={[styles.healthBandBadge, { backgroundColor: healthBandMeta.color + '22' }]}>
-                                <Text style={[styles.healthBandBadgeText, { color: healthBandMeta.color }]}>
-                                    {healthBandMeta.emoji} {healthBandMeta.label} · {businessHealth.grade}
-                                </Text>
-                            </View>
-                        </View>
-                        <View style={styles.healthFactorsRow}>
-                            {businessHealth.factors.map(f => (
-                                <View key={f.name} style={styles.healthFactorChip}>
-                                    <View style={[styles.healthFactorDot, { backgroundColor: HEALTH_FACTOR_STATUS_COLOR[f.status] }]} />
-                                    <Text style={styles.healthFactorChipText}>{f.name}</Text>
-                                </View>
-                            ))}
-                        </View>
-                        <TouchableOpacity
-                            style={styles.healthWhyBtn}
-                            onPress={(e) => { e.stopPropagation(); setHealthWhyOpen(o => !o); }}
+                      {healthIntelligence.dataQuality.totalTransactions === 0 ? (
+                        // A blank account has nothing to score yet -- showing
+                        // a confident number/grade here (the old behaviour)
+                        // told a brand-new user their business was already
+                        // "55/100 Moderate", which is a straightforward
+                        // overclaim built on zero real data. Honest "not
+                        // enough data yet" state instead, same pattern as
+                        // computeExpenseIntelligence's available:false.
+                        <PressScale
+                          style={[styles.healthScoreCard, { borderColor: Colors.border }]}
+                          activeOpacity={0.85}
+                          onPress={() => openFab()}
                         >
-                            <Icon name="help-circle" size={12} color={Colors.textMuted} />
-                            <Text style={styles.healthWhyBtnText}>Why? What is this built on?</Text>
-                            <Icon name={healthWhyOpen ? 'chevron-up' : 'chevron-down'} size={12} color={Colors.textMuted} />
-                        </TouchableOpacity>
-
-                        {healthWhyOpen && (
-                            <TouchableOpacity style={styles.healthWhyBox} activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-                                <Text style={styles.healthWhyLabel}>Definition</Text>
-                                <Text style={styles.healthWhyText}>{healthIntelligence.definition}</Text>
-
-                                <Text style={styles.healthWhyLabel}>Data confidence</Text>
-                                <Text style={styles.healthWhyText}>{healthIntelligence.dataQuality.summary}</Text>
-                                {healthIntelligence.builtOn.map((line, i) => (
-                                    <Text key={i} style={styles.healthWhyBullet}>• {line}</Text>
+                            <Text style={styles.healthEmptyTitle}>No score yet</Text>
+                            <Text style={styles.healthEmptyText}>
+                                Your Business Health Score needs some real activity to mean anything.
+                                Add your first transaction (or import a bank statement) and it'll appear here.
+                            </Text>
+                            <Text style={styles.healthLinkText}>+ Add your first transaction →</Text>
+                        </PressScale>
+                      ) : (
+                        <PressScale
+                          style={[styles.healthScoreCard, { borderColor: healthBandMeta.color }]}
+                          activeOpacity={0.85}
+                          onPress={() => setCurrentScreen('scoreboard')}
+                        >
+                            <View style={styles.healthScoreRow}>
+                                <RadialGauge
+                                    displayValue={String(animatedHealthScore)}
+                                    label="/ 100"
+                                    progress={animatedHealthScore / 100}
+                                    color={healthBandMeta.color}
+                                    size={72}
+                                    strokeWidth={7}
+                                />
+                                <View style={[styles.healthBandBadge, { backgroundColor: healthBandMeta.color + '22' }]}>
+                                    <Text style={[styles.healthBandBadgeText, { color: healthBandMeta.color }]}>
+                                        {healthBandMeta.emoji} {healthBandMeta.label} · {businessHealth.grade}
+                                    </Text>
+                                </View>
+                            </View>
+                            <View style={styles.healthFactorsRow}>
+                                {businessHealth.factors.map(f => (
+                                    <View key={f.name} style={styles.healthFactorChip}>
+                                        <View style={[styles.healthFactorDot, { backgroundColor: HEALTH_FACTOR_STATUS_COLOR[f.status] }]} />
+                                        <Text style={styles.healthFactorChipText}>{f.name}</Text>
+                                    </View>
                                 ))}
-
-                                <Text style={styles.healthWhyLabel}>Trigger</Text>
-                                <Text style={[styles.healthWhyText, { color: Colors.warning, fontWeight: '700' }]}>⚠️ {healthIntelligence.trigger}</Text>
+                            </View>
+                            <TouchableOpacity
+                                style={styles.healthWhyBtn}
+                                onPress={(e) => { e.stopPropagation(); setHealthWhyOpen(o => !o); }}
+                            >
+                                <Icon name="help-circle" size={12} color={Colors.textMuted} />
+                                <Text style={styles.healthWhyBtnText}>Why? What is this built on?</Text>
+                                <Icon name={healthWhyOpen ? 'chevron-up' : 'chevron-down'} size={12} color={Colors.textMuted} />
                             </TouchableOpacity>
-                        )}
 
-                        <Text style={styles.healthLinkText}>See full breakdown & trend →</Text>
-                      </PressScale>
+                            {healthWhyOpen && (
+                                <TouchableOpacity style={styles.healthWhyBox} activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+                                    <Text style={styles.healthWhyLabel}>Definition</Text>
+                                    <Text style={styles.healthWhyText}>{healthIntelligence.definition}</Text>
+
+                                    <Text style={styles.healthWhyLabel}>Data confidence</Text>
+                                    <Text style={styles.healthWhyText}>{healthIntelligence.dataQuality.summary}</Text>
+                                    {healthIntelligence.builtOn.map((line, i) => (
+                                        <Text key={i} style={styles.healthWhyBullet}>• {line}</Text>
+                                    ))}
+
+                                    <Text style={styles.healthWhyLabel}>Trigger</Text>
+                                    <Text style={[styles.healthWhyText, { color: Colors.warning, fontWeight: '700' }]}>⚠️ {healthIntelligence.trigger}</Text>
+                                </TouchableOpacity>
+                            )}
+
+                            <Text style={styles.healthLinkText}>See full breakdown & trend →</Text>
+                        </PressScale>
+                      )}
                     </View>
                 )}
 
@@ -2892,6 +2914,18 @@ const styles = StyleSheet.create({
       fontSize: 12.5,
       color: Colors.primary,
       fontWeight: '700',
+    },
+    healthEmptyTitle: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: Colors.textPrimary,
+      marginBottom: 4,
+    },
+    healthEmptyText: {
+      fontSize: 12.5,
+      color: Colors.textSecondary,
+      lineHeight: 18,
+      marginBottom: Spacing.sm,
     },
     healthWhyBtn: {
       flexDirection: 'row', alignItems: 'center', gap: 5,

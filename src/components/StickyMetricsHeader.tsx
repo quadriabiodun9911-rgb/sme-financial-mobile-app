@@ -40,7 +40,11 @@ export default function StickyMetricsHeader({ finance, currency }: Props) {
             <Text style={styles.metricLabel}>{metric.label}</Text>
             <Text style={[styles.metricValue, { color: metric.color }]}>
               {metric.format === 'days'
-                ? (Number.isFinite(metric.value) ? `${Math.floor(metric.value)}d` : '∞')
+                ? (!Number.isFinite(metric.value)
+                    ? '5+yrs'
+                    : metric.value >= 365
+                        ? `${(metric.value / 365).toFixed(1)}yrs`
+                        : `${Math.floor(metric.value)}d`)
                 : `${currency}${Math.abs(metric.value).toLocaleString()}`}
             </Text>
           </View>
