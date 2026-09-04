@@ -90,6 +90,16 @@ export default function CashFlowScreen() {
         return () => runwayAnim.removeListener(id);
     }, [runwayDays]);
 
+    // Same "never show the bare ∞ glyph" formatting as the Dashboard's
+    // Vital Signs gauge -- a long-but-finite runway reads better in years,
+    // and no measurable burn (runwayDays === Infinity) is shown as a
+    // capped "5+ yrs" floor rather than a specific fabricated figure.
+    const runwayDisplay = useMemo(() => {
+        if (!Number.isFinite(runwayDays)) return { value: '5+', unit: 'yrs' };
+        if (runwayDays >= 365) return { value: (runwayDays / 365).toFixed(1), unit: 'yrs' };
+        return { value: `${Math.round(animatedRunwayDays)}`, unit: 'days' };
+    }, [runwayDays, animatedRunwayDays]);
+
     // Metric Intelligence pilot -- same Definition/Owner-confidence/Trigger
     // treatment as the Dashboard's Business Health Score. See
     // metricIntelligence.ts for exactly what's reused vs new.
@@ -342,8 +352,8 @@ export default function CashFlowScreen() {
                         <View style={[styles.runwayCard, { borderColor: runwayColor }]}>
                             <Text style={styles.runwayLabel}>Cash Runway</Text>
                             <RadialGauge
-                                displayValue={Number.isFinite(runwayDays) ? `${Math.round(animatedRunwayDays)}` : '∞'}
-                                label="days"
+                                displayValue={runwayDisplay.value}
+                                label={runwayDisplay.unit}
                                 progress={Number.isFinite(runwayDays) ? Math.min(runwayDays / 90, 1) : 1}
                                 color={runwayColor}
                                 size={128}

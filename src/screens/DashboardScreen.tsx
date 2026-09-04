@@ -944,6 +944,15 @@ export default function DashboardScreen() {
                 category: qaCategory.trim() || (qaType === 'income' ? 'Sales' : 'Other'),
                 date: new Date().toISOString().split('T')[0],
                 paymentMethod: qaPaymentMethod,
+                // Quick Add is always "this just happened" (unlike the
+                // manual add form on Transactions, which can back-date to
+                // any day) -- so unlike everywhere else that sets `date`,
+                // stamping the real time here is meaningful. Same paidAt
+                // convention incomingPayments.ts/PaymentCompleteScreen.tsx
+                // already use so several same-day entries can be told apart
+                // by when they actually happened (see TransactionsScreen's
+                // own paidAt display).
+                paidAt: new Date().toISOString(),
             });
             setQaAmount(''); setQaDesc(''); setQaCategory(''); setQaPaymentMethod(undefined);
             setQaText(''); setQaCategoryTouched(false); setQaTypeConfident(true);
@@ -991,6 +1000,16 @@ export default function DashboardScreen() {
     );
     const runwayDays = dashboardDailyBurn > 0 ? computedRunwayDays : null;
     const runwayColor = runwayDays === null ? Colors.income : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
+    // The Vital Signs gauge shows a real number, never the bare "∞" glyph --
+    // a long-but-finite runway reads better in years than as a four-digit
+    // day count, and no measurable burn in the trailing window (runwayDays
+    // === null) genuinely has no day count to report, so it's shown as a
+    // capped "5+ yrs" floor rather than fabricating a specific figure.
+    const runwayDisplay = useMemo(() => {
+        if (runwayDays === null) return { value: '5+', unit: 'yrs' };
+        if (runwayDays >= 365) return { value: (runwayDays / 365).toFixed(1), unit: 'yrs' };
+        return { value: String(runwayDays), unit: 'days' };
+    }, [runwayDays]);
 
     // Yesterday's actual revenue/expense bucket for the morning briefing's
     // pulse numbers below -- local Y-M-D, not toISOString() (see
@@ -1322,8 +1341,8 @@ export default function DashboardScreen() {
                         <Text style={styles.vitalSubtext}>+{currency}{Math.round(totalCash).toLocaleString()} in pockets</Text>
                       </View>
                       <RadialGauge
-                        displayValue={runwayDays === null ? '∞' : String(runwayDays)}
-                        label="days"
+                        displayValue={runwayDisplay.value}
+                        label={runwayDisplay.unit}
                         progress={runwayDays === null ? 1 : runwayDays / 90}
                         color={runwayColor}
                         size={64}
