@@ -71,7 +71,7 @@ export default function PayrollScreen() {
     const applyPayrollTransaction = (transactionId: string, period: string) => {
         if (activeStaff.length === 0) { showAlert('No active staff', 'Add staff before linking this payment to a payroll run.'); return; }
         if (payrollRuns.some(r => r.period === period)) { showAlert('Already run', `Payroll for ${period} already exists.`); return; }
-        const rate = (parseFloat(deductRate) || 0) / 100;
+        const rate = Math.max(0, parseFloat(deductRate) || 0) / 100;
         const items: PayrollItem[] = activeStaff.map(m => {
             const gross = m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22;
             const deductions = gross * rate;
