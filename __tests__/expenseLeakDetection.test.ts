@@ -51,6 +51,21 @@ describe('computeExpenseLeaks', () => {
         expect(result.recurringGroups[0].displayName).toBe('Adobe Inc');
     });
 
+    // Same case-insensitive identity computeCustomerConcentration/
+    // computeSupplierConcentration group by (see entityName.ts) -- a
+    // subscription charge typed once and imported once, differently cased,
+    // must still be recognized as the same recurring vendor.
+    it('groups differently-cased spellings of the same vendor as one recurring charge', () => {
+        const txs = [
+            makeTx({ vendorCustomer: 'Adobe Inc', amount: 10000, date: '2026-01-05' }),
+            makeTx({ vendorCustomer: 'ADOBE INC', amount: 10000, date: '2026-02-05' }),
+            makeTx({ vendorCustomer: '  adobe inc  ', amount: 10000, date: '2026-03-05' }),
+        ];
+        const result = computeExpenseLeaks(txs);
+        expect(result.recurringGroups).toHaveLength(1);
+        expect(result.recurringGroups[0].occurrenceCount).toBe(3);
+    });
+
     it('excludes loan repayments from recurring-charge detection', () => {
         const txs = [
             makeTx({ description: 'Loan Repayment', category: 'Loan Repayment', amount: 20000, date: '2026-01-05' }),

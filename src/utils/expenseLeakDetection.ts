@@ -25,6 +25,7 @@
  */
 
 import { Transaction } from '../types';
+import { entityKey, entityDisplayName } from './entityName';
 
 export interface RecurringExpenseGroup {
     vendorKey: string;
@@ -78,9 +79,13 @@ const EMPTY_RESULT = (reason: string): ExpenseLeakResult => ({
     summary: '',
 });
 
+// Same case/whitespace-insensitive identity computeCustomerConcentration/
+// computeSupplierConcentration group by (see entityName.ts) -- falls back
+// to the description when no vendorCustomer is tagged, since detecting a
+// recurring CHARGE (this file's job) shouldn't require the same explicit
+// tagging customer/supplier identity elsewhere in the app relies on.
 function normalizeVendorKey(t: Transaction): string {
-    const source = t.vendorCustomer?.split('|')[0] || t.description || '';
-    return source.trim().toLowerCase();
+    return entityKey(t.vendorCustomer) ?? t.description?.trim().toLowerCase() ?? '';
 }
 
 export function computeExpenseLeaks(transactions: Transaction[], currency: string = '₦'): ExpenseLeakResult {
@@ -113,7 +118,7 @@ export function computeExpenseLeaks(transactions: Transaction[], currency: strin
 
         recurringGroups.push({
             vendorKey,
-            displayName: sorted[sorted.length - 1].vendorCustomer?.split('|')[0]?.trim() || sorted[sorted.length - 1].description || vendorKey,
+            displayName: entityDisplayName(sorted[sorted.length - 1].vendorCustomer) || sorted[sorted.length - 1].description || vendorKey,
             category: sorted[sorted.length - 1].category || 'Other',
             monthsSeen,
             occurrenceCount: txs.length,

@@ -1,5 +1,6 @@
 import { Transaction, BusinessSettings } from '../types';
 import { computeCustomerConcentration } from './finance';
+import { entityKey, entityDisplayName } from './entityName';
 
 export interface WaterfallItem {
     label: string;
@@ -104,18 +105,25 @@ export interface DimensionItem {
 function buildDimensionItems(
     transactions: Transaction[],
     keyFn: (tx: Transaction) => string | undefined,
+    // Separate from keyFn so a caller that groups by a normalized identity
+    // (e.g. computeProfitByVendorCustomer's case-insensitive entityKey)
+    // can still show a real, original-cased label instead of the grouping
+    // key itself. Defaults to the key -- computeProfitByCategory's category
+    // grouping has no such distinction, and keeps its exact prior behavior.
+    labelFn?: (tx: Transaction) => string | undefined,
 ): DimensionItem[] {
-    const map = new Map<string, { revenue: number; cost: number }>();
+    const map = new Map<string, { label: string; revenue: number; cost: number }>();
 
     for (const tx of transactions) {
         const key = keyFn(tx) ?? 'Unknown';
-        const entry = map.get(key) ?? { revenue: 0, cost: 0 };
+        const label = labelFn?.(tx) ?? key;
+        const entry = map.get(key) ?? { label, revenue: 0, cost: 0 };
         if (tx.type === 'income')  entry.revenue += (tx.amount ?? 0);
         else                       entry.cost    += (tx.amount ?? 0) - (tx.principalPortion || 0);
         map.set(key, entry);
     }
 
-    const raw: DimensionItem[] = Array.from(map.entries()).map(([label, { revenue, cost }]) => {
+    const raw: DimensionItem[] = Array.from(map.values()).map(({ label, revenue, cost }) => {
         const profit = revenue - cost;
         const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
         return { label, revenue, cost, profit, margin, share: 0 };
@@ -135,8 +143,16 @@ export function computeProfitByCategory(transactions: Transaction[]): DimensionI
     return buildDimensionItems(transactions, tx => tx.category || 'Uncategorised');
 }
 
+// Grouped by entityKey (case-insensitive -- see entityName.ts), not the raw
+// vendorCustomer string: a customer/supplier typed by hand and the same one
+// as it appears in an imported bank statement (often differently cased)
+// used to count as two separate rows here.
 export function computeProfitByVendorCustomer(transactions: Transaction[]): DimensionItem[] {
-    return buildDimensionItems(transactions, tx => tx.vendorCustomer || 'Unknown');
+    return buildDimensionItems(
+        transactions,
+        tx => entityKey(tx.vendorCustomer) ?? 'unknown',
+        tx => entityDisplayName(tx.vendorCustomer) ?? 'Unknown',
+    );
 }
 
 // ─── Breakeven Analysis ───────────────────────────────────────────────────────
@@ -390,31 +406,46 @@ export function identifyProfitDrivers(transactions: Transaction[]): ProfitDriver
         }
     }
 
-    // Vendor/customer mix drivers
-    const currByVendor = new Map<string, number>();
-    const prevByVendor = new Map<string, number>();
+    // Vendor/customer mix drivers -- grouped by entityKey (case-insensitive,
+    // see entityName.ts), not the raw vendorCustomer string, so the same
+    // customer typed by hand once and imported from a statement once
+    // doesn't silently split into two separate (and individually smaller,
+    // easy-to-miss) "growth" drivers.
+    const currByVendor = new Map<string, { display: string; amount: number }>();
+    const prevByVendor = new Map<string, { display: string; amount: number }>();
 
     for (const tx of currTxs) {
-        if (tx.type === 'income' && tx.vendorCustomer) {
-            currByVendor.set(tx.vendorCustomer, (currByVendor.get(tx.vendorCustomer) ?? 0) + (tx.amount ?? 0));
+        const key = entityKey(tx.vendorCustomer);
+        if (tx.type === 'income' && key) {
+            const display = entityDisplayName(tx.vendorCustomer)!;
+            const e = currByVendor.get(key) ?? { display, amount: 0 };
+            e.amount += (tx.amount ?? 0);
+            currByVendor.set(key, e);
         }
     }
     for (const tx of prevTxs) {
-        if (tx.type === 'income' && tx.vendorCustomer) {
-            prevByVendor.set(tx.vendorCustomer, (prevByVendor.get(tx.vendorCustomer) ?? 0) + (tx.amount ?? 0));
+        const key = entityKey(tx.vendorCustomer);
+        if (tx.type === 'income' && key) {
+            const display = entityDisplayName(tx.vendorCustomer)!;
+            const e = prevByVendor.get(key) ?? { display, amount: 0 };
+            e.amount += (tx.amount ?? 0);
+            prevByVendor.set(key, e);
         }
     }
 
-    const allVendors = new Set([...currByVendor.keys(), ...prevByVendor.keys()]);
-    for (const vendor of allVendors) {
-        const curr = currByVendor.get(vendor) ?? 0;
-        const prev = prevByVendor.get(vendor) ?? 0;
+    const allVendorKeys = new Set([...currByVendor.keys(), ...prevByVendor.keys()]);
+    for (const key of allVendorKeys) {
+        const currEntry = currByVendor.get(key);
+        const prevEntry = prevByVendor.get(key);
+        const curr = currEntry?.amount ?? 0;
+        const prev = prevEntry?.amount ?? 0;
+        const display = currEntry?.display ?? prevEntry?.display ?? key;
         const diff = curr - prev;
         if (diff > 0 && curr > 0) {
             drivers.push({
-                title: `${vendor} growth`,
+                title: `${display} growth`,
                 impact: diff,
-                description: `Revenue from ${vendor} increased this period`,
+                description: `Revenue from ${display} increased this period`,
                 type: 'mix',
             });
         }
