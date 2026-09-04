@@ -133,7 +133,17 @@ function StockBar({ quantity, threshold, color }: { quantity: number; threshold:
 }
 
 export default function InventoryScreen() {
-    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, linkInventoryCostTransaction, settings, navigate, addTransaction, transactions, finance, navParams } = useApp();
+    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, linkInventoryCostTransaction, settings, navigate, addTransaction, transactions, finance, navParams, canViewFinancials } = useApp();
+    // 'staff' can open Inventory (STAFF_ALLOWED_SCREENS in rolePermissions.ts
+    // -- "manage stock" is explicitly their job) but is documented app-wide
+    // as having "no visibility into P&L, cash balance, bank/loan details"
+    // (canViewFinancials's own comment). Cost/unit, Margin, and Stock Value
+    // are P&L data derived from cost price -- unlike quantity, reorder
+    // level, and selling price, which staff genuinely needs to do the job
+    // -- and the whole Analytics/Pricing tabs are margin/profitability
+    // analysis with nothing operational on them. None of this had a
+    // canViewFinancials check anywhere in this screen before.
+    const canSeeMargins = canViewFinancials;
     const { currency } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -544,18 +554,22 @@ export default function InventoryScreen() {
                 >
                     <Text style={[styles.tabText, activeTab === 'stock' && styles.tabTextActive]}>Stock</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.tabBtn, activeTab === 'analytics' && styles.tabBtnActive]}
-                    onPress={() => setActiveTab('analytics')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'analytics' && styles.tabTextActive]}>Analytics</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.tabBtn, activeTab === 'pricing' && styles.tabBtnActive]}
-                    onPress={() => setActiveTab('pricing')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'pricing' && styles.tabTextActive]}>Pricing</Text>
-                </TouchableOpacity>
+                {canSeeMargins && (
+                    <TouchableOpacity
+                        style={[styles.tabBtn, activeTab === 'analytics' && styles.tabBtnActive]}
+                        onPress={() => setActiveTab('analytics')}
+                    >
+                        <Text style={[styles.tabText, activeTab === 'analytics' && styles.tabTextActive]}>Analytics</Text>
+                    </TouchableOpacity>
+                )}
+                {canSeeMargins && (
+                    <TouchableOpacity
+                        style={[styles.tabBtn, activeTab === 'pricing' && styles.tabBtnActive]}
+                        onPress={() => setActiveTab('pricing')}
+                    >
+                        <Text style={[styles.tabText, activeTab === 'pricing' && styles.tabTextActive]}>Pricing</Text>
+                    </TouchableOpacity>
+                )}
             </View>
 
             <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
@@ -578,12 +592,14 @@ export default function InventoryScreen() {
                     <>
                         {/* Summary cards */}
                         <View style={styles.summaryRow}>
-                            <View style={[styles.summaryCard, styles.flex]}>
-                                <Text style={styles.summaryLabel}>Stock Value</Text>
-                                <Text style={[styles.summaryVal, { color: Colors.asset }]}>
-                                    {currency}{totalStockValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                                </Text>
-                            </View>
+                            {canSeeMargins && (
+                                <View style={[styles.summaryCard, styles.flex]}>
+                                    <Text style={styles.summaryLabel}>Stock Value</Text>
+                                    <Text style={[styles.summaryVal, { color: Colors.asset }]}>
+                                        {currency}{totalStockValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                    </Text>
+                                </View>
+                            )}
                             <View style={[styles.summaryCard, styles.flex]}>
                                 <Text style={styles.summaryLabel}>Total Items</Text>
                                 <Text style={[styles.summaryVal, { color: Colors.textPrimary }]}>{totalItems}</Text>
@@ -695,28 +711,34 @@ export default function InventoryScreen() {
                                                 {item.quantity} {item.unit}
                                             </Text>
                                         </View>
-                                        <View style={styles.metricCell}>
-                                            <Text style={styles.metricLabel}>Cost/unit</Text>
-                                            <Text style={styles.metricVal}>{currency}{(item.costPrice ?? 0).toLocaleString()}</Text>
-                                        </View>
+                                        {canSeeMargins && (
+                                            <View style={styles.metricCell}>
+                                                <Text style={styles.metricLabel}>Cost/unit</Text>
+                                                <Text style={styles.metricVal}>{currency}{(item.costPrice ?? 0).toLocaleString()}</Text>
+                                            </View>
+                                        )}
                                         <View style={styles.metricCell}>
                                             <Text style={styles.metricLabel}>Sell/unit</Text>
                                             <Text style={styles.metricVal}>{currency}{(item.sellingPrice ?? 0).toLocaleString()}</Text>
                                         </View>
-                                        <View style={styles.metricCell}>
-                                            <Text style={styles.metricLabel}>Margin</Text>
-                                            <Text style={[styles.metricVal, { color: marginColor(margin) }]}>
-                                                {margin.toFixed(1)}%
-                                            </Text>
-                                        </View>
+                                        {canSeeMargins && (
+                                            <View style={styles.metricCell}>
+                                                <Text style={styles.metricLabel}>Margin</Text>
+                                                <Text style={[styles.metricVal, { color: marginColor(margin) }]}>
+                                                    {margin.toFixed(1)}%
+                                                </Text>
+                                            </View>
+                                        )}
                                     </View>
 
                                     <StockBar quantity={item.quantity} threshold={item.lowStockThreshold} color={stockColor(item)} />
 
-                                    <View style={styles.itemFooter}>
-                                        <Text style={styles.stockValLabel}>Stock value: </Text>
-                                        <Text style={styles.stockValNum}>{currency}{stockVal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</Text>
-                                    </View>
+                                    {canSeeMargins && (
+                                        <View style={styles.itemFooter}>
+                                            <Text style={styles.stockValLabel}>Stock value: </Text>
+                                            <Text style={styles.stockValNum}>{currency}{stockVal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</Text>
+                                        </View>
+                                    )}
 
                                     <View style={[styles.velocityRow, { borderColor: velocityColor(velocity.tier) }]}>
                                         <Icon name={velocityIcon(velocity.tier)} size={13} color={velocityColor(velocity.tier)} />
@@ -742,7 +764,7 @@ export default function InventoryScreen() {
                 )}
 
                 {/* ── ANALYTICS TAB ──────────────────────────────────────── */}
-                {activeTab === 'analytics' && (
+                {activeTab === 'analytics' && canSeeMargins && (
                     <>
                         {/* Expiring Stock -- shown purely on whether there's
                             an expiryDate to warn about, not on industry:
@@ -1046,7 +1068,7 @@ export default function InventoryScreen() {
                 {/* ── COST EXPOSURE TAB ─────────────────────────────────── */}
 
                 {/* ── PRICING TAB ────────────────────────────────────────── */}
-                {activeTab === 'pricing' && <InventoryPricingTab />}
+                {activeTab === 'pricing' && canSeeMargins && <InventoryPricingTab />}
 
             </ScrollView>
 
