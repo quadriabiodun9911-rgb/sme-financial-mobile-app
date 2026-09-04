@@ -310,7 +310,7 @@ export default function ReconciliationScreen() {
             // regardless of description, so the same real transaction could
             // land in a different category depending on which screen it was
             // imported from.
-            const { subCategory } = classifyByDescription(b.description, txType, settings.industry);
+            const { category, subCategory } = classifyByDescription(b.description, txType, settings.industry);
             addTransaction({
                 date: b.date,
                 description: b.description,
@@ -318,6 +318,18 @@ export default function ReconciliationScreen() {
                 category: subCategory,
                 amount: b.amount,
                 status: 'paid',
+                // Same transactionCategory mapping and Internal Transfer ->
+                // principalPortion special case as ImportTransactionsScreen's
+                // importRows -- without these, the same statement row
+                // imported here vs there was accounted differently (a
+                // transfer to the owner's own savings account would
+                // incorrectly hit P&L as a real expense).
+                transactionCategory: category === 'cost'  ? 'cost'
+                                   : category === 'asset' ? 'purchase'
+                                   : category === 'income' ? 'sale'
+                                   : txType === 'income'   ? 'sale'
+                                   : 'expense',
+                ...(subCategory === 'Internal Transfer' ? { principalPortion: b.amount } : {}),
             });
         }, false);
     };

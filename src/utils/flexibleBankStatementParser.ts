@@ -416,13 +416,25 @@ function normalizeDate(dateStr: string): string {
           // Unambiguous DD/MM — first number can't be a month.
           day = parseInt(match[1]);
           month = parseInt(match[2]);
+        } else if (parseInt(match[2]) > 12) {
+          // The second number can't be a month either -- this must be
+          // MM/DD, not the DD/MM default (e.g. "12/25/2024": 25 can't be a
+          // month, so this is 25 Dec, not month 25 rolling the date over).
+          month = parseInt(match[1]);
+          day = parseInt(match[2]);
         } else {
-          // Ambiguous (both <=12) — default to DD/MM/YYYY, this app's
-          // NGN/Nigerian bank-statement format, not US MM/DD/YYYY.
+          // Genuinely ambiguous (both <=12) — default to DD/MM/YYYY, this
+          // app's NGN/Nigerian bank-statement format, not US MM/DD/YYYY.
           day = parseInt(match[1]);
           month = parseInt(match[2]);
         }
       }
+
+      // A malformed match (e.g. a day/month value neither branch above
+      // could make sense of) would otherwise get stored as an invalid date
+      // string no downstream code validates -- skip to the next format (or
+      // the "now" fallback below) instead.
+      if (month < 1 || month > 12 || day < 1 || day > 31) continue;
 
       // Build the date string directly rather than round-tripping through
       // `new Date(...).toISOString()`, which shifts the date by a day for

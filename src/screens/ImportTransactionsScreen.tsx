@@ -132,9 +132,19 @@ function parseDate(raw: string): string {
         const m = raw.trim().match(fmt);
         if (m) {
             let y: number, mo: number, d: number;
-            if (fmt === formats[0]) { [, d, mo, y] = m.map(Number) as any; }
+            if (fmt === formats[0]) {
+                const a = +m[1], b = +m[2];
+                y = +m[3];
+                // Default DD/MM/YYYY (this app's convention), but flip to
+                // MM/DD when the second number can't be a valid month --
+                // otherwise "12/25/2024" would silently compute month 25
+                // (rolling the date forward two years) instead of 25 Dec.
+                if (b > 12 && a <= 12) { mo = a; d = b; }
+                else { d = a; mo = b; }
+            }
             else if (fmt === formats[1]) { d = +m[1]; mo = months[m[2].toLowerCase()]; y = +m[3]; }
             else { [, y, mo, d] = m.map(Number) as any; }
+            if (mo < 1 || mo > 12 || d < 1 || d > 31) continue;
             const dt = new Date(y, mo - 1, d);
             if (!isNaN(dt.getTime())) return toDateString(dt);
         }
@@ -703,6 +713,12 @@ export default function ImportTransactionsScreen() {
                 type:                r.type === 'income' ? 'income' : 'expense',
                 category:            r.subCategory,
                 amount:              r.amount,
+                // A statement row already cleared the bank -- same 'paid'
+                // convention the manual add form and Reconciliation's import
+                // both use. Without this, finance.ts's strict `status ===
+                // 'paid'` checks (collected revenue, paid expenses, DSO/DPO)
+                // silently treated every imported transaction as unpaid.
+                status:              'paid',
                 transactionCategory: r.category === 'cost'   ? 'cost'
                                    : r.category === 'asset'  ? 'purchase'
                                    : r.category === 'income' ? 'sale'

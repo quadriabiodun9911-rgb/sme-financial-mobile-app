@@ -98,4 +98,15 @@ describe('parseCSVWithMapping', () => {
         // 25/03 is unambiguous (day > 12 forces DD/MM regardless of the default).
         expect(transactions[1].date).toBe('2024-03-25');
     });
+
+    it('flips to MM/DD when the second number cannot be a valid month', () => {
+        // 12/25/2024: DD/MM would need a 25th month, which doesn't exist --
+        // this can only be 25 Dec, not month 25 rolling the date over.
+        const csv = `date,description,amount,type
+12/25/2024,Test Payment,1000,credit`;
+        const rows = csv.trim().split('\n');
+        const mapping = autoDetectColumns(rows)!;
+        const { transactions } = parseCSVWithMapping(csv, mapping);
+        expect(transactions[0].date).toBe('2024-12-25');
+    });
 });
