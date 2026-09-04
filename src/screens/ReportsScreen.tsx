@@ -1362,8 +1362,8 @@ const rowStyles = StyleSheet.create({
 });
 
 const kpiStyles = StyleSheet.create({
-    row:   { flexDirection: 'row', gap: 8, marginBottom: 16 },
-    card:  { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 12, alignItems: 'center' },
+    row:   { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg },
+    card:  { flex: 1, backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md, alignItems: 'center', borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     label: { fontSize: 11, color: Colors.textMuted, marginBottom: 4 },
     value: { fontSize: 14, fontWeight: 'bold' },
 });

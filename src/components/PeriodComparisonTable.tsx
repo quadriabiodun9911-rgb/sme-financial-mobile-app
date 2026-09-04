@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Radius, Shadow } from '../theme/tokens';
 import { Transaction } from '../types';
 import { computeDailyTrend, computeWeeklyTrend, computeAllTimeMonthlyBuckets, computeQuarterlyTrend, computeYearlyTrend, isoWeekKey } from '../utils/trendAnalysis';
 import { projectionFactor } from '../utils/periodProjection';
@@ -198,7 +199,7 @@ const s = StyleSheet.create({
     toggleText: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted },
     toggleTextActive: { color: '#fff' },
 
-    empty: { backgroundColor: Colors.surface, borderRadius: 14, padding: 20 },
+    empty: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: 20, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' },
 
     hint: { fontSize: 11, color: Colors.textMuted, marginTop: 10, textAlign: 'center' },
