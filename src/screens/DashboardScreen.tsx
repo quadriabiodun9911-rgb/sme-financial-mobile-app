@@ -171,8 +171,12 @@ export default function DashboardScreen() {
             await claimIncomingPayments(ownerUserId, existingRefs, addTransaction, markInvoiceStatus);
             // Same staging-table claim pattern, for transactions logged over
             // WhatsApp instead of a payment webhook -- see
-            // whatsappTransactions.ts and whatsapp-webhook/index.ts.
-            await claimIncomingWhatsAppTransactions(ownerUserId, addTransaction);
+            // whatsappTransactions.ts and whatsapp-webhook/index.ts. Shares
+            // existingRefs with claimIncomingPayments above: the two use
+            // disjoint reference formats (a provider tx_ref vs
+            // WHATSAPP-<row.id>), so there's no collision risk, only the
+            // same double-claim protection on a second concurrent call.
+            await claimIncomingWhatsAppTransactions(ownerUserId, existingRefs, addTransaction);
         })();
         return () => { cancelled = true; };
     }, [isDemoMode]);

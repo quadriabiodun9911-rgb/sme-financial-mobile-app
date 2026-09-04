@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { getWorkspaceOwnerId } from './storage';
+import { localDateStr } from './localDate';
 
 // The number a linking message / logged transaction actually goes to --
 // genuinely doesn't exist yet (no Twilio WhatsApp sender has been
@@ -71,6 +72,7 @@ interface IncomingWhatsAppTransactionRow {
     category: string;
     description: string | null;
     raw_message: string | null;
+    created_at: string;
 }
 
 // Same claim pattern as claimIncomingPayments (incomingPayments.ts) and the
@@ -81,13 +83,22 @@ interface IncomingWhatsAppTransactionRow {
 // straight into `transactions` server-side, which storage.ts's
 // saveTransactions() would treat as an orphan and delete on the next
 // ordinary save.
+//
+// existingReferences guards against a double-record the same way
+// claimIncomingPayments' does -- a second concurrent claim call (e.g. two
+// tabs/devices both mounting Dashboard around the same time) must not
+// re-add a row it already claimed on a previous pass. Each row gets a
+// stable `WHATSAPP-<row.id>` reference rather than a fuzzy match on
+// date/description/amount, since the staging row's own id is already a
+// perfect, collision-free key.
 export async function claimIncomingWhatsAppTransactions(
     ownerUserId: string,
+    existingReferences: Set<string>,
     addTransaction: (tx: Record<string, unknown>) => void,
 ): Promise<number> {
     const { data, error } = await supabase
         .from('incoming_whatsapp_transactions')
-        .select('id, type, amount, category, description, raw_message')
+        .select('id, type, amount, category, description, raw_message, created_at')
         .eq('user_id', ownerUserId);
     if (error || !data || data.length === 0) return 0;
 
@@ -96,13 +107,37 @@ export async function claimIncomingWhatsAppTransactions(
         // Claim (delete the staging row) before adding, not after -- same
         // double-claim guard as claimIncomingPayments.
         await supabase.from('incoming_whatsapp_transactions').delete().eq('id', row.id);
+        const reference = `WHATSAPP-${row.id}`;
+        if (existingReferences.has(reference)) continue;
+        // The moment the message actually arrived (server-stamped), not
+        // whenever this claim happens to run -- the app might not be
+        // opened again until days after the message was sent, and
+        // `new Date()` here would silently backdate/misdate every such
+        // transaction to the claim moment instead of when it happened.
+        // Built from a local Y-M-D (see localDate.ts's own header) rather
+        // than toISOString(), which shifts to the previous calendar day
+        // for part of the morning in any timezone ahead of UTC.
+        const loggedAt = row.created_at ? new Date(row.created_at) : new Date();
         addTransaction({
             type: row.type,
             amount: row.amount,
             description: row.description || row.raw_message || 'Logged via WhatsApp',
             category: row.category,
-            date: new Date().toISOString().split('T')[0],
+            date: localDateStr(loggedAt),
+            // A WhatsApp-logged transaction already happened by the time
+            // the message arrives -- same 'paid' convention Quick Add and
+            // every other real-time capture path use. Without this,
+            // finance.ts's strict `status === 'paid'` checks (collected
+            // revenue, paid expenses, DSO/DPO) silently excluded every
+            // transaction logged this way.
+            status: 'paid',
+            reference,
+            // Same "what time of day" display TransactionsScreen already
+            // renders for Quick Add entries -- a WhatsApp message is
+            // exactly as much "this just happened" as tapping the app.
+            paidAt: loggedAt.toISOString(),
         });
+        existingReferences.add(reference);
         claimed++;
     }
     return claimed;

@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { localDateStr } from './localDate';
 
 const PROVIDER_LABEL: Record<string, string> = {
     paystack: 'Paystack',
@@ -15,6 +16,7 @@ interface IncomingPaymentRow {
     customer_name: string | null;
     description: string | null;
     invoice_id: string | null;
+    created_at: string;
 }
 
 // Pulls down payments payment-webhook has already verified as successful
@@ -41,7 +43,7 @@ export async function claimIncomingPayments(
 ): Promise<number> {
     const { data, error } = await supabase
         .from('incoming_payments')
-        .select('id, provider, tx_ref, amount, currency, customer_name, description, invoice_id')
+        .select('id, provider, tx_ref, amount, currency, customer_name, description, invoice_id, created_at')
         .eq('owner_user_id', ownerUserId);
     if (error || !data || data.length === 0) return 0;
 
@@ -53,16 +55,23 @@ export async function claimIncomingPayments(
         // see this row and double-record it.
         await supabase.from('incoming_payments').delete().eq('id', p.id);
         if (existingReferences.has(p.tx_ref)) continue;
+        // The moment payment-webhook actually confirmed this (server-
+        // stamped), not whenever this claim happens to run -- the app
+        // might not be reopened until well after the payment cleared.
+        // Local Y-M-D (see localDate.ts), not toISOString(), which shifts
+        // to the previous calendar day for part of the morning in any
+        // timezone ahead of UTC.
+        const paidAt = p.created_at ? new Date(p.created_at) : new Date();
         addTransaction({
             type: 'income',
             amount: p.amount,
             description: p.description || `Payment via ${PROVIDER_LABEL[p.provider] || p.provider}`,
             category: 'Sales',
-            date: new Date().toISOString().split('T')[0],
+            date: localDateStr(paidAt),
             vendorCustomer: p.customer_name || undefined,
             status: 'paid',
             reference: p.tx_ref,
-            paidAt: new Date().toISOString(),
+            paidAt: paidAt.toISOString(),
         });
         if (p.invoice_id && markInvoiceStatus) markInvoiceStatus(p.invoice_id, 'paid');
         existingReferences.add(p.tx_ref);
