@@ -437,8 +437,8 @@ function PortfolioTab({ isLenderDemo }: { isLenderDemo: boolean }) {
                                         {sh.loanPurpose || 'Purpose unspecified'}{sh.principalBand ? ` · ${sh.principalBand}` : ''}
                                     </Text>
                                 </View>
-                                <View style={[s.gradeBadge, { backgroundColor: MONITOR_STATUS_STYLE[sh.status].color + '22', width: 'auto', paddingHorizontal: 10 }]}>
-                                    <Text style={[s.gradeBadgeText, { color: MONITOR_STATUS_STYLE[sh.status].color, fontSize: 11 }]}>{MONITOR_STATUS_STYLE[sh.status].label}</Text>
+                                <View style={[s.statusPill, { backgroundColor: MONITOR_STATUS_STYLE[sh.status].color + '22' }]}>
+                                    <Text style={[s.statusPillText, { color: MONITOR_STATUS_STYLE[sh.status].color }]}>{MONITOR_STATUS_STYLE[sh.status].label}</Text>
                                 </View>
                             </View>
                             <View style={s.rowMetrics}>
@@ -452,7 +452,10 @@ function PortfolioTab({ isLenderDemo }: { isLenderDemo: boolean }) {
                         <Text style={s.detailLine}>No flagged categories — this loan is tracking as expected.</Text>
                     ) : (
                         (['dscrFlag', 'revenueDeclineFlag', 'repaymentPaceFlag'] as const).filter(k => sh[k]).map(k => (
-                            <Text key={k} style={s.detailLine}>⚠ {FLAG_LABEL[k]}</Text>
+                            <View key={k} style={s.flagRow}>
+                                <Icon name="alert-triangle" size={13} color={Colors.warning} />
+                                <Text style={s.detailLine}>{FLAG_LABEL[k]}</Text>
+                            </View>
                         ))
                     )}
                     <Text style={s.consentNote}>
@@ -568,8 +571,8 @@ function ListingsTab({ lenderOrgId, createdByEmail }: { lenderOrgId: string | nu
                             <Text style={s.rowType}>{p.productName}</Text>
                             <Text style={s.rowMeta}>{p.lenderName} · {p.lenderType} · {p.productType}</Text>
                         </View>
-                        <View style={[s.gradeBadge, { width: 'auto', paddingHorizontal: 10, backgroundColor: (p.status === 'active' ? Colors.income : Colors.textMuted) + '22' }]}>
-                            <Text style={[s.gradeBadgeText, { color: p.status === 'active' ? Colors.income : Colors.textMuted, fontSize: 11 }]}>{p.status}</Text>
+                        <View style={[s.statusPill, { backgroundColor: (p.status === 'active' ? Colors.income : Colors.textMuted) + '22' }]}>
+                            <Text style={[s.statusPillText, { color: p.status === 'active' ? Colors.income : Colors.textMuted }]}>{p.status}</Text>
                         </View>
                     </View>
                     <Text style={s.detailLine}>{p.minAmount.toLocaleString()}–{p.maxAmount.toLocaleString()} · {p.minTermMonths}–{p.maxTermMonths}mo · {p.interestRateMinPct}–{p.interestRateMaxPct}%</Text>
@@ -646,7 +649,7 @@ const s = StyleSheet.create({
     dashboardCaption: { fontSize: 11, color: Colors.textMuted, lineHeight: 15, marginBottom: 14 },
 
     summaryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
-    summaryCard: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 12, minWidth: 100, borderWidth: 1, borderColor: Colors.border },
+    summaryCard: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 12, minWidth: 100, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     summaryCount: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary },
     summaryLabel: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
 
@@ -655,7 +658,7 @@ const s = StyleSheet.create({
     sectorChip: { backgroundColor: Colors.surface, borderRadius: Radius.pill, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.border },
     sectorChipText: { fontSize: 11.5, color: Colors.textSecondary, fontWeight: '600' },
 
-    filterBox: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: Colors.border },
+    filterBox: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     filterLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 8 },
     amountRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
     amountInput: { borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 12.5, color: Colors.textPrimary, backgroundColor: Colors.bg },
@@ -670,20 +673,23 @@ const s = StyleSheet.create({
     rowMeta: { fontSize: 11.5, color: Colors.textMuted, marginTop: 2 },
     gradeBadge: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
     gradeBadgeText: { fontSize: 14, fontWeight: '800' },
+    statusPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center' },
+    statusPillText: { fontSize: 11, fontWeight: '800' },
     rowMetrics: { flexDirection: 'row', gap: 14, marginTop: 10, flexWrap: 'wrap' },
     rowMetric: { fontSize: 12, fontWeight: '600', color: Colors.textPrimary },
 
     fitHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
     fitTitle: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
-    tierBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+    tierBadge: { borderRadius: Radius.pill, paddingHorizontal: 8, paddingVertical: 3 },
     tierBadgeText: { fontSize: 10, fontWeight: '700' },
     detailLine: { fontSize: 12, color: Colors.textSecondary, marginBottom: 6, lineHeight: 17 },
+    flagRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
     consentNote: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 6, lineHeight: 14 },
 
     addBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginBottom: 18 },
     addBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
-    listingCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.border },
+    listingCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     listingActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
     listingActionBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
     listingActionText: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
