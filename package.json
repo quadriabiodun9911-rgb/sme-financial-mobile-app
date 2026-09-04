@@ -28,6 +28,7 @@
     "crypto-js": "^4.2.0",
     "exceljs": "^4.4.0",
     "expo": "~50.0.0",
+    "expo-av": "~13.10.0",
     "expo-camera": "~14.1.3",
     "expo-dev-client": "~3.3.12",
     "expo-document-picker": "^56.0.4",

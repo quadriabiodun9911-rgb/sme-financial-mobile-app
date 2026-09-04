@@ -66,6 +66,11 @@ import { computeDailyTrend } from '../utils/trendAnalysis';
 import { registerForPushNotificationsAsync, syncCashPositionSummary } from '../utils/pushRegistration';
 import { categorizeTransactionAI, AICategorizationResult } from '../utils/aiCategorization';
 import { parseQuickAddText } from '../utils/quickAddParser';
+import { scanStatementImage, ScanMediaType, ScannedTransaction } from '../utils/statementScan';
+import { transcribeVoiceNote } from '../utils/voiceTranscribe';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { Audio } from 'expo-av';
 import { classifyByDescription } from '../utils/transactionCategorization';
 import { computeExpenseIntelligence, ExpenseTier } from '../utils/expenseIntelligence';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
@@ -206,6 +211,19 @@ export default function DashboardScreen() {
     const [qaAiSuggesting, setQaAiSuggesting]   = useState(false);
     const [qaAiSuggestion, setQaAiSuggestion]   = useState<AICategorizationResult | null>(null);
     const [qaAiError, setQaAiError]             = useState<string | null>(null);
+    // Receipt capture (photo -> statement-scan, same engine
+    // ImportTransactionsScreen uses) and voice capture (recording ->
+    // transcribe-voice -> the same text landing point typing uses) --
+    // both are alternative ways to fill in the fields above, never a
+    // second, separate submission path.
+    const [qaScanning, setQaScanning]           = useState(false);
+    const [qaScanError, setQaScanError]         = useState<string | null>(null);
+    const [qaRecording, setQaRecording]         = useState(false);
+    const [qaTranscribing, setQaTranscribing]   = useState(false);
+    const [qaVoiceError, setQaVoiceError]       = useState<string | null>(null);
+    const recordingRef = useRef<Audio.Recording | null>(null);
+    const webMediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const webAudioChunksRef = useRef<Blob[]>([]);
     const [showMore, setShowMore]               = useState(false);
     // Collapsed by default -- the #1 priority gets hero treatment (Next
     // Best Action) below, so re-showing the full ranked list right under it
@@ -853,6 +871,11 @@ export default function DashboardScreen() {
         setQaPaymentMethod(undefined);
         setQaAiSuggestion(null);
         setQaAiError(null);
+        setQaScanning(false);
+        setQaScanError(null);
+        setQaRecording(false);
+        setQaTranscribing(false);
+        setQaVoiceError(null);
         setFabOpen(true);
     };
 
@@ -873,6 +896,185 @@ export default function DashboardScreen() {
         setQaAiError(null);
         if (!qaCategoryTouched) {
             setQaCategory(text.trim() ? classifyByDescription(parsed.description, parsed.type, settings.industry).subCategory : '');
+        }
+    };
+
+    // Receipt photo -> statement-scan's AI extraction (documentType:
+    // 'receipt') already returns a structured {date, description, amount,
+    // direction} directly from the image -- applied straight to the fields
+    // below, deliberately bypassing parseQuickAddText/handleQaTextChange
+    // entirely (see quickAddParser.ts's own doc comment on why: a
+    // photographed document is a different shape than free text, and
+    // round-tripping a real extraction back through the text parser would
+    // only lose information). qaText is still set, purely so the existing
+    // "reveal the rest of the form once there's something to show" gate
+    // (qaText.trim().length > 0) opens, and so the sentence the scan
+    // produced is visible for the user to double check.
+    const applyReceiptScan = (tx: ScannedTransaction) => {
+        const description = tx.description || 'Scanned receipt';
+        setQaText(description);
+        setQaType(tx.direction);
+        setQaTypeConfident(true);
+        setQaAmount(String(tx.amount));
+        setQaDesc(description);
+        setQaAiSuggestion(null);
+        setQaAiError(null);
+        setQaCategory(classifyByDescription(description, tx.direction, settings.industry).subCategory);
+        setQaCategoryTouched(false);
+    };
+
+    const runReceiptScan = async (base64: string, mediaType: ScanMediaType) => {
+        setQaScanning(true);
+        setQaScanError(null);
+        try {
+            const result = await scanStatementImage(base64, mediaType);
+            if (result.transactions.length === 0) {
+                setQaScanError(result.warning || 'No transaction could be read from this photo. Try a clearer, well-lit shot, or type it instead.');
+                return;
+            }
+            // A receipt is one purchase/sale, not a multi-row statement --
+            // take the first (almost always only) line the scan found.
+            applyReceiptScan(result.transactions[0]);
+        } catch (e: any) {
+            setQaScanError(e?.message || 'Could not scan this photo. Please try again.');
+        } finally {
+            setQaScanning(false);
+        }
+    };
+
+    // Native (iOS/Android) -- expo-image-picker handles both camera capture
+    // and the photo library with one API and returns base64 directly. Same
+    // pattern as ImportTransactionsScreen's handleScanNative.
+    const handleReceiptNative = async (source: 'camera' | 'library') => {
+        setQaScanError(null);
+        try {
+            const perm = source === 'camera'
+                ? await ImagePicker.requestCameraPermissionsAsync()
+                : await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!perm.granted) {
+                setQaScanError(source === 'camera'
+                    ? 'Camera permission is needed to photograph a receipt.'
+                    : 'Photo library permission is needed to pick a photo.');
+                return;
+            }
+            const pick = source === 'camera' ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
+            const result = await pick({ mediaTypes: ImagePicker.MediaTypeOptions.Images, base64: true, quality: 0.7 });
+            if (result.canceled || !result.assets?.[0]?.base64) return;
+            await runReceiptScan(result.assets[0].base64, 'image/jpeg');
+        } catch (e: any) {
+            setQaScanError(e?.message || 'Failed to open camera/gallery. Please try again.');
+        }
+    };
+
+    // Web -- a hidden <input type="file" accept="image/*">, with
+    // capture="environment" so it invokes the device camera on mobile
+    // browsers instead of the file picker. Same pattern as
+    // ImportTransactionsScreen's handleScanWeb.
+    const handleReceiptWeb = (useCamera: boolean) => {
+        if (typeof document === 'undefined') return;
+        setQaScanError(null);
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        if (useCamera) input.setAttribute('capture', 'environment');
+        input.onchange = async (e: any) => {
+            const file: File = e.target?.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                const result = String(reader.result || '');
+                const idx = result.indexOf(',');
+                const base64 = idx >= 0 ? result.slice(idx + 1) : result;
+                const mediaType = (file.type || 'image/jpeg') as ScanMediaType;
+                runReceiptScan(base64, mediaType);
+            };
+            reader.onerror = () => setQaScanError('Could not read that photo. Please try again.');
+            reader.readAsDataURL(file);
+        };
+        input.click();
+    };
+
+    const captureReceipt = (source: 'camera' | 'library') =>
+        Platform.OS === 'web' ? handleReceiptWeb(source === 'camera') : handleReceiptNative(source);
+
+    // Voice note -> Whisper transcription (transcribe-voice) -> the exact
+    // same handleQaTextChange a typed sentence goes through. Unlike a
+    // receipt photo, a voice note IS just text once transcribed -- no
+    // separate structured shape to apply, so it reuses the live-preview
+    // path rather than a parallel one.
+    const startVoiceRecording = async () => {
+        setQaVoiceError(null);
+        try {
+            if (Platform.OS === 'web') {
+                if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+                    setQaVoiceError('Voice recording is not supported in this browser.');
+                    return;
+                }
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const recorder = new MediaRecorder(stream);
+                webAudioChunksRef.current = [];
+                recorder.ondataavailable = (e) => { if (e.data.size > 0) webAudioChunksRef.current.push(e.data); };
+                recorder.start();
+                webMediaRecorderRef.current = recorder;
+            } else {
+                const perm = await Audio.requestPermissionsAsync();
+                if (!perm.granted) {
+                    setQaVoiceError('Microphone permission is needed to record a voice note.');
+                    return;
+                }
+                await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+                const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+                recordingRef.current = recording;
+            }
+            setQaRecording(true);
+        } catch (e: any) {
+            setQaVoiceError(e?.message || 'Could not start recording. Please try again.');
+        }
+    };
+
+    const stopVoiceRecording = async () => {
+        setQaRecording(false);
+        setQaTranscribing(true);
+        setQaVoiceError(null);
+        try {
+            let base64: string;
+            let mimeType: string;
+            if (Platform.OS === 'web') {
+                const recorder = webMediaRecorderRef.current;
+                if (!recorder) throw new Error('No recording in progress.');
+                const blob: Blob = await new Promise((resolve) => {
+                    recorder.onstop = () => resolve(new Blob(webAudioChunksRef.current, { type: recorder.mimeType || 'audio/webm' }));
+                    recorder.stop();
+                    recorder.stream.getTracks().forEach((track) => track.stop());
+                });
+                webMediaRecorderRef.current = null;
+                mimeType = blob.type.split(';')[0] || 'audio/webm';
+                base64 = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const result = String(reader.result || '');
+                        const idx = result.indexOf(',');
+                        resolve(idx >= 0 ? result.slice(idx + 1) : result);
+                    };
+                    reader.onerror = () => reject(new Error('Could not read that recording.'));
+                    reader.readAsDataURL(blob);
+                });
+            } else {
+                const recording = recordingRef.current;
+                if (!recording) throw new Error('No recording in progress.');
+                await recording.stopAndUnloadAsync();
+                const uri = recording.getURI();
+                recordingRef.current = null;
+                if (!uri) throw new Error('No recording captured.');
+                base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+                mimeType = 'audio/m4a';
+            }
+            const text = await transcribeVoiceNote(base64, mimeType);
+            handleQaTextChange(text);
+        } catch (e: any) {
+            setQaVoiceError(e?.message || 'Could not transcribe that recording. Please try again, or type it instead.');
+        } finally {
+            setQaTranscribing(false);
         }
     };
 
@@ -2110,6 +2312,42 @@ export default function DashboardScreen() {
                         autoFocus
                     />
 
+                    {/* Voice and receipt capture -- alternative ways to fill
+                        in the sentence above, not a second submission path.
+                        A voice note becomes text and re-enters right where
+                        typing does; a receipt photo is read directly into
+                        the structured fields below (see applyReceiptScan). */}
+                    <View style={styles.qaCaptureRow}>
+                        <TouchableOpacity
+                            style={[styles.qaCaptureBtn, qaRecording && styles.qaCaptureBtnActive]}
+                            onPress={qaRecording ? stopVoiceRecording : startVoiceRecording}
+                            disabled={qaTranscribing || qaScanning}
+                        >
+                            {qaTranscribing ? (
+                                <ActivityIndicator size="small" color={Colors.primary} />
+                            ) : (
+                                <Icon name={qaRecording ? 'square' : 'mic'} size={15} color={qaRecording ? '#fff' : Colors.primary} />
+                            )}
+                            <Text style={[styles.qaCaptureBtnText, qaRecording && { color: '#fff' }]}>
+                                {qaTranscribing ? 'Transcribing…' : qaRecording ? 'Stop recording' : 'Voice'}
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.qaCaptureBtn}
+                            onPress={() => captureReceipt('camera')}
+                            disabled={qaTranscribing || qaScanning || qaRecording}
+                        >
+                            {qaScanning ? (
+                                <ActivityIndicator size="small" color={Colors.primary} />
+                            ) : (
+                                <Icon name="camera" size={15} color={Colors.primary} />
+                            )}
+                            <Text style={styles.qaCaptureBtnText}>{qaScanning ? 'Reading…' : 'Photo receipt'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {qaVoiceError ? <Text style={styles.qaCaptureError}>{qaVoiceError}</Text> : null}
+                    {qaScanError ? <Text style={styles.qaCaptureError}>{qaScanError}</Text> : null}
+
                     {qaText.trim().length > 0 && (
                     <>
                     <View style={[styles.typeRow, { marginTop: 14 }]}>
@@ -2976,6 +3214,11 @@ const styles = StyleSheet.create({
     qaTierHint:       { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginTop: -4, marginBottom: 12 },
     qaTierHintLabel:  { fontSize: 10.5, fontWeight: '800', textTransform: 'uppercase' },
     qaTierHintText:   { flex: 1, fontSize: 11.5, color: Colors.textSecondary, lineHeight: 15 },
+    qaCaptureRow:      { flexDirection: 'row', gap: 8, marginTop: 8 },
+    qaCaptureBtn:      { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: Colors.primary, borderRadius: Radius.pill, paddingVertical: 9 },
+    qaCaptureBtnActive:{ backgroundColor: Colors.primary },
+    qaCaptureBtnText:  { fontSize: 12.5, fontWeight: '600', color: Colors.primary },
+    qaCaptureError:    { fontSize: 11.5, color: Colors.expense, marginTop: 6 },
     aiError:          { fontSize: 12, color: Colors.expense, marginBottom: Spacing.sm },
     aiSuggestionBox:  { marginBottom: 12, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, padding: Spacing.sm },
     aiSuggestionTop:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
