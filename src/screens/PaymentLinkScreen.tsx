@@ -3,6 +3,7 @@ import {
     View, Text, TextInput, TouchableOpacity, ScrollView,
     StyleSheet, Share, Alert, Linking, Platform,
 } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { supabase } from '../utils/supabase';
@@ -45,6 +46,13 @@ export default function PaymentLinkScreen() {
     const [loading, setLoading]             = useState(false);
     const [loadingMsg, setLoadingMsg]       = useState('');
     const [amountError, setAmountError]     = useState('');
+    // The real checkout link a generated QR code currently encodes -- kept
+    // separate from the form fields so it can never silently go stale: a
+    // customer scanning the code must always land on a checkout for exactly
+    // the amount/description shown next to it, so any edit below clears
+    // this and forces a fresh "Generate QR Code" tap rather than displaying
+    // an old code next to new numbers.
+    const [qrLink, setQrLink]               = useState<string | null>(null);
 
     const currency     = settings.currency || '₦';
     const currencyCode = (settings as any).currencyCode || 'NGN';
@@ -86,6 +94,10 @@ export default function PaymentLinkScreen() {
         })();
         return () => { cancelled = true; };
     }, []);
+
+    // Invalidate any already-generated QR the moment a field it was built
+    // from changes -- see qrLink's own comment above.
+    useEffect(() => { setQrLink(null); }, [amount, description, customerName, customerEmail]);
 
     const validate = () => {
         if (!amount || amountNum <= 0) {
@@ -230,6 +242,42 @@ export default function PaymentLinkScreen() {
             if (Platform.OS === 'web') window.alert(errMsg);
             else Alert.alert('Could not open messages', errMsg);
         });
+    };
+
+    // Scan & Pay In Person -- a real checkout link (the same one Share/
+    // WhatsApp/Email/SMS embed in text) rendered as a QR code instead, so a
+    // customer standing in front of the seller can scan it and pay on the
+    // spot with no typing, no waiting for a message to arrive, and no
+    // manual entry on either side. Uses the exact same getCheckoutLink()
+    // as every other channel here, so it inherits the same requirements
+    // (a connected gateway, a customer email for Paystack/Flutterwave) and
+    // the exact same payment-webhook-verified confirmation once paid --
+    // this is not a separate, lower-trust payment path.
+    const handleShowQr = async () => {
+        if (!validate()) return;
+        if (!hasPaystack && !hasFlutterwave) {
+            const msg = 'Connect Paystack or Flutterwave in Settings → Payment Gateways to generate a scan-to-pay QR code.';
+            if (Platform.OS === 'web') window.alert(msg); else Alert.alert('Connect a gateway first', msg);
+            return;
+        }
+        if (!customerEmail) {
+            const msg = "Enter the customer's email above first — Paystack/Flutterwave both require one to open a checkout session.";
+            if (Platform.OS === 'web') window.alert(msg); else Alert.alert('Email required', msg);
+            return;
+        }
+        setLoading(true);
+        setLoadingMsg('Generating QR code…');
+        try {
+            const link = await getCheckoutLink();
+            if (!link) throw new Error('Could not generate a payment link. Please try again.');
+            setQrLink(link);
+        } catch (e: any) {
+            const msg = e.message || 'Could not generate a QR code.';
+            if (Platform.OS === 'web') window.alert(msg); else Alert.alert('Error', msg);
+        } finally {
+            setLoading(false);
+            setLoadingMsg('');
+        }
     };
 
     const handleCopy = async () => {
@@ -536,6 +584,39 @@ export default function PaymentLinkScreen() {
                 </View>
             )}
 
+            {/* Scan & Pay In Person */}
+            {(hasPaystack || hasFlutterwave) && (
+                <View style={styles.gatewayCard}>
+                    <Text style={styles.sectionTitle}>Scan & Pay In Person</Text>
+                    <Text style={styles.gatewayHint}>
+                        Show this to a customer standing in front of you — they scan it with their phone camera and pay immediately, no link to send, no typing on either side.
+                    </Text>
+                    {qrLink ? (
+                        <View style={styles.qrBox}>
+                            <View style={styles.qrWrap}>
+                                <QRCode value={qrLink} size={176} backgroundColor="#ffffff" color="#000000" />
+                            </View>
+                            <Text style={styles.qrAmount}>{currency}{amountNum.toLocaleString()}</Text>
+                            {!!description && <Text style={styles.qrDesc}>{description}</Text>}
+                            <TouchableOpacity onPress={() => setQrLink(null)}>
+                                <Text style={styles.qrResetLink}>Generate a new code →</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        <TouchableOpacity
+                            style={[styles.qrGenerateBtn, loading && { opacity: 0.6 }]}
+                            onPress={handleShowQr}
+                            disabled={loading}
+                        >
+                            <View style={styles.btnIconRow}>
+                                <Icon name={loading ? 'clock' : 'grid'} size={15} color="#fff" />
+                                <Text style={styles.qrGenerateBtnText}>{loading ? 'Please wait…' : 'Generate QR Code'}</Text>
+                            </View>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            )}
+
             {/* Share / WhatsApp / Copy */}
             <View style={styles.actions}>
                 <TouchableOpacity style={styles.primaryBtn} onPress={handleShare}>
@@ -637,6 +718,14 @@ const styles = StyleSheet.create({
 
     flutterwaveBtn:     { backgroundColor: '#FF9500', paddingVertical: 14, borderRadius: Radius.md, alignItems: 'center' },
     flutterwaveBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+
+    qrGenerateBtn:     { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Radius.md, alignItems: 'center' },
+    qrGenerateBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+    qrBox:             { alignItems: 'center', paddingTop: 4 },
+    qrWrap:            { backgroundColor: '#ffffff', padding: 14, borderRadius: Radius.md, ...Shadow.sm },
+    qrAmount:          { fontSize: 22, fontWeight: '900', color: Colors.textPrimary, marginTop: 14 },
+    qrDesc:            { fontSize: 12.5, color: Colors.textMuted, marginTop: 2 },
+    qrResetLink:       { fontSize: 12.5, color: Colors.primary, fontWeight: '700', marginTop: 12 },
 
     actions:         { gap: 10, marginBottom: Spacing.lg },
     primaryBtn:      { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Radius.md, alignItems: 'center' },
