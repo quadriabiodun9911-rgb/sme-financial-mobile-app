@@ -2155,6 +2155,7 @@ const styles = StyleSheet.create({
     currencyModal: {
         backgroundColor: Colors.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18,
         paddingTop: 16, paddingHorizontal: 16, maxHeight: '60%',
+        ...Shadow.md,
     },
     currencyModalWide: { maxWidth: 440, width: '100%', alignSelf: 'center' },
     currencyModalTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12, textAlign: 'center' },

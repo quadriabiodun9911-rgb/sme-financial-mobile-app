@@ -289,7 +289,7 @@ const s = StyleSheet.create({
     sectionSubtitle: { fontSize: 13.5, color: Colors.textMuted, textAlign: 'center', marginBottom: 28, maxWidth: 480, alignSelf: 'center' },
     journeyRow: { gap: 14 },
     journeyRowWide: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
-    journeyCard: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: 20, borderWidth: 1, borderColor: Colors.border },
+    journeyCard: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: 20, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     journeyCardWide: { width: 220 },
     stepIconBadge: {
         width: 40, height: 40, borderRadius: Radius.md, backgroundColor: Colors.primary + '18',
@@ -308,7 +308,7 @@ const s = StyleSheet.create({
 
     lenderStepRow: { gap: 14, width: '100%', marginBottom: 28 },
     lenderStepRowWide: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
-    lenderStepCard: { backgroundColor: Colors.bg, borderRadius: Radius.lg, padding: 18, borderWidth: 1, borderColor: Colors.border },
+    lenderStepCard: { backgroundColor: Colors.bg, borderRadius: Radius.lg, padding: 18, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     lenderStepCardWide: { width: 220 },
 
     lenderPreviewFrame: {
