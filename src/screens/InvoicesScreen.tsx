@@ -25,6 +25,7 @@ import { hasRecurringInvoiceSchedule, nextRecurringInvoiceDueDate, nextRecurring
 import { computeUnlinkedInvoicePayments } from '../utils/finance';
 import { effectiveInvoiceStatus } from '../utils/overdueTransactions';
 import { RecurringFrequency } from '../types';
+import { parseInvoiceQuickAddText } from '../utils/invoiceQuickAddParser';
 
 const STATUS_COLOR: Record<InvoiceStatus, string> = {
     draft:   Colors.textMuted,
@@ -148,6 +149,13 @@ export default function InvoicesScreen() {
     const [reminderIdx, setReminderIdx]     = useState(0);
 
     // Form state
+    // Quick-add: one sentence ("Invoice Chidinma 45000 for rice due in 7
+    // days") parsed live into the fields below -- a simplified single-line-
+    // item alternative to the full form, same progressive-disclosure
+    // pattern as Assets/Loans/Dashboard's Quick Add. Only shown for a brand
+    // new invoice, not editing.
+    const [qaText, setQaText] = useState('');
+
     const [clientName, setClientName]       = useState('');
     const [clientEmail, setClientEmail]     = useState('');
     const [clientPhone, setClientPhone]     = useState('');
@@ -229,9 +237,23 @@ export default function InvoicesScreen() {
         setIsRecurring(false); setRecurringFrequency('monthly');
         setCreditLimitInput('');
         setEditId(null);
+        setQaText('');
     };
 
     const openNew = () => { resetForm(); setShowForm(true); };
+
+    const handleQaTextChange = (text: string) => {
+        setQaText(text);
+        const parsed = parseInvoiceQuickAddText(text);
+        setClientName(parsed.clientName);
+        setLineItems([{
+            description: parsed.description,
+            quantity: 1,
+            unitPrice: parsed.amount ?? 0,
+            taxRate: 0,
+        }]);
+        setDueDate(parsed.dueInDays !== null ? localDateStr(new Date(Date.now() + parsed.dueInDays * 86400000)) : '');
+    };
 
     const openEdit = (inv: Invoice) => {
         setClientName(inv.clientName ?? '');
@@ -632,6 +654,19 @@ export default function InvoicesScreen() {
                                 </TouchableOpacity>
                             </View>
 
+                            {!editId && (
+                                <Section title="Quick add">
+                                    <FInput
+                                        value={qaText}
+                                        onChangeText={handleQaTextChange}
+                                        placeholder="e.g. Invoice Chidinma 45000 for rice due in 7 days"
+                                        multiline
+                                    />
+                                </Section>
+                            )}
+
+                            {(!!editId || qaText.trim().length > 0) && (
+                            <>
                             <Section title={t(language, 'clientDetailsSection')}>
                                 <FLabel>{t(language, 'clientName')} *</FLabel>
                                 <FInput value={clientName} onChangeText={setClientName} placeholder="Acme Corp" />
@@ -745,6 +780,8 @@ export default function InvoicesScreen() {
                             <TouchableOpacity style={styles.draftBtn} onPress={() => handleSave(true)}>
                                 <Text style={styles.draftBtnText}>{t(language, 'saveAsDraft')}</Text>
                             </TouchableOpacity>
+                            </>
+                            )}
                         </View>
                     </ScrollView>
                 </SafeAreaView>
