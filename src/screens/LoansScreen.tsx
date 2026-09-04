@@ -740,25 +740,28 @@ export default function LoansScreen() {
                                                     <Text style={s.previewTitle}>Before You Take This On</Text>
                                                     {tenorCheck && (
                                                         <View style={[s.tenorNote, tenorCheck.status === 'shorter_than_cycle' && s.tenorNoteWarn]}>
-                                                            <Text style={s.tenorNoteLabel}>
-                                                                {tenorCheck.status === 'shorter_than_cycle' ? '⚠️ Tenor vs. Cash Cycle' : '✅ Tenor vs. Cash Cycle'}
-                                                            </Text>
+                                                            <View style={s.tenorNoteLabelRow}>
+                                                                <Icon name={tenorCheck.status === 'shorter_than_cycle' ? 'alert-triangle' : 'check-circle'} size={13} color={tenorCheck.status === 'shorter_than_cycle' ? Colors.warning : Colors.income} />
+                                                                <Text style={s.tenorNoteLabel}>Tenor vs. Cash Cycle</Text>
+                                                            </View>
                                                             <Text style={s.tenorNoteText}>{tenorCheck.message}</Text>
                                                         </View>
                                                     )}
                                                     {seasonalCheck.available && (
                                                         <View style={[s.tenorNote, !seasonalCheck.aligned && s.tenorNoteWarn]}>
-                                                            <Text style={s.tenorNoteLabel}>
-                                                                {seasonalCheck.aligned ? '✅ Repayment vs. Sales Pattern' : '⚠️ Repayment vs. Sales Pattern'}
-                                                            </Text>
+                                                            <View style={s.tenorNoteLabelRow}>
+                                                                <Icon name={seasonalCheck.aligned ? 'check-circle' : 'alert-triangle'} size={13} color={seasonalCheck.aligned ? Colors.income : Colors.warning} />
+                                                                <Text style={s.tenorNoteLabel}>Repayment vs. Sales Pattern</Text>
+                                                            </View>
                                                             <Text style={s.tenorNoteText}>{seasonalCheck.message}</Text>
                                                         </View>
                                                     )}
                                                     {weekdayCheck.available && (
                                                         <View style={[s.tenorNote, weekdayCheck.concentrated && s.tenorNoteWarn]}>
-                                                            <Text style={s.tenorNoteLabel}>
-                                                                {weekdayCheck.concentrated ? '⚠️ Repayment vs. Weekday Cash Flow' : '✅ Repayment vs. Weekday Cash Flow'}
-                                                            </Text>
+                                                            <View style={s.tenorNoteLabelRow}>
+                                                                <Icon name={weekdayCheck.concentrated ? 'alert-triangle' : 'check-circle'} size={13} color={weekdayCheck.concentrated ? Colors.warning : Colors.income} />
+                                                                <Text style={s.tenorNoteLabel}>Repayment vs. Weekday Cash Flow</Text>
+                                                            </View>
                                                             <Text style={s.tenorNoteText}>{weekdayCheck.message}</Text>
                                                         </View>
                                                     )}
@@ -1067,7 +1070,9 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
 
                             {monitor.signals.map(sig => (
                                 <View key={sig.label} style={s.monitorSignalRow}>
-                                    <Text style={[s.monitorSignalIcon, { color: sig.tripped ? Colors.expense : Colors.income }]}>{sig.tripped ? '⚠' : '✓'}</Text>
+                                    <View style={s.monitorSignalIconWrap}>
+                                        <Icon name={sig.tripped ? 'alert-triangle' : 'check-circle'} size={14} color={sig.tripped ? Colors.expense : Colors.income} />
+                                    </View>
                                     <View style={{ flex: 1 }}>
                                         <Text style={s.monitorSignalLabel}>{sig.label}</Text>
                                         <Text style={s.monitorSignalDetail}>{sig.detail}</Text>
@@ -1255,11 +1260,11 @@ const s = StyleSheet.create({
     summaryLabel: { fontSize: 10, color: Colors.textMuted, marginBottom: 3, textAlign: 'center' },
     summaryValue: { fontSize: 14, fontWeight: '700' },
 
-    alertBanner: { backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
+    alertBanner: { backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md, ...Shadow.sm },
     alertTextRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
     alertText: { color: Colors.expense, fontWeight: '600', fontSize: 13, textAlign: 'center' },
 
-    detectedAlert: { backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md },
+    detectedAlert: { backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, padding: Spacing.md, marginBottom: Spacing.md, ...Shadow.sm },
     unlinkedRow: { flexDirection: 'row', alignItems: 'center', paddingTop: Spacing.sm, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.primary + '30', gap: Spacing.sm },
     unlinkedName: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
     unlinkedMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
@@ -1328,11 +1333,11 @@ const s = StyleSheet.create({
     monitorBox: { backgroundColor: Colors.bg, borderRadius: 10, padding: 12, marginTop: 12, marginBottom: 4 },
     monitorHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
     monitorTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
-    monitorBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+    monitorBadge: { borderRadius: Radius.pill, paddingHorizontal: 8, paddingVertical: 3 },
     monitorBadgeText: { fontSize: 10.5, fontWeight: '700' },
     monitorSub: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginBottom: 8, lineHeight: 14 },
     monitorSignalRow: { flexDirection: 'row', marginBottom: 7 },
-    monitorSignalIcon: { fontSize: 13, fontWeight: '800', width: 18 },
+    monitorSignalIconWrap: { width: 18, alignItems: 'center', marginTop: 1 },
     monitorSignalLabel: { fontSize: 12, fontWeight: '600', color: Colors.textPrimary },
     monitorSignalDetail: { fontSize: 11, color: Colors.textSecondary, marginTop: 1, lineHeight: 15 },
     monitorReadiness: { fontSize: 11.5, fontWeight: '600', marginTop: 2, marginBottom: 6 },
@@ -1365,7 +1370,8 @@ const s = StyleSheet.create({
 
     tenorNote: { borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface, padding: 10, marginBottom: 8 },
     tenorNoteWarn: { borderColor: Colors.warning + '88', backgroundColor: Colors.warning + '14' },
-    tenorNoteLabel: { fontSize: 11.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
+    tenorNoteLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 },
+    tenorNoteLabel: { fontSize: 11.5, fontWeight: '700', color: Colors.textPrimary },
     tenorNoteText: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16 },
 
     btnRow: { flexDirection: 'row', gap: 10, marginTop: Spacing.xxl, marginBottom: 10 },

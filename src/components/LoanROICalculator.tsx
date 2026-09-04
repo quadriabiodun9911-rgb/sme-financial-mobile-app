@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 
 interface Props {
     currency: string;
@@ -121,7 +122,7 @@ function Field({ label, value, onChange, placeholder, currency, suffix, hint }: 
 }
 
 const s = StyleSheet.create({
-    card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12 },
+    card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     title: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
     subtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: 14, lineHeight: 17 },
 
@@ -132,8 +133,8 @@ const s = StyleSheet.create({
     affix: { fontSize: 14, color: Colors.textMuted, fontWeight: '600' },
     input: { flex: 1, paddingVertical: 10, paddingHorizontal: 6, fontSize: 15, color: Colors.textPrimary },
 
-    resultCard: { borderWidth: 1.5, borderRadius: 10, padding: 14, marginTop: 6 },
-    neutralCard: { borderWidth: 1.5, borderColor: Colors.border, borderRadius: 10, padding: 14, marginTop: 6 },
+    resultCard: { borderWidth: 1.5, borderRadius: 10, padding: 14, marginTop: 6, ...Shadow.sm },
+    neutralCard: { borderWidth: 1.5, borderColor: Colors.border, borderRadius: 10, padding: 14, marginTop: 6, ...Shadow.sm },
     neutralText: { fontSize: 12, color: Colors.textSecondary, marginTop: 10, lineHeight: 17 },
     resultRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
     resultLabel: { fontSize: 12.5, color: Colors.textSecondary },

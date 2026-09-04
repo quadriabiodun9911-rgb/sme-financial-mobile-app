@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import { computeLoanAffordabilityCheck, LoanAffordabilityVerdict } from '../utils/loanAffordabilityCheck';
 import DataConfidenceBadge from './DataConfidenceBadge';
+import Icon, { IconName } from './ui/Icon';
 import { Transaction } from '../types';
 
 interface Props {
@@ -35,9 +37,14 @@ const VERDICT_COLOR: Record<LoanAffordabilityVerdict, string> = {
 };
 
 const VERDICT_LABEL: Record<LoanAffordabilityVerdict, string> = {
-    'high-risk': '🔴 High Risk',
-    caution: '🟡 Caution',
-    safe: '🟢 Safe',
+    'high-risk': 'High Risk',
+    caution: 'Caution',
+    safe: 'Safe',
+};
+const VERDICT_ICON: Record<LoanAffordabilityVerdict, IconName> = {
+    'high-risk': 'alert-circle',
+    caution: 'alert-triangle',
+    safe: 'check-circle',
 };
 
 // Answers a different question than the other calculators on this tab:
@@ -118,7 +125,10 @@ export default function LoanAffordabilityChecker({
                     </View>
 
                     <View style={[s.verdictBox, { borderColor: VERDICT_COLOR[result.verdict] }]}>
-                        <Text style={[s.verdictLabel, { color: VERDICT_COLOR[result.verdict] }]}>{VERDICT_LABEL[result.verdict]}</Text>
+                        <View style={s.verdictLabelRow}>
+                            <Icon name={VERDICT_ICON[result.verdict]} size={14} color={VERDICT_COLOR[result.verdict]} />
+                            <Text style={[s.verdictLabel, { color: VERDICT_COLOR[result.verdict] }]}>{VERDICT_LABEL[result.verdict]}</Text>
+                        </View>
                         <Text style={s.verdictReason}>{result.reason}</Text>
                     </View>
                 </>
@@ -155,7 +165,7 @@ function Field({ label, value, onChange, placeholder, currency, suffix }: {
 }
 
 const s = StyleSheet.create({
-    card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12 },
+    card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     title: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
     subtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: 14, lineHeight: 17 },
 
@@ -179,8 +189,9 @@ const s = StyleSheet.create({
     statVal: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary },
     statHint: { fontSize: 9.5, color: Colors.textMuted, marginTop: 2, fontStyle: 'italic' },
 
-    verdictBox: { borderRadius: 10, borderWidth: 1.5, padding: 12, marginTop: 12 },
-    verdictLabel: { fontSize: 13, fontWeight: '800', marginBottom: 4 },
+    verdictBox: { borderRadius: 10, borderWidth: 1.5, padding: 12, marginTop: 12, ...Shadow.sm },
+    verdictLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+    verdictLabel: { fontSize: 13, fontWeight: '800' },
     verdictReason: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
     emptyHint: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic' },
