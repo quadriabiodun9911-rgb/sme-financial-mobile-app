@@ -33,12 +33,19 @@ const TABS: { key: Tab; icon: IconName; label: string }[] = [
     { key: 'economic',      icon: 'globe',           label: 'Economic' },
 ];
 
-const RISK_LEVEL_META: Record<RiskLevel, { color: string; dot: string }> = {
-    high:      { color: Colors.expense,   dot: '🔴' },
-    medium:    { color: Colors.warning,   dot: '🟡' },
-    low:       { color: Colors.income,    dot: '🟢' },
-    'no-data': { color: Colors.textMuted, dot: '⚪' },
+const RISK_LEVEL_META: Record<RiskLevel, { color: string; icon: IconName }> = {
+    high:      { color: Colors.expense,   icon: 'alert-circle' },
+    medium:    { color: Colors.warning,   icon: 'alert-triangle' },
+    low:       { color: Colors.income,    icon: 'check-circle' },
+    'no-data': { color: Colors.textMuted, icon: 'circle' },
 };
+
+// Same icon set as RISK_LEVEL_META, keyed off tierColor's 'low'/'medium'/'high'
+// scale instead of RiskLevel -- concentration/exposure rows use this scale,
+// Risk Radar uses RiskLevel; both map to the same visual language.
+function tierIcon(risk: 'low' | 'medium' | 'high'): IconName {
+    return risk === 'high' ? 'alert-circle' : risk === 'medium' ? 'alert-triangle' : 'check-circle';
+}
 
 function riskLabel(score: number): { label: string; color: string } {
     if (score >= 80) return { label: 'Low Risk', color: Colors.income };
@@ -185,7 +192,7 @@ export default function RiskManagementScreen() {
                             <Text style={s.cardSub}>The single worst signal from each area below — not a repeat of the score above.</Text>
                             {worstConcentration && (
                                 <TouchableOpacity style={s.exposureRow} onPress={() => setTab('concentration')} activeOpacity={0.7}>
-                                    <Text style={s.radarDot}>{tierColor(worstConcentration.risk) === Colors.expense ? '🔴' : tierColor(worstConcentration.risk) === Colors.warning ? '🟡' : '🟢'}</Text>
+                                    <RiskDot color={tierColor(worstConcentration.risk)} icon={tierIcon(worstConcentration.risk)} />
                                     <View style={{ flex: 1 }}>
                                         <Text style={s.exposureLabel}>Concentration: {worstConcentration.name}</Text>
                                         <Text style={s.exposureDetail}>
@@ -197,7 +204,10 @@ export default function RiskManagementScreen() {
                             )}
                             {worstSeasonalMonth && (
                                 <TouchableOpacity style={s.exposureRow} onPress={() => setTab('seasonal')} activeOpacity={0.7}>
-                                    <Text style={s.radarDot}>{worstSeasonalMonth.riskLevel === 'high' ? '🔴' : '🟡'}</Text>
+                                    <RiskDot
+                                        color={worstSeasonalMonth.riskLevel === 'high' ? Colors.expense : Colors.warning}
+                                        icon={worstSeasonalMonth.riskLevel === 'high' ? 'alert-circle' : 'alert-triangle'}
+                                    />
                                     <View style={{ flex: 1 }}>
                                         <Text style={s.exposureLabel}>Seasonal: {worstSeasonalMonth.month}</Text>
                                         <Text style={s.exposureDetail}>{worstSeasonalMonth.warning}</Text>
@@ -207,7 +217,7 @@ export default function RiskManagementScreen() {
                             )}
                             {externalRisk.hasAssumptions && externalRisk.insights.length > 0 && (
                                 <TouchableOpacity style={s.exposureRow} onPress={() => setTab('economic')} activeOpacity={0.7}>
-                                    <Text style={s.radarDot}>🟡</Text>
+                                    <RiskDot color={Colors.warning} icon="alert-triangle" />
                                     <View style={{ flex: 1 }}>
                                         <Text style={s.exposureLabel}>Economic: {topExternalInsight.title.replace('⚠️ ', '')}</Text>
                                         <Text style={s.exposureDetail} numberOfLines={2}>{topExternalInsight.whatChanged}</Text>
@@ -224,7 +234,7 @@ export default function RiskManagementScreen() {
                         <View style={s.card}>
                             {riskRadar.categories.map(c => (
                                 <View key={c.key} style={s.radarRow}>
-                                    <Text style={s.radarDot}>{RISK_LEVEL_META[c.level].dot}</Text>
+                                    <RiskDot color={RISK_LEVEL_META[c.level].color} icon={RISK_LEVEL_META[c.level].icon} />
                                     <View style={{ flex: 1 }}>
                                         <Text style={s.radarLabel}>{c.label}</Text>
                                         <Text style={s.radarSummary}>{c.summary}</Text>
@@ -373,14 +383,16 @@ export default function RiskManagementScreen() {
                         <Text style={s.cardSub}>Months where your revenue is historically low or high.</Text>
                         {MONTHS_GRID.map((row, ri) => (
                             <View key={ri} style={s.seasonRow}>
-                                {row.map((m, i) => (
-                                    <View key={i} style={[s.seasonCell, { borderColor: m.riskLevel === 'high' ? Colors.expense : m.riskLevel === 'medium' ? Colors.warning : m.riskLevel === 'unknown' ? Colors.border : Colors.income }]}>
-                                        <Text style={s.seasonMonth}>{m.month}</Text>
-                                        <Text style={[s.seasonRiskIcon, { color: m.riskLevel === 'high' ? Colors.expense : m.riskLevel === 'medium' ? Colors.warning : m.riskLevel === 'unknown' ? Colors.textMuted : Colors.income }]}>
-                                            {m.riskLevel === 'high' ? '✗' : m.riskLevel === 'medium' ? '!' : m.riskLevel === 'unknown' ? '?' : '✓'}
-                                        </Text>
-                                    </View>
-                                ))}
+                                {row.map((m, i) => {
+                                    const color = m.riskLevel === 'high' ? Colors.expense : m.riskLevel === 'medium' ? Colors.warning : m.riskLevel === 'unknown' ? Colors.textMuted : Colors.income;
+                                    const icon: IconName = m.riskLevel === 'high' ? 'x-circle' : m.riskLevel === 'medium' ? 'alert-triangle' : m.riskLevel === 'unknown' ? 'help-circle' : 'check-circle';
+                                    return (
+                                        <View key={i} style={[s.seasonCell, { borderColor: m.riskLevel === 'unknown' ? Colors.border : color }]}>
+                                            <Text style={s.seasonMonth}>{m.month}</Text>
+                                            <Icon name={icon} size={15} color={color} />
+                                        </View>
+                                    );
+                                })}
                             </View>
                         ))}
                         {seasonal.filter(m => m.hasData && m.riskLevel !== 'low').map((m, i) => (
@@ -586,12 +598,26 @@ function LiveFxSuggestionCard() {
     );
 }
 
+// A small tinted circle around a colored Icon -- replaces the raw emoji
+// (🔴🟡🟢) previously used as row leads on Overview's Exposures/Risk Radar
+// lists, matching the Icon-based status language the rest of the app (Cash
+// Flow's alert-circle/alert-triangle/check-circle, RiskBadge below) already
+// uses instead of emoji.
+function RiskDot({ color, icon }: { color: string; icon: IconName }) {
+    return (
+        <View style={[s.riskDot, { backgroundColor: color + '18' }]}>
+            <Icon name={icon} size={12} color={color} />
+        </View>
+    );
+}
+
 function RiskBadge({ risk }: { risk: 'low' | 'medium' | 'high' }) {
     const color = tierColor(risk);
     return (
         <View style={[s.riskBadge, { backgroundColor: color + '20' }]}>
+            <Icon name={tierIcon(risk)} size={11} color={color} />
             <Text style={[s.riskBadgeText, { color }]}>
-                {risk === 'high' ? '⚠ HIGH' : risk === 'medium' ? '! MED' : '✓ LOW'}
+                {risk === 'high' ? 'HIGH' : risk === 'medium' ? 'MED' : 'LOW'}
             </Text>
         </View>
     );
@@ -625,20 +651,20 @@ const s = StyleSheet.create({
     miniBarFill: { height: 5, borderRadius: 3 },
 
     radarRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
-    radarDot: { fontSize: 12, marginTop: 2 },
     radarLabel: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
     radarSummary: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginTop: 2 },
+
+    riskDot: { width: 22, height: 22, borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
 
     concRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 10 },
     concName: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
     concPct: { fontSize: 11, color: Colors.textMuted, marginLeft: 6 },
-    riskBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+    riskBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Radius.pill },
     riskBadgeText: { fontSize: 10.5, fontWeight: '700' },
 
     seasonRow: { flexDirection: 'row', gap: 6, marginBottom: 6 },
-    seasonCell: { flex: 1, alignItems: 'center', paddingVertical: 8, borderWidth: 1, borderRadius: 8 },
-    seasonMonth: { fontSize: 10, color: Colors.textSecondary, marginBottom: 2 },
-    seasonRiskIcon: { fontSize: 13, fontWeight: '700' },
+    seasonCell: { flex: 1, alignItems: 'center', paddingVertical: 8, borderWidth: 1, borderRadius: 8, gap: 3 },
+    seasonMonth: { fontSize: 10, color: Colors.textSecondary },
     seasonWarning: { fontSize: 12, lineHeight: 18, marginTop: 6 },
 
     assumptionRow: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
