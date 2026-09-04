@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import { computeInventoryPricingScenario, computeRequiredUniformPriceChange, ProductPricingRow } from '../utils/inventoryPricingScenario';
 import { computeRequiredPriceIncrease } from '../utils/priceAdjustment';
 import { computeInventoryPricingInsights } from '../utils/inventoryPricingInsights';
@@ -353,11 +354,11 @@ function Kpi({ label, value, color }: { label: string; value: string; color: str
 const s = StyleSheet.create({
     subtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: 14, lineHeight: 17 },
 
-    emptyState: { alignItems: 'center', padding: 32, backgroundColor: Colors.surface, borderRadius: 14 },
+    emptyState: { alignItems: 'center', padding: 32, backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     emptyTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
     emptySub: { fontSize: 12, color: Colors.textMuted, textAlign: 'center' },
 
-    card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
+    card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
 
     row: { flexDirection: 'row', gap: 12 },
@@ -366,7 +367,7 @@ const s = StyleSheet.create({
     label: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
     input: { backgroundColor: Colors.bg, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, padding: 10, fontSize: 14, color: Colors.textPrimary },
 
-    suggestBox: { marginTop: 12, borderRadius: 10, borderWidth: 1.5, padding: 12 },
+    suggestBox: { marginTop: 12, borderRadius: 10, borderWidth: 1.5, padding: 12, ...Shadow.sm },
     suggestText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
     applyBtn: { marginTop: 8, alignSelf: 'flex-start' },
     applyBtnText: { fontSize: 12.5, color: Colors.primary, fontWeight: '700' },
