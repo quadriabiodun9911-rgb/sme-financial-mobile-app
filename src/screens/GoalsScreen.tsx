@@ -71,6 +71,17 @@ const RISK_SEVERITY_COLORS: Record<GoalRiskSeverity, string> = { high: Colors.ex
 
 const ALIGNMENT_STATUS_COLORS: Record<string, string> = { aligned: Colors.income, budget_too_high: Colors.expense, no_active_budget: Colors.warning };
 
+const APPROACH_LABEL: Record<'revenue-focused' | 'expense-focused' | 'hybrid', string> = {
+    'revenue-focused': 'Revenue-Focused',
+    'expense-focused': 'Expense-Focused',
+    hybrid: 'Hybrid',
+};
+const APPROACH_ICON: Record<'revenue-focused' | 'expense-focused' | 'hybrid', IconName> = {
+    'revenue-focused': 'trending-up',
+    'expense-focused': 'dollar-sign',
+    hybrid: 'shuffle',
+};
+
 export default function GoalsScreen() {
     const { goals, addGoal, deleteGoal, updateGoal, finance, transactions, invoices, settings, navParams, navigate, setCurrentScreen, loans, inventory, budgets, assets } = useApp();
     const { currency } = settings;
@@ -583,11 +594,10 @@ export default function GoalsScreen() {
 
                                                 <View style={styles.assessmentRow}>
                                                     <Text style={styles.assessmentRowLabel}>Recommended Approach:</Text>
-                                                    <Text style={[styles.approachBadge, { backgroundColor: Colors.primary + '22' }]}>
-                                                        <Text style={{ color: Colors.primary, fontWeight: '700' }}>
-                                                            {planBridge.recommendedApproach === 'revenue-focused' ? '📈 Revenue-Focused' : planBridge.recommendedApproach === 'expense-focused' ? '💰 Expense-Focused' : '⚖️ Hybrid'}
-                                                        </Text>
-                                                    </Text>
+                                                    <View style={[styles.approachBadge, { backgroundColor: Colors.primary + '22' }]}>
+                                                        <Icon name={APPROACH_ICON[planBridge.recommendedApproach]} size={12} color={Colors.primary} />
+                                                        <Text style={styles.approachBadgeText}>{APPROACH_LABEL[planBridge.recommendedApproach]}</Text>
+                                                    </View>
                                                 </View>
 
                                                 <View style={styles.assessmentRow}>
@@ -1091,7 +1101,7 @@ const cardStyles = StyleSheet.create({
     bigNumVal: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary },
     bigNumLabel: { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
     bigNumArrow: { fontSize: 18, color: Colors.textMuted },
-    statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+    statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.pill },
     statusText: { fontSize: 10, fontWeight: 'bold' },
     desc: { fontSize: 12, color: Colors.textMuted, marginBottom: 12, lineHeight: 18 },
     progressSection: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 },
@@ -1120,7 +1130,7 @@ const styles = StyleSheet.create({
     title: { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.sm },
     subtitle: { fontSize: 13, color: Colors.textMuted, lineHeight: 20, marginBottom: Spacing.xl },
     achievedHeader: { fontSize: 13, fontWeight: '700', color: Colors.income, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 4 },
-    emptyCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 28, alignItems: 'center', marginBottom: Spacing.xxl },
+    emptyCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 28, alignItems: 'center', marginBottom: Spacing.xxl, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     emptyIcon: { alignItems: 'center', marginBottom: 10 },
     emptyTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.sm },
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
@@ -1192,7 +1202,8 @@ const styles = StyleSheet.create({
     assessmentRowLabel: { fontSize: 12, color: Colors.textSecondary, flex: 1 },
     assessmentRowValue: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
     timelineNote: { fontSize: 10, color: Colors.textMuted, marginLeft: 4 },
-    approachBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+    approachBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.pill },
+    approachBadgeText: { color: Colors.primary, fontWeight: '700', fontSize: 12 },
     probabilityContainer: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
     probabilityBar: { flex: 1, height: 6, backgroundColor: Colors.surface, borderRadius: 3, overflow: 'hidden' },
     probabilityFill: { height: '100%' },
