@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import DataQualityBadge from './DataQualityBadge';
 import MissionVisionCard from './MissionVisionCard';
 import { computeWeeklySummary } from '../utils/weeklySummary';
@@ -173,6 +174,7 @@ const s = StyleSheet.create({
         padding: 12,
         borderWidth: 1,
         borderColor: Colors.border,
+        ...Shadow.sm,
     },
     metricLabel: { fontSize: 11, color: Colors.textSecondary, marginBottom: 6 },
     metricValue: { fontSize: 17, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
@@ -183,6 +185,7 @@ const s = StyleSheet.create({
         padding: 14,
         marginTop: 14,
         borderLeftWidth: 4,
+        ...Shadow.sm,
     },
     sectionTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 10 },
     bulletRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },

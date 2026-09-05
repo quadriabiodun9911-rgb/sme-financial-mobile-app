@@ -3,6 +3,7 @@ import {
     Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform, useWindowDimensions,
 } from 'react-native';
 import { Colors } from '../theme/colors';
+import Icon, { IconName } from './ui/Icon';
 import { Transaction, FinancialGoal, FinanceData, BusinessSettings } from '../types';
 import { Invoice } from '../types';
 
@@ -59,18 +60,19 @@ export default function DailyReportModal({ visible, onClose, transactions, goals
     const profitPositive = todayProfit > 0;
 
     let verdict = '';
-    let verdictEmoji = '';
+    let verdictIcon: IconName = 'alert-triangle';
+    let verdictColor = Colors.warning;
     if (todaySales === 0) {
-        verdictEmoji = '⚠️';
+        verdictIcon = 'alert-triangle'; verdictColor = Colors.warning;
         verdict = 'No transactions logged today. Make sure to record all your sales and expenses.';
     } else if (revenueOk && expenseOk) {
-        verdictEmoji = '✅';
+        verdictIcon = 'check-circle'; verdictColor = Colors.income;
         verdict = 'Great day! You hit your revenue target and stayed within budget.';
     } else if (revenueOk || profitPositive) {
-        verdictEmoji = '⚠️';
+        verdictIcon = 'alert-triangle'; verdictColor = Colors.warning;
         verdict = 'Decent day — but there\'s room to improve. Check your action plan below.';
     } else {
-        verdictEmoji = '❌';
+        verdictIcon = 'x-circle'; verdictColor = Colors.expense;
         verdict = 'Tough day. Don\'t worry — tomorrow is a fresh start. See your action plan below.';
     }
 
@@ -175,7 +177,7 @@ export default function DailyReportModal({ visible, onClose, transactions, goals
                         {/* Verdict */}
                         <Text style={s.sectionTitle}>HOW DID YOU DO?</Text>
                         <View style={s.verdictBlock}>
-                            <Text style={s.verdictEmoji}>{verdictEmoji}</Text>
+                            <Icon name={verdictIcon} size={22} color={verdictColor} />
                             <Text style={s.verdictText}>{verdict}</Text>
                         </View>
 
@@ -211,7 +213,6 @@ const s = StyleSheet.create({
     summaryKey: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600', minWidth: 90 },
     summaryVal: { fontSize: 13, color: Colors.textPrimary, fontWeight: '700', flex: 1, textAlign: 'right', flexWrap: 'wrap' },
     verdictBlock: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: Colors.bg, borderRadius: 10, padding: 14, marginBottom: 16 },
-    verdictEmoji: { fontSize: 22 },
     verdictText: { fontSize: 13, color: Colors.textSecondary, flex: 1, lineHeight: 20 },
     actionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 10 },
     actionNum: { fontSize: 14, fontWeight: 'bold', color: Colors.primary, minWidth: 20 },

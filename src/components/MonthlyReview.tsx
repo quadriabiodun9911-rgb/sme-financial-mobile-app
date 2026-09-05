@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
+import Icon from './ui/Icon';
 import { Screen } from '../types';
 
 interface Props {
@@ -116,9 +118,12 @@ export default function MonthlyReview({ visible, onClose }: Props) {
                     <View style={styles.section}>
                         <Text style={styles.sectionQ}>1. Did I make money this month?</Text>
                         <View style={[styles.answerCard, { borderColor: isProfit ? Colors.income : Colors.expense }]}>
-                            <Text style={[styles.answerBig, { color: isProfit ? Colors.income : Colors.expense }]}>
-                                {isProfit ? '✅ Yes' : '❌ No'}
-                            </Text>
+                            <View style={styles.answerBigRow}>
+                                <Icon name={isProfit ? 'check-circle' : 'x-circle'} size={20} color={isProfit ? Colors.income : Colors.expense} />
+                                <Text style={[styles.answerBig, { color: isProfit ? Colors.income : Colors.expense }]}>
+                                    {isProfit ? 'Yes' : 'No'}
+                                </Text>
+                            </View>
                             <Text style={[styles.answerNum, { color: isProfit ? Colors.income : Colors.expense }]}>
                                 {isProfit ? '+' : ''}{currency}{review.thisProfit.toLocaleString()}
                             </Text>
@@ -178,7 +183,10 @@ export default function MonthlyReview({ visible, onClose }: Props) {
                         <Text style={styles.sectionQ}>3. Who still owes me money?</Text>
                         {review.unpaidInvoices.length === 0 ? (
                             <View style={[styles.answerCard, { borderColor: Colors.income }]}>
-                                <Text style={[styles.answerBig, { color: Colors.income }]}>✅ All clear</Text>
+                                <View style={styles.answerBigRow}>
+                                    <Icon name="check-circle" size={20} color={Colors.income} />
+                                    <Text style={[styles.answerBig, { color: Colors.income }]}>All clear</Text>
+                                </View>
                                 <Text style={styles.emptyNote}>No unpaid invoices</Text>
                             </View>
                         ) : (
@@ -207,11 +215,18 @@ export default function MonthlyReview({ visible, onClose }: Props) {
                                 <View key={g.id} style={styles.goalRow}>
                                     <View style={styles.goalInfo}>
                                         <Text style={styles.goalTitle}>{g.title}</Text>
-                                        <Text style={[styles.goalStatus, {
-                                            color: g.status === 'on_track' ? Colors.income : g.status === 'achieved' ? Colors.income : Colors.warning
-                                        }]}>
-                                            {g.status === 'on_track' ? '✅ On track' : g.status === 'at_risk' ? '⚠️ At risk' : '❌ Off track'}
-                                        </Text>
+                                        <View style={styles.goalStatusRow}>
+                                            <Icon
+                                                name={g.status === 'on_track' ? 'check-circle' : g.status === 'at_risk' ? 'alert-triangle' : 'x-circle'}
+                                                size={13}
+                                                color={g.status === 'on_track' ? Colors.income : g.status === 'achieved' ? Colors.income : Colors.warning}
+                                            />
+                                            <Text style={[styles.goalStatus, {
+                                                color: g.status === 'on_track' ? Colors.income : g.status === 'achieved' ? Colors.income : Colors.warning
+                                            }]}>
+                                                {g.status === 'on_track' ? 'On track' : g.status === 'at_risk' ? 'At risk' : 'Off track'}
+                                            </Text>
+                                        </View>
                                     </View>
                                     <View style={styles.goalBarTrack}>
                                         <View style={[styles.goalBarFill, {
@@ -258,8 +273,9 @@ const styles = StyleSheet.create({
     sectionQ:  { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 10 },
     emptyNote: { fontSize: 13, color: Colors.textMuted, fontStyle: 'italic', padding: 12 },
 
-    answerCard:   { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, borderWidth: 2 },
-    answerBig:    { fontSize: 20, fontWeight: 'bold', marginBottom: 4 },
+    answerCard:   { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, borderWidth: 2, ...Shadow.sm },
+    answerBigRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+    answerBig:    { fontSize: 20, fontWeight: 'bold' },
     answerNum:    { fontSize: 28, fontWeight: 'bold', marginBottom: 6 },
     answerDelta:  { fontSize: 12, fontWeight: '600', marginBottom: 12 },
     answerRow:    { flexDirection: 'row', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 12, marginTop: 4 },
@@ -268,7 +284,7 @@ const styles = StyleSheet.create({
     answerLabel:  { fontSize: 11, color: Colors.textMuted, marginBottom: 4 },
     answerVal:    { fontSize: 16, fontWeight: '700' },
 
-    expenseList: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: Colors.border },
+    expenseList: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     expenseRow:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
     expenseRank: { fontSize: 13, fontWeight: '700', color: Colors.textMuted, width: 20 },
     expenseBar:  { flex: 1 },
@@ -284,15 +300,16 @@ const styles = StyleSheet.create({
     chaseBtn:     { marginTop: 12, backgroundColor: Colors.warning, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
     chaseBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
 
-    goalRow:      { backgroundColor: Colors.surface, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: Colors.border },
+    goalRow:      { backgroundColor: Colors.surface, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     goalInfo:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
     goalTitle:    { fontSize: 13, fontWeight: '600', color: Colors.textPrimary, flex: 1 },
+    goalStatusRow:{ flexDirection: 'row', alignItems: 'center', gap: 4 },
     goalStatus:   { fontSize: 12, fontWeight: '600' },
     goalBarTrack: { height: 6, backgroundColor: Colors.border, borderRadius: 3, overflow: 'hidden', marginBottom: 4 },
     goalBarFill:  { height: 6, borderRadius: 3 },
     goalPct:      { fontSize: 11, color: Colors.textMuted, textAlign: 'right' },
 
-    recBox:   { backgroundColor: 'rgba(0,102,204,0.08)', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: Colors.primary, flexDirection: 'column' },
+    recBox:   { backgroundColor: 'rgba(0,102,204,0.08)', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: Colors.primary, flexDirection: 'column', ...Shadow.sm },
     recIcon:  { fontSize: 28, marginBottom: 8 },
     recTitle: { fontSize: 14, fontWeight: '700', color: Colors.primary, marginBottom: 6 },
     recText:  { fontSize: 13, color: Colors.textSecondary, lineHeight: 20 },

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Switch, FlatList } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import { RecurringFrequency, Transaction } from '../types';
 import { confirmAction } from '../utils/webAlert';
 import { nextRecurringDueDate, daysUntilRecurringDue } from '../utils/recurringTransactions';
@@ -116,7 +117,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12 },
   empty: { alignItems: 'center', paddingVertical: 24 },
   emptyText: { color: Colors.textMuted, fontSize: 14 },
-  card: { backgroundColor: Colors.card, borderRadius: 12, padding: 12, marginBottom: 10 },
+  card: { backgroundColor: Colors.card, borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
   cardInfo: { flex: 1 },
   cardTitle: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary },
