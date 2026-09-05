@@ -191,7 +191,7 @@ export default function PeriodComparisonTable({ transactions, currency, defaultG
 }
 
 const s = StyleSheet.create({
-    card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
+    card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     title: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
     toggleRow: { flexDirection: 'row', flexWrap: 'wrap', backgroundColor: Colors.bg, borderRadius: 9, padding: 3, marginBottom: 14, alignSelf: 'flex-start', gap: 2 },
     toggleBtn: { paddingVertical: 6, paddingHorizontal: 11, borderRadius: 7 },

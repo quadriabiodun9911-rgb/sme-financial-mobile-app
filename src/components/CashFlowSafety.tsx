@@ -284,7 +284,7 @@ function ActionItem({ color, text }: { color: string; text: string }) {
 }
 
 const ratioStyles = StyleSheet.create({
-    card: { flex: 1, backgroundColor: Colors.bg, borderRadius: 10, padding: 12, alignItems: 'center' },
+    card: { flex: 1, backgroundColor: Colors.bg, borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     label: { fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginBottom: 6, lineHeight: 14 },
     value: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
     sub: { fontSize: 10, color: Colors.textMuted, textAlign: 'center' },
@@ -302,7 +302,7 @@ const actionStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-    statusCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 20, marginBottom: 12, alignItems: 'center' },
+    statusCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 20, marginBottom: 12, alignItems: 'center', borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     statusLabel: { fontSize: 12, color: Colors.textMuted, marginBottom: 6 },
     statusAmount: { fontSize: 30, fontWeight: 'bold', marginBottom: 8 },
     statusBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10 },
@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
     sectionLabel: { fontSize: 11.5, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, marginTop: 6, marginBottom: 3 },
     sectionSub: { fontSize: 12, color: Colors.textMuted, marginBottom: 12, lineHeight: 17 },
 
-    headerCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 20, marginBottom: 12, alignItems: 'center' },
+    headerCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 20, marginBottom: 12, alignItems: 'center', borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     scoreBlock: { alignItems: 'center', marginBottom: 10 },
     scoreValue: { fontSize: 36, fontWeight: 'bold', color: Colors.textPrimary },
     scoreLabel: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
