@@ -357,13 +357,13 @@ const styles = StyleSheet.create({
     loadingCard:  { alignItems: 'center', padding: 40, gap: 16 },
     loadingText:  { fontSize: 13, color: Colors.textMuted, textAlign: 'center' },
 
-    scoreCard: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.xl, marginBottom: 14 },
+    scoreCard: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.xl, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     scoreRow:  { flexDirection: 'row', justifyContent: 'space-around', marginTop: Spacing.md },
     noScore:   { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
 
     sectionTitle: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: Spacing.xs },
 
-    infoCard: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: 14 },
+    infoCard: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     bigNumber:      { fontSize: 38, fontWeight: '900', color: Colors.primary, marginTop: 10 },
     bigNumberLabel: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600', marginTop: 2 },
     bigNumberNote:  { fontSize: 11, color: Colors.textMuted, marginTop: 4 },
@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
     refreshBtn:     { backgroundColor: Colors.surface, borderWidth: 1.5, borderColor: Colors.primary, paddingVertical: 13, borderRadius: Radius.md, alignItems: 'center', marginBottom: Spacing.lg },
     refreshBtnText: { color: Colors.primary, fontWeight: '700', fontSize: 14 },
 
-    tipCard:  { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, borderLeftWidth: 3, borderLeftColor: Colors.primary },
+    tipCard:  { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, borderLeftWidth: 3, borderLeftColor: Colors.primary, ...Shadow.sm },
     tipTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
     tipBody:  { fontSize: 12, color: Colors.textMuted, lineHeight: 20, marginTop: Spacing.xs },
 
