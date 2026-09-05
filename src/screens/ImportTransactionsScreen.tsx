@@ -1293,13 +1293,13 @@ const styles = StyleSheet.create({
     supportedRow:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: 6 },
     supportedText: { fontSize: 13, color: Colors.textSecondary },
 
-    iosGuideCard:  { backgroundColor: '#1e3a5f', borderRadius: 14, padding: Spacing.lg, marginBottom: 14, borderWidth: 1, borderColor: Colors.primary },
+    iosGuideCard:  { backgroundColor: '#1e3a5f', borderRadius: 14, padding: Spacing.lg, marginBottom: 14, borderWidth: 1, borderColor: Colors.primary, ...Shadow.sm },
     iosGuideTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
     iosGuideTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary },
     iosGuideText:  { fontSize: 13, color: Colors.textSecondary, lineHeight: 22 },
     bold:          { fontWeight: '700', color: Colors.textPrimary },
 
-    errorBox:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: '#fef2f2', borderRadius: 10, padding: Spacing.md, marginBottom: 14, borderLeftWidth: 3, borderLeftColor: '#ef4444' },
+    errorBox:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: '#fef2f2', borderRadius: 10, padding: Spacing.md, marginBottom: 14, borderLeftWidth: 3, borderLeftColor: '#ef4444', ...Shadow.sm },
     errorText: { flex: 1, fontSize: 13, color: '#b91c1c', lineHeight: 20 },
 
     primaryBtn:     { backgroundColor: Colors.primary, paddingVertical: 15, borderRadius: Radius.md, alignItems: 'center', marginBottom: Spacing.md, ...Shadow.sm },
@@ -1338,7 +1338,7 @@ const styles = StyleSheet.create({
     balanceArrow: { fontSize: 16, color: Colors.textMuted },
 
     // Transaction rows
-    txRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.border },
+    txRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     txRowFlagged: { borderWidth: 1.5, borderColor: '#f59e0b' },
     txRowDuplicate: { borderWidth: 1.5, borderColor: '#ef4444', opacity: 0.7 },
     txLeft:       { flex: 1, paddingRight: 10 },
@@ -1398,7 +1398,7 @@ const styles = StyleSheet.create({
     insightCard: {
         flexDirection: 'row', alignItems: 'flex-start', gap: 10,
         backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.md,
-        borderWidth: 1, borderColor: Colors.border,
+        borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
     },
     insightCardIcon: { fontSize: 18, lineHeight: 22 },
     insightCardBody: { flex: 1 },
