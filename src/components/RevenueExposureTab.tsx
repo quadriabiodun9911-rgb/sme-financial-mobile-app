@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import { computeCustomerConcentration, CustomerConcentration } from '../utils/finance';
 import RadialGauge from './RadialGauge';
 import BarList from './BarList';
@@ -138,18 +139,18 @@ export default function RevenueExposureTab() {
 const s = StyleSheet.create({
     subtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: 16, lineHeight: 17 },
 
-    emptyState: { alignItems: 'center', padding: 32, backgroundColor: Colors.surface, borderRadius: 14 },
+    emptyState: { alignItems: 'center', padding: 32, backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     emptyTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
     emptySub: { fontSize: 12, color: Colors.textMuted, textAlign: 'center' },
 
-    scoreCard: { backgroundColor: Colors.surface, borderRadius: 14, borderTopWidth: 4, padding: 20, marginBottom: 14, alignItems: 'center' },
+    scoreCard: { backgroundColor: Colors.surface, borderRadius: 14, borderTopWidth: 4, padding: 20, marginBottom: 14, alignItems: 'center', ...Shadow.sm },
     scoreLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: 10 },
     verdict: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, marginTop: 12 },
 
-    noteCard: { backgroundColor: Colors.warning + '15', borderRadius: 12, padding: 12, marginBottom: 14 },
+    noteCard: { backgroundColor: Colors.warning + '15', borderRadius: 12, padding: 12, marginBottom: 14, ...Shadow.sm },
     noteText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
-    card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
+    card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
 
     tableHeader: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 8, marginBottom: 6 },

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import { DimensionItem } from '../utils/profitability';
 import { computeMarginPct } from '../utils/priceHistory';
 
@@ -127,6 +128,7 @@ const styles = StyleSheet.create({
         padding: 16,
         borderWidth: 1,
         borderColor: Colors.border,
+        ...Shadow.sm,
     },
     title: {
         color: Colors.textMuted,

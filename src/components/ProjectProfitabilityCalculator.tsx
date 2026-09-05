@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import { computeProjectProfitability, ProjectProfitabilityVerdict } from '../utils/projectProfitability';
 
 interface SavedProject {
@@ -209,7 +210,7 @@ export default function ProjectProfitabilityCalculator({ currency }: Props) {
 }
 
 const s = StyleSheet.create({
-    card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12 },
+    card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     title: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
     subtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: 14, lineHeight: 17 },
 

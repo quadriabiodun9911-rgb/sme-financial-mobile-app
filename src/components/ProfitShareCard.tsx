@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import { showAlert } from '../utils/webAlert';
 
 interface Props {
@@ -106,7 +107,7 @@ function MetricBox({ label, value, color }: { label: string; value: string; colo
 
 const styles = StyleSheet.create({
     overlay:           { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', zIndex: 100, padding: 20 },
-    card:              { backgroundColor: Colors.surface, borderRadius: 20, overflow: 'hidden', width: '100%', maxWidth: 380 },
+    card:              { backgroundColor: Colors.surface, borderRadius: 20, overflow: 'hidden', width: '100%', maxWidth: 380, ...Shadow.lg },
     cardHeader:        { padding: 24, alignItems: 'center' },
     cardHeaderEmoji:   { fontSize: 40, marginBottom: 4 },
     cardHeaderTitle:   { fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 2 },
