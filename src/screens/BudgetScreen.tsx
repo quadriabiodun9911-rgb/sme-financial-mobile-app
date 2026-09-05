@@ -959,6 +959,7 @@ const s = StyleSheet.create({
         flexDirection: 'row', gap: 10, alignItems: 'flex-start',
         backgroundColor: Colors.warning + '18', borderWidth: 1, borderColor: Colors.warning,
         borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.lg,
+        ...Shadow.sm,
     },
     lapsedBannerTitle: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
     lapsedBannerText:  { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
@@ -967,6 +968,7 @@ const s = StyleSheet.create({
         flexDirection: 'row', gap: 10, alignItems: 'flex-start',
         backgroundColor: Colors.expense + '18', borderWidth: 1, borderColor: Colors.expense,
         borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.lg,
+        ...Shadow.sm,
     },
     goalMisalignBannerTitle: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
     goalMisalignBannerText:  { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
@@ -1061,7 +1063,7 @@ const s = StyleSheet.create({
     statusDot:     { width: 8, height: 8, borderRadius: 4, marginRight: Spacing.sm, marginLeft: Spacing.xs },
     td:            { flex: 1, fontSize: 12, textAlign: 'right', color: Colors.textSecondary },
 
-    overCard:      { backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 10, padding: Spacing.md, marginBottom: 10 },
+    overCard:      { backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 10, padding: Spacing.md, marginBottom: 10, ...Shadow.sm },
     overCardTitle: { fontSize: 13, fontWeight: '700', color: Colors.expense, marginBottom: 4 },
     overCardText:  { fontSize: 12, color: Colors.textSecondary },
 
