@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import { computeCashRunway } from '../utils/cashRunway';
 import { computeAgingBuckets, getTaxRatePercent, getMonthlyExpenseAverage } from '../utils/finance';
 import { computeInventoryValue } from '../utils/stockVelocity';
@@ -445,7 +446,7 @@ const s = StyleSheet.create({
     pageTitle: { fontSize: 18, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
     pageSub: { fontSize: 12, color: Colors.textMuted, marginBottom: 16 },
 
-    card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 14 },
+    card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     qLabel: { fontSize: 11, fontWeight: '800', color: Colors.primary, marginBottom: 4 },
     qTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
     qResult: { fontSize: 24, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },

@@ -4,6 +4,7 @@ import {
     Modal, KeyboardAvoidingView, Platform, ScrollView, useWindowDimensions,
 } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import { useApp } from '../contexts/AppContext';
 import { Industry } from '../types';
 import { localDateStr } from '../utils/localDate';
@@ -293,7 +294,7 @@ const styles = StyleSheet.create({
     celebTitle:     { fontSize: 26, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center', marginBottom: 10, lineHeight: 34 },
     celebBigProfit: { fontSize: 48, fontWeight: 'bold', marginBottom: 10 },
     celebSub:       { fontSize: 14, color: Colors.textMuted, textAlign: 'center', lineHeight: 21, marginBottom: 30 },
-    celebStats:     { flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: 14, padding: 18, width: '100%', marginBottom: 30 },
+    celebStats:     { flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: 14, padding: 18, width: '100%', marginBottom: 30, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     celebStat:      { flex: 1, alignItems: 'center' },
     celebStatDiv:   { width: 1, backgroundColor: Colors.border },
     celebStatLabel: { fontSize: 11, color: Colors.textMuted, marginBottom: 4 },
