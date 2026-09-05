@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../../theme/colors';
-import { Radius, Spacing, Type } from '../../theme/tokens';
+import { Radius, Shadow, Spacing, Type } from '../../theme/tokens';
 import Icon, { IconName } from './Icon';
 
 interface StatTileProps {
@@ -39,6 +39,7 @@ const styles = StyleSheet.create({
         borderColor: Colors.border,
         padding: Spacing.lg,
         minWidth: 140,
+        ...Shadow.sm,
     },
     iconBadge: {
         width: 30, height: 30, borderRadius: Radius.sm,
