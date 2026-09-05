@@ -1265,10 +1265,10 @@ const styles = StyleSheet.create({
     redirectTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
     redirectText:  { fontSize: 13, color: Colors.textSecondary, lineHeight: 19, marginBottom: 4 },
 
-    assetTeaserCard:      { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: Colors.border },
+    assetTeaserCard:      { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     assetTeaserHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
     assetTeaserTitle:     { flex: 1, fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
-    assetTeaserBadge:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+    assetTeaserBadge:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.pill },
     assetTeaserBadgeText: { fontSize: 13, fontWeight: '800' },
 
     formalToggleBtn: {
@@ -1369,7 +1369,7 @@ const kpiStyles = StyleSheet.create({
 });
 
 const chartStyles = StyleSheet.create({
-    card:        { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 16 },
+    card:        { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     title:       { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
     empty:       { fontSize: 12, color: Colors.textMuted, textAlign: 'center', marginTop: 8 },
 });
