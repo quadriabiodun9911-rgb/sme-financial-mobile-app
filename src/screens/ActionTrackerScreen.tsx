@@ -287,9 +287,9 @@ export default function ActionTrackerScreen() {
   };
 
   const tabData = {
-    immediate: { actions: actionPlan.immediateActions, icon: '🚨', label: 'Do This Week' },
-    shortterm: { actions: actionPlan.shortTermActions, icon: '📅', label: 'This Month' },
-    strategic: { actions: actionPlan.strategicActions, icon: '🎯', label: 'This Quarter' },
+    immediate: { actions: actionPlan.immediateActions, label: 'Do This Week' },
+    shortterm: { actions: actionPlan.shortTermActions, label: 'This Month' },
+    strategic: { actions: actionPlan.strategicActions, label: 'This Quarter' },
   };
 
   const currentTabData = tabData[activeTab];
@@ -745,6 +745,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
     borderLeftWidth: 3,
     borderLeftColor: Colors.primary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.sm,
   },
   impactBannerTextRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.xs, marginBottom: Spacing.xs },
   impactBannerText: { flex: 1, fontSize: 12, color: Colors.textSecondary },
@@ -794,7 +797,7 @@ const styles = StyleSheet.create({
   actionItemTitleContainer: { flex: 1 },
   actionItemTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
   actionItemMeta: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' },
-  difficultyBadge: { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
+  difficultyBadge: { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.pill, borderWidth: 1 },
   difficultyText: { fontSize: 9, fontWeight: '700' },
   timeframeText: { fontSize: 10, color: Colors.textMuted },
 
@@ -816,7 +819,7 @@ const styles = StyleSheet.create({
   startButton: { backgroundColor: Colors.income, borderRadius: 10, paddingVertical: Spacing.md, alignItems: 'center', marginTop: 4 },
   startButtonText: { fontSize: 13, fontWeight: '700', color: '#fff' },
   btnIconRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-  statusBadge: { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: 6 },
+  statusBadge: { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.pill },
   statusBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   statusBadgeText: { fontSize: 10, fontWeight: '700' },
   trackRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: 4 },
@@ -833,7 +836,7 @@ const styles = StyleSheet.create({
   section: { marginBottom: Spacing.xl },
   sectionTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary },
   metricsToTrack: { flexDirection: 'row', gap: 10 },
-  metricToTrackBox: { flex: 1, backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+  metricToTrackBox: { flex: 1, backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md, alignItems: 'center', borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
   metricToTrackIconWrap: { marginBottom: 6 },
   metricToTrackName: { fontSize: 10, color: Colors.textMuted, fontWeight: '600', marginBottom: 4 },
   metricToTrackValue: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary },
