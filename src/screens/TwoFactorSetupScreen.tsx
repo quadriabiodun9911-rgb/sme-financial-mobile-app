@@ -419,6 +419,7 @@ const styles = StyleSheet.create({
         marginBottom: Spacing.xl,
         borderLeftWidth: 4,
         borderLeftColor: Colors.primary,
+        ...Shadow.sm,
     },
     benefitTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
     benefitTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary },
@@ -434,6 +435,7 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start',
         borderWidth: 1,
         borderColor: Colors.border,
+        ...Shadow.sm,
     },
     stepNumber: {
         fontSize: 18,
