@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'rea
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import Icon from '../components/ui/Icon';
 import { getWorkspaceOwnerId, loadTransactions } from '../utils/storage';
 import { claimIncomingPayments } from '../utils/incomingPayments';
 import { loadPendingPayment, clearPendingPayment, PendingPayment } from '../utils/pendingPayment';
@@ -153,21 +154,21 @@ export default function PaymentCompleteScreen() {
                 )}
                 {phase === 'failed' && (
                     <>
-                        <Text style={styles.icon}>✕</Text>
+                        <Icon name="x-circle" size={40} color={Colors.expense} />
                         <Text style={styles.title}>Payment not completed</Text>
                         <Text style={styles.subtitle}>The checkout was cancelled or didn’t go through. No charge was made.</Text>
                     </>
                 )}
                 {phase === 'recorded' && (
                     <>
-                        <Text style={styles.icon}>✓</Text>
+                        <Icon name="check-circle" size={40} color={Colors.income} />
                         <Text style={styles.title}>Payment successful</Text>
                         <Text style={styles.subtitle}>It’s been recorded — taking you to Transactions…</Text>
                     </>
                 )}
                 {phase === 'manual' && (
                     <>
-                        <Text style={styles.icon}>⏳</Text>
+                        <Icon name="clock" size={40} color={Colors.warning} />
                         <Text style={styles.title}>Still confirming your payment</Text>
                         <Text style={styles.subtitle}>
                             {pending
@@ -200,7 +201,6 @@ const styles = StyleSheet.create({
         width: '100%', maxWidth: 360, backgroundColor: Colors.card, borderRadius: Radius.lg,
         padding: Spacing.xl, alignItems: 'center', gap: 8, ...Shadow.md,
     },
-    icon: { fontSize: 40, color: Colors.primary, marginBottom: 4 },
     title: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, textAlign: 'center' },
     subtitle: { fontSize: 14, color: Colors.textMuted, textAlign: 'center', marginBottom: 8 },
     button: { marginTop: 12, backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 12, paddingHorizontal: 24 },
