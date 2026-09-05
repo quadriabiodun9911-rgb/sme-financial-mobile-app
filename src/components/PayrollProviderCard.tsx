@@ -1,14 +1,20 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
+import Icon from './ui/Icon';
+import { Radius } from '../theme/tokens';
 import { AVAILABLE_PAYROLL_PROVIDERS, getPayrollProvider } from '../utils/payrollProvider';
 
 interface Props {
     providerId: string;
     onChangeProvider: (id: string) => void;
+    autoRunEnabled: boolean;
+    autoRunRate: string;
+    onChangeAutoRunEnabled: (v: boolean) => void;
+    onChangeAutoRunRate: (v: string) => void;
 }
 
-export default function PayrollProviderCard({ providerId, onChangeProvider }: Props) {
+export default function PayrollProviderCard({ providerId, onChangeProvider, autoRunEnabled, autoRunRate, onChangeAutoRunEnabled, onChangeAutoRunRate }: Props) {
     const [expanded, setExpanded] = useState(false);
     const active = getPayrollProvider(providerId);
 
@@ -31,6 +37,36 @@ export default function PayrollProviderCard({ providerId, onChangeProvider }: Pr
                 <Text style={[s.hint, { color: Colors.warning }]}>
                     ⚠ {active.info.name} is selected but not connected — payroll runs are still tracked manually until this is set up with real API credentials.
                 </Text>
+            )}
+
+            {/* Auto-run only applies to the record-keeping-only Manual
+                provider — a real provider (once actually implemented) would
+                have its own scheduling on the processor's side. */}
+            {!active.info.isReal && (
+                <>
+                    <TouchableOpacity style={s.autoRunRow} onPress={() => onChangeAutoRunEnabled(!autoRunEnabled)} activeOpacity={0.7}>
+                        <View style={[s.checkbox, autoRunEnabled && s.checkboxChecked]}>
+                            {autoRunEnabled && <Icon name="check" size={12} color="#fff" />}
+                        </View>
+                        <Text style={s.autoRunLabel}>Automatically run payroll each month</Text>
+                    </TouchableOpacity>
+                    {autoRunEnabled && (
+                        <View style={s.autoRunRateRow}>
+                            <Text style={s.autoRunRateLabel}>Deduction rate for automatic runs (%)</Text>
+                            <TextInput
+                                style={s.autoRunRateInput}
+                                value={autoRunRate}
+                                onChangeText={onChangeAutoRunRate}
+                                keyboardType="decimal-pad"
+                                placeholder="0"
+                                placeholderTextColor={Colors.textMuted}
+                            />
+                        </View>
+                    )}
+                    <Text style={s.autoRunNote}>
+                        Still just a record — no real money moves. When on, Quad360 creates the payroll run (and its expense) for whichever month is due on its own, instead of waiting for you to tap "Run Payroll".
+                    </Text>
+                </>
             )}
 
             {expanded && (
@@ -78,4 +114,17 @@ const s = StyleSheet.create({
     optionName: { fontSize: 12.5, fontWeight: '600', color: Colors.textPrimary, marginBottom: 2 },
     optionDesc: { fontSize: 11, color: Colors.textMuted, lineHeight: 15 },
     check: { fontSize: 14, color: Colors.primary, fontWeight: 'bold' },
+
+    autoRunRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+    checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
+    checkboxChecked: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    autoRunLabel: { fontSize: 12.5, fontWeight: '600', color: Colors.textPrimary },
+    autoRunRateRow: { marginTop: 8 },
+    autoRunRateLabel: { fontSize: 11, color: Colors.textSecondary, marginBottom: 4 },
+    autoRunRateInput: {
+        backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border,
+        borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 7,
+        color: Colors.textPrimary, fontSize: 13, width: 90,
+    },
+    autoRunNote: { fontSize: 10.5, color: Colors.textMuted, marginTop: 8, lineHeight: 14, fontStyle: 'italic' },
 });
