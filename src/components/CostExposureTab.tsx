@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import { computeCostExposure, CostCategorySignal, ExposureBand } from '../utils/costExposure';
 import { computeCostDecisions, CostDecisionAction } from '../utils/costDecisions';
 import { computeCostExposureForecast } from '../utils/costExposureForecast';
@@ -427,15 +428,15 @@ function SignalRow({ signal }: { signal: CostCategorySignal }) {
 const s = StyleSheet.create({
     subtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: 16, lineHeight: 17 },
 
-    emptyState: { alignItems: 'center', padding: 32, backgroundColor: Colors.surface, borderRadius: 14 },
+    emptyState: { alignItems: 'center', padding: 32, backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     emptyTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
     emptySub: { fontSize: 12, color: Colors.textMuted, textAlign: 'center' },
 
-    scoreCard: { backgroundColor: Colors.surface, borderRadius: 14, borderTopWidth: 4, padding: 20, marginBottom: 14, alignItems: 'center' },
+    scoreCard: { backgroundColor: Colors.surface, borderRadius: 14, borderTopWidth: 4, padding: 20, marginBottom: 14, alignItems: 'center', ...Shadow.sm },
     scoreLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: 10 },
     verdict: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, marginTop: 12 },
 
-    impactCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: Colors.warning },
+    impactCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: Colors.warning, ...Shadow.sm },
     impactText: { fontSize: 13, color: Colors.textSecondary, lineHeight: 20, marginBottom: 10 },
     impactBold: { fontWeight: '800', color: Colors.textPrimary },
     impactLink: { fontSize: 12.5, color: Colors.primary, fontWeight: '700', marginTop: 10 },
@@ -447,15 +448,15 @@ const s = StyleSheet.create({
     driverBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
     driverBadgeText: { fontSize: 10, fontWeight: '700' },
 
-    flagsCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: Colors.expense },
+    flagsCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: Colors.expense, ...Shadow.sm },
     flagRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
     flagBullet: { fontSize: 12, color: Colors.textMuted },
     flagText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
-    card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14 },
+    card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
 
-    externalCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.warning },
+    externalCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.warning, ...Shadow.sm },
     externalTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
     externalText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 19, marginBottom: 8 },
     externalSubhead: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', marginTop: 6, marginBottom: 8 },
