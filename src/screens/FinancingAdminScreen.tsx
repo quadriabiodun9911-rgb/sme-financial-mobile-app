@@ -375,11 +375,11 @@ const s = StyleSheet.create({
     inviteCodeLabel: { fontSize: 11, color: Colors.textSecondary, marginBottom: 4 },
     inviteCodeText: { fontSize: 16, fontWeight: '700', color: Colors.primary, letterSpacing: 1 },
 
-    card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.border },
+    card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
     cardTitle: { fontSize: 14.5, fontWeight: '700', color: Colors.textPrimary },
     cardSub: { fontSize: 11.5, color: Colors.textMuted, marginTop: 2 },
-    statusBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+    statusBadge: { borderRadius: Radius.pill, paddingHorizontal: 8, paddingVertical: 3 },
     statusBadgeText: { fontSize: 10, fontWeight: '700' },
     cardMeta: { fontSize: 11.5, color: Colors.textSecondary, marginBottom: 10 },
     cardActions: { flexDirection: 'row', gap: 8 },
