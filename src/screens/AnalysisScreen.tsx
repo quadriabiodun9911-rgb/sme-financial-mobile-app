@@ -273,7 +273,7 @@ function CombineForm({ onRun, currency }: { onRun: (r: CombinedScenarioResult) =
 
             {/* Revenue / price lever */}
             <TouchableOpacity style={s.leverToggle} onPress={() => setRevenueOn(v => !v)}>
-                <Text style={s.leverCheck}>{revenueOn ? '☑' : '☐'}</Text>
+                <Icon name={revenueOn ? 'check-square' : 'square'} size={16} color={Colors.primary} />
                 <Icon name="trending-up" size={14} color={Colors.textPrimary} />
                 <Text style={s.leverLabel}>Change Revenue / Prices (%)</Text>
             </TouchableOpacity>
@@ -283,7 +283,7 @@ function CombineForm({ onRun, currency }: { onRun: (r: CombinedScenarioResult) =
 
             {/* Cost lever (covers salary cuts, new hires, any cost change) */}
             <TouchableOpacity style={s.leverToggle} onPress={() => setCostOn(v => !v)}>
-                <Text style={s.leverCheck}>{costOn ? '☑' : '☐'}</Text>
+                <Icon name={costOn ? 'check-square' : 'square'} size={16} color={Colors.primary} />
                 <Icon name="scissors" size={14} color={Colors.textPrimary} />
                 <Text style={s.leverLabel}>Change a Cost (e.g. salary)</Text>
             </TouchableOpacity>
@@ -296,7 +296,7 @@ function CombineForm({ onRun, currency }: { onRun: (r: CombinedScenarioResult) =
 
             {/* Loan lever */}
             <TouchableOpacity style={s.leverToggle} onPress={() => setLoanOn(v => !v)}>
-                <Text style={s.leverCheck}>{loanOn ? '☑' : '☐'}</Text>
+                <Icon name={loanOn ? 'check-square' : 'square'} size={16} color={Colors.primary} />
                 <Icon name="briefcase" size={14} color={Colors.textPrimary} />
                 <Text style={s.leverLabel}>Take a Loan</Text>
             </TouchableOpacity>
@@ -910,7 +910,6 @@ const s = StyleSheet.create({
 
     combineHint:   { fontSize: 12, color: Colors.textMuted, marginBottom: Spacing.md, lineHeight: 18 },
     leverToggle:   { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 10, marginTop: 6 },
-    leverCheck:    { fontSize: 16, color: Colors.primary },
     leverLabel:    { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
 
     breakdownBox:    { backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: Spacing.md, marginBottom: 14 },
