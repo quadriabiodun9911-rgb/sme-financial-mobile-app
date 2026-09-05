@@ -1556,7 +1556,7 @@ const styles = StyleSheet.create({
     sectionTitle:   { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary },
     sectionBody:    { marginTop: Spacing.md },
 
-    accessCard:      { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.border },
+    accessCard:      { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     accessCardTitle: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary },
     accessCardBody:  { fontSize: 12, color: Colors.textMuted, lineHeight: 18, marginTop: Spacing.xs },
 
@@ -1605,7 +1605,7 @@ const styles = StyleSheet.create({
     memberRow:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
     memberEmail: { fontSize: 13, color: Colors.textPrimary, marginBottom: Spacing.xs },
     memberMeta:  { flexDirection: 'row', gap: 6 },
-    roleBadge:   { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+    roleBadge:   { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.pill },
     roleText:    { fontSize: 10, fontWeight: 'bold' },
 
     codeBox:  { backgroundColor: Colors.bg, borderRadius: 10, padding: Spacing.xl, alignItems: 'center', marginVertical: Spacing.md },
