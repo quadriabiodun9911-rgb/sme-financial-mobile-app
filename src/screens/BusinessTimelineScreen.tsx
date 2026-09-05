@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, ScrollView, View, Text, StyleSheet } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
-import { Radius, Spacing } from '../theme/tokens';
+import { Radius, Spacing, Shadow } from '../theme/tokens';
 import Icon, { IconName } from '../components/ui/Icon';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
@@ -163,11 +163,11 @@ const styles = StyleSheet.create({
     subtitle: { fontSize: 13, color: Colors.textMuted, lineHeight: 19, marginBottom: Spacing.lg },
     outcomesCard: {
         backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.lg,
-        borderWidth: 1, borderColor: Colors.border,
+        borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
     },
     outcomesTitle: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary, marginBottom: Spacing.sm },
     outcomeLine: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 19, marginBottom: 3 },
-    emptyCard: { alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.xl, gap: 8 },
+    emptyCard: { alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.xl, gap: 8, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     emptyTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary },
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' },
 
@@ -176,6 +176,7 @@ const styles = StyleSheet.create({
     row: {
         flexDirection: 'row', alignItems: 'flex-start', backgroundColor: Colors.surface,
         borderRadius: Radius.md, padding: Spacing.md, marginBottom: 8, gap: 10,
+        borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
     },
     iconWrap: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
     rowTitle: { fontSize: 13.5, color: Colors.textPrimary, fontWeight: '700' },
