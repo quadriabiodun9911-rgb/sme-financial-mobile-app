@@ -1053,7 +1053,7 @@ const styles = StyleSheet.create({
     card:       { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTop:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs },
     invNum:     { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary },
-    badge:      { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+    badge:      { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.pill },
     badgeText:  { fontSize: 10, fontWeight: 'bold' },
     client:     { fontSize: 13, color: Colors.textSecondary, marginBottom: Spacing.sm },
     cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
