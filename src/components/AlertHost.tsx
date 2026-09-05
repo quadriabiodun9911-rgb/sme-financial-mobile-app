@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 
 export type WebAlertButton = { text: string; onPress?: () => void; style?: 'default' | 'cancel' | 'destructive' };
 export type WebAlertRequest = { title: string; message?: string; buttons: WebAlertButton[] };
@@ -74,7 +75,7 @@ export default function AlertHost() {
 
 const styles = StyleSheet.create({
     backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-    card: { backgroundColor: Colors.card, borderRadius: 14, padding: 20, width: '100%', maxWidth: 360, borderWidth: 1, borderColor: Colors.border },
+    card: { backgroundColor: Colors.card, borderRadius: 14, padding: 20, width: '100%', maxWidth: 360, borderWidth: 1, borderColor: Colors.border, ...Shadow.lg },
     title: { fontSize: 17, fontWeight: '700', color: Colors.text, marginBottom: 8 },
     message: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20, marginBottom: 20 },
     buttonRow: { flexDirection: 'row', justifyContent: 'flex-end' },

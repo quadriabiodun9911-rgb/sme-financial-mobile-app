@@ -345,6 +345,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.sm,
   },
   statLabel: {
     fontSize: 10,
@@ -388,6 +391,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderLeftWidth: 4,
     alignItems: 'flex-start',
+    ...Shadow.sm,
   },
   alertContent: {
     flex: 1,
