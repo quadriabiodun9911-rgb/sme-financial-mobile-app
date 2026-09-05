@@ -375,7 +375,9 @@ export default function PayrollScreen() {
                         )}
                         {payrollRuns.length === 0 && (
                             <View style={styles.empty}>
-                                <Text style={styles.emptyIcon}>📋</Text>
+                                <View style={styles.emptyIconWrap}>
+                                    <Icon name="clipboard" size={34} color={Colors.textMuted} />
+                                </View>
                                 <Text style={styles.emptyText}>No payroll runs yet</Text>
                                 <Text style={styles.emptySubtext}>Run your first payroll from the Run tab</Text>
                             </View>
@@ -392,7 +394,7 @@ export default function PayrollScreen() {
                                             <Text style={[styles.runStatusText, { color: run.status === 'paid' ? Colors.income : Colors.warning }]}>{run.status.toUpperCase()}</Text>
                                         </View>
                                         <TouchableOpacity onPress={() => confirmAction('Delete Run', `Delete payroll run for ${run.period}?`, 'Delete', () => deletePayrollRun(run.id))} activeOpacity={0.7}>
-                                            <Text style={styles.deleteIcon}>🗑️</Text>
+                                            <Icon name="trash-2" size={15} color={Colors.expense} />
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -502,7 +504,7 @@ const styles = StyleSheet.create({
     tabText:   { fontSize: 13, color: Colors.textMuted, fontWeight: '600' },
     tabTextActive: { color: Colors.primary, fontWeight: '800' },
 
-    summaryRow: { flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, marginBottom: 16, overflow: 'hidden' },
+    summaryRow: { flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, marginBottom: 16, overflow: 'hidden', ...Shadow.sm },
     summaryBox: { flex: 1, alignItems: 'center', paddingVertical: 16 },
     summaryValue: { fontSize: 18, fontWeight: '800', color: Colors.textPrimary },
     summaryLabel: { fontSize: 11, color: Colors.textMuted, marginTop: 3 },
@@ -512,11 +514,10 @@ const styles = StyleSheet.create({
 
     empty: { alignItems: 'center', paddingVertical: 48 },
     emptyIconWrap: { width: 64, height: 64, borderRadius: Radius.pill, backgroundColor: Colors.surfaceVariant, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-    emptyIcon: { fontSize: 40, marginBottom: 12 },
     emptyText: { fontSize: 16, fontWeight: '700', color: Colors.textSecondary },
     emptySubtext: { fontSize: 13, color: Colors.textMuted, marginTop: 4 },
 
-    staffCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: 14, marginBottom: 10, gap: 12 },
+    staffCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: 14, marginBottom: 10, gap: 12, ...Shadow.sm },
     staffAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary + '22', justifyContent: 'center', alignItems: 'center' },
     staffAvatarText: { fontSize: 14, fontWeight: '800', color: Colors.primary },
     staffInfo: { flex: 1 },
@@ -527,7 +528,7 @@ const styles = StyleSheet.create({
     iconBtn: { padding: 6 },
     iconBtnText: { fontSize: 16 },
 
-    card: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: 16, marginBottom: 14 },
+    card: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: 16, marginBottom: 14, ...Shadow.sm },
     cardTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
     cardSubtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: 10 },
     input: { backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: Colors.textPrimary },
@@ -547,7 +548,7 @@ const styles = StyleSheet.create({
     runBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
     noStaffNote: { textAlign: 'center', fontSize: 12, color: Colors.textMuted, marginTop: 8 },
 
-    activityCard: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: 16, marginBottom: 16 },
+    activityCard: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: 16, marginBottom: 16, ...Shadow.sm },
     activityTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
     activityDescription: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginBottom: 10 },
     activityRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderTopWidth: 1, borderTopColor: Colors.border, gap: 8 },
@@ -557,14 +558,13 @@ const styles = StyleSheet.create({
     activityMore: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 6 },
     linkAction: { fontSize: 11.5, color: Colors.primary, fontWeight: '700' },
 
-    runCard: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: 16, marginBottom: 12 },
+    runCard: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: 16, marginBottom: 12, ...Shadow.sm },
     runCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
     runPeriod: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary },
     runDate: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
     runRight: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-    runStatus: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+    runStatus: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: Radius.pill },
     runStatusText: { fontSize: 11, fontWeight: '800' },
-    deleteIcon: { fontSize: 16 },
     runStats: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 12 },
     runStat: { flex: 1, alignItems: 'center' },
     runStatValue: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
@@ -591,6 +591,7 @@ const styles = StyleSheet.create({
         marginHorizontal: Spacing.lg, marginTop: Spacing.sm, padding: Spacing.md,
         borderRadius: Radius.md, borderWidth: 1,
         backgroundColor: 'rgba(245,158,11,0.1)', borderColor: Colors.warning,
+        ...Shadow.sm,
     },
     reminderBannerOverdue: { backgroundColor: 'rgba(239,68,68,0.1)', borderColor: Colors.expense },
     reminderBannerText: { flex: 1, fontSize: 12.5, color: Colors.textPrimary, fontWeight: '600' },
