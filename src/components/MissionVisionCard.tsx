@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 
 interface Props {
     missionStatement?: string;
@@ -76,6 +77,7 @@ const s = StyleSheet.create({
         borderColor: Colors.primary + '55',
         padding: 12,
         marginBottom: 12,
+        ...Shadow.sm,
     },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
     headerLabel: { fontSize: 10.5, fontWeight: '700', color: Colors.primary, letterSpacing: 0.5 },
@@ -97,6 +99,7 @@ const s = StyleSheet.create({
         borderStyle: 'dashed',
         padding: 12,
         marginBottom: 12,
+        ...Shadow.sm,
     },
     emptyIcon: { fontSize: 20 },
     emptyTitle: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },

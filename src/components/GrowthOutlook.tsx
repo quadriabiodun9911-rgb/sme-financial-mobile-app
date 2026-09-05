@@ -464,7 +464,7 @@ const s = StyleSheet.create({
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' },
 
     kpiRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-    kpiCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 12 },
+    kpiCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     kpiLabel: { fontSize: 11, color: Colors.textSecondary, marginBottom: 6 },
     kpiValue: { fontSize: 16, fontWeight: 'bold' },
 
@@ -472,7 +472,7 @@ const s = StyleSheet.create({
     cardTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
     cardSub: { fontSize: 11, color: Colors.textSecondary, marginBottom: 8 },
 
-    trendCard: { backgroundColor: Colors.surface, borderRadius: 10, padding: 12, borderLeftWidth: 4, marginBottom: 12 },
+    trendCard: { backgroundColor: Colors.surface, borderRadius: 10, padding: 12, borderLeftWidth: 4, marginBottom: 12, ...Shadow.sm },
     trendLabel: { fontSize: 13, fontWeight: 'bold', marginBottom: 4 },
     trendDescription: { fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
 

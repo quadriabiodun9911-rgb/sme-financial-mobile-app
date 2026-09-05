@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { generateSwot } from '../utils/swot';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import { SwotItem } from '../types';
 
 const QUADRANTS = [
@@ -140,6 +141,7 @@ const styles = StyleSheet.create({
         padding: 16,
         marginBottom: 14,
         alignItems: 'center',
+        ...Shadow.sm,
     },
     headerTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 6 },
     headerSub: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 18, marginBottom: 6 },
@@ -152,6 +154,7 @@ const styles = StyleSheet.create({
         padding: 14,
         alignItems: 'center',
         borderWidth: 1,
+        ...Shadow.sm,
     },
     gridIcon: { fontSize: 22, marginBottom: 4 },
     gridLabel: { fontSize: 13, fontWeight: 'bold', marginBottom: 2 },
@@ -164,6 +167,7 @@ const styles = StyleSheet.create({
         marginBottom: 14,
         borderTopWidth: 3,
         borderWidth: 1,
+        ...Shadow.sm,
     },
     quadrantHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
     quadrantIcon: { fontSize: 24 },
@@ -184,7 +188,7 @@ const styles = StyleSheet.create({
     },
     metricText: { fontSize: 11, fontWeight: '600' },
 
-    guideCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 16 },
+    guideCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 16, ...Shadow.sm },
     guideTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
     guideDisclaimer: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 8, lineHeight: 16 },
 });

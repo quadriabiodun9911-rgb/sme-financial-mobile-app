@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import { Transaction } from '../types';
 import { localDateStr } from '../utils/localDate';
 
@@ -302,6 +303,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(245,158,11,0.1)', borderWidth: 1,
         borderColor: Colors.warning, borderRadius: 10,
         paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10,
+        ...Shadow.sm,
     },
     streakFire:    { fontSize: 22 },
     streakText:    { fontSize: 13, fontWeight: '700', color: Colors.warning },
@@ -314,6 +316,7 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.surface, borderWidth: 1,
         borderColor: Colors.border, borderRadius: 10,
         paddingHorizontal: 12, paddingVertical: 12, marginBottom: 10,
+        ...Shadow.sm,
     },
     inactivityIcon:  { fontSize: 20 },
     inactivityTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
@@ -323,6 +326,7 @@ const styles = StyleSheet.create({
     weekCard: {
         backgroundColor: Colors.surface, borderRadius: 10,
         borderWidth: 1, padding: 14, marginBottom: 10,
+        ...Shadow.sm,
     },
     weekTitle:     { fontSize: 11, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
     weekAmount:    { fontSize: 24, fontWeight: 'bold', marginBottom: 6 },
@@ -338,6 +342,7 @@ const styles = StyleSheet.create({
     milestoneCard: {
         backgroundColor: Colors.surface, borderRadius: 20,
         padding: 28, alignItems: 'center', width: '100%', maxWidth: 340,
+        ...Shadow.lg,
     },
     milestoneEmoji:       { fontSize: 56, marginBottom: 12 },
     milestoneTitle:       { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center', marginBottom: 10 },
