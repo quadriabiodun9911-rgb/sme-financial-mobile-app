@@ -15,11 +15,11 @@ interface Props {
     trend?: string | null;
 }
 
-const CONFIG: Record<DataConfidence, { emoji: string; label: string; color: string }> = {
-    none:    { emoji: '⚪', label: 'No data yet', color: Colors.textMuted },
-    limited: { emoji: '🔴', label: 'Limited data', color: Colors.expense },
-    partial: { emoji: '🟡', label: 'Partial data', color: Colors.warning },
-    strong:  { emoji: '🟢', label: 'Strong data', color: Colors.income },
+const CONFIG: Record<DataConfidence, { label: string; color: string }> = {
+    none:    { label: 'No data yet', color: Colors.textMuted },
+    limited: { label: 'Limited data', color: Colors.expense },
+    partial: { label: 'Partial data', color: Colors.warning },
+    strong:  { label: 'Strong data', color: Colors.income },
 };
 
 // Moniepoint's case study names this directly: their credit assessment
@@ -35,7 +35,7 @@ export default function DataConfidenceBadge({ transactions, trend }: Props) {
 
     return (
         <View style={[s.badge, { borderColor: cfg.color }]}>
-            <Text style={s.emoji}>{cfg.emoji}</Text>
+            <View style={[s.dot, { backgroundColor: cfg.color }]} />
             <View style={{ flex: 1 }}>
                 <Text style={[s.label, { color: cfg.color }]}>{cfg.label}</Text>
                 {bullets.map((b, i) => (
@@ -52,7 +52,7 @@ export default function DataConfidenceBadge({ transactions, trend }: Props) {
 
 const s = StyleSheet.create({
     badge: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, marginBottom: 12 },
-    emoji: { fontSize: 14, marginTop: 1 },
+    dot: { width: 9, height: 9, borderRadius: 5, marginTop: 4 },
     label: { fontSize: 11.5, fontWeight: '800', marginBottom: 2 },
     bulletRow: { flexDirection: 'row', gap: 5 },
     bulletDot: { fontSize: 10.5, color: Colors.textMuted, lineHeight: 15 },

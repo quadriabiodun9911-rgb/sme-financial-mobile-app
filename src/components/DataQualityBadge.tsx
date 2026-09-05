@@ -1,14 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle, StyleProp } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import { computeDataQuality, computeDataConfidenceBullets, DataConfidence } from '../utils/dataQuality';
 import { Transaction } from '../types';
 
-const CONFIDENCE_META: Record<DataConfidence, { label: string; color: string; icon: string }> = {
-    none:    { label: 'No data yet',     color: Colors.textMuted, icon: '○' },
-    limited: { label: 'Limited data',    color: Colors.expense,   icon: '⚠' },
-    partial: { label: 'Partial history', color: Colors.warning,   icon: '◐' },
-    strong:  { label: 'Strong history',  color: Colors.income,    icon: '●' },
+const CONFIDENCE_META: Record<DataConfidence, { label: string; color: string }> = {
+    none:    { label: 'No data yet',     color: Colors.textMuted },
+    limited: { label: 'Limited data',    color: Colors.expense },
+    partial: { label: 'Partial history', color: Colors.warning },
+    strong:  { label: 'Strong history',  color: Colors.income },
 };
 
 interface Props {
@@ -27,7 +28,7 @@ export default function DataQualityBadge({ transactions, style }: Props) {
     return (
         <TouchableOpacity style={[s.badge, { borderColor: meta.color + '55' }, style]} onPress={() => setExpanded(v => !v)} activeOpacity={0.7}>
             <View style={s.row}>
-                <Text style={[s.icon, { color: meta.color }]}>{meta.icon}</Text>
+                <View style={[s.dot, { backgroundColor: meta.color }]} />
                 <Text style={[s.label, { color: meta.color }]}>{meta.label}</Text>
                 <Text style={s.summary} numberOfLines={expanded ? undefined : 1}>{quality.summary}</Text>
                 <Text style={s.chevron}>{expanded ? '︿' : '﹀'}</Text>
@@ -61,9 +62,10 @@ const s = StyleSheet.create({
         marginHorizontal: 12,
         marginTop: 8,
         marginBottom: 4,
+        ...Shadow.sm,
     },
     row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    icon: { fontSize: 12, fontWeight: 'bold' },
+    dot: { width: 8, height: 8, borderRadius: 4 },
     label: { fontSize: 11.5, fontWeight: '700' },
     summary: { flex: 1, fontSize: 11, color: Colors.textMuted },
     chevron: { fontSize: 10, color: Colors.textMuted },

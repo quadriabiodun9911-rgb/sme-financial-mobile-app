@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import Icon from './ui/Icon';
-import { Radius } from '../theme/tokens';
+import { Radius, Shadow } from '../theme/tokens';
 import { AVAILABLE_PAYROLL_PROVIDERS, getPayrollProvider } from '../utils/payrollProvider';
 
 interface Props {
@@ -81,7 +81,7 @@ export default function PayrollProviderCard({ providerId, onChangeProvider, auto
                                 <Text style={s.optionName}>{p.name}{!p.isReal ? '' : ' (requires partner account)'}</Text>
                                 <Text style={s.optionDesc}>{p.description}</Text>
                             </View>
-                            {p.id === providerId && <Text style={s.check}>✓</Text>}
+                            {p.id === providerId && <Icon name="check" size={16} color={Colors.primary} />}
                         </TouchableOpacity>
                     ))}
                 </View>
@@ -99,6 +99,7 @@ const s = StyleSheet.create({
         marginHorizontal: 16,
         marginTop: 10,
         padding: 12,
+        ...Shadow.sm,
     },
     header: { flexDirection: 'row', alignItems: 'center' },
     label: { fontSize: 11, color: Colors.textMuted, marginBottom: 2 },
@@ -113,7 +114,6 @@ const s = StyleSheet.create({
     optionActive: { borderWidth: 1, borderColor: Colors.primary },
     optionName: { fontSize: 12.5, fontWeight: '600', color: Colors.textPrimary, marginBottom: 2 },
     optionDesc: { fontSize: 11, color: Colors.textMuted, lineHeight: 15 },
-    check: { fontSize: 14, color: Colors.primary, fontWeight: 'bold' },
 
     autoRunRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
     checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },

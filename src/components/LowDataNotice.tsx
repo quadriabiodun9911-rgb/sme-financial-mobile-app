@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 
 const MIN_TRANSACTIONS_FOR_RELIABLE_METRICS = 5;
 
@@ -34,6 +35,7 @@ const s = StyleSheet.create({
         borderRadius: 10,
         padding: 12,
         marginBottom: 16,
+        ...Shadow.sm,
     },
     text: { color: Colors.textPrimary, fontSize: 12, lineHeight: 18 },
 });
