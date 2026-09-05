@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
     title: { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary },
     subtitle: { fontSize: 13, color: Colors.textMuted, lineHeight: 19, marginBottom: Spacing.lg },
-    emptyCard: { alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.xl, gap: 8 },
+    emptyCard: { alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.xl, gap: 8, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     emptyTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary },
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' },
 
