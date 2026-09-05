@@ -1227,7 +1227,7 @@ const s = StyleSheet.create({
     },
 
     summaryRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: 14 },
-    strategyCard: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: 14, borderLeftWidth: 3, borderLeftColor: Colors.primary },
+    strategyCard: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: 14, borderLeftWidth: 3, borderLeftColor: Colors.primary, ...Shadow.sm },
     strategyTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginBottom: 6 },
     strategyTitle: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary },
     strategyRecommendation: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginBottom: 12 },
@@ -1256,7 +1256,7 @@ const s = StyleSheet.create({
     shockChipTextActive: { color: '#fff' },
     shockInput: { backgroundColor: Colors.bg, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, padding: 12, color: Colors.textPrimary, marginBottom: 10, fontSize: 13 },
 
-    summaryCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: Spacing.md, alignItems: 'center' },
+    summaryCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: Spacing.md, alignItems: 'center', borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     summaryLabel: { fontSize: 10, color: Colors.textMuted, marginBottom: 3, textAlign: 'center' },
     summaryValue: { fontSize: 14, fontWeight: '700' },
 
