@@ -382,6 +382,9 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.surface,
         borderRadius: 10,
         padding: 12,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        ...Shadow.sm,
     },
     bestProductsCard: {
         backgroundColor: Colors.surface,

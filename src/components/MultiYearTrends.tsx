@@ -254,14 +254,14 @@ export default function MultiYearTrends() {
 const s = StyleSheet.create({
     subtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: 16, lineHeight: 17 },
 
-    emptyState: { alignItems: 'center', padding: 32, backgroundColor: Colors.surface, borderRadius: 14 },
+    emptyState: { alignItems: 'center', padding: 32, backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     emptyTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
     emptySub:   { fontSize: 12, color: Colors.textMuted, textAlign: 'center', marginBottom: 16 },
     emptyBtn:   { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 24 },
     emptyBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
     statsRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-    statBox:  { flex: 1, backgroundColor: Colors.surface, borderRadius: 12, padding: 12, alignItems: 'center' },
+    statBox:  { flex: 1, backgroundColor: Colors.surface, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     statVal:  { fontSize: 18, fontWeight: '800', color: Colors.textPrimary },
     statLabel: { fontSize: 10, color: Colors.textMuted, marginTop: 4, textAlign: 'center' },
 

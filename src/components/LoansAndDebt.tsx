@@ -364,7 +364,7 @@ function ActionStep({ num, title, desc }: { num: number; title: string; desc: st
 }
 
 const summaryStyles = StyleSheet.create({
-    card: { flex: 1, backgroundColor: Colors.bg, borderRadius: 10, padding: 10, alignItems: 'center' },
+    card: { flex: 1, backgroundColor: Colors.bg, borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     label: { fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginBottom: 4 },
     value: { fontSize: 13, fontWeight: 'bold', textAlign: 'center' },
 });
@@ -396,7 +396,7 @@ const s = StyleSheet.create({
     cardTitle: { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
     disclaimer: { fontSize: 10, color: Colors.textMuted, marginTop: 2, fontStyle: 'italic', lineHeight: 15 },
 
-    healthCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 2, flexDirection: 'row', alignItems: 'center', gap: 16 },
+    healthCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 2, flexDirection: 'row', alignItems: 'center', gap: 16, ...Shadow.sm },
     healthLabel: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
     healthStatus: { fontSize: 13, fontWeight: '600' },
 

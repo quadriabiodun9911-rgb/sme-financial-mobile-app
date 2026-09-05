@@ -137,11 +137,11 @@ function SignalRow({ signal, currency }: { signal: GrowthSignal; currency: strin
 const s = StyleSheet.create({
     subtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: 16, lineHeight: 17 },
 
-    emptyState: { alignItems: 'center', padding: 32, backgroundColor: Colors.surface, borderRadius: 14 },
+    emptyState: { alignItems: 'center', padding: 32, backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     emptyTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
     emptySub: { fontSize: 12, color: Colors.textMuted, textAlign: 'center' },
 
-    scoreCard: { backgroundColor: Colors.surface, borderRadius: 14, borderTopWidth: 4, padding: 20, marginBottom: 14, alignItems: 'center' },
+    scoreCard: { backgroundColor: Colors.surface, borderRadius: 14, borderTopWidth: 4, padding: 20, marginBottom: 14, alignItems: 'center', ...Shadow.sm },
     scoreLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: 10 },
     verdict: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, marginTop: 12 },
 
@@ -152,7 +152,7 @@ const s = StyleSheet.create({
     whyText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, textAlign: 'left' },
     whyBullet: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, marginTop: 2, textAlign: 'left' },
 
-    flagsCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: Colors.expense },
+    flagsCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: Colors.expense, ...Shadow.sm },
     flagRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
     flagBullet: { fontSize: 12, color: Colors.textMuted },
     flagText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
