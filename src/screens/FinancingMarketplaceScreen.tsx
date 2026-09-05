@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, TextInput, Animated, Easing } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
-import { Spacing, Radius } from '../theme/tokens';
+import { Spacing, Radius, Shadow } from '../theme/tokens';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import Icon, { IconName } from '../components/ui/Icon';
@@ -124,11 +124,13 @@ function fmtAmt(currency: string, n: number): string {
 }
 
 function CriterionRow({ label, status, businessValue, required, note }: { label: string; status: 'met' | 'unmet' | 'unknown'; businessValue: string; required: string; note?: string }) {
-    const icon = status === 'met' ? '✓' : status === 'unmet' ? '⚠' : '?';
+    const iconName = status === 'met' ? 'check' : status === 'unmet' ? 'alert-triangle' : 'help-circle';
     const color = status === 'met' ? Colors.income : status === 'unmet' ? Colors.expense : Colors.textMuted;
     return (
         <View style={s.criterionRow}>
-            <Text style={[s.criterionIcon, { color }]}>{icon}</Text>
+            <View style={s.criterionIcon}>
+                <Icon name={iconName} size={14} color={color} />
+            </View>
             <View style={{ flex: 1 }}>
                 <Text style={s.criterionLabel}>{label}</Text>
                 <Text style={s.criterionDetail}>
@@ -630,11 +632,13 @@ export default function FinancingMarketplaceScreen() {
                         <Text style={s.beforeApplyingSubtitle}>Against your strongest match — {topMatch.product.lenderName}, {topMatch.product.productName}</Text>
                         {topMatch.criteria.map((c, i) => (
                             <View key={i} style={s.beforeApplyingRow}>
-                                <Text style={[s.beforeApplyingIcon, {
-                                    color: c.status === 'met' ? Colors.income : c.status === 'unmet' ? Colors.warning : Colors.textMuted,
-                                }]}>
-                                    {c.status === 'met' ? '✓' : c.status === 'unmet' ? '⚠' : '?'}
-                                </Text>
+                                <View style={s.beforeApplyingIcon}>
+                                    <Icon
+                                        name={c.status === 'met' ? 'check' : c.status === 'unmet' ? 'alert-triangle' : 'help-circle'}
+                                        size={14}
+                                        color={c.status === 'met' ? Colors.income : c.status === 'unmet' ? Colors.warning : Colors.textMuted}
+                                    />
+                                </View>
                                 <Text style={s.beforeApplyingLabel}>
                                     {c.label}
                                     {c.status !== 'met' ? ` — you: ${c.businessValue}, needs: ${c.required}` : ''}
@@ -776,18 +780,18 @@ const s = StyleSheet.create({
     title: { fontSize: 28, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
     subtitle: { fontSize: 14, color: Colors.textSecondary, marginBottom: 14, lineHeight: 19 },
 
-    disclosureBox: { backgroundColor: Colors.warning + '15', borderRadius: Radius.sm, padding: Spacing.md, marginBottom: 18, borderWidth: 1, borderColor: Colors.warning + '40' },
+    disclosureBox: { backgroundColor: Colors.warning + '15', borderRadius: Radius.sm, padding: Spacing.md, marginBottom: 18, borderWidth: 1, borderColor: Colors.warning + '40', ...Shadow.sm },
     disclosureText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
     readinessTrend: { fontSize: 11.5, fontWeight: '700', marginTop: 6 },
 
-    recommendBox: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: 18, borderWidth: 1, borderColor: Colors.primary + '40' },
+    recommendBox: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: 18, borderWidth: 1, borderColor: Colors.primary + '40', ...Shadow.sm },
     recommendTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: Spacing.md },
     profileNarrative: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginBottom: Spacing.md },
     recommendCard: { backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: Spacing.md, marginBottom: Spacing.sm },
     recommendCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
     recommendCardLabel: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary },
-    recommendConfidenceBadge: { borderRadius: 6, paddingHorizontal: Spacing.sm, paddingVertical: 3, backgroundColor: Colors.textMuted + '22' },
+    recommendConfidenceBadge: { borderRadius: Radius.pill, paddingHorizontal: Spacing.sm, paddingVertical: 3, backgroundColor: Colors.textMuted + '22' },
     recommendConfidenceStrong: { backgroundColor: Colors.income + '22' },
     recommendConfidenceText: { fontSize: 10, fontWeight: '700', color: Colors.textMuted },
     recommendConfidenceTextStrong: { color: Colors.income },
@@ -797,16 +801,16 @@ const s = StyleSheet.create({
     categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4, marginBottom: 20 },
     categoryCard: {
         width: '47%', backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
-        paddingVertical: 18, paddingHorizontal: Spacing.md, alignItems: 'center', gap: Spacing.sm,
+        paddingVertical: 18, paddingHorizontal: Spacing.md, alignItems: 'center', gap: Spacing.sm, ...Shadow.sm,
     },
     categoryLabel: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, textAlign: 'center' },
     browseAllBtn: { alignItems: 'center', paddingVertical: Spacing.md, marginBottom: 20 },
     browseAllText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
 
-    specializedBox: { backgroundColor: Colors.surface, borderRadius: Radius.sm, padding: Spacing.md, marginBottom: 18, borderWidth: 1, borderColor: Colors.border },
+    specializedBox: { backgroundColor: Colors.surface, borderRadius: Radius.sm, padding: Spacing.md, marginBottom: 18, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     specializedText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, fontStyle: 'italic' },
 
-    assessmentBox: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: 18 },
+    assessmentBox: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: 18, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     assessmentTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: 14 },
     assessmentDivider: { height: 1, backgroundColor: Colors.border, marginTop: 14, marginBottom: 4 },
     assessmentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: Colors.border },
@@ -819,18 +823,18 @@ const s = StyleSheet.create({
     amountHint: { fontSize: 11.5, color: Colors.textMuted, marginTop: 6, lineHeight: 16 },
     capacityNoteLink: { fontSize: 12, color: Colors.primary, marginTop: 10, fontWeight: '600' },
 
-    beforeApplyingBox: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: 18, borderWidth: 1, borderColor: Colors.equity + '40' },
+    beforeApplyingBox: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginBottom: 18, borderWidth: 1, borderColor: Colors.equity + '40', ...Shadow.sm },
     beforeApplyingTitle: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 2 },
     beforeApplyingSubtitle: { fontSize: 11.5, color: Colors.textMuted, marginBottom: Spacing.md },
     beforeApplyingRow: { flexDirection: 'row', marginBottom: Spacing.sm },
-    beforeApplyingIcon: { fontSize: 14, fontWeight: '800', width: 20 },
+    beforeApplyingIcon: { width: 20, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 1 },
     beforeApplyingLabel: { fontSize: 12.5, color: Colors.textSecondary, flex: 1, lineHeight: 17 },
 
     sectionTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 10 },
     multiApplyNotice: {
         flexDirection: 'row', alignItems: 'flex-start', gap: 8,
         backgroundColor: Colors.warning + '15', borderWidth: 1, borderColor: Colors.warning + '40',
-        borderRadius: Radius.md, padding: Spacing.md, marginBottom: 14,
+        borderRadius: Radius.md, padding: Spacing.md, marginBottom: 14, ...Shadow.sm,
     },
     multiApplyNoticeText: { flex: 1, fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
@@ -847,7 +851,7 @@ const s = StyleSheet.create({
 
     criteriaTitle: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.sm },
     criterionRow: { flexDirection: 'row', marginBottom: 9 },
-    criterionIcon: { fontSize: 14, fontWeight: '800', width: 20 },
+    criterionIcon: { width: 20, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 1 },
     criterionLabel: { fontSize: 12.5, fontWeight: '600', color: Colors.textPrimary },
     criterionDetail: { fontSize: 11.5, color: Colors.textSecondary, marginTop: 1 },
     criterionNote: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 2, lineHeight: 15 },
@@ -866,7 +870,7 @@ const s = StyleSheet.create({
     footerNote: { marginTop: Spacing.sm, marginBottom: 20 },
     footerNoteText: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, textAlign: 'center' },
 
-    visibilityBox: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginTop: Spacing.sm, marginBottom: 20, borderWidth: 1, borderColor: Colors.equity + '40' },
+    visibilityBox: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginTop: Spacing.sm, marginBottom: 20, borderWidth: 1, borderColor: Colors.equity + '40', ...Shadow.sm },
     visibilityTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
     visibilitySubtitle: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 17, marginBottom: 14 },
 
