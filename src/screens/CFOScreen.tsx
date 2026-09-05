@@ -710,12 +710,12 @@ export default function CFOScreen() {
     // standalone Growth Intelligence screen (score/momentum/customers) --
     // labeling it "Growth" too made two unrelated screens look like the
     // same destination. "Quick Wins" names what the tab actually contains.
-    const TABS: { key: Tab; label: string; icon: string }[] = [
-        { key: 'pulse',     label: 'Pulse',      icon: '❤️' },
-        { key: 'forecast',  label: 'Forecast',   icon: '📅' },
-        { key: 'finance',   label: 'Finance',    icon: '📊' },
-        { key: 'growth',    label: 'Quick Wins', icon: '🚀' },
-        { key: 'questions', label: 'CFO Q&A',    icon: '❓' },
+    const TABS: { key: Tab; label: string; icon: IconName }[] = [
+        { key: 'pulse',     label: 'Pulse',      icon: 'activity' },
+        { key: 'forecast',  label: 'Forecast',   icon: 'calendar' },
+        { key: 'finance',   label: 'Finance',    icon: 'bar-chart-2' },
+        { key: 'growth',    label: 'Quick Wins', icon: 'trending-up' },
+        { key: 'questions', label: 'CFO Q&A',    icon: 'help-circle' },
     ];
 
     const hasEnoughData = transactions.length >= 3;
@@ -772,7 +772,7 @@ export default function CFOScreen() {
                                 style={[s.tab, activeTab === tab.key && s.tabActive]}
                                 onPress={() => setActiveTab(tab.key)}
                             >
-                                <Text style={[s.tabIcon]}>{tab.icon}</Text>
+                                <Icon name={tab.icon} size={14} color={activeTab === tab.key ? '#fff' : Colors.textMuted} />
                                 <Text style={[s.tabText, activeTab === tab.key && s.tabTextActive]}>{tab.label}</Text>
                             </TouchableOpacity>
                         ))}
@@ -840,9 +840,8 @@ const s = StyleSheet.create({
 
     tabBar:        { maxHeight: 52, backgroundColor: Colors.surface },
     tabBarContent: { paddingHorizontal: 8, gap: 2, alignItems: 'center' },
-    tab:           { alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+    tab:           { alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, gap: 2 },
     tabActive:     { backgroundColor: Colors.primary },
-    tabIcon:       { fontSize: 14, marginBottom: 1 },
     tabText:       { fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
     tabTextActive: { color: '#fff' },
 
