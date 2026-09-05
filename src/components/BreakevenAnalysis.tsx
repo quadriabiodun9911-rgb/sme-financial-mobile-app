@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import { BreakevenResult, computeDiscountImpactOnBreakeven } from '../utils/profitability';
 
 interface Props {
@@ -284,6 +285,7 @@ const styles = StyleSheet.create({
         padding: 16,
         borderWidth: 1,
         borderColor: Colors.border,
+        ...Shadow.sm,
     },
     title: {
         color: Colors.textMuted,

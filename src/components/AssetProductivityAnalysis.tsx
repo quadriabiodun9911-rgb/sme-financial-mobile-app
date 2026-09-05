@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 import { FinanceData, Asset } from '../types';
 import { computeLeverageRatios } from '../utils/debtRatios';
 import RadialGauge from './RadialGauge';
@@ -392,6 +393,9 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         padding: 16,
         marginBottom: 12,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        ...Shadow.sm,
     },
     cardTitle: {
         fontSize: 15,
@@ -409,6 +413,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 16,
+        ...Shadow.sm,
     },
     healthTextCol: {
         flex: 1,
