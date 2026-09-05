@@ -115,7 +115,7 @@ const s = StyleSheet.create({
 
     emptyCard: {
         marginHorizontal: Spacing.xl, backgroundColor: Colors.surface, borderRadius: Radius.lg,
-        borderWidth: 1, borderColor: Colors.border, padding: 32, alignItems: 'center', gap: 8,
+        borderWidth: 1, borderColor: Colors.border, padding: 32, alignItems: 'center', gap: 8, ...Shadow.sm,
     },
     emptyTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginTop: 4 },
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' },
