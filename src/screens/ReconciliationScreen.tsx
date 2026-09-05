@@ -719,7 +719,7 @@ const styles = StyleSheet.create({
     miniDate: { fontSize: 11, color: Colors.textMuted, width: 72 },
     miniDesc: { flex: 1, fontSize: 12, color: Colors.textSecondary },
     miniAmt:  { fontSize: 12, fontWeight: '700', minWidth: 70, textAlign: 'right' },
-    recordedTag: { fontSize: 9, fontWeight: '700', color: Colors.income, backgroundColor: Colors.income + '22', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
+    recordedTag: { fontSize: 9, fontWeight: '700', color: Colors.income, backgroundColor: Colors.income + '22', paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.pill, overflow: 'hidden' },
     moreNote: { fontSize: 11, color: Colors.textMuted, marginTop: Spacing.sm, textAlign: 'center' },
 
     empty: { alignItems: 'center', paddingVertical: 48 },
