@@ -1032,7 +1032,7 @@ const styles = StyleSheet.create({
     btnIconRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
 
     summaryRow:   { flexDirection: 'row', gap: Spacing.sm, marginBottom: 14 },
-    summaryCard:  { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 10, alignItems: 'center' },
+    summaryCard:  { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     summaryLabel: { fontSize: 9, color: Colors.textMuted, marginBottom: Spacing.xs, textAlign: 'center' },
     summaryValue: { fontSize: 13, fontWeight: 'bold' },
 
