@@ -824,9 +824,12 @@ export default function TransactionsScreen() {
                                         </Text>
                                     </View>
                                     {tx.status === 'pending' && tx.dueDate && new Date(tx.dueDate + 'T00:00:00') < new Date() ? (
-                                        <Text style={[styles.dueBadge, styles.overdueBadge]}>
-                                            ⚠ {Math.ceil((Date.now() - new Date(tx.dueDate + 'T00:00:00').getTime()) / 86400000)} days overdue
-                                        </Text>
+                                        <View style={[styles.dueBadge, styles.overdueBadge, styles.badgeRow]}>
+                                            <Icon name="alert-triangle" size={10} color={Colors.expense} />
+                                            <Text style={styles.overdueBadgeText}>
+                                                {Math.ceil((Date.now() - new Date(tx.dueDate + 'T00:00:00').getTime()) / 86400000)} days overdue
+                                            </Text>
+                                        </View>
                                     ) : tx.dueDate ? (
                                         <Text style={styles.dueBadge}>Due {tx.dueDate}</Text>
                                     ) : null}
@@ -837,7 +840,10 @@ export default function TransactionsScreen() {
                                         <Text style={styles.recurBadge}>↻ {tx.recurringFrequency}</Text>
                                     ) : null}
                                     {personalFlagIds.has(tx.id) ? (
-                                        <Text style={styles.personalBadge}>🏠 {personalFlagIds.get(tx.id)}</Text>
+                                        <View style={[styles.personalBadge, styles.badgeRow]}>
+                                            <Icon name="home" size={10} color={Colors.warning} />
+                                            <Text style={styles.personalBadgeText}>{personalFlagIds.get(tx.id)}</Text>
+                                        </View>
                                     ) : null}
                                 </View>
 
@@ -1584,10 +1590,13 @@ const styles = StyleSheet.create({
     // Overdue is the one badge here that genuinely needs to grab attention
     // ahead of tax/recurring/personal decoration -- bold, red, with its own
     // icon so it doesn't read as just another same-weight pill in a row of five.
-    overdueBadge: { fontWeight: '800', color: Colors.expense, backgroundColor: 'rgba(239,68,68,0.16)' },
+    overdueBadge: { backgroundColor: 'rgba(239,68,68,0.16)' },
+    overdueBadgeText: { fontSize: 10, fontWeight: '800', color: Colors.expense },
+    badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     taxBadge:  { fontSize: 10, color: '#7c3aed', paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm, backgroundColor: 'rgba(124,58,237,0.12)' },
     recurBadge:{ fontSize: 10, color: Colors.primary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm, backgroundColor: 'rgba(37,99,235,0.12)' },
-    personalBadge: { fontSize: 10, color: Colors.warning, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm, backgroundColor: 'rgba(245,158,11,0.14)' },
+    personalBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm, backgroundColor: 'rgba(245,158,11,0.14)' },
+    personalBadgeText: { fontSize: 10, color: Colors.warning },
     txActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     editHint:  { fontSize: 10, color: Colors.textMuted, fontStyle: 'italic' },
     actionBtns:{ flexDirection: 'row', gap: 14, alignItems: 'center' },
