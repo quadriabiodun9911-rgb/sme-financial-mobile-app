@@ -37,27 +37,27 @@ const BAND_COLOR: Record<string, string> = {
     Critical: Colors.expense,
 };
 
-const RISK_LEVEL_META: Record<RiskLevel, { color: string; dot: string }> = {
-    high:      { color: Colors.expense,   dot: '🔴' },
-    medium:    { color: Colors.warning,   dot: '🟡' },
-    low:       { color: Colors.income,    dot: '🟢' },
-    'no-data': { color: Colors.textMuted, dot: '⚪' },
+const RISK_LEVEL_META: Record<RiskLevel, { color: string }> = {
+    high:      { color: Colors.expense },
+    medium:    { color: Colors.warning },
+    low:       { color: Colors.income },
+    'no-data': { color: Colors.textMuted },
 };
 
 const FACTOR_STATUS_COLOR: Record<string, string> = { good: Colors.income, warning: Colors.warning, danger: Colors.expense };
 const PILLAR_STATUS_COLOR: Record<PillarStatus, string> = { good: Colors.income, warning: Colors.warning, danger: Colors.expense };
 const LEAK_SEVERITY_COLOR: Record<LeakSeverity, string> = { critical: Colors.expense, warning: Colors.warning, info: Colors.textMuted };
-const RESILIENCE_STATUS_META: Record<ResilienceStatus, { color: string; dot: string }> = {
-    good: { color: Colors.income, dot: '🟢' },
-    warning: { color: Colors.warning, dot: '🟠' },
-    danger: { color: Colors.expense, dot: '🔴' },
+const RESILIENCE_STATUS_META: Record<ResilienceStatus, { color: string }> = {
+    good: { color: Colors.income },
+    warning: { color: Colors.warning },
+    danger: { color: Colors.expense },
 };
 
-const EXPOSURE_LEVEL_META: Record<ExposureLevel, { color: string; dot: string }> = {
-    high:    { color: Colors.expense,  dot: '🔴' },
-    medium:  { color: Colors.warning,  dot: '🟡' },
-    low:     { color: Colors.income,   dot: '🟢' },
-    unknown: { color: Colors.textMuted, dot: '⚪' },
+const EXPOSURE_LEVEL_META: Record<ExposureLevel, { color: string }> = {
+    high:    { color: Colors.expense },
+    medium:  { color: Colors.warning },
+    low:     { color: Colors.income },
+    unknown: { color: Colors.textMuted },
 };
 
 const RESILIENCE_BAND_COLOR: Record<string, string> = {
@@ -427,8 +427,9 @@ export default function ScoreboardScreen() {
                                 </Text>
                             </View>
                             <View style={[s.resilienceBadge, { backgroundColor: RESILIENCE_STATUS_META[financialResilience.status].color + '18' }]}>
+                                <View style={[s.factorDot, { backgroundColor: RESILIENCE_STATUS_META[financialResilience.status].color }]} />
                                 <Text style={[s.resilienceBadgeText, { color: RESILIENCE_STATUS_META[financialResilience.status].color }]}>
-                                    {RESILIENCE_STATUS_META[financialResilience.status].dot} {financialResilience.headline}
+                                    {financialResilience.headline}
                                 </Text>
                             </View>
                             <Text style={s.cardBodyText}>{financialResilience.assessment}</Text>
@@ -508,7 +509,7 @@ export default function ScoreboardScreen() {
                                     onPress={(e) => { e.stopPropagation(); toggleChip(key); }}
                                     activeOpacity={0.7}
                                 >
-                                    <Text style={s.riskDot}>{EXPOSURE_LEVEL_META[f.level].dot}</Text>
+                                    <View style={[s.factorDot, { backgroundColor: EXPOSURE_LEVEL_META[f.level].color }]} />
                                     <Text style={s.factorChipText}>{f.label.replace(' Exposure', '')}</Text>
                                 </TouchableOpacity>
                             );
@@ -548,7 +549,7 @@ export default function ScoreboardScreen() {
                                     onPress={(e) => { e.stopPropagation(); toggleChip(key); }}
                                     activeOpacity={0.7}
                                 >
-                                    <Text style={s.riskDot}>{RISK_LEVEL_META[c.level].dot}</Text>
+                                    <View style={[s.factorDot, { backgroundColor: RISK_LEVEL_META[c.level].color }]} />
                                     <Text style={s.factorChipText}>{c.label}</Text>
                                 </TouchableOpacity>
                             );
@@ -676,7 +677,6 @@ const s = StyleSheet.create({
     factorChipOpen: { borderColor: Colors.primary, backgroundColor: Colors.primary + '11' },
     factorDot: { width: 7, height: 7, borderRadius: 4 },
     factorChipText: { fontSize: 10.5, fontWeight: '600', color: Colors.textSecondary },
-    riskDot: { fontSize: 9 },
     chipExplanation: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: Spacing.sm, marginTop: -2, marginBottom: Spacing.sm },
     chipHint: { fontSize: 10, color: Colors.textMuted, fontStyle: 'italic', marginTop: -4, marginBottom: Spacing.sm },
 
@@ -698,7 +698,7 @@ const s = StyleSheet.create({
     resilienceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 },
     resilienceLabel: { fontSize: 12.5, color: Colors.textSecondary },
     resilienceValue: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
-    resilienceBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.pill, marginTop: Spacing.sm, marginBottom: Spacing.sm },
+    resilienceBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.pill, marginTop: Spacing.sm, marginBottom: Spacing.sm },
     resilienceBadgeText: { fontSize: 12, fontWeight: '700' },
     resilienceWhyBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
     resilienceWhyBtnText: { fontSize: 11.5, fontWeight: '600', color: Colors.textMuted },
