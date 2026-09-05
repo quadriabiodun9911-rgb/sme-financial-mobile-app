@@ -381,7 +381,7 @@ const s = StyleSheet.create({
 
     subtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: Spacing.lg, lineHeight: 17 },
 
-    emptyState: { alignItems: 'center', padding: Spacing.xxxl, backgroundColor: Colors.surface, borderRadius: 14 },
+    emptyState: { alignItems: 'center', padding: Spacing.xxxl, backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     emptyTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
     emptySub: { fontSize: 12, color: Colors.textMuted, textAlign: 'center', marginBottom: Spacing.lg },
     emptyBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md },
