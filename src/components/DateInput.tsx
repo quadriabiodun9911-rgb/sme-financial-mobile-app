@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Platform, TextInput, StyleSheet, TouchableOpacity, View, Text, Modal, useWindowDimensions } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Shadow } from '../theme/tokens';
 
 interface Props {
     value: string;           // ISO date string YYYY-MM-DD
@@ -161,6 +162,7 @@ const styles = StyleSheet.create({
         top: '30%',
         left: 24,
         right: 24,
+        ...Shadow.lg,
     },
     // On desktop web the plain left/right anchoring above stretches this
     // dialog to the full window width (e.g. ~1950px on a 2000px screen).
