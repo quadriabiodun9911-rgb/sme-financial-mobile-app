@@ -743,7 +743,7 @@ const styles = StyleSheet.create({
     copyBtn:         { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, paddingVertical: 14, borderRadius: Radius.md, alignItems: 'center' },
     copyBtnText:     { color: Colors.textSecondary, fontWeight: '600', fontSize: 15 },
 
-    tipCard:  { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, borderLeftWidth: 3, borderLeftColor: '#f97316' },
+    tipCard:  { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, borderLeftWidth: 3, borderLeftColor: '#f97316', ...Shadow.sm },
     tipTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
     tipBody:  { fontSize: 12, color: Colors.textMuted, lineHeight: 18, marginBottom: 10 },
     tipLink:  { fontSize: 13, color: Colors.primary, fontWeight: '700' },
