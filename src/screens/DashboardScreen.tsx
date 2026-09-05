@@ -2171,25 +2171,33 @@ export default function DashboardScreen() {
                             </TouchableOpacity>
                         </View>
                         <View style={styles.onboardStep}>
-                            <Text style={styles.onboardCheck}>✅</Text>
+                            <View style={styles.onboardCheck}>
+                                <Icon name="check-circle" size={18} color={Colors.income} />
+                            </View>
                             <Text style={[styles.onboardStepText, styles.onboardDone]}>Create your account</Text>
                         </View>
                         <TouchableOpacity style={styles.onboardStep} onPress={() => openFab()}>
-                            <Text style={styles.onboardCheck}>{hasTransaction ? '✅' : '⬜'}</Text>
+                            <View style={styles.onboardCheck}>
+                                <Icon name={hasTransaction ? 'check-circle' : 'circle'} size={18} color={hasTransaction ? Colors.income : Colors.textMuted} />
+                            </View>
                             <View style={{ flex: 1 }}>
                                 <Text style={[styles.onboardStepText, hasTransaction && styles.onboardDone]}>Add your first transaction</Text>
                                 {!hasTransaction && <Text style={styles.onboardStepHint}>Tap to add income or expense →</Text>}
                             </View>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.onboardStep} onPress={() => setCurrentScreen('goals')}>
-                            <Text style={styles.onboardCheck}>{hasGoal ? '✅' : '⬜'}</Text>
+                            <View style={styles.onboardCheck}>
+                                <Icon name={hasGoal ? 'check-circle' : 'circle'} size={18} color={hasGoal ? Colors.income : Colors.textMuted} />
+                            </View>
                             <View style={{ flex: 1 }}>
                                 <Text style={[styles.onboardStepText, hasGoal && styles.onboardDone]}>Set a financial goal</Text>
                                 {!hasGoal && <Text style={styles.onboardStepHint}>Tap to set a revenue or profit goal →</Text>}
                             </View>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.onboardStep} onPress={() => setCurrentScreen('invoices')}>
-                            <Text style={styles.onboardCheck}>{invoices.length > 0 ? '✅' : '⬜'}</Text>
+                            <View style={styles.onboardCheck}>
+                                <Icon name={invoices.length > 0 ? 'check-circle' : 'circle'} size={18} color={invoices.length > 0 ? Colors.income : Colors.textMuted} />
+                            </View>
                             <View style={{ flex: 1 }}>
                                 <Text style={[styles.onboardStepText, invoices.length > 0 && styles.onboardDone]}>Create your first invoice</Text>
                                 {invoices.length === 0 && <Text style={styles.onboardStepHint}>Send professional invoices via WhatsApp →</Text>}
@@ -2685,7 +2693,7 @@ const styles = StyleSheet.create({
     missionStatsRow: { flexDirection: 'row', justifyContent: 'space-between' },
     missionStat: { fontSize: 11.5, color: Colors.textMuted, fontWeight: '600' },
 
-    betaCard:           { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1.5, borderColor: Colors.primary + '55' },
+    betaCard:           { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1.5, borderColor: Colors.primary + '55', ...Shadow.sm },
     betaCardHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
     betaBadge:          { backgroundColor: Colors.primary + '22', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
     betaBadgeText:      { color: Colors.primary, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
@@ -2696,23 +2704,23 @@ const styles = StyleSheet.create({
     betaFeatureIcon:    { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
     betaFeatureName:    { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
     betaFeatureDesc:    { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
-    betaLiveBadge:      { backgroundColor: '#00C3F7', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
+    betaLiveBadge:      { backgroundColor: '#00C3F7', borderRadius: Radius.pill, paddingHorizontal: 6, paddingVertical: 2 },
     betaLiveText:       { color: '#fff', fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
     betaArrow:          { color: Colors.textMuted, fontSize: 22, alignSelf: 'center' },
 
-    onboardCard:        { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.primary },
+    onboardCard:        { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.primary, ...Shadow.sm },
     onboardHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
     onboardTitle:       { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
     onboardSub:         { fontSize: 12, color: Colors.textMuted },
     onboardDismissBtn:  { padding: 4 },
     onboardDismissText: { fontSize: 16, color: Colors.textMuted },
     onboardStep:        { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10, gap: 10 },
-    onboardCheck:       { fontSize: 16, width: 22 },
+    onboardCheck:       { width: 22, alignItems: 'center', justifyContent: 'flex-start' },
     onboardStepText:    { fontSize: 14, color: Colors.textPrimary, fontWeight: '600' },
     onboardDone:        { color: Colors.textMuted, textDecorationLine: 'line-through' },
     onboardStepHint:    { fontSize: 11, color: Colors.primary, marginTop: 1 },
 
-    alertBanner:  { backgroundColor: 'rgba(245,158,11,0.12)', borderWidth: 1, borderColor: Colors.warning, borderRadius: 8, padding: 10, marginBottom: 8 },
+    alertBanner:  { backgroundColor: 'rgba(245,158,11,0.12)', borderWidth: 1, borderColor: Colors.warning, borderRadius: 8, padding: 10, marginBottom: 8, ...Shadow.sm },
     alertText:    { color: Colors.warning, fontSize: 12, fontWeight: '600' },
     dangerBanner: { backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 8, padding: 10, marginBottom: 8 },
     dangerText:   { color: Colors.expense, fontSize: 12, fontWeight: '600' },
@@ -2796,7 +2804,7 @@ const styles = StyleSheet.create({
     nudgeBanner: { backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, padding: 12, marginBottom: 10 },
     nudgeText:   { color: Colors.primary, fontSize: 12, fontWeight: '600' },
 
-    lossGuide:          { backgroundColor: 'rgba(239,68,68,0.07)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 12, padding: 14, marginBottom: 12 },
+    lossGuide:          { backgroundColor: 'rgba(239,68,68,0.07)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 12, padding: 14, marginBottom: 12, ...Shadow.sm },
     lossGuideTitle:     { fontSize: 13, fontWeight: '700', color: Colors.expense, marginBottom: 6 },
     lossGuideText:      { fontSize: 13, color: Colors.textSecondary, lineHeight: 20, marginBottom: 10 },
     lossGuideHighlight: { fontWeight: '700', color: Colors.expense },
