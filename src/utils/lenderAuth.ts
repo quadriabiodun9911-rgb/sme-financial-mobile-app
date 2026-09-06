@@ -134,33 +134,26 @@ export async function loadLenderMembersForOrg(lenderOrgId: string): Promise<Lend
 
 // ─── Join flow (the invited lender's own device) ───────────────────────────
 
-// Mirrors storage.ts's joinTeamWithCode exactly: look up the pending
-// invite by its code, then claim it. See migration 009's "A pending
-// lender invite can be claimed once" policy for why this direct
-// select+update is safe under RLS (the invite_code itself, sent out of
-// band, is the authorization -- the same accepted model team_members
-// already uses).
+// Mirrors storage.ts's joinTeamWithCode: goes through the
+// claim_lender_invite() RPC (see migration 032) rather than a direct
+// select-by-code + update-by-id. The old comment here claimed the
+// select+update was "safe under RLS (the invite_code itself... is the
+// authorization)" -- it wasn't: migration 009's policies only checked
+// status = 'pending', never invite_code, so any authenticated caller
+// could enumerate and self-claim any pending lender invite without
+// knowing its code. The RPC does the code match and activation as one
+// atomic, server-side UPDATE.
 export async function joinLenderWithCode(
-    memberUserId: string,
     inviteCode: string,
 ): Promise<{ lenderOrgId: string; lenderOrgName: string }> {
     const { data, error } = await supabase
-        .from('lender_members')
-        .select('*, lender_organizations(name)')
-        .eq('invite_code', inviteCode.toUpperCase())
-        .eq('status', 'pending')
+        .rpc('claim_lender_invite', { p_invite_code: inviteCode.toUpperCase() })
         .single();
-    if (error || !data) throw new Error('Invalid or already used invite code.');
-
-    const { error: updateErr } = await supabase
-        .from('lender_members')
-        .update({ member_user_id: memberUserId, status: 'active' })
-        .eq('id', data.id);
-    if (updateErr) throw new Error('Could not activate lender membership: ' + updateErr.message);
+    if (error || !data || !(data as any).lender_org_id) throw new Error('Invalid or already used invite code.');
 
     return {
-        lenderOrgId: data.lender_org_id,
-        lenderOrgName: (data as any).lender_organizations?.name ?? 'Your organization',
+        lenderOrgId: (data as any).lender_org_id,
+        lenderOrgName: (data as any).lender_org_name ?? 'Your organization',
     };
 }
 

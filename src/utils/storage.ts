@@ -766,23 +766,22 @@ export async function removeTeamMember(memberId: string): Promise<void> {
     if (error) logSyncError('team_members', 'delete', error);
 }
 
-// Called when a team member joins using their invite code
+// Called when a team member joins using their invite code. Goes through
+// the claim_team_invite() RPC (see migration 032) rather than a direct
+// select-by-code + update-by-id -- RLS on team_members has no way to
+// verify the caller actually holds the invite_code (it can only see
+// row values, not the WHERE clause a client chooses to filter on), so a
+// raw select+update let any authenticated caller claim any business's
+// pending invite without knowing its code. The RPC does the code match
+// and the activation as one atomic, server-side UPDATE.
 export async function joinTeamWithCode(
-    memberUserId: string,
     inviteCode: string,
 ): Promise<{ ownerId: string; role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant' | 'viewer' }> {
     const { data, error } = await supabase
-        .from('team_members')
-        .select('*')
-        .eq('invite_code', inviteCode.toUpperCase())
-        .eq('status', 'pending')
+        .rpc('claim_team_invite', { p_invite_code: inviteCode.toUpperCase() })
         .single();
-    if (error || !data) throw new Error('Invalid or already used invite code.');
-    const { error: updateErr } = await supabase.from('team_members')
-        .update({ member_user_id: memberUserId, status: 'active' })
-        .eq('id', data.id);
-    if (updateErr) throw new Error('Could not activate team membership: ' + updateErr.message);
-    return { ownerId: data.owner_user_id, role: data.role };
+    if (error || !data || !(data as any).owner_user_id) throw new Error('Invalid or already used invite code.');
+    return { ownerId: (data as any).owner_user_id, role: (data as any).role };
 }
 
 // ─── Inventory (now synced with Supabase for backup) ──────────────────────────

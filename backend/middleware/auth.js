@@ -15,10 +15,12 @@ if (supabaseUrl && supabaseKey) {
  */
 async function requireAuth(req, res, next) {
   if (!supabase) {
-    // Supabase not configured — allow for local dev but warn loudly
-    console.warn('[AUTH] Supabase not configured — auth bypassed. Set SUPABASE_URL and SUPABASE_SERVICE_KEY.');
-    req.userId = req.body?.userId || req.params?.userId || null;
-    return next();
+    // Supabase not configured — fail closed. A prior version of this
+    // branch bypassed auth entirely and trusted req.body.userId, which
+    // meant any misconfigured/redeployed instance (missing env var) let
+    // any caller impersonate any user on every protected route.
+    console.error('[AUTH] Supabase not configured — rejecting request. Set SUPABASE_URL and SUPABASE_SERVICE_KEY.');
+    return res.status(503).json({ error: 'Service unavailable' });
   }
 
   const authHeader = req.headers.authorization;

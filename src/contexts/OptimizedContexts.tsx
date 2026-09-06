@@ -1561,8 +1561,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // used both by joinTeam's normal path and by completeJoinWithOtp's
   // recovery path below, so the two can never drift on what "finishing a
   // join" actually means.
-  const finishJoinTeam = async (authUserId: string, email: string, pin: string, inviteCode: string) => {
-    const { ownerId, role } = await joinTeamWithCode(authUserId, inviteCode);
+  const finishJoinTeam = async (email: string, pin: string, inviteCode: string) => {
+    const { ownerId, role } = await joinTeamWithCode(inviteCode);
     // Joining a team on this device must not carry over any previous
     // identity's locally-cached data -- must run BEFORE setWorkspaceOwner
     // below, since clearLocalFinancialCache() now also clears the
@@ -1893,7 +1893,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await saveAuthSecret(authSecret).catch(() => {});
         }
         if (!authUserId) throw new Error('Could not authenticate.');
-        await finishJoinTeam(authUserId, email, pin, inviteCode);
+        await finishJoinTeam(email, pin, inviteCode);
       },
       requestJoinRecoveryOtp: async (email) => {
         // shouldCreateUser: false -- this must only ever sign in to the
@@ -1913,15 +1913,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const newAuthSecret = generateAuthSecret();
         const { error: rotateError } = await supabase.auth.updateUser({ password: newAuthSecret }).catch(e => ({ error: e } as any));
         if (!rotateError) await saveAuthSecret(newAuthSecret).catch(() => {});
-        await finishJoinTeam(authUserId, email, pin, inviteCode);
+        await finishJoinTeam(email, pin, inviteCode);
       },
 
       // Mirrors joinTeam above almost exactly -- same authSecret-as-real-
       // password sign-up, same legacy-account fallback shape -- the only
       // difference is which invite table gets claimed and where the
-      // session lands afterward. See lenderAuth.ts's joinLenderWithCode
-      // for why the invite_code itself (not an RLS ownership check) is
-      // what authorizes claiming the row.
+      // session lands afterward. See lenderAuth.ts's joinLenderWithCode /
+      // migration 032 for how the invite_code is actually verified
+      // (server-side, via the claim_lender_invite RPC).
       joinAsLender: async (email, pin, inviteCode) => {
         const authSecret = generateAuthSecret();
         const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({ email, password: authSecret });
@@ -1949,7 +1949,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await saveAuthSecret(authSecret).catch(() => {});
         }
         if (!authUserId) throw new Error('Could not authenticate.');
-        const { lenderOrgId: orgId, lenderOrgName: orgName } = await joinLenderWithCode(authUserId, inviteCode);
+        const { lenderOrgId: orgId, lenderOrgName: orgName } = await joinLenderWithCode(inviteCode);
         // Joining as a lender on this device must not carry over any
         // previous identity's locally-cached financial data -- same
         // reasoning joinTeam above already applies.
