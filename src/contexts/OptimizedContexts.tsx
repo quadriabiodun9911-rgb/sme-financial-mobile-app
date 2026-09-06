@@ -1071,8 +1071,22 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setSettings(DEFAULT_SETTINGS); // clear the previous identity's settings before loading the new one
 
     if (isDemoMode) {
+      // businessName was never set here at all -- neither for a real demo
+      // persona (biz.businessName, e.g. "Adunola Fashion Store") nor for
+      // guest mode ("My Business", set only on `user` by enterGuest). It's
+      // shown correctly everywhere else in the app because those screens
+      // read it off `user`, not `settings` -- but SettingsScreen's own
+      // form mirrors `settings`, so its Business Name field opened blank
+      // for every demo/guest session, and Save then failed immediately on
+      // "Business name can't be blank," discarding every other edit made
+      // on that screen along with it.
       const biz = DEMO_BUSINESSES.find((b) => b.id === demoBusinessId);
-      if (biz) setSettings((prev) => ({ ...prev, currency: biz.currency, currencyCode: biz.currencyCode, industry: biz.industry ?? 'general', businessType: biz.businessType ?? 'both' }));
+      const demoBusinessName = biz?.businessName ?? authCtx?.user?.businessName;
+      setSettings((prev) => ({
+        ...prev,
+        ...(biz ? { currency: biz.currency, currencyCode: biz.currencyCode, industry: biz.industry ?? 'general', businessType: biz.businessType ?? 'both' } : {}),
+        ...(demoBusinessName ? { businessName: demoBusinessName } : {}),
+      }));
       setHydrated(true);
       return;
     }
