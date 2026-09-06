@@ -130,6 +130,20 @@ export default function SettingsScreen() {
         setForm({ ...settings });
     }, [settings]);
 
+    // Same bug, same fix, for the one field that lives on `user` instead of
+    // `settings`: phone's useState(user?.phone || '') above only reads
+    // user.phone at this screen's first render, so if `user` was still
+    // hydrating at that moment, `phone` state permanently froze on '' --
+    // and unlike businessName, an empty phone doesn't block Save. It went
+    // straight to doSave()'s `phone !== (user?.phone || '')` check, which
+    // by then usually sees user.phone hydrated in and treats that as a
+    // real edit, silently overwriting the account's actually-saved phone
+    // number with blank on the very next Save, even one that never
+    // touched this field.
+    useEffect(() => {
+        setPhone(user?.phone || '');
+    }, [user?.phone]);
+
     useEffect(() => {
         let cancelled = false;
         getWhatsAppLinkStatus().then(status => { if (!cancelled) setWhatsappStatus(status); });
