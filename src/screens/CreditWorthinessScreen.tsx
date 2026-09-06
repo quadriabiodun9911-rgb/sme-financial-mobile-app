@@ -774,7 +774,20 @@ export default function CreditWorthinessScreen() {
                             <Text style={s.capacityRate}>{lendingCapacity.rateTierLabel}</Text>
                         </>
                     ) : (
-                        <Text style={s.capacityUnavailable}>{lendingCapacity.tierLabel} — {lendingCapacity.reason}</Text>
+                        <>
+                            <Text style={s.capacityUnavailable}>{lendingCapacity.tierLabel} — {lendingCapacity.reason}</Text>
+                            {/* A loan isn't the only lever here -- a business
+                                that isn't bankable yet can still build its
+                                own buffer instead of waiting on a lender, or
+                                look at financing shaped differently than a
+                                standard loan (e.g. the inventory-backed range
+                                above, or invoice-based products). Only shown
+                                in this "not qualified yet" branch -- a
+                                business that already has a real range above
+                                doesn't need to be redirected away from it. */}
+                            <NextStepLink text="Build up your own cash reserve instead →" onPress={() => navigate('cashflow')} />
+                            <NextStepLink text="See other financing options that don't need this range →" onPress={() => navigate('financing-marketplace')} />
+                        </>
                     )}
 
                     {lendingCapacity.inventoryBacked && (
