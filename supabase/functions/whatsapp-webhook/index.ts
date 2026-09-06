@@ -87,7 +87,19 @@ async function verifyTwilioSignature(webhookUrl: string, params: URLSearchParams
   );
   const sigBuf = await crypto.subtle.sign('HMAC', cryptoKey, new TextEncoder().encode(data));
   const computed = btoa(String.fromCharCode(...new Uint8Array(sigBuf)));
-  return computed === signature;
+  return timingSafeEqualStr(computed, signature);
+}
+
+// Plain === on a MAC leaks its value one byte at a time via comparison
+// timing. Compares every byte regardless of where the first mismatch is,
+// so an attacker can't use response latency to guess the signature.
+function timingSafeEqualStr(a: string, b: string): boolean {
+  const aBytes = new TextEncoder().encode(a);
+  const bBytes = new TextEncoder().encode(b);
+  if (aBytes.length !== bBytes.length) return false;
+  let diff = 0;
+  for (let i = 0; i < aBytes.length; i++) diff |= aBytes[i] ^ bBytes[i];
+  return diff === 0;
 }
 
 interface ParsedTransaction {

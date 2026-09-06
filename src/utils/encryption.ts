@@ -3,7 +3,13 @@
  *
  * Encrypts sensitive financial data before sending to Supabase
  * Decrypts when loading from cloud
- * Uses AES-256-GCM for encryption
+ * Uses AES-256 (CBC, via CryptoJS's default passphrase-based scheme) with
+ * an Encrypt-then-MAC HMAC-SHA256 tag for integrity -- CryptoJS has no
+ * built-in AEAD (GCM) mode, and React Native's JS runtime has no native
+ * SubtleCrypto to fall back on for one, so the MAC is what actually
+ * provides "was this ciphertext tampered with" here, not the cipher mode
+ * itself. See CIPHERTEXT_VERSION_PREFIX below for why decryptValue still
+ * accepts un-MAC'd ciphertext from before this was added.
  */
 
 import CryptoJS from 'crypto-js';
@@ -122,20 +128,62 @@ export async function getEncryptionKey(): Promise<string | null> {
     }
 }
 
-/**
- * Encrypt a single value using AES-256
- */
-export function encryptValue(value: string | number, key: string): string {
-    const valueStr = String(value);
-    const encrypted = CryptoJS.AES.encrypt(valueStr, key).toString();
-    return encrypted;
+// Marks ciphertext produced by the Encrypt-then-MAC scheme below, so
+// decryptValue can tell it apart from ciphertext written before this fix
+// (plain CryptoJS.AES.encrypt() output, no MAC) and still read that older
+// data -- every record encrypted in production before this change lacks
+// this prefix, and there's no migration path that rewrites data at rest.
+const CIPHERTEXT_VERSION_PREFIX = 'v2:';
+
+// Deliberately NOT the encryption key itself -- a distinct, derived key so
+// the same secret isn't reused for two different cryptographic purposes.
+function deriveMacKey(encryptionKey: string): string {
+    return CryptoJS.SHA256(encryptionKey + ':quad360-field-mac-v1').toString(CryptoJS.enc.Hex);
+}
+
+// Constant-time compare -- an early-exit === on a MAC would leak it one
+// byte at a time via comparison timing.
+function timingSafeEqualStr(a: string, b: string): boolean {
+    if (a.length !== b.length) return false;
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    return diff === 0;
 }
 
 /**
- * Decrypt a single value
+ * Encrypt a single value using AES-256-CBC, then attach an HMAC-SHA256 tag
+ * over the ciphertext (Encrypt-then-MAC) so tampering is detectable on
+ * decrypt instead of silently producing garbled plaintext.
+ */
+export function encryptValue(value: string | number, key: string): string {
+    const valueStr = String(value);
+    const ciphertext = CryptoJS.AES.encrypt(valueStr, key).toString();
+    const mac = CryptoJS.HmacSHA256(ciphertext, deriveMacKey(key)).toString(CryptoJS.enc.Hex);
+    return CIPHERTEXT_VERSION_PREFIX + mac + ':' + ciphertext;
+}
+
+/**
+ * Decrypt a single value. Verifies the MAC first for anything encrypted by
+ * the current encryptValue() (returning null, not garbled text, on a
+ * mismatch); falls back to a plain decrypt with no integrity check for
+ * legacy pre-MAC ciphertext.
  */
 export function decryptValue(encrypted: string, key: string): string | null {
     try {
+        if (encrypted.startsWith(CIPHERTEXT_VERSION_PREFIX)) {
+            const rest = encrypted.slice(CIPHERTEXT_VERSION_PREFIX.length);
+            const sepIdx = rest.indexOf(':');
+            if (sepIdx === -1) return null;
+            const mac = rest.slice(0, sepIdx);
+            const ciphertext = rest.slice(sepIdx + 1);
+            const expectedMac = CryptoJS.HmacSHA256(ciphertext, deriveMacKey(key)).toString(CryptoJS.enc.Hex);
+            if (!timingSafeEqualStr(mac, expectedMac)) {
+                console.error('[Quad360] Decryption failed: integrity check failed (tampered ciphertext or wrong key)');
+                return null;
+            }
+            const decrypted = CryptoJS.AES.decrypt(ciphertext, key).toString(CryptoJS.enc.Utf8);
+            return decrypted || null;
+        }
         const decrypted = CryptoJS.AES.decrypt(encrypted, key).toString(CryptoJS.enc.Utf8);
         return decrypted || null;
     } catch (e) {

@@ -161,6 +161,17 @@ function json(body: unknown, status: number) {
   });
 }
 
+// Plain !== on a shared secret leaks it one byte at a time via comparison
+// timing. Compares every byte regardless of where the first mismatch is.
+function timingSafeEqualStr(a: string, b: string): boolean {
+  const aBytes = new TextEncoder().encode(a);
+  const bBytes = new TextEncoder().encode(b);
+  if (aBytes.length !== bBytes.length) return false;
+  let diff = 0;
+  for (let i = 0; i < aBytes.length; i++) diff |= aBytes[i] ^ bBytes[i];
+  return diff === 0;
+}
+
 function isFresh(updatedAt: string): boolean {
   return Date.now() - new Date(updatedAt).getTime() < MAX_SUMMARY_AGE_MS;
 }
@@ -382,7 +393,8 @@ Deno.serve(async (req: Request) => {
   }
 
   const cronSecret = Deno.env.get('CRON_SECRET');
-  if (!cronSecret || req.headers.get('x-cron-secret') !== cronSecret) {
+  const providedSecret = req.headers.get('x-cron-secret');
+  if (!cronSecret || !providedSecret || !timingSafeEqualStr(providedSecret, cronSecret)) {
     return json({ error: 'Unauthorized' }, 401);
   }
 
