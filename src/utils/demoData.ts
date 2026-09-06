@@ -8,6 +8,14 @@ export interface DemoBusiness {
     name: string;
     description: string;
     currency: string;
+    // ISO 4217 code paired with the symbol above -- settings.currency and
+    // settings.currencyCode are meant to always move together (see the
+    // currency picker in SettingsScreen.tsx), but nothing here previously
+    // set this, so every non-Nigerian demo silently kept whatever
+    // currencyCode DEFAULT_SETTINGS happened to have ('NGN') next to its
+    // own currency symbol -- e.g. the USA persona showing "$" amounts
+    // under a "NGN" header on PaymentLinkScreen.
+    currencyCode: string;
     businessName: string;
     industry?: Industry;
     // Only set for a business with genuinely no physical goods -- lets it
@@ -49,6 +57,7 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         name: 'Fashion Boutique',
         description: 'Clothing & accessories retailer, Lagos',
         currency: '₦',
+        currencyCode: 'NGN',
         businessName: 'Adunola Fashion Store',
         industry: 'retail',
         transactions: [
@@ -94,6 +103,7 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         name: 'Consulting Firm',
         description: 'Business advisory & professional services, London',
         currency: '£',
+        currencyCode: 'GBP',
         businessName: 'Okafor Advisory Ltd',
         industry: 'professional-services',
         businessType: 'service',
@@ -133,6 +143,7 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         name: 'Restaurant & Catering',
         description: 'Township eatery & events catering, Soweto',
         currency: 'R',
+        currencyCode: 'ZAR',
         businessName: 'Mama Zanele Kitchen',
         industry: 'food-service',
         transactions: [
@@ -180,6 +191,7 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         name: 'Tech & SaaS Business',
         description: 'Software subscriptions & digital services, Atlanta',
         currency: '$',
+        currencyCode: 'USD',
         businessName: 'BrightStack Solutions LLC',
         // Mixed revenue (SaaS MRR + billable dev/consulting projects), but
         // no inventory at all -- 'professional-services' is the closer fit
@@ -222,6 +234,7 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         name: 'Sports Academy & Shop',
         description: 'Football training academy & sports equipment retail, Berlin',
         currency: '€',
+        currencyCode: 'EUR',
         businessName: 'Berlin ProSport Academy',
         industry: 'retail',
         transactions: [
@@ -269,6 +282,7 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         name: 'Real Estate Agency',
         description: 'Property sales, rentals & management, Dubai',
         currency: 'AED',
+        currencyCode: 'AED',
         businessName: 'Al Noor Properties LLC',
         industry: 'professional-services',
         transactions: [
@@ -313,6 +327,7 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         name: 'Manufacturing & Export',
         description: 'Electronics factory & wholesale exports, Shenzhen',
         currency: '¥',
+        currencyCode: 'CNY',
         businessName: 'Shenzhen BrightTech Manufacturing',
         industry: 'manufacturing',
         transactions: [
@@ -364,6 +379,7 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         name: 'Building Materials Wholesaler',
         description: 'Cement, rebar & roofing distributor, Nairobi',
         currency: 'KSh',
+        currencyCode: 'KES',
         businessName: 'Kamau Building Supplies',
         industry: 'retail',
         transactions: [
@@ -419,6 +435,7 @@ export const DEMO_BUSINESSES: DemoBusiness[] = [
         name: 'Print & Branding Studio',
         description: 'Corporate printing, signage & branding, Accra',
         currency: 'GH₵',
+        currencyCode: 'GHS',
         businessName: 'Kofi Print & Branding',
         industry: 'professional-services',
         transactions: [

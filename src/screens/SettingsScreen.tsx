@@ -235,14 +235,20 @@ export default function SettingsScreen() {
         // field the owner had also changed (business name, tax rate,
         // opening balances), with no indication that happened.
         if (form.currency !== settings.currency) {
-            updateSettings({ ...form, currency: settings.currency });
+            // Hold BOTH currency fields back until confirmed, not just the
+            // symbol -- the currency picker (below) always sets currency and
+            // currencyCode together, so saving currencyCode alone here while
+            // reverting currency left the two out of sync (e.g. a "NGN"
+            // header next to a "$" amount) for as long as the confirm dialog
+            // was on screen, and permanently if the owner cancelled it.
+            updateSettings({ ...form, currency: settings.currency, currencyCode: settings.currencyCode });
             if (updateProfile && phone !== (user?.phone || '')) updateProfile({ phone: phone.trim() });
             confirmAction(
                 t(language, 'currencyChangeTitle'),
                 `${t(language, 'currencyChangeWarning')}\n\nYour other changes on this screen have already been saved either way -- this only decides whether the currency itself also changes.`,
                 t(language, 'confirm'),
                 () => {
-                    updateSettings({ currency: form.currency });
+                    updateSettings({ currency: form.currency, currencyCode: form.currencyCode });
                     showAlert(t(language, 'success'), 'Currency updated.', () => setCurrentScreen('dashboard'));
                 },
                 false,

@@ -1072,7 +1072,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
     if (isDemoMode) {
       const biz = DEMO_BUSINESSES.find((b) => b.id === demoBusinessId);
-      if (biz) setSettings((prev) => ({ ...prev, currency: biz.currency, industry: biz.industry ?? 'general', businessType: biz.businessType ?? 'both' }));
+      if (biz) setSettings((prev) => ({ ...prev, currency: biz.currency, currencyCode: biz.currencyCode, industry: biz.industry ?? 'general', businessType: biz.businessType ?? 'both' }));
       setHydrated(true);
       return;
     }
