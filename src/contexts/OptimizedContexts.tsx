@@ -1144,6 +1144,11 @@ export interface GuestSeedData {
   loans?: Loan[];
   inventory?: InventoryItem[];
   invoices?: Invoice[];
+  // Which pre-signup path produced this data -- setupAccount uses it to
+  // decide where a brand-new account lands (see its own comment) and
+  // ImportTransactionsScreen uses it to word the diagnosis it shows
+  // accordingly ("your Quick Health Check" vs "your guest session").
+  source?: 'guest' | 'quick-health-check';
 }
 
 interface AuthContextValue {
@@ -1802,10 +1807,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await refreshLocalAccounts();
         trackUserRegistered(initialSettings?.currency ?? DEFAULT_SETTINGS.currency);
         auditEvents.accountSetup(email);
-        // First-run choice — upload a statement or set a goal — rather than
-        // dropping a brand-new user straight onto an empty Dashboard where
-        // that decision is easy to never make.
-        setCurrentScreenState('onboarding-choice');
+        if (guestData?.transactions?.length) {
+            // Already answered "how do I get my first data in" -- via Quick
+            // Health Check or by browsing Guest Mode with real numbers --
+            // so asking again via OnboardingChoiceScreen's Upload/Goal/Skip
+            // would just spend the exact momentum this is trying to use.
+            // Straight to the same rich diagnosis a bank-statement upload
+            // shows, built from the data that just got carried over.
+            setNavParams({ skipToDiagnosis: true, diagnosisSource: guestData.source });
+            setCurrentScreenState('import-transactions');
+        } else {
+            // First-run choice — upload a statement or set a goal — rather than
+            // dropping a brand-new user straight onto an empty Dashboard where
+            // that decision is easy to never make.
+            setCurrentScreenState('onboarding-choice');
+        }
       },
       recoverAccount: async (email, pin) => {
         // Called after a successful Supabase sign-in — pull this user's profile

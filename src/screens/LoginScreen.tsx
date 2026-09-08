@@ -412,9 +412,9 @@ export default function LoginScreen() {
             // buildQuickCheckSeedTransactions for why this needs more than
             // just the two typed numbers to reproduce the cash figure too.
             const guestData = isDemoMode
-                ? { transactions, assets, loans, inventory, invoices }
+                ? { transactions, assets, loans, inventory, invoices, source: 'guest' as const }
                 : quickCheckSeed
-                ? { transactions: buildQuickCheckSeedTransactions(quickCheckSeed) }
+                ? { transactions: buildQuickCheckSeedTransactions(quickCheckSeed), source: 'quick-health-check' as const }
                 : undefined;
             // Passed through setupAccount (not just updateSettings afterward) so
             // it's persisted before the post-signup settings-hydrate effect

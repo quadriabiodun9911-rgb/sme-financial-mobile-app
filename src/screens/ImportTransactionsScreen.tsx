@@ -368,7 +368,15 @@ const CATEGORY_OPTIONS: { label: string; category: TxCategory; subCategory: stri
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ImportTransactionsScreen() {
-    const { navigate, goBack, addTransaction, transactions, invoices, finance, settings, loans, inventory, assets } = useApp();
+    const { navigate, goBack, addTransaction, transactions, invoices, finance, settings, loans, inventory, assets, navParams } = useApp();
+    // Set by setupAccount when a brand-new account already carries real
+    // numbers from Quick Health Check or a Guest Mode session -- skips
+    // straight to this screen's post-import diagnosis instead of an empty
+    // upload prompt, since that data already answers "how do I get my first
+    // numbers in." diagnosisSource only changes the copy below, never the
+    // diagnosis itself (built from the same transactions either way).
+    const skipToDiagnosis = navParams?.skipToDiagnosis === true;
+    const diagnosisSource: 'guest' | 'quick-health-check' | undefined = navParams?.diagnosisSource;
     const currency = (settings as any).currency || '₦';
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -377,7 +385,7 @@ export default function ImportTransactionsScreen() {
     const { width: windowWidth } = useWindowDimensions();
     const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
-    const [step,       setStep]       = useState<'upload' | 'preview' | 'done'>('upload');
+    const [step,       setStep]       = useState<'upload' | 'preview' | 'done'>(skipToDiagnosis ? 'done' : 'upload');
     const [loading,    setLoading]    = useState(false);
     const [rows,       setRows]       = useState<ParsedRow[]>([]);
     const [error,      setError]      = useState('');
@@ -399,6 +407,20 @@ export default function ImportTransactionsScreen() {
     const webInputRef = useRef<any>(null);
 
     useEffect(() => { loadLearnedRules(); }, []);
+
+    // skipToDiagnosis lands here with no local ParsedRow[] batch to summarize
+    // (there was no file to parse) -- the account's whole transaction history
+    // IS the "import" in this case, so the money-in/out breakdown below reads
+    // straight off it instead of off `rows`. Runs once: this is a one-time
+    // landing, not a live view that should keep recount-ing as the user adds
+    // more transactions later from this same screen instance.
+    useEffect(() => {
+        if (!skipToDiagnosis) return;
+        setImported(transactions.length);
+        setImportedIn(transactions.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount || 0), 0));
+        setImportedOut(transactions.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount || 0), 0));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Run diagnosis on the freshly-imported data immediately, right where the
     // business owner already is, instead of making them navigate away to
@@ -957,8 +979,14 @@ export default function ImportTransactionsScreen() {
                 <View style={styles.doneIconBadge}>
                     <Icon name="check" size={32} color={Colors.income} />
                 </View>
-                <Text style={styles.doneTitle}>{imported} transaction{imported !== 1 ? 's' : ''} imported</Text>
-                <Text style={styles.doneSub}>Your dashboard and reports have been updated.</Text>
+                <Text style={styles.doneTitle}>
+                    {skipToDiagnosis
+                        ? diagnosisSource === 'guest' ? "Here's your Business Health check" : 'Your Quick Health Check results'
+                        : `${imported} transaction${imported !== 1 ? 's' : ''} imported`}
+                </Text>
+                <Text style={styles.doneSub}>
+                    {skipToDiagnosis ? 'Based on the numbers you just gave us.' : 'Your dashboard and reports have been updated.'}
+                </Text>
                 {duplicatesSkipped > 0 && (
                     <Text style={styles.doneSkippedNote}>
                         {duplicatesSkipped} row{duplicatesSkipped > 1 ? 's' : ''} already existed and {duplicatesSkipped > 1 ? 'were' : 'was'} skipped to avoid duplicate transactions.
@@ -971,7 +999,7 @@ export default function ImportTransactionsScreen() {
                     what "3 transactions imported" actually added up to. */}
                 {imported > 0 && (importedIn + importedOut) > 0 && (
                     <View style={styles.flowBreakdownCard}>
-                        <Text style={styles.flowBreakdownTitle}>From this upload</Text>
+                        <Text style={styles.flowBreakdownTitle}>{skipToDiagnosis ? 'Money in vs money out' : 'From this upload'}</Text>
                         <View style={styles.flowBar}>
                             {importedIn > 0 && (
                                 <View style={[styles.flowBarSegment, { flex: importedIn, backgroundColor: Colors.income }]} />
@@ -1046,7 +1074,7 @@ export default function ImportTransactionsScreen() {
                     for a product whose pitch is "understand your business,"
                     asked right where the analysis was just shown -- not
                     buried in a settings menu or a separate survey email. */}
-                {diagnosis && <AhaMomentFeedback source="import-done" />}
+                {diagnosis && <AhaMomentFeedback source={skipToDiagnosis ? `signup-${diagnosisSource ?? 'seeded'}` : 'import-done'} />}
 
                 {/* This is the "give value before asking for money" moment —
                     the free 4-pillar audit (Money/Performance/Cash/Readiness)
@@ -1062,7 +1090,7 @@ export default function ImportTransactionsScreen() {
                     <Text style={styles.ghostBtnText}>View Transactions</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.ghostBtn} onPress={() => { setStep('upload'); setRows([]); setError(''); setSkippedNote(''); setScanWarning(''); setOpeningBalance(undefined); setClosingBalance(undefined); setDuplicatesSkipped(0); }}>
-                    <Text style={styles.ghostBtnText}>Import another file</Text>
+                    <Text style={styles.ghostBtnText}>{skipToDiagnosis ? 'Upload a bank statement for a fuller picture' : 'Import another file'}</Text>
                 </TouchableOpacity>
             </ScrollView>
         );
