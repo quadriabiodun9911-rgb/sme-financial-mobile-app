@@ -172,6 +172,10 @@ export default function ReportsScreen() {
     );
     const trend      = useMemo(() => computeMonthlyTrend(transactions, 6), [transactions]);
     const enhPnL     = useMemo(() => computeEnhancedPnL(filteredTx, assets), [filteredTx, assets]);
+    // Exactly the transactions enhPnL.revenue was summed from -- see
+    // computeEnhancedPnL's own revenue line -- so the P&L's drill-down
+    // panel can never disagree with the total it's explaining.
+    const revenueTransactions = useMemo(() => filteredTx.filter(t => t.type === 'income'), [filteredTx]);
     const wcMetrics  = useMemo(() => computeWorkingCapitalMetrics(filteredTx), [filteredTx]);
     const revenueByPaymentMethod = useMemo(() => computeRevenueByPaymentMethod(filteredTx), [filteredTx]);
     // Unfiltered (all-time, "as of today") AR/AP — the Debt tab's leverage
@@ -585,6 +589,7 @@ export default function ReportsScreen() {
                                 periodLabel={periodDateLabel}
                                 pnl={enhPnL}
                                 currency={currency}
+                                revenueTransactions={revenueTransactions}
                             />
 
                             {revenueByPaymentMethod.anyTagged && (

@@ -12,16 +12,22 @@
  */
 import React from 'react';
 import { EnhancedPnL } from '../utils/finance';
+import { Transaction } from '../types';
 import { StatementCard, StatementSection, StatementLine, StatementNote, StatementSpacer } from './FormalStatement';
+import SourceOfTruthPanel from './SourceOfTruthPanel';
 
 interface Props {
     businessName: string;
     periodLabel: string; // e.g. "For the period Jan 1 – Aug 15, 2026"
     pnl: EnhancedPnL;
     currency: string;
+    // The exact transactions Total Revenue was summed from -- optional so
+    // callers that don't have this handy (or don't want the drill-down)
+    // can omit it and this statement renders exactly as before.
+    revenueTransactions?: Transaction[];
 }
 
-export default function ProfitAndLossStatement({ businessName, periodLabel, pnl, currency }: Props) {
+export default function ProfitAndLossStatement({ businessName, periodLabel, pnl, currency, revenueTransactions }: Props) {
     const hasCogs = pnl.cogs > 0;
     const hasInterest = pnl.interestExpense !== 0;
 
@@ -34,6 +40,15 @@ export default function ProfitAndLossStatement({ businessName, periodLabel, pnl,
                 ))
                 : null}
             <StatementLine label="Total Revenue" amount={pnl.revenue} currency={currency} subtotal bold />
+            {revenueTransactions && (
+                <SourceOfTruthPanel
+                    label="Total Revenue"
+                    amount={pnl.revenue}
+                    currency={currency}
+                    transactions={revenueTransactions}
+                    periodLabel={periodLabel}
+                />
+            )}
 
             {hasCogs && (
                 <>
