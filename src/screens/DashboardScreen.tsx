@@ -78,6 +78,9 @@ import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeTaxAbilityToPay } from '../utils/taxFilingReadiness';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
+import { computeQualityOfGrowth } from '../utils/qualityOfGrowth';
+import { computeDirectionVsStatus } from '../utils/directionVsStatus';
+import { computeDecisionCentre } from '../utils/decisionCentre';
 import { buildNewGoal, goalDefaults } from '../utils/goals';
 import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
 import { detectPersonalSpending, DISMISSED_PERSONAL_KEY } from '../utils/personalSpendingDetector';
@@ -787,6 +790,25 @@ export default function DashboardScreen() {
             : null),
         [transactions, invoices, finance.cashBalance, finance.expense, settings?.currency, loans, inventory, assets]
     );
+
+    // Decision Centre preview -- the same Act Now/Watch/Improving combinator
+    // InsightsScreen's own Decision Centre card shows (see decisionCentre.ts),
+    // reusing businessHealth and diagnosisForNextGoal already computed above
+    // so this can never disagree with either the Scoreboard's Direction vs
+    // Status card or Insights' own Decision Centre for the same business.
+    // Previously this engine only rendered inside Insights, so a new user had
+    // no organic way to find it within their first few minutes.
+    const directionVsStatus = useMemo(
+        () => computeDirectionVsStatus(businessHealth, computeQualityOfGrowth(transactions, assets, loans)),
+        [businessHealth, transactions, assets, loans]
+    );
+    const decisionCentre = useMemo(
+        () => (diagnosisForNextGoal ? computeDecisionCentre(diagnosisForNextGoal, directionVsStatus) : null),
+        [diagnosisForNextGoal, directionVsStatus]
+    );
+    const topDecisionItem = decisionCentre
+        ? decisionCentre.actNow[0] ?? decisionCentre.watch[0] ?? decisionCentre.improving[0] ?? null
+        : null;
 
     // The first not-yet-celebrated achieved goal -- see celebratedGoalIds
     // above for why "achieved" alone isn't enough to gate this.
@@ -1914,6 +1936,63 @@ export default function DashboardScreen() {
                       );
                     })}
                   </View>
+                )}
+
+                {/* DECISION CENTRE PREVIEW — the same Act Now/Watch/Improving
+                    combinator Insights' own Decision Centre card shows (see
+                    decisionCentre.ts), reusing the same diagnosis and
+                    direction-vs-status computed above so this preview can
+                    never disagree with the full card. Only the counts and
+                    the single highest-urgency item, not the whole list —
+                    this is a doorway into Insights, not a second copy of it. */}
+                {decisionCentre && (
+                  <TouchableOpacity
+                    style={styles.topPrioritiesCard}
+                    onPress={() => setCurrentScreen('insights')}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.sectionTitleRow}>
+                      <Icon name="zap" size={13} color={Colors.textMuted} />
+                      <Text style={styles.operationsSectionTitle}>Decision Centre</Text>
+                    </View>
+                    {(decisionCentre.actNow.length + decisionCentre.watch.length + decisionCentre.improving.length) === 0 ? (
+                      <Text style={styles.priorityAmount}>
+                        {decisionCentre.directionAvailable
+                          ? 'Nothing urgent right now — check back as your numbers update.'
+                          : 'Log more transactions to populate your Decision Centre.'}
+                      </Text>
+                    ) : (
+                      <>
+                        <View style={styles.healthFactorsRow}>
+                          {decisionCentre.actNow.length > 0 && (
+                            <View style={styles.healthFactorChip}>
+                              <View style={[styles.healthFactorDot, { backgroundColor: Colors.expense }]} />
+                              <Text style={styles.healthFactorChipText}>{decisionCentre.actNow.length} Act Now</Text>
+                            </View>
+                          )}
+                          {decisionCentre.watch.length > 0 && (
+                            <View style={styles.healthFactorChip}>
+                              <View style={[styles.healthFactorDot, { backgroundColor: Colors.warning }]} />
+                              <Text style={styles.healthFactorChipText}>{decisionCentre.watch.length} Watch</Text>
+                            </View>
+                          )}
+                          {decisionCentre.improving.length > 0 && (
+                            <View style={styles.healthFactorChip}>
+                              <View style={[styles.healthFactorDot, { backgroundColor: Colors.income }]} />
+                              <Text style={styles.healthFactorChipText}>{decisionCentre.improving.length} Improving</Text>
+                            </View>
+                          )}
+                        </View>
+                        {topDecisionItem && (
+                          <View style={{ marginTop: Spacing.xs }}>
+                            <Text style={styles.priorityTitle}>{topDecisionItem.title}</Text>
+                            <Text style={styles.priorityAmount}>{topDecisionItem.evidence}</Text>
+                          </View>
+                        )}
+                      </>
+                    )}
+                    <Text style={[styles.healthLinkText, { marginTop: Spacing.sm }]}>See full Decision Centre →</Text>
+                  </TouchableOpacity>
                 )}
                 </>
                 )}
