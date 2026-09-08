@@ -35,14 +35,24 @@ describe('computeQualityOfGrowth', () => {
         expect(result.reason).toMatch(/no transaction history/i);
     });
 
-    it('is unavailable with only one year of data', () => {
+    it('is unavailable with only one calendar month of data', () => {
+        const txs = [
+            makeTx({ date: '2025-03-01', type: 'income', amount: 10000 }),
+            makeTx({ date: '2025-03-15', type: 'expense', amount: 5000 }),
+        ];
+        const result = computeQualityOfGrowth(txs, NO_ASSETS, []);
+        expect(result.available).toBe(false);
+        expect(result.reason).toMatch(/two months/i);
+    });
+
+    it('falls back to a month-over-month comparison with less than two full years of data', () => {
         const txs = [
             makeTx({ date: '2025-03-01', type: 'income', amount: 10000 }),
             makeTx({ date: '2025-04-01', type: 'expense', amount: 5000 }),
         ];
         const result = computeQualityOfGrowth(txs, NO_ASSETS, []);
-        expect(result.available).toBe(false);
-        expect(result.reason).toMatch(/two full years/i);
+        expect(result.available).toBe(true);
+        expect(result.periodLabel).toMatch(/Apr 2025 vs Mar 2025/i);
     });
 
     it('scores healthy growth highly with no flags', () => {
