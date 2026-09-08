@@ -12,6 +12,7 @@ import RadialGauge from '../components/RadialGauge';
 import { computeCashFlowForecast, computeDSCR } from '../utils/finance';
 import { computeCashRunway } from '../utils/cashRunway';
 import { computeCashRunwayIntelligence } from '../utils/metricIntelligence';
+import { formatRunwayForDisplay } from '../utils/runwayDisplay';
 import { computeBurnRateAnalysis } from '../utils/burnRateAnalysis';
 import { computeBreakeven } from '../utils/profitability';
 import BreakevenAnalysis from '../components/BreakevenAnalysis';
@@ -108,6 +109,15 @@ export default function CashFlowScreen() {
         [runwayDays, dailyBurn, cashBalance, transactions],
     );
     const [runwayWhyOpen, setRunwayWhyOpen] = useState(false);
+
+    // The gauge's single day-count above is a point estimate, not a
+    // guarantee -- reuses the exact same DataConfidence this metric's own
+    // "Why?" panel already shows (runwayIntelligence.dataQuality.confidence),
+    // never a second, independently-invented uncertainty read.
+    const runwayRange = useMemo(
+        () => formatRunwayForDisplay(runwayDays, runwayIntelligence.dataQuality.confidence),
+        [runwayDays, runwayIntelligence.dataQuality.confidence],
+    );
 
     // Startup Burn Rate -- the complementary "at the actual rate you're
     // going, revenue included" view alongside the worst-case gross-burn
@@ -374,6 +384,17 @@ export default function CashFlowScreen() {
                                 </Text>
                             </View>
 
+                            {/* The exact day-count above is a point estimate
+                                built on one burn-rate trend, not a promise --
+                                a realistic range plus how much to trust it,
+                                so this doesn't read as more certain than the
+                                underlying data actually supports. */}
+                            {runwayRange.available && (
+                                <Text style={styles.runwayRangeText}>
+                                    Realistic range: {runwayRange.headline} · {runwayRange.confidenceLabel} confidence
+                                </Text>
+                            )}
+
                             <TouchableOpacity style={styles.runwayWhyBtn} onPress={() => setRunwayWhyOpen(o => !o)}>
                                 <Text style={styles.runwayWhyBtnText}>Why? What is this built on?</Text>
                                 <Text style={styles.runwayWhyBtnText}>{runwayWhyOpen ? '▲' : '▼'}</Text>
@@ -388,6 +409,15 @@ export default function CashFlowScreen() {
                                     {runwayIntelligence.builtOn.map((line, i) => (
                                         <Text key={i} style={styles.runwayWhyBullet}>• {line}</Text>
                                     ))}
+                                    {runwayRange.available && (
+                                        <Text style={styles.runwayWhyBullet}>
+                                            • {runwayRange.confidenceLabel === 'High'
+                                                ? 'Your transaction history is clean and well-covered enough that this stays close to the exact figure.'
+                                                : runwayRange.confidenceLabel === 'Medium'
+                                                ? 'With partial history, treat the exact day-count as a rough midpoint rather than a guarantee.'
+                                                : 'With limited or spotty history, this is a wide estimate — log more transactions to narrow it.'}
+                                        </Text>
+                                    )}
 
                                     <Text style={styles.runwayWhyLabel}>Trigger</Text>
                                     <Text style={[styles.runwayWhyText, { color: Colors.warning, fontWeight: '700' }]}>⚠️ {runwayIntelligence.trigger}</Text>
@@ -667,6 +697,7 @@ const styles = StyleSheet.create({
     runwayLabel:  { fontSize: 13, color: Colors.muted, marginBottom: Spacing.sm },
     runwaySubRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginTop: Spacing.sm },
     runwaySub:    { fontSize: 13, color: Colors.muted, textAlign: 'center' },
+    runwayRangeText: { fontSize: 11.5, color: Colors.muted, textAlign: 'center', marginTop: 6, fontWeight: '600' },
     runwayWhyBtn: { alignSelf: 'stretch', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
     runwayWhyBtnText: { fontSize: 11.5, fontWeight: '600', color: Colors.muted },
     runwayWhyBox: { alignSelf: 'stretch', backgroundColor: Colors.bg, borderRadius: Radius.md, padding: Spacing.md, marginTop: 8, gap: 2 },
