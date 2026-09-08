@@ -359,7 +359,7 @@ export default function GoalsScreen() {
                 <View style={styles.pad}>
                     <Text style={styles.title}>Your Goals</Text>
                     <Text style={styles.subtitle}>
-                        Set measurable business targets. The app tracks your progress daily and builds a personalised strategy to help you reach each goal.
+                        Set a measurable target, and know — daily, not just at the end — whether you're actually getting closer, with a personalised strategy to help you get there.
                     </Text>
 
                     {/* Goals list */}

@@ -132,7 +132,7 @@ export default function InsightsScreen() {
                                 <Text style={styles.swotHeaderTitle}>Decision Centre</Text>
                             </View>
                             <Text style={styles.swotHeaderSub}>
-                                What actually needs a decision right now, grouped by urgency
+                                Know what actually needs a decision right now — grouped by urgency, not just a wall of numbers
                             </Text>
                         </View>
                         <Icon name={decisionCentreExpanded ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />

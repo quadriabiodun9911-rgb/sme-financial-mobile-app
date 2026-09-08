@@ -126,7 +126,7 @@ export default function FinancialAssessmentScreen() {
           <Icon name="search" size={20} color={Colors.textPrimary} />
           <Text style={styles.title}>Financial Assessment</Text>
         </View>
-        <Text style={styles.subtitle}>Your free Business Health & Efficiency Audit — money, performance, cash and readiness, from your own numbers</Text>
+        <Text style={styles.subtitle}>Know exactly where your business stands — money, performance, cash and readiness — from your own numbers, free.</Text>
         {/* This whole screen is a current-month snapshot by design — make
             that explicit and point to the real multi-year view so results
             here aren't mistaken for a full history. */}
