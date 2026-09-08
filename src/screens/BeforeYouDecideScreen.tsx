@@ -34,7 +34,7 @@ import { localDateStr } from '../utils/localDate';
  * same components (and therefore the same numbers) reused as-is.
  */
 export default function BeforeYouDecideScreen() {
-    const { finance, transactions, loans, inventory, assets, settings, navigate } = useApp();
+    const { finance, transactions, loans, inventory, assets, settings, navigate, goals } = useApp();
     const { currency } = settings;
     const [affordabilityMode, setAffordabilityMode] = useState<'quick' | 'detailed'>('quick');
     // Compare Decisions' "Track this decision" hands its scenario here,
@@ -141,9 +141,9 @@ export default function BeforeYouDecideScreen() {
                         </TouchableOpacity>
                     </View>
                     {affordabilityMode === 'quick' ? (
-                        <DecisionSimulator currency={currency} transactions={transactions} currentCashBalance={finance.cashBalance} pillars={pillars.pillars} />
+                        <DecisionSimulator currency={currency} transactions={transactions} currentCashBalance={finance.cashBalance} pillars={pillars.pillars} goals={goals} />
                     ) : (
-                        <GrowthAffordabilityCalculator currency={currency} currentCashBalance={finance.cashBalance} monthlyBurn={monthlyBurn} />
+                        <GrowthAffordabilityCalculator currency={currency} currentCashBalance={finance.cashBalance} monthlyBurn={monthlyBurn} currentMonthlySurplus={monthlyProfit} goals={goals} />
                     )}
                 </Collapsible>
 
@@ -152,7 +152,7 @@ export default function BeforeYouDecideScreen() {
                     <Text style={styles.decisionHelp}>Paying cash and financing it are both reasonable — see the actual liquidity trade-off first.</Text>
                 </View>
                 <Collapsible title="Buy vs. Finance">
-                    <BuyVsFinanceCalculator currency={currency} currentCashBalance={finance.cashBalance} monthlyBurn={monthlyBurn} />
+                    <BuyVsFinanceCalculator currency={currency} currentCashBalance={finance.cashBalance} monthlyBurn={monthlyBurn} currentMonthlySurplus={monthlyProfit} goals={goals} />
                 </Collapsible>
 
                 <View style={styles.decisionCard}>

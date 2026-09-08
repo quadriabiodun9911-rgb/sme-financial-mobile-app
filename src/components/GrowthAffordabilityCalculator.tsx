@@ -2,11 +2,18 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { computeGrowthAffordability, GrowthAffordabilityVerdict } from '../utils/growthAffordability';
+import { FinancialGoal } from '../types';
+import { pickCashGoal, estimateGoalDelay, formatGoalDelay } from '../utils/goalImpact';
 
 interface Props {
     currency: string;
     currentCashBalance: number;
     monthlyBurn: number;
+    // Current net monthly cash surplus (revenue - expense), before this
+    // decision -- only used for the goal-delay line below. Omit it and this
+    // component still answers "can I afford this growth" without that line.
+    currentMonthlySurplus?: number;
+    goals?: FinancialGoal[];
 }
 
 function fmt(currency: string, n: number): string {
@@ -35,23 +42,38 @@ const VERDICT_LABEL: Record<GrowthAffordabilityVerdict, string> = {
 // at all. This checks whether cash survives that gap — the actual question
 // behind "should we expand now" — using the same runway math as the rest
 // of the app, not a vague go/no-go feeling.
-export default function GrowthAffordabilityCalculator({ currency, currentCashBalance, monthlyBurn }: Props) {
+export default function GrowthAffordabilityCalculator({ currency, currentCashBalance, monthlyBurn, currentMonthlySurplus, goals }: Props) {
     const [upfront, setUpfront] = useState('');
     const [addedCost, setAddedCost] = useState('');
     const [addedRevenue, setAddedRevenue] = useState('');
     const [rampUp, setRampUp] = useState('3');
 
+    const addedCostNum = parseFloat(addedCost) || 0;
+    const addedRevenueNum = parseFloat(addedRevenue) || 0;
+
     const result = useMemo(() => {
         const upfrontCost = parseFloat(upfront) || 0;
-        const additionalMonthlyCost = parseFloat(addedCost) || 0;
-        const expectedAdditionalMonthlyRevenue = parseFloat(addedRevenue) || 0;
+        const additionalMonthlyCost = addedCostNum;
+        const expectedAdditionalMonthlyRevenue = addedRevenueNum;
         const rampUpMonths = parseFloat(rampUp) || 0;
         if (upfrontCost <= 0 && additionalMonthlyCost <= 0) return null;
         return computeGrowthAffordability({
             currentCashBalance, monthlyBurn, upfrontCost, additionalMonthlyCost,
             expectedAdditionalMonthlyRevenue, rampUpMonths,
         });
-    }, [upfront, addedCost, addedRevenue, rampUp, currentCashBalance, monthlyBurn]);
+    }, [upfront, addedCostNum, addedRevenueNum, rampUp, currentCashBalance, monthlyBurn]);
+
+    // Once ramp-up ends, this is the decision's lasting effect on the
+    // business's monthly cash surplus -- the steady-state pace a
+    // cash-reserve goal actually accumulates at, so this deliberately
+    // doesn't use the (temporary) during-ramp-up dip already shown above.
+    const goalDelay = useMemo(() => {
+        if (!result || currentMonthlySurplus === undefined || !goals) return null;
+        const goal = pickCashGoal(goals);
+        if (!goal) return null;
+        const newMonthlyRate = currentMonthlySurplus + addedRevenueNum - addedCostNum;
+        return estimateGoalDelay(goal, currentMonthlySurplus, newMonthlyRate);
+    }, [result, currentMonthlySurplus, addedRevenueNum, addedCostNum, goals]);
 
     return (
         <View style={s.card}>
@@ -92,6 +114,13 @@ export default function GrowthAffordabilityCalculator({ currency, currentCashBal
                         <Text style={[s.verdictLabel, { color: VERDICT_COLOR[result.verdict] }]}>{VERDICT_LABEL[result.verdict]}</Text>
                         <Text style={s.verdictReason}>{result.reason}</Text>
                     </View>
+
+                    {goalDelay && (
+                        <View style={s.goalImpactBox}>
+                            <Text style={s.goalImpactText}>🎯 {formatGoalDelay(goalDelay)}</Text>
+                            <Text style={s.goalImpactSubtext}>Based on your steady pace once the ramp-up period ends, not the temporary dip during it.</Text>
+                        </View>
+                    )}
                 </>
             )}
 
@@ -147,6 +176,10 @@ const s = StyleSheet.create({
     verdictBox: { borderRadius: 10, borderWidth: 1.5, padding: 12, marginTop: 12 },
     verdictLabel: { fontSize: 13, fontWeight: '800', marginBottom: 4 },
     verdictReason: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+
+    goalImpactBox: { backgroundColor: Colors.primary + '12', borderRadius: 10, padding: 12, marginTop: 10, borderWidth: 1, borderColor: Colors.primary + '33' },
+    goalImpactText: { fontSize: 12.5, color: Colors.textPrimary, lineHeight: 18, fontWeight: '600' },
+    goalImpactSubtext: { fontSize: 10.5, color: Colors.textMuted, marginTop: 4, lineHeight: 14 },
 
     emptyHint: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic' },
 });

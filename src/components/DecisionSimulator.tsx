@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
-import { Transaction } from '../types';
+import { Transaction, FinancialGoal } from '../types';
 import { computeDecisionSimulation, computeExpansionReadiness, DecisionAffordability, ExpansionReadinessBand } from '../utils/financialDecisionSimulator';
 import { FinancialHealthPillar } from '../utils/financialHealthPillars';
+import { pickCashGoal, estimateGoalDelay, formatGoalDelay } from '../utils/goalImpact';
 
 interface Props {
     currency: string;
@@ -13,6 +14,10 @@ interface Props {
     // component still answers "can I afford this" without that banner,
     // for callers that don't already have the pillar breakdown at hand.
     pillars?: FinancialHealthPillar[];
+    // Only used for the goal-delay line below -- omit it and this component
+    // still answers "can I afford this" without that line, for callers that
+    // don't already have the goals list at hand.
+    goals?: FinancialGoal[];
 }
 
 function fmt(currency: string, n: number): string {
@@ -38,7 +43,7 @@ const READINESS_META: Record<ExpansionReadinessBand, { color: string }> = {
 // the Growth Affordability Calculator (no upfront cost or ramp-up
 // modeled) and why the downside check reuses Revenue Stress Test's own
 // -20% convention rather than inventing a new one.
-export default function DecisionSimulator({ currency, transactions, currentCashBalance, pillars }: Props) {
+export default function DecisionSimulator({ currency, transactions, currentCashBalance, pillars, goals }: Props) {
     const [addedCost, setAddedCost] = useState('');
 
     const result = useMemo(() => {
@@ -51,6 +56,17 @@ export default function DecisionSimulator({ currency, transactions, currentCashB
         () => (pillars && pillars.length > 0 ? computeExpansionReadiness(pillars) : null),
         [pillars],
     );
+
+    // The forward-looking cousin of the surplus numbers above: not just
+    // "does this leave a deficit" but "does it push back a goal the
+    // business actually set for itself." See goalImpact.ts for why this is
+    // scoped to cash_reserve goals only.
+    const goalDelay = useMemo(() => {
+        if (!result || !result.available || !goals) return null;
+        const goal = pickCashGoal(goals);
+        if (!goal) return null;
+        return estimateGoalDelay(goal, result.currentMonthlySurplus, result.surplusAfterDecision);
+    }, [result, goals]);
 
     return (
         <View style={s.card}>
@@ -97,6 +113,12 @@ export default function DecisionSimulator({ currency, transactions, currentCashB
                         <Text style={s.downsideLabel}>Downside scenario: revenue falls {result.downsideRevenueDropPct}%</Text>
                         <Text style={s.downsideText}>{result.downsideNarrative}</Text>
                     </View>
+
+                    {goalDelay && (
+                        <View style={s.goalImpactBox}>
+                            <Text style={s.goalImpactText}>🎯 {formatGoalDelay(goalDelay)}</Text>
+                        </View>
+                    )}
 
                     {expansionReadiness && (
                         <View style={[s.readinessBox, { borderColor: READINESS_META[expansionReadiness.band].color }]}>
@@ -152,6 +174,9 @@ const s = StyleSheet.create({
     downsideBox: { backgroundColor: Colors.bg, borderRadius: 10, padding: 12, marginTop: 10 },
     downsideLabel: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
     downsideText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+
+    goalImpactBox: { backgroundColor: Colors.primary + '12', borderRadius: 10, padding: 12, marginTop: 10, borderWidth: 1, borderColor: Colors.primary + '33' },
+    goalImpactText: { fontSize: 12.5, color: Colors.textPrimary, lineHeight: 18, fontWeight: '600' },
 
     readinessBox: { borderRadius: 10, borderWidth: 1.5, padding: 12, marginTop: 10 },
     readinessLabel: { fontSize: 13, fontWeight: '800', marginBottom: 4 },

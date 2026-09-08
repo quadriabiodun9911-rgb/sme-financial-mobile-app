@@ -2,11 +2,17 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { computeBuyVsFinance } from '../utils/buyVsFinance';
+import { FinancialGoal } from '../types';
+import { pickCashGoal, estimateGoalDelayFromLumpSum, formatGoalDelay } from '../utils/goalImpact';
 
 interface Props {
     currency: string;
     currentCashBalance: number;
     monthlyBurn: number;
+    // Current net monthly cash surplus (revenue - expense) -- only used for
+    // the goal-delay line on the Pay Cash option below.
+    currentMonthlySurplus?: number;
+    goals?: FinancialGoal[];
 }
 
 function fmt(currency: string, n: number): string {
@@ -22,7 +28,7 @@ function fmtMonths(n: number): string {
 // (return vs. interest cost) is a different question from "what does this
 // purchase do to my cash runway either way." Both paths can be reasonable
 // — this shows the actual liquidity trade-off, not just which is cheaper.
-export default function BuyVsFinanceCalculator({ currency, currentCashBalance, monthlyBurn }: Props) {
+export default function BuyVsFinanceCalculator({ currency, currentCashBalance, monthlyBurn, currentMonthlySurplus, goals }: Props) {
     const [cost, setCost] = useState('');
     const [rate, setRate] = useState('');
     const [term, setTerm] = useState('24');
@@ -36,6 +42,19 @@ export default function BuyVsFinanceCalculator({ currency, currentCashBalance, m
         if (equipmentCost <= 0 || termMonths <= 0) return null;
         return computeBuyVsFinance({ equipmentCost, currentCashBalance, monthlyBurn, interestRate, termMonths, downPaymentPct });
     }, [cost, rate, term, downPct, currentCashBalance, monthlyBurn]);
+
+    // Paying cash spends straight out of the reserve a cash_reserve goal is
+    // building -- a one-off setback against the current savings pace, not
+    // an ongoing rate change, so this uses the lump-sum variant rather than
+    // estimateGoalDelay. Financing spreads the cost into an ongoing payment
+    // instead (already visible via its own runway numbers above), so this
+    // deliberately only covers the Pay Cash option.
+    const goalDelay = useMemo(() => {
+        if (!result || currentMonthlySurplus === undefined || !goals) return null;
+        const goal = pickCashGoal(goals);
+        if (!goal) return null;
+        return estimateGoalDelayFromLumpSum(goal, currentMonthlySurplus, parseFloat(cost) || 0);
+    }, [result, currentMonthlySurplus, goals, cost]);
 
     return (
         <View style={s.card}>
@@ -95,6 +114,13 @@ export default function BuyVsFinanceCalculator({ currency, currentCashBalance, m
                 </Text>
             )}
 
+            {goalDelay && (
+                <View style={s.goalImpactBox}>
+                    <Text style={s.goalImpactText}>🎯 {formatGoalDelay(goalDelay)}</Text>
+                    <Text style={s.goalImpactSubtext}>If you pay cash — financing spreads this into an ongoing payment instead, already reflected in the runway numbers above.</Text>
+                </View>
+            )}
+
             {!result && (
                 <Text style={s.emptyHint}>Enter the equipment cost and financing term to compare.</Text>
             )}
@@ -147,5 +173,10 @@ const s = StyleSheet.create({
     optionVal: { color: Colors.textPrimary, fontWeight: '700' },
 
     verdict: { fontSize: 12.5, fontWeight: '600', marginTop: 12, lineHeight: 18 },
+
+    goalImpactBox: { backgroundColor: Colors.primary + '12', borderRadius: 10, padding: 12, marginTop: 10, borderWidth: 1, borderColor: Colors.primary + '33' },
+    goalImpactText: { fontSize: 12.5, color: Colors.textPrimary, lineHeight: 18, fontWeight: '600' },
+    goalImpactSubtext: { fontSize: 10.5, color: Colors.textMuted, marginTop: 4, lineHeight: 14 },
+
     emptyHint: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic' },
 });
