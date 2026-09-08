@@ -15,6 +15,7 @@ import { computeBusinessExposure, computeBusinessResilience, describeHealthResil
 import { performFinancialDiagnosis, computeRevenueRecurringPct } from '../utils/financialDiagnosisEngine';
 import { computeFinancialHealthPillars, diagnoseFinancialHealth, PillarStatus } from '../utils/financialHealthPillars';
 import { computeFinancialResilience, ResilienceStatus } from '../utils/cashReservePlanning';
+import { computeResilienceTrend } from '../utils/resilienceTrend';
 import { computeCashReserveIntelligence } from '../utils/metricIntelligence';
 import { computeQualityOfGrowth } from '../utils/qualityOfGrowth';
 import DirectionVsStatusCard from '../components/DirectionVsStatusCard';
@@ -198,6 +199,13 @@ export default function ScoreboardScreen() {
     const financialResilience = useMemo(
         () => computeFinancialResilience(transactions, finance.cashBalance),
         [transactions, finance.cashBalance],
+    );
+    // The multi-point sequence a single current-vs-baseline delta can't
+    // show -- "2.1 -> 2.8 -> 3.4 months" reads as real, ongoing progress in
+    // a way one comparison doesn't. See resilienceTrend.ts.
+    const resilienceTrend = useMemo(
+        () => computeResilienceTrend(transactions, assets, loans),
+        [transactions, assets, loans],
     );
     // Metric Intelligence pilot -- same Definition/Owner-confidence/Trigger
     // treatment as Business Health/Financing Readiness/Cash Runway/DSCR.
@@ -433,6 +441,34 @@ export default function ScoreboardScreen() {
                                 </Text>
                             </View>
                             <Text style={s.cardBodyText}>{financialResilience.assessment}</Text>
+
+                            {/* The sequence itself, not just a current-vs-
+                                baseline delta -- "what I'm doing is working"
+                                reads as true from watching several points
+                                move, not from one before/after comparison.
+                                Only shown once there's an actual sequence to
+                                show (2+ months with a real coverage number). */}
+                            {resilienceTrend.filter(p => p.reserveCoverageMonths !== null).length >= 2 && (
+                                <View style={s.resilienceTrendRow}>
+                                    <Text style={s.resilienceTrendLabel}>Reserve coverage, month by month</Text>
+                                    <Text style={s.resilienceTrendValue}>
+                                        {resilienceTrend.map(p => p.reserveCoverageMonths !== null ? `${p.reserveCoverageMonths.toFixed(1)} mo` : '—').join('  →  ')}
+                                    </Text>
+                                </View>
+                            )}
+
+                            {/* Same "watch several points move" framing, for
+                                debt -- only shown once there's ever been a
+                                real balance to track (an all-zero trend
+                                would just be noise for a debt-free business). */}
+                            {resilienceTrend.length >= 2 && resilienceTrend.some(p => p.loansOutstanding > 0) && (
+                                <View style={s.resilienceTrendRow}>
+                                    <Text style={s.resilienceTrendLabel}>Outstanding debt, month by month</Text>
+                                    <Text style={s.resilienceTrendValue}>
+                                        {resilienceTrend.map(p => `${currency}${Math.round(p.loansOutstanding).toLocaleString()}`).join('  →  ')}
+                                    </Text>
+                                </View>
+                            )}
                         </>
                     ) : (
                         <Text style={s.cardBodyText}>{financialResilience.assessment}</Text>
@@ -699,6 +735,9 @@ const s = StyleSheet.create({
     resilienceLabel: { fontSize: 12.5, color: Colors.textSecondary },
     resilienceValue: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
     resilienceBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.pill, marginTop: Spacing.sm, marginBottom: Spacing.sm },
+    resilienceTrendRow: { marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border },
+    resilienceTrendLabel: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4 },
+    resilienceTrendValue: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
     resilienceBadgeText: { fontSize: 12, fontWeight: '700' },
     resilienceWhyBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
     resilienceWhyBtnText: { fontSize: 11.5, fontWeight: '600', color: Colors.textMuted },
