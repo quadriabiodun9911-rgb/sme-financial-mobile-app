@@ -21,6 +21,7 @@ import { confirmAction } from '../utils/webAlert';
 import { TxCategory, classifyByDescription, loadLearnedRules, learnCategory, normalise } from '../utils/transactionCategorization';
 import { extractVendorCustomer } from '../utils/flexibleBankStatementParser';
 import { auditEvents } from '../utils/auditLog';
+import { checkStatementBalance } from '../utils/statementBalanceCheck';
 import DataConfidenceBadge from '../components/DataConfidenceBadge';
 import AhaMomentFeedback from '../components/AhaMomentFeedback';
 
@@ -407,6 +408,17 @@ export default function ImportTransactionsScreen() {
     const webInputRef = useRef<any>(null);
 
     useEffect(() => { loadLearnedRules(); }, []);
+
+    // "Do the numbers actually balance?" -- the opening balance plus the
+    // net of everything parsed above should equal the closing balance the
+    // bank itself printed on this same statement. A real gap here is
+    // usually a parsing artifact (a fused number, a misread column), and
+    // catching it here -- before these rows are ever saved -- beats
+    // finding out later that a downstream total was quietly wrong.
+    const balanceCheck = useMemo(
+        () => checkStatementBalance(openingBalance, closingBalance, rows),
+        [openingBalance, closingBalance, rows],
+    );
 
     // skipToDiagnosis lands here with no local ParsedRow[] batch to summarize
     // (there was no file to parse) -- the account's whole transaction history
@@ -1184,6 +1196,28 @@ export default function ImportTransactionsScreen() {
                 </View>
             )}
 
+            {/* "Do the numbers actually balance?" -- opening balance + the
+                net of everything parsed above should equal the closing
+                balance the bank itself printed on this same statement. A
+                real gap here is usually a parsing artifact worth checking
+                before these rows get saved, not something to silently
+                carry into every downstream total. */}
+            {balanceCheck.available && balanceCheck.hasDiscrepancy && (
+                <View style={styles.balanceDiscrepancyBanner}>
+                    <Icon name="alert-triangle" size={16} color={Colors.expense} />
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.balanceDiscrepancyTitle}>⚠️ Data discrepancy detected</Text>
+                        <Text style={styles.balanceDiscrepancyText}>
+                            We found a {fmt(Math.abs(balanceCheck.discrepancy))} difference between what these
+                            transactions add up to ({fmt(balanceCheck.expectedClosing)}) and the closing balance
+                            printed on the statement ({fmt(balanceCheck.actualClosing)}). Double-check the
+                            categorised rows below before importing — a fused number or a missed row is the
+                            most common cause.
+                        </Text>
+                    </View>
+                </View>
+            )}
+
             {/* Transaction rows */}
             <FlatList
                 data={rows}
@@ -1364,6 +1398,9 @@ const styles = StyleSheet.create({
     summaryLabel: { fontSize: 10, color: Colors.textMuted, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
     balanceStrip: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingHorizontal: Spacing.sm },
     balanceArrow: { fontSize: 16, color: Colors.textMuted },
+    balanceDiscrepancyBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: Colors.expense + '12', borderBottomWidth: 1, borderBottomColor: Colors.expense + '33', padding: Spacing.md },
+    balanceDiscrepancyTitle: { fontSize: 12.5, fontWeight: '800', color: Colors.expense, marginBottom: 3 },
+    balanceDiscrepancyText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
     // Transaction rows
     txRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
