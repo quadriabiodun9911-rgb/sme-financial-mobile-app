@@ -36,7 +36,11 @@ const BAND_COLOR: Record<RiskScore['band'], string> = {
 };
 
 interface Props {
-    onWantFullPicture: () => void;
+    // Passes the three typed numbers through so the caller can carry them
+    // into a real account (see LandingScreen's goSignup / quickHealthCheck's
+    // buildQuickCheckSeedTransactions) instead of losing this "aha" moment
+    // the instant the visitor decides to sign up.
+    onWantFullPicture: (seed: { lastMonthRevenue: number; monthlyExpenses: number; cashInBank: number }) => void;
     onTryDemo: () => void;
     // Wide-viewport layout -- the card grows and the 3 fields sit in a row
     // instead of stacking, so the widget actually uses the extra hero
@@ -207,7 +211,10 @@ export default function QuickHealthCheckWidget({ onWantFullPicture, onTryDemo, i
                         to do next.
                     </Text>
                     <View style={s.upsellBtnRow}>
-                        <PressScale onPress={onWantFullPicture} style={s.upsellPrimaryBtn}>
+                        <PressScale
+                            onPress={() => onWantFullPicture({ lastMonthRevenue: revenue!, monthlyExpenses: expenses!, cashInBank: cash! })}
+                            style={s.upsellPrimaryBtn}
+                        >
                             <Text style={s.upsellPrimaryText}>Get My Full Health Score →</Text>
                         </PressScale>
                         <PressScale onPress={onTryDemo} style={s.upsellSecondaryBtn}>

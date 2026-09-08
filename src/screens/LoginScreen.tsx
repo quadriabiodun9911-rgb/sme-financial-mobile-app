@@ -14,6 +14,7 @@ import { supabase, createEphemeralAuthClient } from '../utils/supabase';
 import { savePin, saveProfile, generateAuthSecret, saveAuthSecret, loadAuthSecret, loadProfile, localProfileMatchesEmail, syncFieldEncryptionKey, registerLocalAccount } from '../utils/storage';
 import { verifyBackupPassword, setBackupPassword } from '../utils/backupPassword';
 import { Industry, BusinessSettings } from '../types';
+import { buildQuickCheckSeedTransactions } from '../utils/quickHealthCheck';
 
 const CURRENCIES = [
     { label: 'USD ($)',    value: '$',   code: 'USD' },
@@ -117,6 +118,12 @@ export default function LoginScreen() {
     // visitor just clicked).
     const initialMode: Mode = (navParams?.mode as Mode | undefined) ?? (isFirstLaunch ? 'owner-setup' : 'owner-login');
     const [mode, setMode] = useState<Mode>(initialMode);
+    // Set only when this screen was opened via the Landing page's Quick
+    // Health Check "Get My Full Health Score" button -- see LandingScreen's
+    // goSignup. Read once here so both the setup form's carryover note and
+    // handleSetup's guestData below stay in sync off the one value.
+    const quickCheckSeed = navParams?.quickCheckSeed as
+        { lastMonthRevenue: number; monthlyExpenses: number; cashInBank: number } | undefined;
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
     const [loginMethod, setLoginMethod] = useState<LoginMethod>('pin');
 
@@ -399,8 +406,15 @@ export default function LoginScreen() {
             // session's own settings (e.g. currency they were already
             // using) rather than only the form's fresh currency/industry
             // picks, which take priority via the spread order below.
+            // Arriving straight from the Landing page's Quick Health Check
+            // (never having been in guest/demo mode at all) carries its own
+            // seed the same way -- see LandingScreen's goSignup and
+            // buildQuickCheckSeedTransactions for why this needs more than
+            // just the two typed numbers to reproduce the cash figure too.
             const guestData = isDemoMode
                 ? { transactions, assets, loans, inventory, invoices }
+                : quickCheckSeed
+                ? { transactions: buildQuickCheckSeedTransactions(quickCheckSeed) }
                 : undefined;
             // Passed through setupAccount (not just updateSettings afterward) so
             // it's persisted before the post-signup settings-hydrate effect
@@ -1604,6 +1618,14 @@ export default function LoginScreen() {
                         <Icon name="lock" size={13} color={Colors.primary} />
                         <Text style={styles.guestCarryoverNoteText}>
                             Your analysis is ready. Create your account to securely save it — you won't need to upload again.
+                        </Text>
+                    </View>
+                )}
+                {!isDemoMode && quickCheckSeed && (
+                    <View style={styles.guestCarryoverNote}>
+                        <Icon name="lock" size={13} color={Colors.primary} />
+                        <Text style={styles.guestCarryoverNoteText}>
+                            We'll bring the numbers from your 60-second Quick Health Check into your new account, so your Dashboard isn't starting from zero.
                         </Text>
                     </View>
                 )}

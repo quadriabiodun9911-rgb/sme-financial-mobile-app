@@ -29,6 +29,8 @@ import {
     RiskScore,
 } from './finance';
 import { INDUSTRY_BENCHMARKS } from './financialDiagnosisEngine';
+import { Transaction } from '../types';
+import { generateId } from './uuid';
 
 export interface StressScenario {
     key: 'current' | 'revenueDown25' | 'revenueDown50' | 'revenueStops' | 'expensesUp20';
@@ -217,5 +219,68 @@ export function computeQuickHealthCheck(input: QuickHealthCheckInput): QuickHeal
         diagnosis, financingPreview, fullDetail,
         stressScenarios, stressNarrative, runwayLevers,
     };
+}
+
+// Carries the three numbers a visitor already typed into the widget
+// through to their first real Dashboard, instead of the momentum from
+// that 60-second "aha" resetting to a blank account the moment they sign
+// up. computeFinance's cashBalance is always paidIncome - paidExpense --
+// there's no separate "opening cash" field to just set directly -- so
+// reproducing cashInBank exactly (it's an independent snapshot, not
+// derived from lastMonthRevenue/monthlyExpenses) needs one more entry
+// beyond the revenue/expense pair: a plain "Opening Balance" adjustment
+// for whatever the revenue/expense pair alone wouldn't already cover.
+// That's a standard bookkeeping convention (every accounting tool has an
+// equivalent), not a fabricated transaction -- and every entry here is
+// clearly labeled as coming from what the visitor typed, editable/
+// deletable like any other transaction once they're in the real app.
+export function buildQuickCheckSeedTransactions(input: QuickHealthCheckInput): Transaction[] {
+    const { lastMonthRevenue, monthlyExpenses, cashInBank } = input;
+    const daysAgoIso = (days: number) => {
+        const d = new Date();
+        d.setDate(d.getDate() - days);
+        return d.toISOString().split('T')[0];
+    };
+
+    const seeded: Transaction[] = [];
+    if (lastMonthRevenue > 0) {
+        seeded.push({
+            id: generateId(),
+            date: daysAgoIso(15),
+            description: 'Revenue you entered in your Quick Health Check',
+            type: 'income',
+            category: 'Sales',
+            amount: lastMonthRevenue,
+            status: 'paid',
+        });
+    }
+    if (monthlyExpenses > 0) {
+        seeded.push({
+            id: generateId(),
+            date: daysAgoIso(15),
+            description: 'Expenses you entered in your Quick Health Check',
+            type: 'expense',
+            category: 'Other',
+            amount: monthlyExpenses,
+            status: 'paid',
+        });
+    }
+
+    // Whatever's left after the pair above so paidIncome - paidExpense
+    // lands on the exact cash figure typed in, not just revenue - expenses.
+    const shortfall = cashInBank - (lastMonthRevenue - monthlyExpenses);
+    if (shortfall !== 0) {
+        seeded.push({
+            id: generateId(),
+            date: daysAgoIso(45),
+            description: 'Cash on hand you entered in your Quick Health Check',
+            type: shortfall > 0 ? 'income' : 'expense',
+            category: 'Opening Balance',
+            amount: Math.abs(shortfall),
+            status: 'paid',
+        });
+    }
+
+    return seeded;
 }
 

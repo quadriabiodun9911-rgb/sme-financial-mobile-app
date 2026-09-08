@@ -52,7 +52,12 @@ export default function LandingScreen() {
     const isNarrow = width < 480;
 
     const goLogin = () => navigate('login', { mode: 'owner-login' });
-    const goSignup = () => navigate('login', { mode: 'owner-setup' });
+    // seed carries the Quick Health Check widget's three typed numbers
+    // through to signup (see LoginScreen's handleSetup + quickHealthCheck's
+    // buildQuickCheckSeedTransactions) so that 60-second "aha" moment
+    // doesn't reset to a blank account the instant someone signs up.
+    const goSignup = (seed?: { lastMonthRevenue: number; monthlyExpenses: number; cashInBank: number }) =>
+        navigate('login', { mode: 'owner-setup', quickCheckSeed: seed });
     const goDemo = () => navigate('login', { mode: 'demo-pick' });
     const goLender = () => navigate('login', { mode: 'join-lender' });
     const goLenderDemo = () => enterLenderDemo();
@@ -81,7 +86,7 @@ export default function LandingScreen() {
                         <TouchableOpacity onPress={goLogin} style={s.navLoginBtn}>
                             <Text style={s.navLoginText}>Log In</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={goSignup} style={s.navSignupBtn}>
+                        <TouchableOpacity onPress={() => goSignup()} style={s.navSignupBtn}>
                             <Text style={s.navSignupText}>Sign Up</Text>
                         </TouchableOpacity>
                     </View>
@@ -106,7 +111,7 @@ export default function LandingScreen() {
                     </Text>
 
                     <View style={s.ctaRow}>
-                        <TouchableOpacity onPress={goSignup} style={s.ctaBtn}>
+                        <TouchableOpacity onPress={() => goSignup()} style={s.ctaBtn}>
                             <Text style={s.ctaText}>Get Started Free →</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={goDemo} style={s.demoBtn}>
