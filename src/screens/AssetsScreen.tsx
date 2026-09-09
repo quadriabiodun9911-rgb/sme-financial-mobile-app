@@ -145,29 +145,18 @@ export default function AssetsScreen() {
                 return;
             }
 
-            addAsset(payload);
-
-            if (acqMethod === 'credit') {
-                // Owned asset financed by a loan — create the matching loan record.
-                addLoan({
-                    lenderName: `Financing: ${payload.name}`,
-                    purpose: 'asset',
-                    principal: cost,
-                    interestRate: rate,
-                    termMonths: term,
-                    startDate,
-                    status: 'active',
-                    payments: [],
-                } as any);
-                confirmAction(
-                    'Recorded',
-                    `Asset added and a loan (${currency}${Math.round(monthlyPayment(cost, rate, term)).toLocaleString()}/mo for ${term} months) was created under Loans.`,
-                    'View in Loans',
-                    () => setCurrentScreen('loans'),
-                    false,
-                );
-            } else if (acqMethod === 'lease') {
-                // Leased — record the first monthly lease payment as an expense.
+            if (acqMethod === 'lease') {
+                // Leased — the business never owns this (see
+                // analyzeAcquisition's ownsAsset: false and its own "you
+                // won't own the asset" copy), so it must NOT be capitalized
+                // in the Asset Register: doing so used to also depreciate
+                // it and count its full purchaseCost as an Investing-
+                // activities cash outflow (finance.ts's assetPurchases sums
+                // every asset regardless of acquisition method) on top of
+                // the real monthly lease expense below -- double-counting
+                // the cost and overstating the cash outflow by the full
+                // sticker price for an asset with zero upfront cash paid.
+                // Only the recurring lease payment is ever real here.
                 const leaseMonthly = monthlyPayment(cost, rate + 6, term);
                 addTransaction({
                     date: startDate,
@@ -177,7 +166,30 @@ export default function AssetsScreen() {
                     amount: Math.round(leaseMonthly),
                     status: 'paid',
                 } as any);
-                showAlert('Recorded', `Asset added and a lease expense (${currency}${Math.round(leaseMonthly).toLocaleString()}/mo) was logged. Add each month's payment under Transactions as it recurs.`);
+                showAlert('Recorded', `A lease expense (${currency}${Math.round(leaseMonthly).toLocaleString()}/mo) was logged. This asset isn't added to your Asset Register since you don't own it — add each month's payment under Transactions as it recurs.`);
+            } else {
+                addAsset(payload);
+
+                if (acqMethod === 'credit') {
+                    // Owned asset financed by a loan — create the matching loan record.
+                    addLoan({
+                        lenderName: `Financing: ${payload.name}`,
+                        purpose: 'asset',
+                        principal: cost,
+                        interestRate: rate,
+                        termMonths: term,
+                        startDate,
+                        status: 'active',
+                        payments: [],
+                    } as any);
+                    confirmAction(
+                        'Recorded',
+                        `Asset added and a loan (${currency}${Math.round(monthlyPayment(cost, rate, term)).toLocaleString()}/mo for ${term} months) was created under Loans.`,
+                        'View in Loans',
+                        () => setCurrentScreen('loans'),
+                        false,
+                    );
+                }
             }
         }
         setShowForm(false);
