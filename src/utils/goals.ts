@@ -2,7 +2,7 @@ import {
     FinancialGoal, GoalType, GoalStatus, GoalStrategy,
     StrategyAction, FinanceData, Transaction, BusinessSettings,
 } from '../types';
-import { getTopCategories } from './finance';
+import { getTopCategories, getMonthlyExpenseAverage } from './finance';
 import { computeMonthlyBaseline } from './analysis';
 
 // ─── Goal progress computation ────────────────────────────────────────────────
@@ -389,14 +389,28 @@ export function goalDefaults(
                 unit: currency,
                 percentTarget: 15,
             };
-        case 'cash_reserve':
+        case 'cash_reserve': {
+            const minReserveNum = parseFloat(settings.minReserve) || 0;
+            // minReserve defaults to '0' until a user visits Settings and
+            // sets one -- 2x-of-nothing produced a nonsensical "Build Cash
+            // Reserve to ₦0" title with an empty Target Value field (0 is
+            // falsy, so the form's `defaults.targetValue ? ... : ''` never
+            // prefilled it either), for what's likely to be a brand new
+            // user's very first goal. Falls back to 3 months of average
+            // expenses -- the same rule of thumb Cash Runway is built on --
+            // until they set a real Minimum Reserve.
+            const fallbackTarget = Math.round(getMonthlyExpenseAverage(finance.expense, transactions) * 3);
+            const target = minReserveNum > 0 ? minReserveNum * 2 : fallbackTarget;
             return {
-                title: `Build Cash Reserve to ${currency}${(parseFloat(settings.minReserve) * 2).toLocaleString()}`,
-                description: 'Grow the cash buffer to twice the minimum reserve threshold.',
-                targetValue: parseFloat(settings.minReserve) * 2,
+                title: `Build Cash Reserve to ${currency}${target.toLocaleString()}`,
+                description: minReserveNum > 0
+                    ? 'Grow the cash buffer to twice the minimum reserve threshold.'
+                    : 'Grow the cash buffer to about 3 months of average expenses. Set a Minimum Reserve in Settings for a target tailored to your own number.',
+                targetValue: target,
                 baselineValue: finance.cashBalance,
                 unit: currency,
             };
+        }
         case 'reduce_overdue_ar': {
             const overdueAR = transactions
                 .filter(t => t.type === 'income' && t.status === 'overdue')
