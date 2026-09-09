@@ -779,7 +779,7 @@ export function diagnoseEfficiency(
 
   if (categories.length > 0) {
     const topCategory = categories[0];
-    const categoryPercentage = (topCategory[1] / metrics.totalExpenses) * 100;
+    const categoryPercentage = metrics.totalExpenses > 0 ? (topCategory[1] / metrics.totalExpenses) * 100 : 0;
 
     if (categoryPercentage > 40) {
       diagnoses.push({

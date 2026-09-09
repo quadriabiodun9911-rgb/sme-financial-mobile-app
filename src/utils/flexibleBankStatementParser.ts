@@ -544,7 +544,7 @@ function generateTacticsFromStatement(
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3);
 
-  const expenseConcentration = topExpenseCategories.length > 0
+  const expenseConcentration = topExpenseCategories.length > 0 && summary.totalExpenses > 0
     ? topExpenseCategories.reduce((sum, [, amount]) => sum + amount, 0) / summary.totalExpenses
     : 0;
 

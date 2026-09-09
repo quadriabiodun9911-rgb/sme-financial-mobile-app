@@ -43,7 +43,12 @@ export interface PostFinancingMonitor {
 const REPAYMENT_PACE_TOLERANCE = 0.7;
 
 function monthsBetween(from: string, to: Date): number {
-    const start = new Date(from);
+    // Parsed as local calendar-date components, not `new Date(from)` (UTC
+    // midnight) -- reading that back with local getFullYear()/getMonth()
+    // shifts the result by a month for negative UTC offsets, the same
+    // round-trip bug already fixed elsewhere in this app.
+    const [y, m, d] = from.split('-').map(Number);
+    const start = new Date(y, (m || 1) - 1, d || 1);
     return (to.getFullYear() - start.getFullYear()) * 12 + (to.getMonth() - start.getMonth());
 }
 

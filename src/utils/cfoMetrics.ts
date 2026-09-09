@@ -161,7 +161,12 @@ export function computeObligationsWaterfall(
     // loan contributes at most its own remaining term, counted once.
     const debtServiceByQuarter = [0, 0, 0, 0];
     for (const loan of activeLoans) {
-        const loanStart = new Date(loan.startDate);
+        // Parsed as local calendar-date components, not `new Date(loan.startDate)`
+        // (UTC midnight) -- reading that back with local getFullYear()/getMonth()
+        // shifts the month offset for negative UTC offsets, the same round-trip
+        // bug already fixed elsewhere in this app.
+        const [lsy, lsm, lsd] = loan.startDate.split('-').map(Number);
+        const loanStart = new Date(lsy, (lsm || 1) - 1, lsd || 1);
         // Month offset from today when this loan started (negative if it
         // already started before today) and when it ends (exclusive).
         const loanStartOffset = (loanStart.getFullYear() - today.getFullYear()) * 12 + (loanStart.getMonth() - today.getMonth());
