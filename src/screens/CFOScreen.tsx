@@ -452,19 +452,14 @@ function FinanceTab() {
         return null;
     }, [fixedCosts, varRate, pricePerUnit]);
 
+    // Current Ratio and Profit Margin used to be repeated here -- the exact
+    // same Current Ratio value already appears above under Liquidity (both
+    // read ratios.currentRatio), and Profit Margin was a second, differently
+    // -windowed take on the same concept Net Margin already covers there,
+    // just confusing to see twice under two names with two numbers. Only
+    // what the Plain Language section above genuinely doesn't cover stays
+    // here.
     const ratioCards: { label: string; value: string; good: boolean; explain: string }[] = [
-        {
-            label: 'Current Ratio',
-            // 999x is the "no liabilities recorded" sentinel, not an actual
-            // extreme ratio — showing it as a number with a green "good"
-            // badge would read as an exceptionally strong balance sheet
-            // instead of missing data.
-            value: ratios.hasLiabilitiesData ? ratios.currentRatio.toFixed(2) + 'x' : 'N/A',
-            good: ratios.hasLiabilitiesData && ratios.currentRatio >= 1.5,
-            explain: !ratios.hasLiabilitiesData
-                ? 'No liabilities recorded yet'
-                : ratios.currentRatio >= 1.5 ? 'Assets cover short-term debts' : 'Short-term debts may be hard to cover',
-        },
         {
             // Sourced from the same canonical computeLeverageRatios the Loans &
             // Debt tab uses, so this figure can never disagree with it.
@@ -490,12 +485,6 @@ function FinanceTab() {
             value: `${currency}${Math.round(ratios.burnRate).toLocaleString()}`,
             good: true,
             explain: 'Average monthly spending',
-        },
-        {
-            label: 'Profit Margin',
-            value: ratios.profitMargin.toFixed(1) + '%',
-            good: ratios.profitMargin >= 15,
-            explain: ratios.profitMargin >= 15 ? 'Healthy margin' : 'Margin below 15% — review costs',
         },
     ];
 
@@ -523,7 +512,11 @@ function FinanceTab() {
                 </View>
             ))}
 
-            <Text style={s.sectionHdr}>Key Financial Ratios (Detailed)</Text>
+            {/* Not a more-detailed version of the ratios above -- "(Detailed)"
+                implied a depth toggle that never actually existed. This is
+                the small set of ratios (leverage, asset productivity, burn)
+                the Plain Language dashboard above doesn't cover at all. */}
+            <Text style={s.sectionHdr}>Additional Ratios</Text>
             {ratioCards.map((r, i) => (
                 <View key={i} style={[s.ratioRow, { borderLeftColor: r.good ? Colors.income : Colors.expense }]}>
                     <View style={{ flex: 1 }}>
