@@ -6,7 +6,7 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import LowDataNotice from '../components/LowDataNotice';
-import Icon from '../components/ui/Icon';
+import Icon, { IconName } from '../components/ui/Icon';
 import RadialGauge from '../components/RadialGauge';
 import { computeRiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage } from '../utils/finance';
 import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
@@ -126,6 +126,16 @@ export default function ScoreboardScreen() {
     // only one explanation is open across the whole screen at a time.
     const [expandedChip, setExpandedChip] = useState<string | null>(null);
     const toggleChip = (key: string) => setExpandedChip(prev => (prev === key ? null : key));
+
+    // Default view: the health score hero plus a condensed "what needs
+    // attention" summary, with the other 6 cards (Pillars, Direction vs
+    // Status, Cash Reserve, Leaks, Shock Resilience, Risk Radar, Goals)
+    // behind an explicit "See full breakdown" -- 8 stacked cards each built
+    // from a different engine was the densest first screen in the app, with
+    // no depth control at all (unlike Reports' own Simple/Detailed split).
+    // A returning user who wants the full picture is one tap away; a new
+    // user isn't handed all of it at once by default.
+    const [simpleView, setSimpleView] = useState(true);
 
     // Desktop-optimized layout: the 7 supporting cards below the Health
     // Score hero flow into a 2-column grid on a wide viewport instead of
@@ -278,6 +288,28 @@ export default function ScoreboardScreen() {
         return worst;
     }, [activeGoals, goalRiskByGoalId]);
 
+    // Simple View's condensed summary -- the single highest-signal line
+    // pulled from each of the cards Simple View hides, never a new
+    // computation of its own. Capped at 3 so this reads as "the headlines,"
+    // not a shorter version of the same 6-card wall.
+    const topAttentionItems = useMemo(() => {
+        const items: { key: string; icon: IconName; label: string; text: string }[] = [];
+        if (financialLeaks.available && financialLeaks.leaks.length > 0) {
+            items.push({ key: 'leak', icon: 'alert-triangle', label: financialLeaks.leaks[0].label, text: financialLeaks.leaks[0].headline });
+        }
+        if (riskRadar.topRisks.length > 0) {
+            items.push({ key: 'risk', icon: 'radio', label: 'Biggest risk', text: riskRadar.topRisks[0].summary });
+        }
+        items.push({
+            key: 'pillar', icon: 'grid', label: 'Weakest area',
+            text: `${healthDiagnosis.weakestPillar.label} (${healthDiagnosis.weakestPillar.score}/100) is holding your score back the most.`,
+        });
+        if (mostAtRiskGoal) {
+            items.push({ key: 'goal', icon: 'target', label: mostAtRiskGoal.goal.title, text: mostAtRiskGoal.risk.narrative });
+        }
+        return items.slice(0, 3);
+    }, [financialLeaks, riskRadar, healthDiagnosis, mostAtRiskGoal]);
+
     return (
         <SafeAreaView style={s.safe}>
             <Header />
@@ -350,6 +382,42 @@ export default function ScoreboardScreen() {
                         <Text style={s.linkText}>See full readiness trend & breakdown →</Text>
                     </TouchableOpacity>
                 </View>
+
+                {simpleView ? (
+                    <>
+                        {/* Simple View's whole reason to exist: one card,
+                            the highest-signal line from each of the 6 cards
+                            below, instead of handing over all of them at
+                            once. Never a new computation -- every line here
+                            already exists somewhere in the full breakdown. */}
+                        <View style={s.card}>
+                            <View style={s.cardHeaderRow}>
+                                <Icon name="zap" size={14} color={Colors.textMuted} />
+                                <Text style={s.cardTitle}>What Needs Attention</Text>
+                            </View>
+                            {topAttentionItems.length === 0 ? (
+                                <Text style={s.cardBodyText}>Nothing urgent right now — your numbers look steady.</Text>
+                            ) : (
+                                topAttentionItems.map(item => (
+                                    <View key={item.key} style={s.attentionRow}>
+                                        <Icon name={item.icon} size={14} color={Colors.textMuted} />
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={s.attentionLabel}>{item.label}</Text>
+                                            <Text style={s.attentionText}>{item.text}</Text>
+                                        </View>
+                                    </View>
+                                ))
+                            )}
+                        </View>
+                        <TouchableOpacity style={s.linkRow} onPress={() => setSimpleView(false)}>
+                            <Text style={s.linkText}>See full breakdown — Pillars, Cash Reserve, Risk Radar, Goals & more →</Text>
+                        </TouchableOpacity>
+                    </>
+                ) : (
+                <>
+                <TouchableOpacity style={s.linkRow} onPress={() => setSimpleView(true)}>
+                    <Text style={s.linkText}>← Back to simple view</Text>
+                </TouchableOpacity>
 
                 {/* The 7 supporting cards below flow into a 2-column grid on
                     a wide viewport (isWideScoreboard) instead of stacking --
@@ -665,6 +733,8 @@ export default function ScoreboardScreen() {
                 </View>
 
                 </View>
+                </>
+                )}
 
                 <TouchableOpacity style={s.linkRow} onPress={() => setCurrentScreen('business-timeline')}>
                     <Text style={s.linkText}>See the story of your business's finances so far →</Text>
@@ -725,6 +795,10 @@ const s = StyleSheet.create({
     readinessPillText: { fontSize: 9.5, fontWeight: '800' },
     goalRiskNote: { marginTop: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border },
     goalRiskNoteText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+
+    attentionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: Colors.border },
+    attentionLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 2 },
+    attentionText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
     diagnosisBox: { marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border },
     diagnosisText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginBottom: 4 },
