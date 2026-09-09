@@ -126,14 +126,15 @@ export function initiateTacticTracking(
   baseline?: { income: number; expense: number; profit: number },
   healthAtStart?: number,
 ): TacticExecution {
-  const targetEndDate = new Date(startDate);
+  const [sy, sm, sd] = startDate.split('-').map(Number);
+  const targetEndDate = new Date(sy, (sm || 1) - 1, sd || 1);
   targetEndDate.setDate(targetEndDate.getDate() + tactic.timelineWeeks * 7);
 
   return {
     tacticId: tactic.id,
     tacticTitle: tactic.title,
     startDate,
-    targetEndDate: targetEndDate.toISOString().split('T')[0],
+    targetEndDate: localDateStr(targetEndDate),
     status: 'planned',
     progressPercentage: 0,
     completedSteps: [],

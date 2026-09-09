@@ -7,6 +7,7 @@ import {
   ForecastAssumptions,
   ScenarioType,
 } from '../types/forecast';
+import { localDateStr } from './localDate';
 
 /**
  * Cash Flow Forecasting Engine
@@ -157,7 +158,7 @@ export class ForecastEngine {
   private getHistoricalMonthlyBaseline(): { income: number; expense: number } {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 90);
-    const cutoffStr = cutoff.toISOString().split('T')[0];
+    const cutoffStr = localDateStr(cutoff);
     const recent = this.input.transactions.filter(
       t => t.date >= cutoffStr && (t.status ?? 'paid') === 'paid' && !t.isRecurring
     );

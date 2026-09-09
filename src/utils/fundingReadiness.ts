@@ -13,6 +13,7 @@ import { computeAllTimeMonthlyBuckets, MonthlyTrendPoint } from './trendAnalysis
 import { computeDataQuality } from './dataQuality';
 import { computeTaxFilingReadiness } from './taxFilingReadiness';
 import { performFinancialDiagnosis, factorNamesForDimensions, ActionImpact } from './financialDiagnosisEngine';
+import { localDateStr } from './localDate';
 
 export interface FundingReadinessProfile {
     revenue: number;
@@ -81,7 +82,7 @@ export interface FundingReadinessPack {
 function trailingTwelveMonths(transactions: Transaction[]): Transaction[] {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 365);
-    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    const cutoffStr = localDateStr(cutoff);
     return transactions.filter(t => t.date >= cutoffStr);
 }
 

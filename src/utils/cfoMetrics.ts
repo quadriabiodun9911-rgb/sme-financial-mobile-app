@@ -10,6 +10,7 @@
 
 import { Loan, Transaction } from '../types';
 import { monthlyPayment } from './loanMath';
+import { localDateStr } from './localDate';
 
 // ─── Shared: trailing-window accrual figures ───────────────────────────────
 // Reusable so every trailing-window figure across CFO views is derived from
@@ -19,7 +20,7 @@ import { monthlyPayment } from './loanMath';
 export function trailingCutoffDateString(daysAgo: number, now: Date = new Date()): string {
     const cutoff = new Date(now);
     cutoff.setDate(cutoff.getDate() - daysAgo);
-    return cutoff.toISOString().split('T')[0];
+    return localDateStr(cutoff);
 }
 
 export interface TrailingAccrualFigures {

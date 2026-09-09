@@ -18,6 +18,7 @@ import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { trackDataExported } from '../utils/analytics';
 import { auditEvents } from '../utils/auditLog';
+import { localDateStr } from '../utils/localDate';
 import { PRIMARY_GOAL_OPTIONS } from '../utils/primaryGoals';
 import { auditDataIntegrity } from '../utils/dataIntegrity';
 import { canManageTeam, canManagePaymentSettings, canDeleteBusinessData } from '../utils/rolePermissions';
@@ -304,7 +305,7 @@ export default function SettingsScreen() {
                 const url  = URL.createObjectURL(blob);
                 const a    = document.createElement('a');
                 a.href     = url;
-                a.download = `quad360-backup-${new Date().toISOString().slice(0,10)}.json`;
+                a.download = `quad360-backup-${localDateStr()}.json`;
                 a.click();
                 URL.revokeObjectURL(url);
             } else {
@@ -319,7 +320,7 @@ export default function SettingsScreen() {
         try {
             const csv = generateAccountantReportCSV(finance, transactions, assets, loans);
             if (!isDemoMode) { trackDataExported(); auditEvents.dataExport(); }
-            const filename = `quad360-accountant-report-${new Date().toISOString().slice(0, 10)}.csv`;
+            const filename = `quad360-accountant-report-${localDateStr()}.csv`;
             if (Platform.OS === 'web') {
                 const blob = new Blob([csv], { type: 'text/csv' });
                 const url  = URL.createObjectURL(blob);

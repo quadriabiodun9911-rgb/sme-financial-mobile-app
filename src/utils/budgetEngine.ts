@@ -1,6 +1,7 @@
 import { Transaction, FinanceData, Loan } from '../types';
 import { computeRevenueForecast, latestTransactionDate } from './finance';
 import { totalMonthlyLoanBurden } from './loanMath';
+import { localMonthStr } from './localDate';
 
 const TRAILING_MONTHS = 3;
 
@@ -14,7 +15,7 @@ export function computeTrailingCategoryAverages(
 ): Record<string, number> {
     const cutoff = new Date();
     cutoff.setMonth(cutoff.getMonth() - monthsWindow);
-    const cutoffStr = cutoff.toISOString().slice(0, 7);
+    const cutoffStr = localMonthStr(cutoff);
 
     const acc: Record<string, { total: number; months: Set<string> }> = {};
     transactions

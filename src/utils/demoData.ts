@@ -1,4 +1,5 @@
 import { Transaction, Asset, Loan, InventoryItem, Invoice, Industry } from '../types';
+import { localDateStr } from './localDate';
 
 export interface DemoBusiness {
     id: string;
@@ -36,14 +37,14 @@ const today = new Date();
 const d = (daysAgo: number) => {
     const date = new Date(today);
     date.setDate(date.getDate() - daysAgo);
-    return date.toISOString().split('T')[0];
+    return localDateStr(date);
 };
 // Forward-dated, for InventoryItem.expiryDate demo data -- d() above only
 // ever looks backward.
 const future = (daysAhead: number) => {
     const date = new Date(today);
     date.setDate(date.getDate() + daysAhead);
-    return date.toISOString().split('T')[0];
+    return localDateStr(date);
 };
 
 export const DEMO_BUSINESSES: DemoBusiness[] = [

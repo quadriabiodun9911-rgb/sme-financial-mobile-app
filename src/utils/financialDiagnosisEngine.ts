@@ -8,7 +8,7 @@ import { computeDSCR, computeWorkingCapitalMetrics, computeCustomerConcentration
 import { computeStockVelocity } from './stockVelocity';
 import { computeBalanceSheetTrend } from './balanceSheetTrend';
 import { pctChange } from './cashFlowHealth';
-import { localDateStr } from './localDate';
+import { localDateStr, localMonthStr } from './localDate';
 
 export interface FinancialMetrics {
   // Profitability
@@ -217,7 +217,7 @@ export const INDUSTRY_BENCHMARKS = {
 // now calls this too, so the two can never independently drift apart.
 export function computeRevenueRecurringPct(transactions: Transaction[]): number {
   const dataMonths = Array.from(new Set(transactions.map(t => (t.date || '').slice(0, 7)))).filter(Boolean).sort();
-  const thisMonth = dataMonths.length > 0 ? dataMonths[dataMonths.length - 1] : new Date().toISOString().slice(0, 7);
+  const thisMonth = dataMonths.length > 0 ? dataMonths[dataMonths.length - 1] : localMonthStr();
   const thisMonthTransactions = transactions.filter(t => t.type === 'income' && t.date.startsWith(thisMonth));
   const thisMonthRevenue = thisMonthTransactions.reduce((sum, t) => sum + (t.amount ?? 0), 0);
   const thisMonthRecurringRevenue = thisMonthTransactions
@@ -246,11 +246,9 @@ export function calculateFinancialMetrics(
   // this calendar month. Falls back to the real current month only when
   // there's no transaction history at all yet.
   const dataMonths = Array.from(new Set(transactions.map(t => (t.date || '').slice(0, 7)))).filter(Boolean).sort();
-  const thisMonth = dataMonths.length > 0 ? dataMonths[dataMonths.length - 1] : now.toISOString().slice(0, 7);
+  const thisMonth = dataMonths.length > 0 ? dataMonths[dataMonths.length - 1] : localMonthStr(now);
   const [thisMonthYear, thisMonthNum] = thisMonth.split('-').map(Number);
-  const lastMonth = new Date(thisMonthYear, thisMonthNum - 2, 1)
-    .toISOString()
-    .slice(0, 7);
+  const lastMonth = localMonthStr(new Date(thisMonthYear, thisMonthNum - 2, 1));
 
   // Revenue calculations
   const thisMonthTransactions = transactions.filter(

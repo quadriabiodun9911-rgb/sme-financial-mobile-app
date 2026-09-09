@@ -11,6 +11,7 @@
 
 import { DataQuality } from './dataQuality';
 import { DataConfidenceSnapshot } from '../types';
+import { localDateStr } from './localDate';
 
 const MIN_DAYS_BETWEEN_SNAPSHOTS = 7;
 const MAX_HISTORY_ENTRIES = 52; // ~1 year of weekly snapshots
@@ -30,7 +31,7 @@ export function computeDataConfidencePct(quality: DataQuality): number {
 export function buildDataConfidenceSnapshot(quality: DataQuality, now: Date = new Date()): DataConfidenceSnapshot {
     return {
         id: `${now.getTime()}`,
-        date: now.toISOString().slice(0, 10),
+        date: localDateStr(now),
         confidencePct: computeDataConfidencePct(quality),
     };
 }

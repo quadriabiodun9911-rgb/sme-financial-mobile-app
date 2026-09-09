@@ -31,6 +31,7 @@ import {
 import { INDUSTRY_BENCHMARKS } from './financialDiagnosisEngine';
 import { Transaction } from '../types';
 import { generateId } from './uuid';
+import { localDateStr } from './localDate';
 
 export interface StressScenario {
     key: 'current' | 'revenueDown25' | 'revenueDown50' | 'revenueStops' | 'expensesUp20';
@@ -239,7 +240,7 @@ export function buildQuickCheckSeedTransactions(input: QuickHealthCheckInput): T
     const daysAgoIso = (days: number) => {
         const d = new Date();
         d.setDate(d.getDate() - days);
-        return d.toISOString().split('T')[0];
+        return localDateStr(d);
     };
 
     const seeded: Transaction[] = [];

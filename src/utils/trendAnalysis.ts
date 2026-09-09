@@ -10,6 +10,7 @@
 
 import { Transaction, Invoice, Asset } from '../types';
 import { classifyExpenseLine } from './finance';
+import { localDateStr, localMonthStr } from './localDate';
 
 // Every "expense" bucket below also breaks into cogs/opex/otherExpense
 // (cogs + opex + otherExpense === expense, always), classified via the same
@@ -208,7 +209,7 @@ export function isoWeekOf(dateStr: string): { key: string; mondayLabel: string; 
 
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
-    const weekEndDate = sunday.toISOString().slice(0, 10);
+    const weekEndDate = localDateStr(sunday);
 
     return { key: `${isoYear}-W${String(week).padStart(2, '0')}`, mondayLabel, weekEndDate };
 }
@@ -348,7 +349,7 @@ export function analyzeTrend(transactions: Transaction[]): TrendAnalysis {
     // finished yet, not because performance actually dropped. Excluded from
     // the ranking (but still shown in the monthly chart/table below) as
     // long as there's at least one other, complete month to rank instead.
-    const currentRealMonth = new Date().toISOString().slice(0, 7);
+    const currentRealMonth = localMonthStr();
     const rankableMonths = monthly.length > 1 ? monthly.filter(m => m.month !== currentRealMonth) : monthly;
     const superlativeSource = rankableMonths.length > 0 ? rankableMonths : monthly;
 

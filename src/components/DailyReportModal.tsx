@@ -6,6 +6,7 @@ import { Colors } from '../theme/colors';
 import Icon, { IconName } from './ui/Icon';
 import { Transaction, FinancialGoal, FinanceData, BusinessSettings } from '../types';
 import { Invoice } from '../types';
+import { localDateStr } from '../utils/localDate';
 
 interface Props {
     visible: boolean;
@@ -25,7 +26,7 @@ export default function DailyReportModal({ visible, onClose, transactions, goals
     const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = localDateStr(today);
     const dateLabel = today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
     // Today's numbers

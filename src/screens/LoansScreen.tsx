@@ -60,14 +60,14 @@ function statusColorFor(status: 'healthy' | 'warning' | 'danger'): string {
 }
 
 function nextDueDate(loan: Loan): string {
-    return nextLoanPaymentDueDate(loan).toISOString().split('T')[0];
+    return localDateStr(nextLoanPaymentDueDate(loan));
 }
 
 function payoffDate(loan: Loan): string {
-    const start = new Date(loan.startDate);
-    const end = new Date(start);
+    const [y, m, d] = loan.startDate.split('-').map(Number);
+    const end = new Date(y, (m || 1) - 1, d || 1);
     end.setMonth(end.getMonth() + loan.termMonths);
-    return end.toISOString().split('T')[0];
+    return localDateStr(end);
 }
 
 const isOverdue = isLoanPaymentOverdue;

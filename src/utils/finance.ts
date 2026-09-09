@@ -5,6 +5,7 @@ import { computeCashRunway } from './cashRunway';
 import { computeStockVelocity } from './stockVelocity';
 import { activeBudgetsForPeriod } from './budgetPeriod';
 import { entityKey, entityDisplayName } from './entityName';
+import { localDateStr } from './localDate';
 
 // ─── Currency formatting ───────────────────────────────────────────────────
 // Abbreviates large amounts (₦1.2M / ₦450K) for space-constrained copy like
@@ -205,7 +206,7 @@ export function computeWorkingCapitalMetrics(transactions: Transaction[]): Worki
     const ap = transactions.filter(t => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue')).reduce((s, t) => s + (t.amount ?? 0), 0);
 
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90);
-    const cutStr = cutoff.toISOString().split('T')[0];
+    const cutStr = localDateStr(cutoff);
 
     const rev90  = transactions.filter(t => t.type === 'income'  && t.date >= cutStr && t.status === 'paid').reduce((s, t) => s + (t.amount ?? 0), 0);
     const cost90 = transactions.filter(t => t.type === 'expense' && t.date >= cutStr && t.status === 'paid').reduce((s, t) => s + (t.amount ?? 0), 0);
@@ -837,7 +838,7 @@ export function filterByPeriod(transactions: Transaction[], period: ReportPeriod
     if (period === 'month') cutoff.setMonth(now.getMonth() - 1);
     else if (period === 'quarter') cutoff.setMonth(now.getMonth() - 3);
     else cutoff.setFullYear(now.getFullYear() - 1);
-    const cutoffStr = cutoff.toISOString().split('T')[0];
+    const cutoffStr = localDateStr(cutoff);
     return transactions.filter(t => t.date >= cutoffStr);
 }
 
@@ -868,8 +869,8 @@ export function latestTransactionDate(transactions: Transaction[]): Date | null 
 
 export function getPreviousPeriodRange(period: ReportPeriod, anchorDate?: Date): { current: DateRange; previous: DateRange } {
     const now = anchorDate ?? new Date();
-    const today = now.toISOString().split('T')[0];
-    const iso = (d: Date) => d.toISOString().split('T')[0];
+    const today = localDateStr(now);
+    const iso = (d: Date) => localDateStr(d);
 
     // Compares "so far this period" against the SAME NUMBER OF ELAPSED DAYS
     // in the prior period, not the prior period's full length. Comparing a
@@ -1123,7 +1124,7 @@ export const DSCR_THRESHOLDS = { healthy: 1.25, warning: 1.0 };
 export function computeDSCR(transactions: Transaction[], loans: Loan[]): DSCRResult {
     const cutoff = new Date();
     cutoff.setFullYear(cutoff.getFullYear() - 1);
-    const cutoffStr = cutoff.toISOString().split('T')[0];
+    const cutoffStr = localDateStr(cutoff);
     const recent = transactions.filter(t => t.date >= cutoffStr);
 
     // Net Operating Income must be measured BEFORE debt service — that's
@@ -1901,7 +1902,7 @@ export function computeCashFlowForecast(
 
     // Monthly recurring expenses average
     const last90 = new Date(today); last90.setDate(today.getDate() - 90);
-    const last90Str = last90.toISOString().split('T')[0];
+    const last90Str = localDateStr(last90);
     const recurringExpenses = transactions.filter(t => t.type === 'expense' && t.isRecurring && t.date >= last90Str);
     const weeklyRecurringExpenseBase = recurringExpenses.reduce((s, t) => s + (t.amount ?? 0), 0) / 13; // 13 weeks in 90 days
 
@@ -1993,7 +1994,7 @@ export interface PaymentAction {
 
 export function computePaymentOptimiser(transactions: Transaction[], invoices: Invoice[], cashBalance: number): PaymentAction[] {
     const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = localDateStr(today);
     const actions: PaymentAction[] = [];
 
     // Overdue / pending receivables

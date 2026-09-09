@@ -229,7 +229,7 @@ export default function ReportsScreen() {
         if (period === 'month') cutoff.setMonth(now.getMonth() - 1);
         else if (period === 'quarter') cutoff.setMonth(now.getMonth() - 3);
         else cutoff.setFullYear(now.getFullYear() - 1);
-        return `For the period ${fmtDate(cutoff.toISOString().split('T')[0])} – ${todayLabel}`;
+        return `For the period ${fmtDate(localDateStr(cutoff))} – ${todayLabel}`;
     }, [period, customRange, filteredTx, today]);
 
     const asOfLabel = useMemo(

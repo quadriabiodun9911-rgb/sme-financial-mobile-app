@@ -11,6 +11,7 @@
  */
 
 import { Transaction } from '../types';
+import { localDateStr } from './localDate';
 
 export interface DiscountTrend {
     recentRatePct: number;
@@ -35,7 +36,7 @@ function windowDiscountRate(transactions: Transaction[], startDate: string, endD
 }
 
 export function computeDiscountTrend(transactions: Transaction[], now: Date = new Date(), windowDays: number = 30): DiscountTrend {
-    const fmt = (d: Date) => d.toISOString().split('T')[0];
+    const fmt = (d: Date) => localDateStr(d);
     const end = fmt(now);
     const midDate = new Date(now);
     midDate.setDate(midDate.getDate() - windowDays);

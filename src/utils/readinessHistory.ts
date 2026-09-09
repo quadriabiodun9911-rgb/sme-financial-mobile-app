@@ -10,6 +10,7 @@
 
 import { RiskScore } from './finance';
 import { ReadinessSnapshot, ReadinessFactorSnapshot } from '../types';
+import { localDateStr } from './localDate';
 
 // Daily snapshots would mostly be noise -- the underlying score barely
 // moves day to day, and opening the app twice in one day shouldn't produce
@@ -38,7 +39,7 @@ export function buildReadinessSnapshot(risk: RiskScore, now: Date = new Date()):
     }));
     return {
         id: `${now.getTime()}`,
-        date: now.toISOString().slice(0, 10),
+        date: localDateStr(now),
         score: Math.round(risk.score),
         grade: risk.grade,
         band: risk.band,

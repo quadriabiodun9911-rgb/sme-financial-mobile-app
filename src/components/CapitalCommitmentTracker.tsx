@@ -53,9 +53,10 @@ const TARGET_DATE_OPTIONS: { label: string; months: number | null }[] = [
 ];
 
 function addMonths(iso: string, months: number): string {
-    const d = new Date(iso);
+    const [y, m, day] = iso.split('-').map(Number);
+    const d = new Date(y, (m || 1) - 1, day || 1);
     d.setMonth(d.getMonth() + months);
-    return d.toISOString().slice(0, 10);
+    return localDateStr(d);
 }
 
 // Investment Decision Monitor -- generalizes the same "did this actually

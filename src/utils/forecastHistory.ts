@@ -18,6 +18,7 @@
 
 import { ForecastSnapshot } from '../types';
 import { ForecastSummary } from './forecastSummary';
+import { localDateStr } from './localDate';
 
 // Rolling forecast snapshots are monthly, not weekly (contrast
 // readinessHistory's MIN_DAYS_BETWEEN_SNAPSHOTS = 7) -- the annual
@@ -33,7 +34,7 @@ const MAX_HISTORY_ENTRIES = 60;
 export function buildForecastSnapshot(summary: ForecastSummary, now: Date = new Date()): ForecastSnapshot {
     return {
         id: `${now.getTime()}`,
-        date: now.toISOString().slice(0, 10),
+        date: localDateStr(now),
         annualRevenueForecast: summary.headline.expectedRevenue,
         confidencePct: summary.confidencePct,
     };

@@ -1,4 +1,5 @@
 import { Transaction } from '../types';
+import { localDateStr } from './localDate';
 
 export interface CashRunway {
     // Infinity when dailyBurn <= 0 (cash isn't shrinking) — genuinely
@@ -43,8 +44,8 @@ export function computeCashRunway(
 ): CashRunway {
     const last30 = new Date(referenceDate);
     last30.setDate(last30.getDate() - 30);
-    const last30Str = last30.toISOString().split('T')[0];
-    const todayStr = referenceDate.toISOString().split('T')[0];
+    const last30Str = localDateStr(last30);
+    const todayStr = localDateStr(referenceDate);
 
     // Ordinary (non-recurring) paid expenses in the trailing 30 days.
     // isRecurring transactions are deliberately excluded here and projected

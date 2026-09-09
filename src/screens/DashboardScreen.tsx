@@ -87,7 +87,7 @@ import { detectPersonalSpending, DISMISSED_PERSONAL_KEY } from '../utils/persona
 import { GoalType } from '../types';
 import { buildDashboardPriorities, PriorityKind, PriorityTier, OverspentBudget } from '../utils/dashboardPriorities';
 import { resolveMonthlyMission, StoredMission } from '../utils/monthlyMission';
-import { localDateStr } from '../utils/localDate';
+import { localDateStr, localMonthStr } from '../utils/localDate';
 
 const CELEBRATED_GOALS_KEY = '@quad360/celebrated_goal_ids';
 const MONTHLY_MISSION_KEY = '@quad360/monthly_mission';
@@ -325,7 +325,7 @@ export default function DashboardScreen() {
     useEffect(() => {
         if (isDemoMode) return;
         if (finance.profit <= 0) return;
-        const monthKey = `@quad360/share_prompted_${new Date().toISOString().slice(0, 7)}`;
+        const monthKey = `@quad360/share_prompted_${localMonthStr()}`;
         AsyncStorage.getItem(monthKey).then(v => {
             if (!v) {
                 setShowShareCard(true);
@@ -338,10 +338,10 @@ export default function DashboardScreen() {
 
     // ── Date strings (stable across renders within same month) ───────────────
     const today = useMemo(() => localDateStr(), []);
-    const thisMonthStr = useMemo(() => new Date().toISOString().slice(0, 7), []);
+    const thisMonthStr = useMemo(() => localMonthStr(), []);
     const lastMonthStr = useMemo(() => {
         const d = new Date();
-        return new Date(d.getFullYear(), d.getMonth() - 1, 1).toISOString().slice(0, 7);
+        return localMonthStr(new Date(d.getFullYear(), d.getMonth() - 1, 1));
     }, []);
 
     // ── PERFORMANCE: Single-pass metrics computer (25x faster than 15 separate filters) ──
@@ -849,7 +849,7 @@ export default function DashboardScreen() {
 
     const handleSetNextGoal = () => {
         if (!goalToCelebrate || !nextGoalType || !nextGoalPreview) return;
-        const deadline = new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0];
+        const deadline = localDateStr(new Date(Date.now() + 90 * 86400000));
         addGoal(buildNewGoal({
             type: nextGoalType,
             title: nextGoalPreview.title ?? 'New Goal',
@@ -1395,7 +1395,7 @@ export default function DashboardScreen() {
         const dates: string[] = [];
         for (let i = days - 1; i >= 0; i--) {
             const d = new Date(today); d.setDate(today.getDate() - i);
-            dates.push(d.toISOString().split('T')[0]);
+            dates.push(localDateStr(d));
         }
         const startStr = dates[0];
         const netByDay = new Map<string, number>();

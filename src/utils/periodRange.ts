@@ -1,4 +1,5 @@
 import { Transaction } from '../types';
+import { localDateStr } from './localDate';
 
 export interface WeekRanges {
     weekStartStr: string;
@@ -32,10 +33,10 @@ export function getWeekRanges(referenceDate: Date = new Date()): WeekRanges {
     const lastWeekEnd = new Date(lastWeekStart); lastWeekEnd.setDate(lastWeekStart.getDate() + daysElapsed - 1);
 
     return {
-        weekStartStr: weekStart.toISOString().split('T')[0],
-        todayStr: today.toISOString().split('T')[0],
-        lastWeekStartStr: lastWeekStart.toISOString().split('T')[0],
-        lastWeekEndStr: lastWeekEnd.toISOString().split('T')[0],
+        weekStartStr: localDateStr(weekStart),
+        todayStr: localDateStr(today),
+        lastWeekStartStr: localDateStr(lastWeekStart),
+        lastWeekEndStr: localDateStr(lastWeekEnd),
     };
 }
 

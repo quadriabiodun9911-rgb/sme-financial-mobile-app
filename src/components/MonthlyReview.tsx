@@ -8,6 +8,7 @@ import { Colors } from '../theme/colors';
 import { Shadow } from '../theme/tokens';
 import Icon from './ui/Icon';
 import { Screen } from '../types';
+import { localMonthStr } from '../utils/localDate';
 
 interface Props {
     visible: boolean;
@@ -25,9 +26,9 @@ export default function MonthlyReview({ visible, onClose }: Props) {
     const constrainModalWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const now = new Date();
-    const thisMonth = now.toISOString().slice(0, 7);
+    const thisMonth = localMonthStr(now);
     const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonth = lastMonthDate.toISOString().slice(0, 7);
+    const lastMonth = localMonthStr(lastMonthDate);
     const monthName = now.toLocaleString('default', { month: 'long' });
     const lastMonthName = lastMonthDate.toLocaleString('default', { month: 'long' });
 

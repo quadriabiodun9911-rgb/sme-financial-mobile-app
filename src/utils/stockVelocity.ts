@@ -19,6 +19,7 @@
  */
 
 import { InventoryItem, Transaction } from '../types';
+import { localDateStr } from './localDate';
 
 // Total stock at cost — the one place this gets summed. Previously
 // reimplemented independently in ~5 places (InventoryScreen, ReportsScreen,
@@ -50,7 +51,7 @@ export function computeStockVelocity(
 ): StockVelocity {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - windowDays);
-    const cutoffStr = cutoff.toISOString().split('T')[0];
+    const cutoffStr = localDateStr(cutoff);
 
     const saleDescription = `Sale: ${item.name}`;
     const matches = transactions.filter(t => {

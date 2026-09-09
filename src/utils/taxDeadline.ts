@@ -2,6 +2,8 @@
 // taxFilingReadiness.ts (its own tab) and alertEngine.ts (the alert bell /
 // Dashboard / notifications) so both agree on what "overdue" and "due soon"
 // mean for the exact same field.
+import { localDateStr } from './localDate';
+
 export const TAX_DEADLINE_DUE_SOON_DAYS = 14;
 
 export type TaxDeadlineStatus =
@@ -12,7 +14,7 @@ export type TaxDeadlineStatus =
 
 export function daysUntilTaxDeadline(nextTaxDeadline: string, referenceDate: Date = new Date()): number {
     const deadline = new Date(nextTaxDeadline + 'T00:00:00');
-    const today = new Date(referenceDate.toISOString().split('T')[0] + 'T00:00:00');
+    const today = new Date(localDateStr(referenceDate) + 'T00:00:00');
     return Math.round((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 

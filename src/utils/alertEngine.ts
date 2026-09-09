@@ -11,6 +11,7 @@ import { isBudgetPeriodLapsed, currentPeriodString } from './budgetPeriod';
 import { computeAssetsNearingReplacement, computeAssetCurrentValue } from './finance';
 import { computeStockVelocity } from './stockVelocity';
 import { computeTaxAbilityToPay } from './taxFilingReadiness';
+import { localDateStr } from './localDate';
 
 /**
  * Real-Time Cash Alerts System
@@ -387,8 +388,8 @@ export class AlertEngine {
           type: 'loan_payment_overdue',
           priority: daysOverdue > 14 ? 'high' : 'medium',
           title: `📉 Loan Payment Overdue — ${loan.lenderName || 'your lender'}`,
-          description: `Your payment to ${loan.lenderName || 'your lender'} was due ${nextLoanPaymentDueDate(loan).toISOString().split('T')[0]} and is now ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue.`,
-          affectedDate: nextLoanPaymentDueDate(loan).toISOString().split('T')[0],
+          description: `Your payment to ${loan.lenderName || 'your lender'} was due ${localDateStr(nextLoanPaymentDueDate(loan))} and is now ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue.`,
+          affectedDate: localDateStr(nextLoanPaymentDueDate(loan)),
           recommendations: [
             'Log the payment as soon as it clears to keep the payoff schedule accurate',
             'Contact the lender if you need to renegotiate terms',
@@ -402,7 +403,7 @@ export class AlertEngine {
           priority: 'medium',
           title: `📅 Loan Payment Due Soon — ${loan.lenderName || 'your lender'}`,
           description: `Your payment to ${loan.lenderName || 'your lender'} is due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}.`,
-          affectedDate: nextLoanPaymentDueDate(loan).toISOString().split('T')[0],
+          affectedDate: localDateStr(nextLoanPaymentDueDate(loan)),
           createdAt: new Date().toISOString(),
         });
       }
@@ -563,7 +564,7 @@ export class AlertEngine {
       if (!hasRecurringSchedule(tx)) continue;
 
       const daysUntilDue = daysUntilRecurringDue(tx);
-      const dueDate = nextRecurringDueDate(tx).toISOString().split('T')[0];
+      const dueDate = localDateStr(nextRecurringDueDate(tx));
       const kind = tx.type === 'expense' ? 'Expense' : 'Income';
 
       if (isRecurringTransactionOverdue(tx)) {

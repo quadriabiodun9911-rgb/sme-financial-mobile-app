@@ -63,7 +63,7 @@ export default function BeforeYouDecideScreen() {
 
     const last30 = new Date();
     last30.setDate(last30.getDate() - 30);
-    const last30Str = last30.toISOString().split('T')[0];
+    const last30Str = localDateStr(last30);
     const todayStr = localDateStr();
     const income30 = transactions
         .filter(t => t.type === 'income' && t.status === 'paid' && t.date >= last30Str && t.date <= todayStr)

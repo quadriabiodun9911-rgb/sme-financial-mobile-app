@@ -49,7 +49,7 @@ const PROGRESS_TREND_ICON: Record<'accelerating' | 'on-track' | 'lagging', IconN
 function trailingSnapshot(transactions: { type: string; amount: number; date: string; status?: string; principalPortion?: number }[]) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - OUTCOME_MEASUREMENT_WINDOW_DAYS);
-  const cutoffStr = cutoff.toISOString().split('T')[0];
+  const cutoffStr = localDateStr(cutoff);
   const recent = transactions.filter(t => t.date >= cutoffStr && t.status !== 'pending' && t.status !== 'overdue');
   const income = recent.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount ?? 0), 0);
   // Loan principal excluded so a tactic's measured "actual impact" isn't

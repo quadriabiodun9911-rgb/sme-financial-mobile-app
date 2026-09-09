@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../theme/colors';
 import { Shadow } from '../theme/tokens';
 import { Transaction } from '../types';
-import { localDateStr } from '../utils/localDate';
+import { localDateStr, localMonthStr } from '../utils/localDate';
 
 const KEYS = {
     lastSeen:        '@quad360/retention_last_seen',
@@ -33,8 +33,8 @@ function getWeekRange(weeksAgo: number): { from: string; to: string } {
     const to = new Date(from);
     to.setDate(from.getDate() + 6);
     return {
-        from: from.toISOString().split('T')[0],
-        to:   to.toISOString().split('T')[0],
+        from: localDateStr(from),
+        to:   localDateStr(to),
     };
 }
 
@@ -105,7 +105,7 @@ export async function detectMilestones(
     const totalIncome  = transactions.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
     const totalTx      = transactions.length;
 
-    const thisMonth    = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const thisMonth    = localMonthStr(); // YYYY-MM
     const monthIncome  = transactions
         .filter(t => t.type === 'income' && t.date.startsWith(thisMonth))
         .reduce((s, t) => s + (Number(t.amount) || 0), 0);
