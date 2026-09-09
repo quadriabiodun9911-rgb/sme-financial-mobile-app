@@ -205,6 +205,17 @@ export default function BudgetScreen() {
     const safeCap = monthlyRevenue * 0.8;
     const overRevenue = totalCommitments > monthlyRevenue;
     const overSafeCap = totalCommitments > safeCap && !overRevenue;
+    // safeCap above is a cap on TOTAL commitments (spend + loan repayments),
+    // which is what overSafeCap correctly checks against. But the "healthy
+    // plan" message showed that same number as "Recommended max spend" --
+    // i.e. how much category budget to set -- without netting out the loan
+    // repayments already baked into totalCommitments. Following that
+    // recommendation literally (budgeting up to safeCap) would push total
+    // commitments to safeCap + loanBurden, tripping the very "over safe cap"
+    // warning the sentence claims to be avoiding. budgetEngine.ts's own
+    // safeCap (used to scale Auto-Generated Budget suggestions) already
+    // nets out loanBurden the same way -- this matches that.
+    const recommendedMaxSpend = Math.max(0, safeCap - loanBurden);
 
     // Adjust & Simulate: lets a user drag category amounts around and watch
     // the profit/cash effect and solution update live, before committing
@@ -513,7 +524,7 @@ export default function BudgetScreen() {
                                     ? `Your monthly commitments (${currency}${dCommitments.toLocaleString(undefined, { maximumFractionDigits: 0 })}${loanBurden > 0 ? ', incl. loan repayments' : ''}) exceed monthly revenue — this plans a ${currency}${Math.abs(dProfit).toLocaleString(undefined, { maximumFractionDigits: 0 })} loss and will draw down cash. Cut about ${currency}${(dCommitments - safeCap).toLocaleString(undefined, { maximumFractionDigits: 0 })} to protect profit.`
                                     : dOverSafeCap
                                         ? `Commitments are within revenue but above the safe cap (${currency}${safeCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}, 80% of revenue). Leaves a thin ${currency}${dProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit buffer.`
-                                        : `Healthy plan: keeps ${currency}${dProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit (${monthlyRevenue > 0 ? ((dProfit / monthlyRevenue) * 100).toFixed(0) : 0}% margin). Recommended max spend: ${currency}${safeCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`}
+                                        : `Healthy plan: keeps ${currency}${dProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit (${monthlyRevenue > 0 ? ((dProfit / monthlyRevenue) * 100).toFixed(0) : 0}% margin). Recommended max spend: ${currency}${recommendedMaxSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })}${loanBurden > 0 ? ' (after loan repayments)' : ''}.`}
                             </Text>
                         </View>
 
