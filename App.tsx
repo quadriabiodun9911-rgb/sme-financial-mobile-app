@@ -51,6 +51,8 @@ import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
 import FinancingMarketplaceScreen from './src/screens/FinancingMarketplaceScreen';
 import FinancingAdminScreen from './src/screens/FinancingAdminScreen';
 import BeforeYouDecideScreen from './src/screens/BeforeYouDecideScreen';
+import UpgradeScreen from './src/screens/UpgradeScreen';
+import ProGate from './src/components/ProGate';
 import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
 import DataIntegrityScreen from './src/screens/DataIntegrityScreen';
 import AuditLogScreen from './src/screens/AuditLogScreen';
@@ -192,7 +194,11 @@ function NavigatorContent() {
             {currentScreen === 'cfo'          && <CFOScreen />}
             {currentScreen === 'budget'       && <BudgetScreen />}
             {currentScreen === 'analysis'     && <AnalysisScreen />}
-            {currentScreen === 'future-statements' && <FutureFinancialStatementsScreen />}
+            {currentScreen === 'future-statements' && (
+                <ProGate feature="Future Financial Statements" description="Multi-year projected P&L, balance sheet, and cash flow statements built from your real trends and assumptions.">
+                    <FutureFinancialStatementsScreen />
+                </ProGate>
+            )}
             {currentScreen === '2fa'          && <TwoFactorSetupScreen />}
             {currentScreen === 'two-factor-verify' && <TwoFactorVerifyScreen />}
             {currentScreen === 'payment-link' && <PaymentLinkScreen />}
@@ -201,15 +207,35 @@ function NavigatorContent() {
             {currentScreen === 'cashflow'       && <CashFlowScreen />}
             {currentScreen === 'payroll'        && <PayrollScreen />}
             {currentScreen === 'reconciliation' && <ReconciliationScreen />}
-            {currentScreen === 'credit-worthiness' && <CreditWorthinessScreen />}
+            {currentScreen === 'credit-worthiness' && (
+                <ProGate feature="Credit-Worthiness" description="DSCR, the Five C's of Credit, and an estimated lending capacity range built from your own numbers.">
+                    <CreditWorthinessScreen />
+                </ProGate>
+            )}
             {currentScreen === 'financial-health' && <FinancialHealthScreen />}
-            {currentScreen === 'business-passport' && <BusinessPassportScreen />}
+            {currentScreen === 'business-passport' && (
+                <ProGate feature="Business Passport" description="A continuously-updating, lender-ready summary of your identity, health, risk, and credit readiness — exportable in one tap.">
+                    <BusinessPassportScreen />
+                </ProGate>
+            )}
             {currentScreen === 'scoreboard'    && <ScoreboardScreen />}
-            {currentScreen === 'risk-management' && <RiskManagementScreen />}
+            {currentScreen === 'risk-management' && (
+                <ProGate feature="Risk Management" description="Stress-test your cash position against an inflation or FX shock and see the exact month you'd run out, before it happens.">
+                    <RiskManagementScreen />
+                </ProGate>
+            )}
             {currentScreen === 'macro-assumptions' && <MacroAssumptionsScreen />}
-            {currentScreen === 'macroshield-detail' && <MacroShieldDetailScreen />}
+            {currentScreen === 'macroshield-detail' && (
+                <ProGate feature="MacroShield" description="Stress-test your cash position against an inflation or FX shock and see the exact month you'd run out, before it happens.">
+                    <MacroShieldDetailScreen />
+                </ProGate>
+            )}
             {currentScreen === 'future-events' && <FutureEventsScreen />}
-            {currentScreen === 'financial-assessment' && <FinancialAssessmentScreen />}
+            {currentScreen === 'financial-assessment' && (
+                <ProGate feature="Financial Assessment" description="Root-cause diagnosis of what's actually driving your numbers, SWOT analysis, and an early-warning signal feed.">
+                    <FinancialAssessmentScreen />
+                </ProGate>
+            )}
             {currentScreen === 'action-tracker' && <ActionTrackerScreen />}
             {currentScreen === 'financing-marketplace' && <FinancingMarketplaceScreen />}
             {/* No entry point anywhere in the UI -- reached only by typing
@@ -235,6 +261,7 @@ function NavigatorContent() {
             {currentScreen === 'business-timeline' && <BusinessTimelineScreen />}
             {currentScreen === 'data-permission-centre' && <DataPermissionCentreScreen />}
             {currentScreen === 'before-you-decide' && <BeforeYouDecideScreen />}
+            {currentScreen === 'upgrade' && <UpgradeScreen />}
         </View>
     );
 }

@@ -876,6 +876,22 @@ export default function SettingsScreen() {
 
                     <SectionHeader icon="credit-card" title="PAYMENTS & BANKING" />
 
+                    {/* Subscription -- Quad360 charging THIS business for
+                        Pro access, not to be confused with the payment
+                        gateways below (those are for customers paying THIS
+                        business). Kept deliberately thin: current plan/
+                        status/cancel logic all lives in UpgradeScreen so
+                        it's defined in exactly one place; this is just an
+                        entry point. */}
+                    <CollapsibleSection title="Subscription" icon="star" defaultOpen={false}>
+                        <Text style={styles.hint}>
+                            Bookkeeping, quick-capture, invoices, inventory and payroll are free. Quad360 Pro (₦2,999/mo) unlocks Credit-Worthiness, Business Passport, MacroShield, Future Financial Statements, and the full Financial Assessment.
+                        </Text>
+                        <TouchableOpacity style={styles.saveBtn} onPress={() => setCurrentScreen('upgrade')}>
+                            <Text style={styles.saveBtnText}>Manage Subscription →</Text>
+                        </TouchableOpacity>
+                    </CollapsibleSection>
+
                     {/* Payment Gateways */}
                     <CollapsibleSection title="Payment Gateways" icon="credit-card" defaultOpen={false}>
                         <Text style={styles.hint}>

@@ -50,6 +50,12 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'transactions', navParams: { tab: 'exposure' },
     },
     {
+        id: 'upgrade', label: 'Quad360 Pro', icon: '⭐',
+        description: 'Upgrade for Credit-Worthiness, Business Passport, MacroShield, Future Financial Statements and the full Financial Assessment — ₦2,999/month',
+        keywords: ['upgrade', 'pro', 'subscription', 'billing', 'pricing', 'plan', 'paid', 'premium'],
+        screen: 'upgrade',
+    },
+    {
         id: 'macro-assumptions', label: 'Macro Assumptions', icon: '🌍',
         description: 'Tell Quad360 what\'s happening with energy prices, FX, interest rates, inflation or other external factors, linked to the expense categories they affect',
         keywords: ['macro', 'external', 'energy prices', 'fx', 'interest rates', 'inflation', 'commodity', 'regulation', 'supply chain', 'diesel', 'fuel price'],
