@@ -77,7 +77,23 @@ function matchTransactions(bankTxs: BankTx[], appTxs: Transaction[]) {
         }
     }
 
-    const unmatchedApp = appTxs.filter(a => !usedAppIds.has(a.id));
+    // "App Only" is meant to answer "what's in my books that this
+    // statement doesn't show" -- but without scoping to the period the
+    // statement actually covers, it flagged every real transaction outside
+    // that window too (the overwhelming majority whenever the imported
+    // statement is narrower than the app's full history, which is the
+    // normal case). Bounding it to the bank data's own date range -- with
+    // the same ±5-day tolerance the match loop above already allows --
+    // keeps this to genuine gaps: app transactions that should have shown
+    // up in this statement's period but didn't.
+    const bankDates = bankTxs.map(b => new Date(normalizeDate(b.date)).getTime());
+    const minDate = Math.min(...bankDates) - 5 * 86400000;
+    const maxDate = Math.max(...bankDates) + 5 * 86400000;
+    const unmatchedApp = appTxs.filter(a => {
+        if (usedAppIds.has(a.id)) return false;
+        const aDate = new Date(a.date).getTime();
+        return aDate >= minDate && aDate <= maxDate;
+    });
     return { matched, unmatchedBank, unmatchedApp };
 }
 
