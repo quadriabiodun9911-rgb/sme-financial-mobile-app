@@ -84,7 +84,7 @@ interface PeriodDef {
 }
 
 function monthEndDate(year: number, month1to12: number): string {
-    return new Date(year, month1to12, 0).toISOString().slice(0, 10);
+    return localDateStr(new Date(year, month1to12, 0));
 }
 
 function cashOnHandAsOf(transactions: Transaction[], endDate: string): number {

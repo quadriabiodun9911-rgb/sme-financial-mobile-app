@@ -8,6 +8,7 @@ import { computeDSCR, computeWorkingCapitalMetrics, computeCustomerConcentration
 import { computeStockVelocity } from './stockVelocity';
 import { computeBalanceSheetTrend } from './balanceSheetTrend';
 import { pctChange } from './cashFlowHealth';
+import { localDateStr } from './localDate';
 
 export interface FinancialMetrics {
   // Profitability
@@ -318,7 +319,7 @@ export function calculateFinancialMetrics(
   // this month) so depreciation reflects the whole asset base, matching
   // standard accounting -- see computeProperCashFlow's own doc comment.
   const thisMonthAllTransactions = transactions.filter(t => t.date.startsWith(thisMonth));
-  const thisMonthEndDate = new Date(thisMonthYear, thisMonthNum, 0).toISOString().slice(0, 10);
+  const thisMonthEndDate = localDateStr(new Date(thisMonthYear, thisMonthNum, 0));
   const assetsAsOfThisMonth = assets.filter(a => (a.purchaseDate || '') <= thisMonthEndDate);
   const operatingCashFlow = computeProperCashFlow(thisMonthAllTransactions, assetsAsOfThisMonth).operatingCF;
   const cashFlowConversionPct = netProfit > 0 ? (operatingCashFlow / netProfit) * 100 : null;

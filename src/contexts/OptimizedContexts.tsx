@@ -247,7 +247,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const totalDeductions = items.reduce((s, i) => s + i.deductions, 0);
     const totalNet = totalGross - totalDeductions;
     const [py, pm] = period.split('-').map(Number);
-    const periodEndDate = new Date(py, pm, 0).toISOString().split('T')[0];
+    const periodEndDate = localDateStr(new Date(py, pm, 0));
     const now = new Date().toISOString();
     const txId = existingTransactionId ?? genId();
     if (!existingTransactionId) {
