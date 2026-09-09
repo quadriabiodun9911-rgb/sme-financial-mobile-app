@@ -19,6 +19,40 @@ export interface FeatureEntry {
  * removed, or overflows off-screen.
  */
 export const FEATURE_INDEX: FeatureEntry[] = [
+    // These five top-level screens were reachable only through the More
+    // menu grid (FooterNav.tsx) -- exactly the fragile card-grid path this
+    // whole index exists to back up, per the file doc comment above. Found
+    // missing during a full-app search sweep.
+    {
+        id: 'budget', label: 'Budget', icon: '💵',
+        description: 'Put a spending plan behind a target, and see how each category is tracking against it',
+        keywords: ['budget', 'spending plan', 'overspend', 'budget health'],
+        screen: 'budget',
+    },
+    {
+        id: 'analysis', label: 'Analysis & Decisions', icon: '🥧',
+        description: "Why is this happening, and what if I...? Root-cause diagnosis of profit/cash changes, plus what-if scenario modeling for a hire, price change, loan, or new product",
+        keywords: ['why', 'what if', 'root cause', 'scenario', 'decisions', 'diagnosis'],
+        screen: 'analysis',
+    },
+    {
+        id: 'growth-intelligence', label: 'Growth', icon: '📈',
+        description: 'Growth score, momentum, top-performing products and customers, and what is actually driving growth',
+        keywords: ['growth', 'momentum', 'top performers', 'top customers', 'growth drivers', 'growth score'],
+        screen: 'growth',
+    },
+    {
+        id: 'risk-management-overview', label: 'Risk', icon: '📻',
+        description: 'Risk score overview, customer/supplier concentration risk, seasonal risk, and MacroShield economic stress-testing',
+        keywords: ['risk', 'concentration', 'seasonal risk', 'macroshield', 'economic risk', 'risk radar', 'risk score'],
+        screen: 'risk-management',
+    },
+    {
+        id: 'future-financial-statements', label: 'Forecast', icon: '🧭',
+        description: 'Multi-year projected P&L, balance sheet, and cash flow statements built from your real trends and assumptions',
+        keywords: ['forecast', 'projection', 'projected statements', 'future p&l', 'future balance sheet'],
+        screen: 'future-statements',
+    },
     {
         id: 'weekly-dashboard', label: 'Weekly Dashboard', icon: '🗓️',
         description: 'Wins, problems, revenue/cost, cash position & top priorities for this week',
