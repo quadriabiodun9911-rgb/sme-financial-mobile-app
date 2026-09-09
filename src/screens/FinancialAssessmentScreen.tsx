@@ -244,8 +244,11 @@ export default function FinancialAssessmentScreen() {
 
         {/* Key Metrics — reframed as evidence for the diagnosis below rather
             than a standalone headline restating Dashboard's Profit/Cash
-            numbers; margin/runway/growth are derived figures Dashboard
-            doesn't show, not a repeat of it. */}
+            numbers. Profit Margin and Runway used to repeat here too, but
+            those are the exact same diagnosis.metrics.profitMargin /
+            .runwayDays values the PERFORMANCE and CASH pillar cards above
+            already show — Revenue, Cash on Hand, and Growth are the
+            figures this screen doesn't show anywhere else. */}
         <View style={styles.section}>
           <View style={styles.titleIconRow}>
             <Icon name="bar-chart-2" size={14} color={Colors.textPrimary} />
@@ -260,25 +263,11 @@ export default function FinancialAssessmentScreen() {
               <Text style={styles.metricSubtext}>This month</Text>
             </View>
             <View style={styles.metricBox}>
-              <Text style={styles.metricLabel}>Profit Margin (This Month)</Text>
-              <Text style={[styles.metricValue, { color: diagnosis.metrics.profitMargin > 20 ? Colors.income : Colors.warning }]}>
-                {diagnosis.metrics.profitMargin.toFixed(1)}%
-              </Text>
-              <Text style={styles.metricSubtext}>Target: 20% · differs from the all-time margin shown elsewhere</Text>
-            </View>
-            <View style={styles.metricBox}>
               <Text style={styles.metricLabel}>Cash on Hand</Text>
               <Text style={[styles.metricValue, { color: diagnosis.metrics.cashBalance >= 0 ? Colors.textPrimary : Colors.expense }]}>
                 {settings.currency}{Math.round(diagnosis.metrics.cashBalance).toLocaleString()}
               </Text>
               <Text style={styles.metricSubtext}>Right now</Text>
-            </View>
-            <View style={styles.metricBox}>
-              <Text style={styles.metricLabel}>Runway</Text>
-              <Text style={[styles.metricValue, { color: diagnosis.metrics.runwayDays && diagnosis.metrics.runwayDays > 60 ? Colors.income : Colors.expense }]}>
-                {diagnosis.metrics.runwayDays || '?'} days
-              </Text>
-              <Text style={styles.metricSubtext}>At current burn rate</Text>
             </View>
             <View style={styles.metricBox}>
               <Text style={styles.metricLabel}>Growth</Text>
