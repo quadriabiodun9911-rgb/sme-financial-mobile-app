@@ -425,6 +425,15 @@ export function computeUnlinkedInvoicePayments(invoices: Invoice[], transactions
         const match = transactions.find(t =>
             t.type === 'income' &&
             !usedTransactionIds.has(t.id) &&
+            // A non-draft invoice already carries its own linked revenue
+            // transaction (reference === invoiceNumber, set by
+            // addInvoice/updateInvoice/markInvoiceStatus in
+            // OptimizedContexts.tsx) the moment it's sent -- same amount,
+            // same client, same day. Without this exclusion that transaction
+            // matches itself here on every single sent invoice, offering
+            // "mark paid" for a placeholder that records the invoice being
+            // sent, not money actually received.
+            t.reference !== inv.invoiceNumber &&
             Math.abs((t.amount ?? 0) - inv.total) < 0.01 &&
             entityKey(t.vendorCustomer) === entityKey(inv.clientName) &&
             t.date >= inv.issueDate
