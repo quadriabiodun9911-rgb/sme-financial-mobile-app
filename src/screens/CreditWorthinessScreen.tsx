@@ -105,6 +105,14 @@ export default function CreditWorthinessScreen() {
     const { user, finance, transactions, invoices, loans, navigate, navParams, settings, inventory, assets, readinessHistory, goals } = useApp();
     const { currency } = settings;
     const [tab, setTab] = useState<PageTab>(navParams?.tab === 'funding-pack' ? 'funding-pack' : 'profile');
+    // Same Simple/Detailed split as ScoreboardScreen -- this screen carries
+    // 8 sections deep on lender-facing framework knowledge (DSCR, the Five
+    // C's, visibility scoring) most first-time owners have no reason to
+    // already know. Defaults to Simple: the credit score card plus the two
+    // most actionable facts (financing readiness direction, top factor to
+    // fix), with everything else one tap away rather than handed over at
+    // once.
+    const [simpleView, setSimpleView] = useState(true);
 
     // Deep-link from Loans / Business Passport ("See the full Funding
     // Readiness Pack") — re-applies even if this screen instance stays
@@ -583,6 +591,42 @@ export default function CreditWorthinessScreen() {
                     <NextStepLink text="See the full factor-by-factor breakdown → Risk Management" onPress={() => navigate('risk-management')} />
                 </View>
 
+                {simpleView && (
+                    <>
+                        {/* Simple View's whole reason to exist: the two most
+                            actionable facts from the sections below --
+                            never a new computation, both already exist
+                            further down -- instead of the full 8-section
+                            lender-framework breakdown at once. */}
+                        <View style={s.section}>
+                            <Text style={s.sectionTitle}>⚡ What Matters Right Now</Text>
+                            <Text style={s.readinessBlockLabel}>Financing Readiness</Text>
+                            <Text style={s.readinessSummary}>
+                                <Text style={{ fontWeight: '800', color: FP_BAND_COLOR[dynamicReadiness.band] }}>{dynamicReadiness.score}/100 · {dynamicReadiness.band}</Text>
+                                {' '}{READINESS_DIRECTION_ARROW[dynamicReadiness.direction]} {READINESS_DIRECTION_LABEL[dynamicReadiness.direction]} — {dynamicReadiness.directionSummary}
+                            </Text>
+                            {topFactors.length > 0 && (
+                                <>
+                                    <Text style={[s.readinessBlockLabel, { marginTop: 10 }]}>Top Priority to Fix</Text>
+                                    <Text style={s.readinessSummary}>
+                                        <Text style={{ fontWeight: '800' }}>{topFactors[0].name}</Text>
+                                        {' '}— {topFactors[0].status === 'danger' ? 'high risk' : 'watch'}, {Math.round(topFactors[0].weight)}% of your score
+                                    </Text>
+                                </>
+                            )}
+                        </View>
+                        <TouchableOpacity style={s.linkRow} onPress={() => setSimpleView(false)}>
+                            <Text style={s.linkText}>See full credit breakdown — Five C's, Lending Capacity, trend & more →</Text>
+                        </TouchableOpacity>
+                    </>
+                )}
+
+                {!simpleView && (
+                <>
+                <TouchableOpacity style={s.linkRow} onPress={() => setSimpleView(true)}>
+                    <Text style={s.linkText}>← Back to summary</Text>
+                </TouchableOpacity>
+
                 {/* Financing Readiness -- a distinct question from the Credit
                     Score above ("how healthy is this business overall" vs
                     "how ready is it specifically to service financing"),
@@ -1002,6 +1046,8 @@ export default function CreditWorthinessScreen() {
                     </Collapsible>
                 </View>
                 </>
+                )}
+                </>
                 ) : (
                 <>
                 <Text style={fp.subtitle}>
@@ -1250,6 +1296,8 @@ const s = StyleSheet.create({
     scoreRating: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary, marginBottom: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.muted, width: '100%', textAlign: 'center' },
     section: { marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 12, padding: 16, borderLeftWidth: 4, borderLeftColor: Colors.primary, ...Shadow.sm },
     sectionTitle: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary, marginBottom: 12 },
+    linkRow: { paddingVertical: Spacing.sm, marginBottom: Spacing.sm },
+    linkText: { fontSize: 12.5, color: Colors.primary, fontWeight: '700' },
 
     readinessHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
     readinessScore: { fontSize: 28, fontWeight: '800' },

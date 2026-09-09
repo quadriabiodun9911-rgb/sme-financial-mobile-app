@@ -121,7 +121,14 @@ export default function LandingScreen() {
 
                     <View style={s.trustRow}>
                         <View style={s.trustChip}><Text style={s.trustChipText}>Built for SMEs across Africa & beyond</Text></View>
-                        <View style={s.trustChip}><Text style={s.trustChipText}>Your data stays private</Text></View>
+                        {/* Tappable, not just a claim -- "trust me" chips are
+                            worth nothing to an owner deciding whether to hand
+                            over real financial data; a one-tap link to the
+                            actual privacy policy at the exact moment they're
+                            weighing that decision is worth something. */}
+                        <TouchableOpacity style={s.trustChip} onPress={() => navigate('privacy-policy')}>
+                            <Text style={s.trustChipText}>Your data stays private — see how →</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
 

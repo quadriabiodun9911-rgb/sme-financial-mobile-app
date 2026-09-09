@@ -7,6 +7,7 @@ import Icon from './ui/Icon';
 import Header from './Header';
 import FooterNav from './FooterNav';
 import { getSubscriptionStatus, isProActive, SubscriptionState } from '../utils/subscription';
+import { Config } from '../config';
 
 interface Props {
     feature: string;      // e.g. "Credit-Worthiness"
@@ -26,13 +27,15 @@ export default function ProGate({ feature, description, icon = 'lock', children 
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Guest Mode always sees the real thing -- someone evaluating
-        // Quad360 needs to actually see what Pro looks like, not hit a
-        // paywall before ever seeing real content (matches Guest Mode's
-        // existing "sample data, not saved" framing). Skipping the network
-        // call entirely here also means a demo session never depends on
-        // subscription-manage actually being reachable.
-        if (isDemoMode) { setLoading(false); return; }
+        // Gate is off app-wide (see config.ts) -- still a testing-phase
+        // app with no deployed checkout, so nothing to check. Guest Mode
+        // always sees the real thing too, independent of the gate being on
+        // or off -- someone evaluating Quad360 needs to actually see what
+        // Pro looks like, not hit a paywall before ever seeing real content
+        // (matches Guest Mode's existing "sample data, not saved" framing).
+        // Skipping the network call in both cases also means neither
+        // depends on subscription-manage actually being reachable.
+        if (!Config.PRO_GATES_ENABLED || isDemoMode) { setLoading(false); return; }
         let cancelled = false;
         getSubscriptionStatus().then(s => {
             if (!cancelled) { setState(s); setLoading(false); }
@@ -47,7 +50,7 @@ export default function ProGate({ feature, description, icon = 'lock', children 
     // to fail closed here, not open.
     if (loading) return null;
 
-    if (isDemoMode || isProActive(state)) {
+    if (!Config.PRO_GATES_ENABLED || isDemoMode || isProActive(state)) {
         return <>{children}</>;
     }
 

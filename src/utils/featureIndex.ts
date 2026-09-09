@@ -257,6 +257,18 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         keywords: ['preferences', 'profile', 'currency'],
         screen: 'settings',
     },
+    {
+        id: 'security-center', label: 'Security Center', icon: '🔒',
+        description: 'What is actually protecting your data right now — encryption, two-factor authentication, cloud backup, activity log, and lender data-sharing, all in one place, no jargon',
+        keywords: ['security', 'privacy', 'safe', 'protection', 'encryption', '2fa', 'two-factor', 'trust', 'activity log', 'sign out everywhere'],
+        screen: 'security-center',
+    },
+    {
+        id: 'data-permission-centre', label: 'Data Permission Centre', icon: '🛡️',
+        description: 'One honest list of everyone with an ongoing view of your business data — team members, lenders, and financing marketplace listings — with a working revoke button on each',
+        keywords: ['data', 'privacy', 'permission', 'who can see', 'access', 'revoke', 'team members', 'lender share', 'trust'],
+        screen: 'data-permission-centre',
+    },
 ];
 
 function matches(entry: FeatureEntry, q: string): boolean {

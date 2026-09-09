@@ -1063,7 +1063,22 @@ export default function DashboardScreen() {
                     return;
                 }
                 await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-                const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+                // LOW_QUALITY, not HIGH_QUALITY -- this recording only ever
+                // goes to Whisper for transcription, never played back or
+                // stored, so music-grade fidelity buys nothing but a bigger
+                // upload on what's often a data-constrained connection.
+                // Android's LOW_QUALITY switches to AMR_NB, a codec built
+                // for speech specifically (used for 2G voice calls), and
+                // iOS halves the bitrate -- both still transcribe cleanly
+                // through Whisper, which is trained on plenty of
+                // telephone-quality audio. A custom RecordingOptions object
+                // could do better still, but Expo's own docs warn that
+                // untested option combinations can silently fail
+                // prepareToRecordAsync() on real devices; sticking to the
+                // two officially-supported presets is the safe choice
+                // without a physical iOS/Android device to verify a custom
+                // one against.
+                const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.LOW_QUALITY);
                 recordingRef.current = recording;
             }
             setQaRecording(true);

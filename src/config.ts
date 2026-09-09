@@ -11,6 +11,17 @@ export const Config = {
     // Driven by APP_ENV set in eas.json build profiles
     IS_PRODUCTION: process.env.APP_ENV === 'production',
 
+    // Whether the Quad360 Pro paywall (ProGate.tsx) actually blocks access.
+    // Off by default -- the app is still in a testing phase, and the
+    // subscription backend isn't deployed yet (no live Paystack plan, no
+    // deployed subscription-init/-webhook/-manage functions -- see their
+    // own file headers), so a real gate right now would lock testers out
+    // of 5 screens with no way to actually pay. The gating code, ProGate
+    // wiring, and backend all stay fully built so this is a one-flag flip
+    // (EXPO_PUBLIC_PRO_GATES_ENABLED=true) once the app is ready to charge,
+    // not a re-wire.
+    PRO_GATES_ENABLED: process.env.EXPO_PUBLIC_PRO_GATES_ENABLED === 'true',
+
     // WhatsApp support contact — left empty until a real number is provisioned.
     // Set EXPO_PUBLIC_SUPPORT_WHATSAPP_NUMBER in .env.local (E.164, no "+").
     // Never hardcode a placeholder number here — the UI must handle "" gracefully.
