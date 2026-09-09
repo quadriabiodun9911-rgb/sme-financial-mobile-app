@@ -196,8 +196,26 @@ export default function BudgetScreen() {
     // Budget strategy: how the planned spend sits against revenue, cash & profit.
     const monthlyRevenue = finance?.income ?? 0;
     const cashBalance = finance?.cashBalance ?? 0;
-    // Total monthly cash commitments = planned spend + loan repayments.
-    const totalCommitments = totalBudgeted + loanBurden;
+    // Real spending doesn't stop at whatever's been budgeted so far -- a
+    // category with no budget line (Rent, Salaries, COGS, ...) still costs
+    // real money every month. Without this, totalCommitments/projectedProfit
+    // silently treated every unbudgeted category as zero future spend,
+    // which for a business that's only budgeted one or two categories (the
+    // normal state early on) wildly overstated projected profit against
+    // the real actual profit (finance.profit) below it. "Loan Repayment" is
+    // excluded since it's already counted via loanBurden.
+    const budgetedCatKeys = useMemo(
+        () => new Set(budgets.map(b => b.category.trim().toLowerCase())),
+        [budgets]
+    );
+    const unbudgetedActualSpend = useMemo(() => Object.entries(pastAvgByCat)
+        .filter(([cat]) => cat.trim().toLowerCase() !== 'loan repayment' && !budgetedCatKeys.has(cat.trim().toLowerCase()))
+        .reduce((s, [, avg]) => s + avg, 0),
+        [pastAvgByCat, budgetedCatKeys]
+    );
+    // Total monthly cash commitments = planned spend + loan repayments +
+    // real spend in categories that aren't budgeted yet.
+    const totalCommitments = totalBudgeted + loanBurden + unbudgetedActualSpend;
     // Projected profit if you spend your full budget and cover loan repayments.
     const projectedProfit = monthlyRevenue - totalCommitments;
     // A safe cap: keep total commitments within revenue (never plan a loss). For
@@ -205,17 +223,17 @@ export default function BudgetScreen() {
     const safeCap = monthlyRevenue * 0.8;
     const overRevenue = totalCommitments > monthlyRevenue;
     const overSafeCap = totalCommitments > safeCap && !overRevenue;
-    // safeCap above is a cap on TOTAL commitments (spend + loan repayments),
-    // which is what overSafeCap correctly checks against. But the "healthy
-    // plan" message showed that same number as "Recommended max spend" --
-    // i.e. how much category budget to set -- without netting out the loan
-    // repayments already baked into totalCommitments. Following that
-    // recommendation literally (budgeting up to safeCap) would push total
-    // commitments to safeCap + loanBurden, tripping the very "over safe cap"
-    // warning the sentence claims to be avoiding. budgetEngine.ts's own
-    // safeCap (used to scale Auto-Generated Budget suggestions) already
-    // nets out loanBurden the same way -- this matches that.
-    const recommendedMaxSpend = Math.max(0, safeCap - loanBurden);
+    // safeCap above is a cap on TOTAL commitments (spend + loan repayments +
+    // unbudgeted actual spend), which is what overSafeCap correctly checks
+    // against. But the "healthy plan" message showed that same number as
+    // "Recommended max spend" -- i.e. how much category budget to set --
+    // without netting out the loan repayments and unbudgeted spend already
+    // baked into totalCommitments. Following that recommendation literally
+    // would push total commitments over the very "over safe cap" warning
+    // the sentence claims to be avoiding. budgetEngine.ts's own safeCap
+    // (used to scale Auto-Generated Budget suggestions) already nets out
+    // loanBurden the same way -- this matches that, plus unbudgeted spend.
+    const recommendedMaxSpend = Math.max(0, safeCap - loanBurden - unbudgetedActualSpend);
 
     // Adjust & Simulate: lets a user drag category amounts around and watch
     // the profit/cash effect and solution update live, before committing
@@ -247,7 +265,7 @@ export default function BudgetScreen() {
     const adjustedTotalBudgeted = adjustMode
         ? budgets.reduce((s, b) => s + (parseFloat(adjustedAmounts[b.id]) || 0), 0)
         : totalBudgeted;
-    const adjustedTotalCommitments = adjustedTotalBudgeted + loanBurden;
+    const adjustedTotalCommitments = adjustedTotalBudgeted + loanBurden + unbudgetedActualSpend;
     const adjustedProjectedProfit = monthlyRevenue - adjustedTotalCommitments;
     const adjustedOverRevenue = adjustedTotalCommitments > monthlyRevenue;
     const adjustedOverSafeCap = adjustedTotalCommitments > safeCap && !adjustedOverRevenue;
@@ -499,16 +517,22 @@ export default function BudgetScreen() {
                         )}
 
                         {loanBurden > 0 && (
-                            <>
-                                <View style={s.strategyRow}>
-                                    <Text style={s.strategyLabel}>+ Loan repayments (monthly)</Text>
-                                    <Text style={[s.strategyVal, { color: Colors.expense }]}>{currency}{loanBurden.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
-                                </View>
-                                <View style={s.strategyRow}>
-                                    <Text style={[s.strategyLabel, { fontWeight: '700', color: Colors.textPrimary }]}>= Total monthly commitments</Text>
-                                    <Text style={[s.strategyVal, { fontWeight: '700' }]}>{currency}{dCommitments.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
-                                </View>
-                            </>
+                            <View style={s.strategyRow}>
+                                <Text style={s.strategyLabel}>+ Loan repayments (monthly)</Text>
+                                <Text style={[s.strategyVal, { color: Colors.expense }]}>{currency}{loanBurden.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                            </View>
+                        )}
+                        {unbudgetedActualSpend > 0 && (
+                            <View style={s.strategyRow}>
+                                <Text style={s.strategyLabel}>+ Other actual expenses (unbudgeted)</Text>
+                                <Text style={[s.strategyVal, { color: Colors.expense }]}>{currency}{unbudgetedActualSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                            </View>
+                        )}
+                        {(loanBurden > 0 || unbudgetedActualSpend > 0) && (
+                            <View style={s.strategyRow}>
+                                <Text style={[s.strategyLabel, { fontWeight: '700', color: Colors.textPrimary }]}>= Total monthly commitments</Text>
+                                <Text style={[s.strategyVal, { fontWeight: '700' }]}>{currency}{dCommitments.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                            </View>
                         )}
                         <View style={[s.strategyRow, { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 8, marginTop: 4 }]}>
                             <Text style={[s.strategyLabel, { fontWeight: '700', color: Colors.textPrimary }]}>Projected profit after spend{loanBurden > 0 ? ' & loans' : ''}</Text>
