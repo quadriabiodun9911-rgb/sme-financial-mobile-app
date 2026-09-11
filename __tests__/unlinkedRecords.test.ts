@@ -107,4 +107,15 @@ describe('computeUnlinkedInvoicePayments', () => {
         const result = computeUnlinkedInvoicePayments([inv1, inv2], [tx]);
         expect(result.length).toBe(1);
     });
+
+    it('does not match a transaction already linked to this same invoice via reference', () => {
+        // Every non-draft invoice gets its own linked revenue transaction
+        // (reference === invoiceNumber, set in OptimizedContexts.tsx) the
+        // moment it's marked sent -- same amount, same client, same day.
+        // That transaction must never be offered back as a "payment
+        // detected" match for the invoice it already belongs to.
+        const inv = makeInvoice({ id: 'inv1', invoiceNumber: 'INV-001', clientName: 'Acme Corp', total: 5000, status: 'sent', issueDate: '2026-01-01' });
+        const tx = makeTx({ id: 'tx1', type: 'income', amount: 5000, date: '2026-01-01', vendorCustomer: 'Acme Corp', reference: 'INV-001' });
+        expect(computeUnlinkedInvoicePayments([inv], [tx])).toEqual([]);
+    });
 });

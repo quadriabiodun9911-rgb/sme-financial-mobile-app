@@ -251,7 +251,7 @@ export default function GoalsScreen() {
     const openAddModal = (type: GoalType) => {
         setSelectedType(type);
         const meta = GOAL_TYPES.find(g => g.type === type)!;
-        const defaults = goalDefaults(type, finance, settings);
+        const defaults = goalDefaults(type, finance, settings, transactions);
         setForm({
             title: defaults.title ?? meta.label,
             description: defaults.description ?? meta.description,

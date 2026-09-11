@@ -854,7 +854,7 @@ export default function TransactionsScreen() {
                                         style={styles.actionBtns}
                                         onStartShouldSetResponder={() => true}
                                     >
-                                        {(tx.status === 'pending' || tx.status === 'overdue') && (
+                                        {canWrite && (tx.status === 'pending' || tx.status === 'overdue') && (
                                             <TouchableOpacity
                                                 style={styles.paidBtn}
                                                 onPress={() => handleMarkPaid(tx.id)}

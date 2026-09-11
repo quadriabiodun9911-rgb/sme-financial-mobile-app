@@ -101,6 +101,16 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         keywords: ['future events', 'known future events', 'planned expansion', 'new hire', 'new branch', 'equipment purchase', 'signed contract', 'upcoming plans'],
         screen: 'future-events',
     },
+    // 'Inventory' itself had no entry -- searching that exact word only
+    // surfaced its Pricing Optimization sub-feature and matching Stock
+    // transactions below, never the screen a user actually typed the word
+    // to find. Found while live-testing the Inventory flow.
+    {
+        id: 'inventory', label: 'Inventory', icon: '📦',
+        description: 'Stock levels, cost & selling price per item, margins, and Sell/Stock In actions that keep quantities and linked transactions in sync',
+        keywords: ['inventory', 'stock', 'stock levels', 'sell', 'stock in', 'restock', 'products', 'goods', 'margin'],
+        screen: 'inventory',
+    },
     {
         id: 'pricing-optimizer', label: 'Pricing Optimization', icon: '💰',
         description: 'Set prices per product against real inventory and sales data, hit a revenue target, or protect your margin after a cost rise',
