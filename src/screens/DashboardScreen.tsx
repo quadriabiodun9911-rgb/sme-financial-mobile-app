@@ -1281,17 +1281,26 @@ export default function DashboardScreen() {
         [transactions, finance.cashBalance],
     );
     const runwayDays = dashboardDailyBurn > 0 ? computedRunwayDays : null;
-    const runwayColor = runwayDays === null ? Colors.income : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
+    // No measurable burn only reads as a genuine "5+ years" floor when
+    // there's real cash behind it -- ₦0 cash with no burn data is "no data
+    // yet", not a healthy runway, so it's kept visually neutral instead of
+    // sharing the same reassuring green as an actual long runway.
+    const hasCashCushion = finance.cashBalance > 0;
+    const runwayColor = runwayDays === null
+        ? (hasCashCushion ? Colors.income : Colors.textMuted)
+        : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
     // The Vital Signs gauge shows a real number, never the bare "∞" glyph --
     // a long-but-finite runway reads better in years than as a four-digit
     // day count, and no measurable burn in the trailing window (runwayDays
     // === null) genuinely has no day count to report, so it's shown as a
-    // capped "5+ yrs" floor rather than fabricating a specific figure.
+    // capped "5+ yrs" floor rather than fabricating a specific figure --
+    // but only when there's an actual cash balance for that floor to mean
+    // anything; a blank account with ₦0 cash gets an honest "—" instead.
     const runwayDisplay = useMemo(() => {
-        if (runwayDays === null) return { value: '5+', unit: 'yrs' };
+        if (runwayDays === null) return hasCashCushion ? { value: '5+', unit: 'yrs' } : { value: '—', unit: '' };
         if (runwayDays >= 365) return { value: (runwayDays / 365).toFixed(1), unit: 'yrs' };
         return { value: String(runwayDays), unit: 'days' };
-    }, [runwayDays]);
+    }, [runwayDays, hasCashCushion]);
 
     // Yesterday's actual revenue/expense bucket for the morning briefing's
     // pulse numbers below -- local Y-M-D, not toISOString() (see
@@ -1647,7 +1656,7 @@ export default function DashboardScreen() {
                       <RadialGauge
                         displayValue={runwayDisplay.value}
                         label={runwayDisplay.unit}
-                        progress={runwayDays === null ? 1 : runwayDays / 90}
+                        progress={runwayDays === null ? (hasCashCushion ? 1 : 0) : runwayDays / 90}
                         color={runwayColor}
                         size={64}
                         strokeWidth={6}

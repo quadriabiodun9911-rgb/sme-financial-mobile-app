@@ -234,7 +234,13 @@ export default function CreditWorthinessScreen() {
 
         // 4. Cash Flow Health (15% weight)
         const runway = finance.runway || 0;
-        const runwayScore = Math.min(100, (runway / 180) * 100); // 6 months runway = 100 score
+        // Infinite runway (no burn recorded) only earns full marks when
+        // there's real cash behind it -- at ₦0 cash there's no cushion to
+        // score, just no data yet, and this used to silently score 100
+        // ("6 months runway = 100 score") for a brand new, empty account.
+        const runwayScore = Number.isFinite(runway)
+            ? Math.min(100, (runway / 180) * 100)
+            : (finance.cashBalance > 0 ? 100 : 0);
 
         factors.push({
             name: 'Cash Flow Health',
@@ -363,7 +369,11 @@ export default function CreditWorthinessScreen() {
     const lenderCheckpoints = useMemo(() => [
         { label: 'Credit Score', met: overallCreditScore >= 70, description: '70+ score increases approval odds' },
         { label: 'Payment History', met: (creditFactors[0]?.score ?? 0) >= 80, description: 'On-time payment record' },
-        { label: 'Cash Flow', met: !!(finance.runway && finance.runway >= 90), description: '3+ months runway' },
+        // finance.cashBalance > 0 guard: an infinite runway (no burn
+        // recorded) shouldn't satisfy this checkpoint on a ₦0-cash account
+        // — that's no data, not 3+ months of real cushion — and this feeds
+        // the exported lender-ready summary, not just the on-screen list.
+        { label: 'Cash Flow', met: finance.cashBalance > 0 && !!(finance.runway && finance.runway >= 90), description: '3+ months runway' },
         { label: 'Revenue Level', met: (user?.avgMonthlyRevenue || 0) >= revenueLevelThreshold, description: `${currency}${revenueLevelThreshold.toLocaleString()}+ monthly revenue -- a different check from the Revenue Growth factor above, which looks at trend rather than size` },
         { label: 'Business Age', met: (user?.daysActive || 0) >= 90, description: '90+ days operating history' },
         { label: 'Debt Ratio', met: (creditFactors[1]?.score ?? 0) >= 70, description: 'Debt < 30% of available credit' },
@@ -1033,7 +1043,10 @@ export default function CreditWorthinessScreen() {
                     {lenderCheckpoints.map((c, idx) => (
                         <LenderCheckpoint key={idx} label={c.label} status={c.met} description={c.description} />
                     ))}
-                    {!(finance.runway && finance.runway >= 90) && (
+                    {/* Same finance.cashBalance guard as the Cash Flow checkpoint
+                        above -- an infinite runway on ₦0 cash must still
+                        surface this nudge, not hide it. */}
+                    {!(finance.cashBalance > 0 && finance.runway && finance.runway >= 90) && (
                         <NextStepLink text="Improve your cash runway" onPress={() => navigate('cashflow')} />
                     )}
                     <Collapsible title="💡 How to Improve Your Credit Profile">

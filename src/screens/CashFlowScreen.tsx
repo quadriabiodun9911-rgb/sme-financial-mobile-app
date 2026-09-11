@@ -80,7 +80,13 @@ export default function CashFlowScreen() {
         [transactions, finance.cashBalance]
     );
 
-    const runwayColor = runwayDays < 30 ? Colors.expense : runwayDays < 90 ? Colors.warning : Colors.income;
+    // Infinite runway (no burn recorded) only reads as good news when
+    // there's real cash behind it -- ₦0 cash with no burn data is "no data
+    // yet", not a healthy runway, so it's kept neutral rather than green.
+    const hasCashCushion = cashBalance > 0;
+    const runwayColor = !Number.isFinite(runwayDays)
+        ? (hasCashCushion ? Colors.income : Colors.textMuted)
+        : runwayDays < 30 ? Colors.expense : runwayDays < 90 ? Colors.warning : Colors.income;
 
     const runwayAnim = useRef(new Animated.Value(0)).current;
     const [animatedRunwayDays, setAnimatedRunwayDays] = useState(0);
@@ -96,10 +102,10 @@ export default function CashFlowScreen() {
     // and no measurable burn (runwayDays === Infinity) is shown as a
     // capped "5+ yrs" floor rather than a specific fabricated figure.
     const runwayDisplay = useMemo(() => {
-        if (!Number.isFinite(runwayDays)) return { value: '5+', unit: 'yrs' };
+        if (!Number.isFinite(runwayDays)) return hasCashCushion ? { value: '5+', unit: 'yrs' } : { value: '—', unit: '' };
         if (runwayDays >= 365) return { value: (runwayDays / 365).toFixed(1), unit: 'yrs' };
         return { value: `${Math.round(animatedRunwayDays)}`, unit: 'days' };
-    }, [runwayDays, animatedRunwayDays]);
+    }, [runwayDays, animatedRunwayDays, hasCashCushion]);
 
     // Metric Intelligence pilot -- same Definition/Owner-confidence/Trigger
     // treatment as the Dashboard's Business Health Score. See
