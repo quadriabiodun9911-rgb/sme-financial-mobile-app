@@ -317,7 +317,7 @@ export default function FinancialHealthScreen() {
                     <Icon name="target" size={28} color={Colors.primary} />
                     <View style={styles.featureContent}>
                         <Text style={styles.featureTitle}>Financial Health Coach</Text>
-                        <Text style={styles.featureDesc}>Get personalized recommendations & track milestones</Text>
+                        <Text style={styles.featureDesc}>Full diagnosis, SWOT & personalized recommendations</Text>
                     </View>
                     <Text style={styles.featureArrow}>→</Text>
                 </View>
