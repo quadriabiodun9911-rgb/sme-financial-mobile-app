@@ -743,20 +743,6 @@ export default function CFOScreen() {
                 </View>
             )}
 
-            {/* Financial Health card — always visible. Was pointing at the
-                Pngme bank-connection health screen, a feature that isn't
-                live yet (its connect button is disabled, "Available after
-                beta") — redirected to Financial Assessment, the screen that
-                actually renders the full diagnosis, SWOT and action plan
-                this card promises (Business Passport doesn't). */}
-            <TouchableOpacity style={s.healthCard} onPress={() => navigate('financial-assessment')}>
-                <View style={{ flex: 1 }}>
-                    <Text style={s.healthTitle}>📊 Financial Health Score</Text>
-                    <Text style={s.healthSub}>Full diagnosis, SWOT & action plan</Text>
-                </View>
-                <Text style={s.healthArrow}>→</Text>
-            </TouchableOpacity>
-
             {hasEnoughData && (
                 <>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabBar} contentContainerStyle={s.tabBarContent}>
@@ -827,10 +813,6 @@ const s = StyleSheet.create({
     emptyProgressBarFill: { height: 6, backgroundColor: Colors.primary, borderRadius: 3 },
     emptyBtn:             { backgroundColor: Colors.primary, paddingVertical: 13, paddingHorizontal: 32, borderRadius: 10 },
     emptyBtnText:         { color: '#fff', fontWeight: 'bold', fontSize: 15 },
-    healthCard:           { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, marginHorizontal: 16, marginTop: 12, marginBottom: 4, borderRadius: 14, padding: 14, borderLeftWidth: 3, borderLeftColor: Colors.primary, ...Shadow.sm },
-    healthTitle:          { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
-    healthSub:            { fontSize: 11, color: Colors.textMuted },
-    healthArrow:          { fontSize: 18, color: Colors.primary, fontWeight: '700' },
 
     tabBar:        { maxHeight: 52, backgroundColor: Colors.surface },
     tabBarContent: { paddingHorizontal: 8, gap: 2, alignItems: 'center' },

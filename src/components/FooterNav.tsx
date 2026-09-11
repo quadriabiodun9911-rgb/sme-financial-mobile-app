@@ -61,6 +61,16 @@ import { isScreenAllowedForRole } from '../utils/rolePermissions';
 //    Tracker shows what's worked before (Results) above the tactics you
 //    can start or advance (Act), then links back to the Scoreboard so
 //    a measured outcome closes the loop into Understand.
+// Diagnosis sits before Understand, not inside it -- it's the same
+// "always visible, top of screen" prominence this card had on the
+// Business Advisor screen before it moved here, not one more item in the
+// Understand list. Scoreboard (in Understand) is the at-a-glance score;
+// Financial Assessment is the full write-up -- money leaks, performance,
+// cash, financing readiness, SWOT, and the top 3 fixes -- one tap deeper.
+const DIAGNOSIS_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
+    { label: 'Financial Health Score', icon: 'clipboard', screen: 'financial-assessment', color: '#f43f5e', desc: 'Full diagnosis, SWOT & action plan' },
+];
+
 const UNDERSTAND_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
     { label: 'Scoreboard',     icon: 'activity',      screen: 'scoreboard',     color: '#22d3ee', desc: 'Financial health at a glance' },
     { label: 'Cash Flow',      icon: 'droplet',       screen: 'cashflow',       color: '#3b82f6', desc: 'Runway & receivables risk' },
@@ -175,6 +185,7 @@ export default function FooterNav() {
     // business that hasn't logged any items yet doesn't lose the entry
     // point it would actually need the first time it does.
     const isServiceOnly = settings?.businessType === 'service';
+    const visibleDiagnosis = useMemo(() => DIAGNOSIS_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
     const visibleUnderstand = useMemo(
         () => UNDERSTAND_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole) && !(isServiceOnly && i.screen === 'inventory')),
         [userRole, isServiceOnly],
@@ -296,6 +307,33 @@ export default function FooterNav() {
                             </>
                             )}
                         </View>
+
+                        {/* ── Diagnosis ─────────────────────────────────── */}
+                        {visibleDiagnosis.length > 0 && (
+                            <>
+                                <Text style={styles.sectionHeader}>Diagnosis</Text>
+                                <Text style={styles.sectionSubtitle}>Where do I stand, in full?</Text>
+                                <View style={styles.listCard}>
+                                    {visibleDiagnosis.map((item, i, arr) => (
+                                        <TouchableOpacity
+                                            key={item.label}
+                                            style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
+                                            onPress={() => goTo(item.screen)}
+                                            activeOpacity={0.75}
+                                        >
+                                            <View style={[styles.listIconBox, { backgroundColor: item.color + '22' }]}>
+                                                <Icon name={item.icon} size={16} color={item.color} />
+                                            </View>
+                                            <View style={styles.listTextCol}>
+                                                <Text style={styles.listLabel}>{item.label}</Text>
+                                                <Text style={styles.listDesc}>{item.desc}</Text>
+                                            </View>
+                                            <Icon name="chevron-right" size={18} color={Colors.textMuted} />
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </>
+                        )}
 
                         {/* ── Understand ────────────────────────────────── */}
                         <Text style={styles.sectionHeader}>Understand</Text>
