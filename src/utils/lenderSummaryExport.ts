@@ -52,7 +52,10 @@ export function buildLenderSummaryExport(input: LenderSummaryInput): ExportData 
         summary: [
             { label: 'Overall Credit Score', value: `${Math.round(overallCreditScore)} / 100 (${creditRatingLabel})` },
             { label: 'Monthly Revenue', value: fmtCurrency(currency, avgMonthlyRevenue) },
-            { label: 'Cash Runway', value: `${Math.round(runwayDays)} days` },
+            // Infinite runway (no burn recorded, e.g. a brand new account)
+            // must never render as the literal string "Infinity days" in a
+            // document meant to go to an actual lender.
+            { label: 'Cash Runway', value: Number.isFinite(runwayDays) ? `${Math.round(runwayDays)} days` : 'No spending recorded yet' },
             { label: 'Operating History', value: `${daysActive} days` },
         ],
         sections: [

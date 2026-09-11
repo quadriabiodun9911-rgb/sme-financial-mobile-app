@@ -171,18 +171,26 @@ export function computeWeeklySummary(
         const { runwayDays, dailyBurn } = computeCashRunway(transactions, cashPosition.current, today);
         const weeklyBurn = dailyBurn * 7;
         const weeksOfBuffer = runwayDays / 7;
-        const lowBuffer = weeksOfBuffer < 8;
+        // No burn recorded at all only means "effectively unlimited buffer"
+        // when there's actual cash behind it -- ₦0 reserves with no burn
+        // history is no data yet, not a healthy buffer, and must not be
+        // rendered as "~Infinity weeks" if it's folded into the low-buffer
+        // branch below.
+        const noDataYet = !Number.isFinite(weeksOfBuffer) && cashPosition.current <= 0;
+        const lowBuffer = !noDataYet && (weeksOfBuffer < 8 || cashPosition.current <= 0);
         const bufferDescription = Number.isFinite(weeksOfBuffer)
             ? `~${Math.round(weeksOfBuffer)} weeks of buffer`
             : 'no meaningful burn right now — effectively unlimited buffer';
-        const text = lowBuffer
+        const text = noDataYet
+            ? `No cash on hand and no spending history yet — start logging transactions so Quad360 can track a real buffer here.`
+            : lowBuffer
             ? `Cash reserves cover only ~${Math.max(0, Math.round(weeksOfBuffer))} weeks of spend (${fmtGBP(cashPosition.current)}) — build this up before committing to equipment purchases or other big spend, so you're not forced to borrow.`
             : `Cash reserves stand at ${fmtGBP(cashPosition.current)} (${bufferDescription}) — healthy enough to start setting aside a fund toward your next equipment purchase instead of financing it.`;
         priorities.push({
             lever: 'cash',
             label: 'Build Cash Reserves',
             text,
-            impact: lowBuffer ? (8 - weeksOfBuffer) * weeklyBurn : weeklyBurn * 0.5,
+            impact: noDataYet ? 0 : lowBuffer ? (8 - weeksOfBuffer) * weeklyBurn : weeklyBurn * 0.5,
         });
     }
 

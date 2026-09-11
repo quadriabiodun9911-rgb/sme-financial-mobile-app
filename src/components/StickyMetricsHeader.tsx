@@ -27,7 +27,13 @@ export default function StickyMetricsHeader({ finance, currency }: Props) {
       label: 'Runway',
       value: finance.runway || 0,
       format: 'days',
-      color: (finance.runway || 0) > 30 ? '#10b981' : (finance.runway || 0) > 7 ? '#f59e0b' : '#ef4444',
+      // Infinite runway (no burn recorded) only reads as good news when
+      // there's actual cash it's protecting -- at ₦0 cash there's nothing
+      // to be reassured about, just no data yet, so it's shown muted
+      // rather than the same green as a real long runway.
+      color: !Number.isFinite(finance.runway || 0)
+        ? (finance.cashBalance > 0 ? '#10b981' : Colors.textMuted)
+        : (finance.runway || 0) > 30 ? '#10b981' : (finance.runway || 0) > 7 ? '#f59e0b' : '#ef4444',
       icon: '📅',
     },
   ];
@@ -42,7 +48,10 @@ export default function StickyMetricsHeader({ finance, currency }: Props) {
             <Text style={[styles.metricValue, { color: metric.color }]}>
               {metric.format === 'days'
                 ? (!Number.isFinite(metric.value)
-                    ? '5+yrs'
+                    // No burn recorded -- only a genuine "5+ years" floor
+                    // when there's real cash behind it; ₦0 cash with no
+                    // burn data is "no data yet", not a healthy runway.
+                    ? (finance.cashBalance > 0 ? '5+yrs' : '—')
                     : metric.value >= 365
                         ? `${(metric.value / 365).toFixed(1)}yrs`
                         : `${Math.floor(metric.value)}d`)

@@ -1421,7 +1421,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     await syncFieldEncryptionKey().catch(() => {});
     const profile = await loadProfile();
-    if (!profile) return 'not-found';
+    // storage.ts's switchLocalAccount/switchLocalAccountDirect are expected
+    // to have already mirrored the TARGET account into these active slots
+    // before returning 'ok' -- but this is the only place that reads the
+    // result back, and nothing before it actually confirms the mirror
+    // landed for the right account. Without this check, any gap there
+    // (a failed write, a stale slot from before this ran) would silently
+    // sign the caller into whichever account's data happens to be sitting
+    // in the active profile slot -- the same class of bug
+    // localProfileMatchesEmail exists to prevent on the email+PIN login
+    // path in LoginScreen.tsx, just unguarded here.
+    if (!profile || profile.email.trim().toLowerCase() !== email.trim().toLowerCase()) return 'not-found';
     setIsFirstLaunch(false);
     writeTabIdentity(profile.email);
     // clearWorkspaceOwner() above means this starts pointed at the
