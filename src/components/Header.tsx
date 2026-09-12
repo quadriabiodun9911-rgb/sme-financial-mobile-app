@@ -13,6 +13,7 @@ import { computeForecastRiskAlert } from '../utils/forecastRiskAlert';
 import { ForecastAlert } from '../types/forecast';
 import { sendCashFlowAlert, sendOverdueInvoiceAlert } from '../utils/whatsappIntegration';
 import { ROLE_DISPLAY_LABEL } from '../utils/rolePermissions';
+import { accountDisplayName } from '../utils/storage';
 
 const DISMISSED_ALERTS_KEY = '@quad360/dismissed_alerts';
 
@@ -179,7 +180,7 @@ export default function Header() {
                         activeOpacity={canSwitch ? 0.7 : 1}
                     >
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                            <Text style={styles.userText}>{user?.email?.split('@')[0] || 'Admin'}</Text>
+                            <Text style={styles.userText}>{(user?.email && accountDisplayName(user.email)) || 'Admin'}</Text>
                             {canSwitch && <Icon name="chevron-down" size={12} color={Colors.textMuted} />}
                         </View>
                         <Text style={styles.userRole}>{ROLE_DISPLAY_LABEL[userRole]}</Text>
@@ -205,7 +206,7 @@ export default function Header() {
                             </View>
                             <View style={{ flex: 1 }}>
                                 <Text style={styles.switcherName} numberOfLines={1}>{user?.businessName}</Text>
-                                <Text style={styles.switcherEmail} numberOfLines={1}>{user?.email} · Current</Text>
+                                <Text style={styles.switcherEmail} numberOfLines={1}>{accountDisplayName(user?.email)} · Current</Text>
                             </View>
                             <Icon name="check" size={16} color={Colors.primary} />
                         </View>
@@ -251,7 +252,7 @@ export default function Header() {
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.switcherName} numberOfLines={1}>{acct.businessName}</Text>
-                                    <Text style={styles.switcherEmail} numberOfLines={1}>{acct.email}</Text>
+                                    <Text style={styles.switcherEmail} numberOfLines={1}>{accountDisplayName(acct.email)}</Text>
                                 </View>
                                 {switchingTo === acct.email
                                     ? <ActivityIndicator size="small" color={Colors.primary} />

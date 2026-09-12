@@ -11,7 +11,7 @@ import { t, LANGUAGES, Language } from '../utils/i18n';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import { trackUserLoggedIn, identifyUser } from '../utils/analytics';
 import { supabase, createEphemeralAuthClient } from '../utils/supabase';
-import { savePin, saveProfile, generateAuthSecret, saveAuthSecret, loadAuthSecret, loadProfile, localProfileMatchesEmail, syncFieldEncryptionKey, registerLocalAccount } from '../utils/storage';
+import { savePin, saveProfile, generateAuthSecret, saveAuthSecret, loadAuthSecret, loadProfile, localProfileMatchesEmail, syncFieldEncryptionKey, registerLocalAccount, usernameToLoginEmail, loginIdentifierToEmail, isUsernameAccountEmail, accountDisplayName } from '../utils/storage';
 import { verifyBackupPassword, setBackupPassword } from '../utils/backupPassword';
 import { Industry, BusinessSettings } from '../types';
 import { buildQuickCheckSeedTransactions } from '../utils/quickHealthCheck';
@@ -204,6 +204,13 @@ export default function LoginScreen() {
 
     // Owner setup
     const [email, setEmail]         = useState('');
+    // Lets a trader with no email address sign up on a username instead --
+    // see usernameToLoginEmail (storage.ts) for how this becomes a real,
+    // synthetic email under the hood so it still works with Supabase's
+    // email/password auth. Mutually exclusive with the email field above;
+    // only one of the two is validated/used depending on this flag.
+    const [useUsername, setUseUsername] = useState(false);
+    const [username, setUsername]   = useState('');
     const [phone, setPhone]         = useState('');
     const [business, setBusiness]   = useState('');
     const [pin, setPin]             = useState('');
@@ -383,7 +390,14 @@ export default function LoginScreen() {
     };
 
     const handleSetup = async () => {
-        if (!email.trim() || !business.trim()) {
+        if (useUsername) {
+            if (!/^[a-zA-Z0-9_]{3,20}$/.test(username.trim())) {
+                showAlert(t(setupLang, 'error'), 'Username must be 3-20 characters: letters, numbers, and underscores only.'); return;
+            }
+        } else if (!email.trim()) {
+            showAlert(t(setupLang, 'missingFields'), t(setupLang, 'email') + ' & ' + t(setupLang, 'businessName')); return;
+        }
+        if (!business.trim()) {
             showAlert(t(setupLang, 'missingFields'), t(setupLang, 'email') + ' & ' + t(setupLang, 'businessName')); return;
         }
         if (!/^\d{6}$/.test(pin)) { showAlert(t(setupLang, 'error'), t(setupLang, 'invalidPin')); return; }
@@ -396,6 +410,13 @@ export default function LoginScreen() {
             if (setupBackupPassword !== setupBackupPasswordConfirm) { showAlert(t(setupLang, 'error'), 'Backup passwords do not match.'); return; }
         }
         setSubmitting(true);
+        // The one and only place a username gets turned into the synthetic
+        // email Supabase Auth actually stores -- see usernameToLoginEmail's
+        // comment (storage.ts) for why this exists instead of a second auth
+        // system. Everything downstream of this point (setupAccount, error
+        // handling, the "already registered" redirect) works off this value
+        // exactly as it would for a real email signup.
+        const effectiveEmail = useUsername ? usernameToLoginEmail(username) : email.trim();
         try {
             setLanguage(setupLang);
             // Converting from Guest Mode: capture whatever's currently in
@@ -421,7 +442,7 @@ export default function LoginScreen() {
             // resets/reloads settings — otherwise the chosen currency/industry can
             // be silently overwritten back to defaults by that reset.
             await setupAccount(
-                email.trim(), business.trim(), pin, false, phone.trim(),
+                effectiveEmail, business.trim(), pin, false, phone.trim(),
                 isDemoMode ? { ...settings, currency, currencyCode, industry, businessType } : { currency, currencyCode, industry, businessType },
                 guestData,
             );
@@ -440,17 +461,21 @@ export default function LoginScreen() {
         } catch (e: any) {
             const msg: string = e?.message ?? '';
             if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already been registered') || msg.toLowerCase().includes('user already exists') || msg.toLowerCase().includes('email address is already')) {
+                const already = useUsername ? 'That username is already taken.' : 'An account with this email already exists.';
                 if (Platform.OS === 'web' && typeof window !== 'undefined') {
-                    const goSignIn = window.confirm(
-                        'An account with this email already exists.\n\nPress OK to sign in, or Cancel to use a different email.'
+                    const goSignIn = !useUsername && window.confirm(
+                        `${already}\n\nPress OK to sign in, or Cancel to use a different email.`
                     );
-                    if (goSignIn) { setMode('owner-login'); setLoginMethod('email'); setEmailLoginEmail(email.trim()); }
+                    if (goSignIn) { setMode('owner-login'); setLoginMethod('email'); setEmailLoginEmail(effectiveEmail); }
+                    else if (useUsername) window.alert(already + '\n\nPlease pick a different username.');
+                } else if (useUsername) {
+                    Alert.alert('Username Taken', already + ' Please pick a different one.');
                 } else {
                     Alert.alert(
                         'Email Already Registered',
                         'An account with this email already exists. Please sign in instead, or use a different email address.',
                         [
-                            { text: 'Sign In', onPress: () => { setMode('owner-login'); setLoginMethod('email'); setEmailLoginEmail(email.trim()); } },
+                            { text: 'Sign In', onPress: () => { setMode('owner-login'); setLoginMethod('email'); setEmailLoginEmail(effectiveEmail); } },
                             { text: 'Use Different Email', style: 'cancel' },
                         ]
                     );
@@ -491,14 +516,20 @@ export default function LoginScreen() {
             );
             return;
         }
-        if (!emailLoginEmail.trim()) { showAlert(t(language, 'error'), 'Please enter your email address.'); return; }
+        if (!emailLoginEmail.trim()) { showAlert(t(language, 'error'), 'Please enter your email or username.'); return; }
         // Same reasoning as handleLogin above -- an incomplete PIN must not
         // reach the local PIN check and burn one of the 5 lockout attempts.
         if (!/^\d{6}$/.test(emailLoginPin)) { showAlert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
 
         setSubmitting(true);
         let navigating = false;
-        const email = emailLoginEmail.trim();
+        // A username account was never given a real email, so this device's
+        // cached identifier for it is the same synthetic address created at
+        // signup (see usernameToLoginEmail, storage.ts) -- typing the
+        // username back here has to resolve to the exact same string for
+        // every check below (authSecret sign-in, localProfileMatchesEmail,
+        // switchAccount) to recognize it as the same account.
+        const email = loginIdentifierToEmail(emailLoginEmail);
         try {
             // The PIN is never sent to Supabase as a credential — a 6-digit
             // PIN is far too small a space to be a real remote password (see
@@ -548,7 +579,16 @@ export default function LoginScreen() {
                 // authenticated" error and no visible cause. Surfacing it
                 // here, once, with a direct path to fix it, beats them
                 // discovering it later from an unrelated broken feature.
-                if (remoteSecretRejected) {
+                if (remoteSecretRejected && isUsernameAccountEmail(email)) {
+                    // The email-link "Verify This Device" flow needs a real
+                    // inbox -- a username account has none, so there's no
+                    // path to reconnect it remotely. Cached data still works
+                    // locally; only server-dependent features are affected.
+                    showAlert(
+                        'Reconnect This Device',
+                        'You\'re in, but this device\'s saved sign-in has gone stale, so anything that needs to reach our servers (like connecting a payment provider) won\'t work here. Username accounts have no email to reconnect with remotely -- try signing in again on this same device, or contact support.',
+                    );
+                } else if (remoteSecretRejected) {
                     showAlert(
                         'Reconnect This Device',
                         'You\'re in, but this device\'s saved sign-in has gone stale, so anything that needs to reach our servers (like connecting a payment provider) won\'t work yet. Verify your email to reconnect it.',
@@ -585,13 +625,21 @@ export default function LoginScreen() {
             // account before. Routing straight there with the email already
             // filled in turns "read an error, go find the right button,
             // retype your email" into one tap.
-            showAlert('Sign In Failed', 'This device doesn\'t recognize that email and PIN yet. Verify your email to set it up here.', [
-                { text: 'Verify Email', onPress: () => {
-                    setResetEmail(email); setResetNewPin(''); setResetConfirmPin(''); setResetOtp('');
-                    setResetIntent('verify-device'); setResetStep('request'); setMode('reset-pin');
-                } },
-                { text: 'Try Again', style: 'cancel' },
-            ]);
+            if (isUsernameAccountEmail(email)) {
+                // No real inbox to verify against -- a username account can
+                // only ever be signed into on a device that already holds
+                // its local secret (the one it was created or switched onto
+                // before). There's no remote path to add a new device.
+                showAlert('Sign In Failed', 'This device doesn\'t recognize that username and PIN. Username accounts can only be used on devices they were set up or switched onto before -- there\'s no email to verify a new device with.');
+            } else {
+                showAlert('Sign In Failed', 'This device doesn\'t recognize that email and PIN yet. Verify your email to set it up here.', [
+                    { text: 'Verify Email', onPress: () => {
+                        setResetEmail(email); setResetNewPin(''); setResetConfirmPin(''); setResetOtp('');
+                        setResetIntent('verify-device'); setResetStep('request'); setMode('reset-pin');
+                    } },
+                    { text: 'Try Again', style: 'cancel' },
+                ]);
+            }
         } catch (e: any) {
             showAlert('Sign In Failed', 'Could not connect. Please check your internet connection and try again.');
         } finally {
@@ -666,6 +714,16 @@ export default function LoginScreen() {
 
     const handleResetRequest = async () => {
         if (!resetEmail.trim()) { showAlert('Error', 'Please enter your email address.'); return; }
+        // This whole flow -- both intents -- works by sending something to a
+        // real inbox. A username account's "email" is the synthetic,
+        // unroutable address from signup (see usernameToLoginEmail,
+        // storage.ts); Supabase will happily "succeed" sending to it and
+        // nothing will ever arrive, which is a worse dead end than saying so
+        // up front.
+        if (!resetEmail.includes('@') || isUsernameAccountEmail(loginIdentifierToEmail(resetEmail))) {
+            showAlert('No Email On This Account', 'This looks like a username account, and username accounts have no real email to send a reset link or verification code to. There is currently no way to recover a lost PIN for one -- keep it written down somewhere safe.');
+            return;
+        }
         setResetSubmitting(true);
         try {
             const redirectTo = Platform.OS === 'web' && typeof window !== 'undefined'
@@ -1125,10 +1183,10 @@ export default function LoginScreen() {
                             </Text>
                         </View>
 
-                        <Field label="Email Address">
+                        <Field label="Email or Username">
                             <TextInput style={styles.input} value={emailLoginEmail} onChangeText={setEmailLoginEmail}
-                                placeholder="your@email.com" placeholderTextColor={Colors.muted}
-                                autoCapitalize="none" keyboardType="email-address" autoFocus />
+                                placeholder="your@email.com or your username" placeholderTextColor={Colors.muted}
+                                autoCapitalize="none" autoFocus />
                         </Field>
                         <Field label="Your PIN (6 digits)">
                             <TextInput style={styles.input} value={emailLoginPin} onChangeText={setEmailLoginPin}
@@ -1629,11 +1687,32 @@ export default function LoginScreen() {
                         </Text>
                     </View>
                 )}
-                <Field label={t(setupLang, 'email')}>
-                    <TextInput style={styles.input} value={email} onChangeText={setEmail}
-                        placeholder="admin@yourbusiness.com" placeholderTextColor={Colors.muted}
-                        autoCapitalize="none" keyboardType="email-address" />
-                </Field>
+                {useUsername ? (
+                    <Field label="Username">
+                        <TextInput style={styles.input} value={username} onChangeText={setUsername}
+                            placeholder="e.g. ngozi_fabrics" placeholderTextColor={Colors.muted}
+                            autoCapitalize="none" autoCorrect={false} />
+                    </Field>
+                ) : (
+                    <Field label={t(setupLang, 'email')}>
+                        <TextInput style={styles.input} value={email} onChangeText={setEmail}
+                            placeholder="admin@yourbusiness.com" placeholderTextColor={Colors.muted}
+                            autoCapitalize="none" keyboardType="email-address" />
+                    </Field>
+                )}
+                <TouchableOpacity onPress={() => setUseUsername(u => !u)} style={{ marginTop: -Spacing.sm, marginBottom: Spacing.sm }}>
+                    <Text style={{ color: Colors.primary, fontSize: 13, fontWeight: '600' }}>
+                        {useUsername ? 'Use an email instead' : "Don't have an email? Use a username instead"}
+                    </Text>
+                </TouchableOpacity>
+                {useUsername && (
+                    <View style={styles.guestCarryoverNote}>
+                        <Icon name="alert-triangle" size={13} color={Colors.primary} />
+                        <Text style={styles.guestCarryoverNoteText}>
+                            Every "forgot PIN" option in this app works by emailing you a code or link, so without an email there is no way to recover this account if the PIN is lost — write it down somewhere safe.
+                        </Text>
+                    </View>
+                )}
                 <Field label="Phone Number (for cash-flow alerts)">
                     <TextInput style={styles.input} value={phone} onChangeText={setPhone}
                         placeholder="+1 555 000 1234" placeholderTextColor={Colors.muted}
@@ -1887,7 +1966,7 @@ export default function LoginScreen() {
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.switchAccountName} numberOfLines={1}>{acct.businessName}</Text>
-                                    <Text style={styles.switchAccountEmail} numberOfLines={1}>{acct.email}</Text>
+                                    <Text style={styles.switchAccountEmail} numberOfLines={1}>{accountDisplayName(acct.email)}</Text>
                                 </View>
                                 <Icon name={switchTarget === acct.email ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.muted} />
                             </TouchableOpacity>

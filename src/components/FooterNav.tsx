@@ -11,6 +11,7 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Icon, { IconName } from './ui/Icon';
 import { Screen } from '../types';
 import { isScreenAllowedForRole } from '../utils/rolePermissions';
+import { accountDisplayName, isUsernameAccountEmail } from '../utils/storage';
 
 // ─── Icon accent colours per section ────────────────────────────────────────
 // A closed loop, not a flat list: Understand where you stand -> Anticipate
@@ -156,8 +157,11 @@ export default function FooterNav() {
         [user?.businessName]
     );
 
+    // Masking makes sense for a real email (partly hide it, keep the domain
+    // recognizable); a username account has nothing worth masking -- show it
+    // plainly via accountDisplayName instead of a masked synthetic address.
     const maskedEmail = user?.email
-        ? user.email.replace(/(.{2}).+(@.+)/, '$1•••$2')
+        ? (isUsernameAccountEmail(user.email) ? accountDisplayName(user.email) : user.email.replace(/(.{2}).+(@.+)/, '$1•••$2'))
         : '';
 
     // Quick stats — memoized to avoid recomputing on every render

@@ -30,6 +30,7 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { showAlert, confirmAction } from '../utils/webAlert';
+import { accountDisplayName } from '../utils/storage';
 import {
     generateTOTPSecret,
     getTwoFactorStatus,
@@ -273,7 +274,7 @@ export default function TwoFactorSetupScreen() {
                     <View style={styles.manualCard}>
                         <Text style={styles.manualLabel}>Or enter manually:</Text>
                         <Text style={styles.manualKey}>{formatTOTPSecret(secret)}</Text>
-                        <Text style={styles.manualHint}>Account: {user?.email}</Text>
+                        <Text style={styles.manualHint}>Account: {accountDisplayName(user?.email)}</Text>
                     </View>
 
                     <TouchableOpacity style={styles.btn} onPress={() => setSetupStep(2)}>
