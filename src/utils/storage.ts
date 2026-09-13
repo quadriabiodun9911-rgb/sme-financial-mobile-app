@@ -1212,6 +1212,43 @@ export async function syncFieldEncryptionKey(client: typeof supabase = supabase,
 // ─── Profile ──────────────────────────────────────────────────────────────────
 export interface StoredProfile { email: string; businessName: string; phone?: string; createdAt?: string }
 
+// ─── Username accounts ─────────────────────────────────────────────────────────
+// Supabase Auth only speaks email/password -- there's no separate "username"
+// concept anywhere in this backend. Rather than build a second, parallel auth
+// system for traders with no email address, a username account is a normal
+// account whose "email" is a synthetic, unroutable address derived from the
+// chosen username. It satisfies signUp/signInWithPassword's email-shaped
+// requirement while never being sent anywhere. Every UI spot that renders an
+// account's email for a human should go through accountDisplayName() instead
+// of reading .email directly, so a username account shows its username, not
+// "trader1@users.quad360.local".
+export const USERNAME_ACCOUNT_DOMAIN = 'users.quad360.local';
+
+export function usernameToLoginEmail(username: string): string {
+    return `${username.trim().toLowerCase()}@${USERNAME_ACCOUNT_DOMAIN}`;
+}
+
+export function isUsernameAccountEmail(email: string | null | undefined): boolean {
+    return !!email && email.trim().toLowerCase().endsWith('@' + USERNAME_ACCOUNT_DOMAIN);
+}
+
+// What a real person typed to sign in (email OR username) into the address
+// signInWithPassword etc. actually need. Left untouched if it already looks
+// like an email -- only bare usernames get the synthetic domain appended, so
+// a real email typed by mistake still fails as itself rather than being
+// mangled into a different lookup.
+export function loginIdentifierToEmail(input: string): string {
+    const trimmed = input.trim();
+    return trimmed.includes('@') ? trimmed : usernameToLoginEmail(trimmed);
+}
+
+// Inverse of the above, for display: a username account shows just the
+// username; a real email account shows the email as-is.
+export function accountDisplayName(email: string | null | undefined): string {
+    if (!email) return '';
+    return isUsernameAccountEmail(email) ? email.split('@')[0] : email;
+}
+
 export async function saveProfile(p: StoredProfile): Promise<void> {
     await AsyncStorage.setItem(KEYS.profile, JSON.stringify(p));
     const userId = await getAuthUserId();
