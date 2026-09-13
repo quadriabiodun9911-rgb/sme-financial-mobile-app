@@ -1102,9 +1102,21 @@ export default function LoginScreen() {
     // fallback for anyone who'd rather click than type -- this only adds
     // the code as another way in, it doesn't remove the link.
     const handlePasswordLoginSubmit = async () => {
-        const email = pwLoginEmail.trim();
-        if (!email) { showAlert('Error', 'Please enter your email address.'); return; }
+        if (!pwLoginEmail.trim()) { showAlert('Error', 'Please enter your email address.'); return; }
         if (!pwLoginPassword) { showAlert('Error', 'Please enter your password.'); return; }
+        // Same identifier resolution as handleEmailLogin -- without it, a
+        // typed username was going straight to verifyBackupPassword/
+        // signInWithOtp as a literal "email," which fails lookups that were
+        // stored under the synthetic address and, if it somehow got past
+        // that, would silently mail an OTP to an address that doesn't
+        // exist. This step's own recovery is email-dependent regardless
+        // (see handleResetRequest's comment), so a username account is
+        // stopped here with a clear reason instead of either failure mode.
+        const email = loginIdentifierToEmail(pwLoginEmail);
+        if (isUsernameAccountEmail(email)) {
+            showAlert('No Email On This Account', 'This looks like a username account, and username accounts have no real email to verify a backup password sign-in with. There is currently no way to recover a lost PIN for one -- keep it written down somewhere safe.');
+            return;
+        }
         setPwLoginSubmitting(true);
         try {
             await verifyBackupPassword(email, pwLoginPassword);
@@ -1132,7 +1144,12 @@ export default function LoginScreen() {
         if (!/^\d{4,8}$/.test(pwLoginOtp.trim())) { showAlert('Error', 'Enter the code we emailed you.'); return; }
         setPwLoginSubmitting(true);
         try {
-            const email = pwLoginEmail.trim();
+            // Resolved the same way as step 1 (handlePasswordLoginSubmit) --
+            // this only ever runs after that step succeeded, which now
+            // requires a real email, but resolving here too keeps this
+            // function correct on its own rather than relying on the
+            // caller having already normalized it.
+            const email = loginIdentifierToEmail(pwLoginEmail);
             const ephemeral = createEphemeralAuthClient();
             const { data, error } = await ephemeral.auth.verifyOtp({ email, token: pwLoginOtp.trim(), type: 'email' });
             if (error || !data.session) {
@@ -1245,10 +1262,10 @@ export default function LoginScreen() {
 
                         {pwLoginStep === 'password' ? (
                             <>
-                                <Field label="Email Address">
+                                <Field label="Email or Username">
                                     <TextInput style={styles.input} value={pwLoginEmail} onChangeText={setPwLoginEmail}
-                                        placeholder="your@email.com" placeholderTextColor={Colors.muted}
-                                        autoCapitalize="none" keyboardType="email-address" autoFocus />
+                                        placeholder="your@email.com or your username" placeholderTextColor={Colors.muted}
+                                        autoCapitalize="none" autoFocus />
                                 </Field>
                                 <Field label="Password">
                                     <TextInput style={styles.input} value={pwLoginPassword} onChangeText={setPwLoginPassword}
