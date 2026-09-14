@@ -12,7 +12,7 @@ export default function AgingReport() {
     const { currency } = settings;
     const [activeTab, setActiveTab] = useState<'ar' | 'ap'>('ar');
 
-    const arBuckets = useMemo(() => computeAgingBuckets(transactions, 'income'), [transactions]);
+    const arBuckets = useMemo(() => computeAgingBuckets(transactions, 'income', invoices), [transactions, invoices]);
     const apBuckets = useMemo(() => computeAgingBuckets(transactions, 'expense'), [transactions]);
 
     const buckets = activeTab === 'ar' ? arBuckets : apBuckets;

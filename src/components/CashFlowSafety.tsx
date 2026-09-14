@@ -34,7 +34,7 @@ export default function CashFlowSafety({ finance, transactions, invoices, curren
     const surplusShortfall = finance.cashBalance - reserve;
     const coverageRatio = reserve > 0 ? finance.cashBalance / reserve : null;
 
-    const arBuckets = useMemo(() => computeAgingBuckets(transactions, 'income'), [transactions]);
+    const arBuckets = useMemo(() => computeAgingBuckets(transactions, 'income', invoices), [transactions, invoices]);
     const apBuckets = useMemo(() => computeAgingBuckets(transactions, 'expense'), [transactions]);
 
     const totalAR = arBuckets.reduce((s, b) => s + b.total, 0);

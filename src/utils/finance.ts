@@ -6,6 +6,7 @@ import { computeStockVelocity } from './stockVelocity';
 import { activeBudgetsForPeriod } from './budgetPeriod';
 import { entityKey, entityDisplayName } from './entityName';
 import { localDateStr } from './localDate';
+import { effectiveInvoiceStatus } from './overdueTransactions';
 
 // ─── Currency formatting ───────────────────────────────────────────────────
 // Abbreviates large amounts (₦1.2M / ₦450K) for space-constrained copy like
@@ -778,14 +779,56 @@ export function getTopCategories(
         .map(([category, amount]) => ({ category, amount }));
 }
 
+// `invoices` is optional and only ever used for the 'income' side (AR) --
+// every non-draft invoice is *supposed* to keep a linked Transaction in sync
+// (reference === invoiceNumber, see OptimizedContexts.tsx's addInvoice/
+// updateInvoice/markInvoiceStatus), but that link only gets created/repaired
+// when the invoice itself is written to (created, edited, or its status
+// changed). An invoice that predates that linking feature, or whose linked
+// transaction was independently deleted from Transactions, has no such
+// write ever happen again -- effectiveInvoiceStatus() can correctly show it
+// as "Overdue" on the Invoices screen forever while AR (which only ever
+// looked at `transactions`) silently never counts it. Synthesizing a
+// read-only pseudo-transaction here for any outstanding invoice with no
+// linked transaction closes that gap without touching stored data; "Mark
+// Paid" on one of these still works because AgingReport's markPaid already
+// looks up `invoices.find(i => i.invoiceNumber === tx.reference)` first.
+function unlinkedInvoiceReceivables(transactions: Transaction[], invoices: Invoice[]): Transaction[] {
+    if (invoices.length === 0) return [];
+    const linkedInvoiceNumbers = new Set(
+        transactions.filter(t => t.type === 'income' && t.reference).map(t => t.reference)
+    );
+    const receivables: Transaction[] = [];
+    for (const inv of invoices) {
+        if (linkedInvoiceNumbers.has(inv.invoiceNumber)) continue;
+        const status = effectiveInvoiceStatus(inv);
+        if (status !== 'sent' && status !== 'overdue') continue;
+        receivables.push({
+            id: `unlinked-invoice-${inv.id}`,
+            date: inv.issueDate,
+            description: `Invoice ${inv.invoiceNumber}: ${inv.clientName || 'Customer'}`,
+            type: 'income',
+            category: 'Sales',
+            amount: inv.total,
+            status: status === 'overdue' ? 'overdue' : 'pending',
+            reference: inv.invoiceNumber,
+            vendorCustomer: inv.clientName || undefined,
+            dueDate: inv.dueDate,
+        });
+    }
+    return receivables;
+}
+
 export function computeAgingBuckets(
     transactions: Transaction[],
-    type: 'income' | 'expense'
+    type: 'income' | 'expense',
+    invoices: Invoice[] = []
 ): AgingBucket[] {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const pending = transactions.filter(
+    const source = type === 'income' ? transactions.concat(unlinkedInvoiceReceivables(transactions, invoices)) : transactions;
+    const pending = source.filter(
         t => t.type === type && (t.status === 'pending' || t.status === 'overdue') && t.dueDate
     );
 
