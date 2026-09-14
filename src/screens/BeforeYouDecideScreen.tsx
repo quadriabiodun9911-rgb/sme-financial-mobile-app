@@ -8,6 +8,7 @@ import FooterNav from '../components/FooterNav';
 import Collapsible from '../components/Collapsible';
 import GrowthAffordabilityCalculator from '../components/GrowthAffordabilityCalculator';
 import BuyVsFinanceCalculator from '../components/BuyVsFinanceCalculator';
+import ProjectDecisionSimulator from '../components/ProjectDecisionSimulator';
 import BreakevenAnalysis from '../components/BreakevenAnalysis';
 import LoanAffordabilityChecker from '../components/LoanAffordabilityChecker';
 import DecisionSimulator from '../components/DecisionSimulator';
@@ -153,6 +154,14 @@ export default function BeforeYouDecideScreen() {
                 </View>
                 <Collapsible title="Buy vs. Finance">
                     <BuyVsFinanceCalculator currency={currency} currentCashBalance={finance.cashBalance} monthlyBurn={monthlyBurn} currentMonthlySurplus={monthlyProfit} goals={goals} />
+                </Collapsible>
+
+                <View style={styles.decisionCard}>
+                    <Text style={styles.decisionQuestion}>Taking on a bigger project — self-fund or borrow?</Text>
+                    <Text style={styles.decisionHelp}>A new location or product line usually has both an upfront cost and an ongoing monthly cost — see which funding choice still holds up if revenue drops, not just which is cheaper today.</Text>
+                </View>
+                <Collapsible title="Take On a New Project">
+                    <ProjectDecisionSimulator currency={currency} transactions={transactions} currentCashBalance={finance.cashBalance} />
                 </Collapsible>
 
                 <View style={styles.decisionCard}>

@@ -804,6 +804,19 @@ export async function saveInventory(items: InventoryItem[]): Promise<void> {
             low_stock_threshold: item.lowStockThreshold,
             supplier: item.supplier ?? null,
             price_history: item.priceHistory ?? [],
+            // expiry_date, item_type, and stock_count_history were previously
+            // local-only -- present in AsyncStorage but never included in this
+            // upsert, so any reload that hit the Supabase branch below (any
+            // signed-in device, essentially every real account) silently
+            // reconstructed items WITHOUT them, permanently losing expiry
+            // dates and stock-count/item-type history the moment a second
+            // device or a fresh session pulled from the cloud. batches is new
+            // in this same fix, not a pre-existing gap -- see InventoryBatch's
+            // comment (types/index.ts).
+            expiry_date: item.expiryDate ?? null,
+            item_type: item.itemType ?? null,
+            stock_count_history: item.stockCountHistory ?? [],
+            batches: item.batches ?? [],
             created_at: item.createdAt,
             updated_at: item.updatedAt,
         })) : [];
@@ -856,6 +869,10 @@ export async function loadInventory(): Promise<InventoryItem[] | null> {
                     lowStockThreshold: row.low_stock_threshold,
                     supplier: row.supplier ?? undefined,
                     priceHistory: row.price_history && row.price_history.length > 0 ? row.price_history : undefined,
+                    expiryDate: row.expiry_date ?? undefined,
+                    itemType: row.item_type ?? undefined,
+                    stockCountHistory: row.stock_count_history && row.stock_count_history.length > 0 ? row.stock_count_history : undefined,
+                    batches: row.batches && row.batches.length > 0 ? row.batches : undefined,
                     createdAt: row.created_at,
                     updatedAt: row.updated_at,
                 } as InventoryItem));

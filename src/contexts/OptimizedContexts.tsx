@@ -56,7 +56,7 @@ import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { canViewFinancials as computeCanViewFinancials } from '../utils/rolePermissions';
 import { getMyLenderMembership, joinLenderWithCode } from '../utils/lenderAuth';
 import { Language } from '../utils/i18n';
-import { applyStockIn } from '../utils/inventoryCosting';
+import { applyStockIn, getEffectiveBatches, addBatch } from '../utils/inventoryCosting';
 import { computeAutoPayrollRun } from '../utils/payrollAutoRun';
 import CryptoJS from 'crypto-js';
 import { localDateStr } from '../utils/localDate';
@@ -149,12 +149,13 @@ interface FinanceContextValue {
   addInventoryItem: (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: string; updatedAt?: string }) => void;
   updateInventoryItem: (id: string, item: Partial<InventoryItem>) => void;
   deleteInventoryItem: (id: string) => void;
-  // Receives more stock: blends costPerUnit into the item's weighted-average
-  // costPrice (see inventoryCosting.applyStockIn) rather than overwriting
-  // it, and -- unlike updateInventoryItem's plain edit -- optionally posts
-  // the matching cash-outflow transaction, since buying inventory is a real
+  // Receives more stock: creates a new FIFO batch at its own cost/expiry
+  // (see inventoryCosting.addBatch) rather than overwriting anything, then
+  // recomputes the item's weighted-average costPrice from all batches --
+  // and, unlike updateInventoryItem's plain edit, optionally posts the
+  // matching cash-outflow transaction, since buying inventory is a real
   // Cash ↓ / Inventory ↑ event the app previously never recorded.
-  stockInInventory: (id: string, params: { quantityAdded: number; costPerUnit: number; supplier?: string; purchaseDate: string; recordCashPurchase: boolean }) => void;
+  stockInInventory: (id: string, params: { quantityAdded: number; costPerUnit: number; supplier?: string; purchaseDate: string; expiryDate?: string; recordCashPurchase: boolean }) => void;
   // For a stock purchase that arrived as an ordinary imported transaction
   // (see computeUnlinkedInventoryCostPurchases) rather than through Stock
   // In -- applies the same weighted-average costing against the amount
@@ -630,7 +631,21 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (!isDemoMode) trackInventoryItemAdded();
         setInventory((prev) => {
           const now = new Date().toISOString();
-          return [...prev, { ...item, id: item.id || genId(), createdAt: item.createdAt || now, updatedAt: item.updatedAt || now }];
+          const createdAt = item.createdAt || now;
+          // A brand-new item's starting quantity IS its first purchase lot --
+          // recorded as an opening batch (rather than left for
+          // getEffectiveBatches to synthesize on every future read) so Stock
+          // In/Sell/Count have real batches to work with from the start.
+          const batches = item.quantity > 0 ? [{
+            id: 'opening',
+            quantity: item.quantity,
+            remainingQuantity: item.quantity,
+            costPrice: item.costPrice,
+            expiryDate: item.expiryDate,
+            purchaseDate: createdAt,
+            createdAt,
+          }] : [];
+          return [...prev, { ...item, batches, id: item.id || genId(), createdAt, updatedAt: item.updatedAt || now }];
         });
       },
       updateInventoryItem: (id, item) => setInventory((prev) =>
@@ -639,17 +654,34 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       deleteInventoryItem: (id) => setInventory((prev) =>
         prev.filter((i) => i.id !== id)
       ),
-      stockInInventory: (id, { quantityAdded, costPerUnit, supplier, purchaseDate, recordCashPurchase }) => {
+      stockInInventory: (id, { quantityAdded, costPerUnit, supplier, purchaseDate, expiryDate, recordCashPurchase }) => {
         const item = inventory.find((i) => i.id === id);
         if (!item) return;
+        // Still uses applyStockIn for the new average cost -- see
+        // inventoryCosting.ts's header comment for why that's still exactly
+        // right once a batch is also appended below. quantity/costPrice
+        // computed here match what addBatch+recomputeCostPrice would give,
+        // just without re-deriving the same arithmetic twice.
         const { quantity: newQuantity, costPrice: newCostPrice } = applyStockIn(item, quantityAdded, costPerUnit);
+        const now = new Date().toISOString();
+        const newBatches = addBatch(getEffectiveBatches(item), {
+          id: genId(),
+          quantity: quantityAdded,
+          remainingQuantity: quantityAdded,
+          costPrice: costPerUnit,
+          expiryDate,
+          supplier,
+          purchaseDate,
+          createdAt: now,
+        });
         setInventory((prev) =>
           prev.map((i) => (i.id === id ? {
             ...i,
             quantity: newQuantity,
             costPrice: newCostPrice,
+            batches: newBatches,
             supplier: supplier || i.supplier,
-            updatedAt: new Date().toISOString(),
+            updatedAt: now,
           } : i))
         );
         if (recordCashPurchase) {
@@ -673,13 +705,24 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (!item || !tx || !(quantityAdded > 0)) return;
         const costPerUnit = (tx.amount ?? 0) / quantityAdded;
         const { quantity: newQuantity, costPrice: newCostPrice } = applyStockIn(item, quantityAdded, costPerUnit);
+        const now = new Date().toISOString();
+        const newBatches = addBatch(getEffectiveBatches(item), {
+          id: genId(),
+          quantity: quantityAdded,
+          remainingQuantity: quantityAdded,
+          costPrice: costPerUnit,
+          supplier: tx.vendorCustomer || undefined,
+          purchaseDate: tx.date,
+          createdAt: now,
+        });
         setInventory((prev) =>
           prev.map((i) => (i.id === itemId ? {
             ...i,
             quantity: newQuantity,
             costPrice: newCostPrice,
+            batches: newBatches,
             supplier: tx.vendorCustomer || i.supplier,
-            updatedAt: new Date().toISOString(),
+            updatedAt: now,
           } : i))
         );
         setTransactions((prev) =>

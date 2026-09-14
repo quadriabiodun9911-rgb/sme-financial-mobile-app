@@ -16,7 +16,7 @@ import NextStepLink from '../components/NextStepLink';
 import PeriodComparisonTable from '../components/PeriodComparisonTable';
 import { suggestSolution } from '../utils/impactChain';
 import { computeStockVelocity, computeInventoryValue } from '../utils/stockVelocity';
-import { applyStockIn } from '../utils/inventoryCosting';
+import { applyStockIn, getEffectiveBatches, consumeFifo, recomputeCostPrice, addCountSurplusBatch } from '../utils/inventoryCosting';
 import { computeDiscountAmount, DiscountType } from '../utils/saleDiscount';
 import { computeDiscountSummary } from '../utils/inventorySalesTrend';
 import { appendPriceChange, computeMarginPct } from '../utils/priceHistory';
@@ -71,6 +71,12 @@ type StockInForm = {
     costPerUnit: string;
     supplier: string;
     purchaseDate: string;
+    // This lot's OWN expiry -- not the item's, and not pre-filled from
+    // item.expiryDate, since a fresh purchase's shelf life has nothing to
+    // do with whatever an earlier lot's date happened to be. Optional,
+    // same as the Add/Edit form's field -- only entered for perishable
+    // stock.
+    expiryDate: string;
     recordCashPurchase: boolean;
 };
 
@@ -79,6 +85,7 @@ const emptyStockInForm = (item: InventoryItem): StockInForm => ({
     costPerUnit: item.costPrice != null ? String(item.costPrice) : '',
     supplier: item.supplier ?? '',
     purchaseDate: localDateStr(),
+    expiryDate: '',
     recordCashPurchase: true,
 });
 
@@ -400,7 +407,38 @@ export default function InventoryScreen() {
         };
 
         if (editingId) {
-            updateInventoryItem(editingId, payload);
+            // A plain Edit is a manual override -- "this is the truth now,"
+            // the same tool a Count uses but without needing a reason/note.
+            // Rather than silently leave stale batches whose total no
+            // longer matches the quantity just typed, whose costs no
+            // longer match what the average now claims, OR whose expiry
+            // date is no longer what was just entered (batch-aware expiry
+            // reads each batch's own date, not item.expiryDate -- leaving
+            // batches untouched here would silently keep the OLD date
+            // driving alerts even after the owner corrected it), any of
+            // those three changes collapses batches to a single new one
+            // reflecting exactly what was just entered -- same tradeoff
+            // Count's surplus path already makes: no real purchase record
+            // exists for a manual override, so per-batch history can't be
+            // preserved through one. Editing anything else (name, price,
+            // reorder level, ...) leaves batches untouched.
+            const current = inventory.find(i => i.id === editingId);
+            const changedStock = !!current && (qty !== current.quantity || cost !== current.costPrice || (payload.expiryDate ?? '') !== (current.expiryDate ?? ''));
+            const now = new Date().toISOString();
+            updateInventoryItem(editingId, {
+                ...payload,
+                ...(changedStock ? {
+                    batches: qty > 0 ? [{
+                        id: `manual-edit-${now}`,
+                        quantity: qty,
+                        remainingQuantity: qty,
+                        costPrice: cost,
+                        expiryDate: payload.expiryDate,
+                        purchaseDate: localDateStr(),
+                        createdAt: now,
+                    }] : [],
+                } : {}),
+            });
         } else {
             addInventoryItem(payload);
         }
@@ -432,7 +470,16 @@ export default function InventoryScreen() {
         if (qty > item.quantity) { showAlert('Validation', `Only ${item.quantity} ${item.unit} in stock.`); return; }
         const subtotal = qty * (item.sellingPrice ?? 0);
         const discAmount = computeDiscountAmount(subtotal, discountType, parseFloat(discountValue) || 0);
-        updateInventoryItem(item.id, { quantity: item.quantity - qty });
+        // FIFO: this sale draws from the OLDEST batch(es) first, so its real
+        // cost of goods sold is whatever those specific units actually cost
+        // -- not the item's blended average, which can be higher or lower
+        // than what's really leaving the shelf. costPrice is then
+        // recomputed from whatever batches remain, so it keeps being an
+        // accurate average of what's still in stock for every other screen
+        // that reads it.
+        const { batches: newBatches, totalCost } = consumeFifo(getEffectiveBatches(item), qty);
+        const newCostPrice = recomputeCostPrice(newBatches, item.costPrice);
+        updateInventoryItem(item.id, { quantity: item.quantity - qty, batches: newBatches, costPrice: newCostPrice });
         addTransaction({
             type: 'income',
             amount: subtotal - discAmount,
@@ -441,7 +488,7 @@ export default function InventoryScreen() {
             date: localDateStr(),
             status: 'paid',
             transactionCategory: 'sale',
-            costOfGoodsSold: qty * (item.costPrice ?? 0),
+            costOfGoodsSold: totalCost,
             inventoryItemId: item.id,
             unitsSold: qty,
             discountAmount: discAmount > 0 ? discAmount : undefined,
@@ -467,6 +514,7 @@ export default function InventoryScreen() {
             costPerUnit: cost,
             supplier: stockInForm.supplier.trim() || undefined,
             purchaseDate: stockInForm.purchaseDate || localDateStr(),
+            expiryDate: stockInForm.expiryDate.trim() || undefined,
             recordCashPurchase: stockInForm.recordCashPurchase,
         });
         setStockInModal(null);
@@ -504,8 +552,21 @@ export default function InventoryScreen() {
         const actual = parseFloat(countQty);
         if (isNaN(actual) || actual < 0) { showAlert('Validation', 'Enter what you actually counted.'); return; }
         const entry = appendStockCount(item, actual, localDateStr(), countNote.trim() || undefined);
+        // A count below records reconciles as shrinkage -- consumed FIFO
+        // like a sale, oldest stock first, just with no sale/COGS
+        // transaction attached (nothing was sold, it's just gone). A count
+        // ABOVE records as found stock with no purchase record behind it,
+        // so it becomes its own batch at the item's current average cost --
+        // there's no real receipt to attribute a truer cost to.
+        const currentBatches = getEffectiveBatches(item);
+        const diff = actual - item.quantity;
+        const newBatches = diff < 0
+            ? consumeFifo(currentBatches, -diff).batches
+            : addCountSurplusBatch(currentBatches, diff, item.costPrice, localDateStr());
         updateInventoryItem(item.id, {
             quantity: actual,
+            batches: newBatches,
+            costPrice: recomputeCostPrice(newBatches, item.costPrice),
             stockCountHistory: [...(item.stockCountHistory ?? []), entry],
         });
         setCountModal(null);
@@ -782,19 +843,19 @@ export default function InventoryScreen() {
                                     {currency}{Math.round(expiringStock.totalValueAtRisk).toLocaleString()} at risk of becoming a total write-off, not just a slow sale.
                                 </Text>
                                 {expiringStock.itemsExpired.map(e => (
-                                    <View key={e.item.id} style={[styles.insightBanner, { borderColor: Colors.expense }]}>
+                                    <View key={`${e.item.id}-${e.batchId}`} style={[styles.insightBanner, { borderColor: Colors.expense }]}>
                                         <Text style={[styles.insightTitle, { color: Colors.expense }]}>
                                             🔴 {e.item.name} — expired {Math.abs(e.daysUntilExpiry)} day{Math.abs(e.daysUntilExpiry) === 1 ? '' : 's'} ago
                                         </Text>
-                                        <Text style={styles.insightDetail}>{e.item.quantity} {e.item.unit} · {currency}{Math.round(e.valueAtRisk).toLocaleString()} at cost</Text>
+                                        <Text style={styles.insightDetail}>{e.remainingQuantity} {e.item.unit} · {currency}{Math.round(e.valueAtRisk).toLocaleString()} at cost</Text>
                                     </View>
                                 ))}
                                 {expiringStock.itemsExpiringSoon.map(e => (
-                                    <View key={e.item.id} style={[styles.insightBanner, { borderColor: Colors.warning }]}>
+                                    <View key={`${e.item.id}-${e.batchId}`} style={[styles.insightBanner, { borderColor: Colors.warning }]}>
                                         <Text style={[styles.insightTitle, { color: Colors.warning }]}>
                                             🟡 {e.item.name} — expires {e.daysUntilExpiry === 0 ? 'today' : `in ${e.daysUntilExpiry} day${e.daysUntilExpiry === 1 ? '' : 's'}`}
                                         </Text>
-                                        <Text style={styles.insightDetail}>{e.item.quantity} {e.item.unit} · {currency}{Math.round(e.valueAtRisk).toLocaleString()} at cost</Text>
+                                        <Text style={styles.insightDetail}>{e.remainingQuantity} {e.item.unit} · {currency}{Math.round(e.valueAtRisk).toLocaleString()} at cost</Text>
                                     </View>
                                 ))}
                             </View>
@@ -1420,6 +1481,21 @@ export default function InventoryScreen() {
                                     onChangeText={v => setStockInForm(f => f && ({ ...f, supplier: v }))}
                                 />
                                 <DateInput value={stockInForm.purchaseDate} onChange={v => setStockInForm(f => f && ({ ...f, purchaseDate: v }))} />
+
+                                {/* Same industry gate as the Add/Edit form's
+                                    Expiry Date field -- see that field's own
+                                    comment. This is what keeps a perishable
+                                    business's expiry alerts accurate batch to
+                                    batch instead of only being set once, on
+                                    the item, when it was first added. */}
+                                {(settings.industry === 'food-service' || settings.industry === 'retail') && (
+                                    <>
+                                        <Text style={{ color: Colors.textSecondary, marginTop: 4, marginBottom: 4 }}>
+                                            Expiry date for this batch (optional)
+                                        </Text>
+                                        <DateInput value={stockInForm.expiryDate} onChange={v => setStockInForm(f => f && ({ ...f, expiryDate: v }))} />
+                                    </>
+                                )}
 
                                 <TouchableOpacity
                                     style={styles.cashPurchaseToggleRow}

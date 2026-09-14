@@ -153,7 +153,9 @@ export type AlertType =
   | 'asset_nearing_replacement'
   | 'inventory_stockout_risk'
   | 'tax_ability_to_pay_shortfall'
-  | 'inventory_slow_moving';
+  | 'inventory_slow_moving'
+  | 'inventory_expired'
+  | 'inventory_expiring_soon';
 
 export interface ForecastAlert {
   id: string;
