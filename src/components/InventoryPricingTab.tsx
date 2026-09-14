@@ -235,7 +235,7 @@ export default function InventoryPricingTab() {
                     <Text style={s.disc}>
                         {priceRecommendations.length} item{priceRecommendations.length > 1 ? 's are' : ' is'} priced below your {parseFloat(settings.targetMargin)}% target margin — here's the exact price that closes the gap for each.
                     </Text>
-                    {priceRecommendations.slice(0, 8).map(rec => (
+                    {priceRecommendations.map(rec => (
                         <View key={rec.item.id} style={s.prRow}>
                             <View style={s.flex1}>
                                 <Text style={s.productName}>{rec.item.name}</Text>
@@ -249,9 +249,6 @@ export default function InventoryPricingTab() {
                             </View>
                         </View>
                     ))}
-                    {priceRecommendations.length > 8 && (
-                        <Text style={s.disc}>+{priceRecommendations.length - 8} more item{priceRecommendations.length - 8 > 1 ? 's' : ''} below target.</Text>
-                    )}
                 </View>
             )}
 

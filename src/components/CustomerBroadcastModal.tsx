@@ -33,6 +33,8 @@ export default function CustomerBroadcastModal({ visible, onClose, customers, bu
     const [message, setMessage] = useState(DEFAULT_MESSAGE(businessName || 'us'));
     const [queueIndex, setQueueIndex] = useState(0);
     const [sentKeys, setSentKeys] = useState<Set<string>>(new Set());
+    const [sendError, setSendError] = useState(false);
+    const [sending, setSending] = useState(false);
 
     const reachable = useMemo(() => customers.filter(c => !!c.phone), [customers]);
     const unreachableCount = customers.length - reachable.length;
@@ -53,6 +55,8 @@ export default function CustomerBroadcastModal({ visible, onClose, customers, bu
         setSelectedKeys(new Set());
         setQueueIndex(0);
         setSentKeys(new Set());
+        setSendError(false);
+        setSending(false);
     };
 
     const handleClose = () => { reset(); onClose(); };
@@ -63,14 +67,23 @@ export default function CustomerBroadcastModal({ visible, onClose, customers, bu
         setStep('send');
     };
 
-    const sendToCurrent = () => {
-        if (!current) return;
-        sendPromotionalMessageViaWhatsApp(current.phone!, message);
+    // Awaits the actual WhatsApp launch and only marks the customer "sent" +
+    // advances on success -- a rejected launch (WhatsApp not installed, etc.)
+    // instead surfaces an inline retry rather than being silently counted as
+    // outreach that never happened.
+    const sendToCurrent = async () => {
+        if (!current || sending) return;
+        setSendError(false);
+        setSending(true);
+        const ok = await sendPromotionalMessageViaWhatsApp(current.phone!, message);
+        setSending(false);
+        if (!ok) { setSendError(true); return; }
         setSentKeys(prev => new Set(prev).add(current.key));
         advance();
     };
 
     const advance = () => {
+        setSendError(false);
         if (queueIndex < queue.length - 1) setQueueIndex(i => i + 1);
         else setQueueIndex(i => i + 1); // moves past the end -> "done" screen
     };
@@ -143,8 +156,15 @@ export default function CustomerBroadcastModal({ visible, onClose, customers, bu
                                 <View style={s.divider} />
                                 <Text style={s.messagePreview}>{message}</Text>
                             </View>
-                            <TouchableOpacity style={s.primaryBtn} onPress={sendToCurrent}>
-                                <Text style={s.primaryBtnText}>Send via WhatsApp →</Text>
+                            {sendError && (
+                                <Text style={s.errorText}>Couldn't open WhatsApp for this number — check it's correct, then try again.</Text>
+                            )}
+                            <TouchableOpacity
+                                style={[s.primaryBtn, sending && s.primaryBtnDisabled]}
+                                onPress={sendToCurrent}
+                                disabled={sending}
+                            >
+                                <Text style={s.primaryBtnText}>{sending ? 'Opening WhatsApp…' : 'Send via WhatsApp →'}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={s.cancelBtn} onPress={advance}>
                                 <Text style={s.cancelBtnText}>Skip this customer</Text>
@@ -205,4 +225,5 @@ const s = StyleSheet.create({
     previewCard: { backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: 14, marginTop: 8 },
     divider: { height: 1, backgroundColor: Colors.border, marginVertical: 10 },
     messagePreview: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
+    errorText: { fontSize: 12, color: Colors.expense, marginTop: 10, lineHeight: 17 },
 });
