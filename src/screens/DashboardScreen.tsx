@@ -44,7 +44,7 @@ import NextStepLink from '../components/NextStepLink';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { notifyFinancingOpportunity, notifyFinancingQualificationProgress, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement, notifyStockoutRisk, notifyTaxAbilityToPayShortfall, notifySlowMovingStock, notifyLowCashRunway, notifyRisingCostCategory, requestNotificationPermission, scheduleWeeklySummaryReminder, scheduleDailyReminder, scheduleMorningBriefing, scheduleEveningRecap, scheduleMonthlyBrief } from '../utils/notifications';
+import { notifyFinancingOpportunity, notifyFinancingQualificationProgress, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement, notifyStockoutRisk, notifyTaxAbilityToPayShortfall, notifySlowMovingStock, notifyExpiringInventory, notifyLowCashRunway, notifyRisingCostCategory, requestNotificationPermission, scheduleWeeklySummaryReminder, scheduleDailyReminder, scheduleMorningBriefing, scheduleEveningRecap, scheduleMonthlyBrief } from '../utils/notifications';
 import { computeWeekdayPattern } from '../utils/weekdayPattern';
 import { buildDailyBriefing } from '../utils/dailyBriefing';
 import { buildDailyRecap } from '../utils/dailyRecap';
@@ -61,6 +61,7 @@ import { isBudgetActiveForPeriod, isBudgetPeriodLapsed, currentPeriodString } fr
 import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyExpenseAverage, computeOneThingInsight, computeRiskScore, computeDSCR, computeFinancingReadinessScore, RISK_BAND_STYLE } from '../utils/finance';
 import { computeBusinessHealthIntelligence } from '../utils/metricIntelligence';
 import { computeStockVelocity, computeInventoryValue } from '../utils/stockVelocity';
+import { computeExpiringStock } from '../utils/foodExpiry';
 import { computeDataQuality } from '../utils/dataQuality';
 import { computeCostExposure, MODEL as COST_EXPOSURE_MODEL } from '../utils/costExposure';
 import { computeDailyTrend } from '../utils/trendAnalysis';
@@ -156,6 +157,8 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen 
     inventory_stockout_risk:   { icon: 'zap',          screen: 'inventory' },
     tax_ability_to_pay_shortfall: { icon: 'alert-triangle', screen: 'reports' },
     inventory_slow_moving:     { icon: 'package',      screen: 'inventory' },
+    inventory_expired:         { icon: 'alert-triangle', screen: 'inventory' },
+    inventory_expiring_soon:   { icon: 'alert-circle', screen: 'inventory' },
 };
 
 export default function DashboardScreen() {
@@ -650,6 +653,22 @@ export default function DashboardScreen() {
         notifySlowMovingStock(slowMovingItems.length, total, settings?.currency ?? '₦').catch(() => {});
     }, [isDemoMode, slowMovingItems, settings?.currency]);
 
+    // Perishable stock already spoiled, or about to -- the one inventory
+    // risk that's a realized write-off rather than just cash tied up (see
+    // foodExpiry.ts). Batch-aware: a business that's restocked the same
+    // product more than once can have an old lot about to spoil while a
+    // newer lot is fine, so this fires per BATCH, not per item.
+    const expiringStock = useMemo(() => computeExpiringStock(inventory), [inventory]);
+    useEffect(() => {
+        if (isDemoMode || (expiringStock.itemsExpired.length === 0 && expiringStock.itemsExpiringSoon.length === 0)) return;
+        notifyExpiringInventory(
+            expiringStock.itemsExpired.length,
+            expiringStock.itemsExpiringSoon.length,
+            expiringStock.totalValueAtRisk,
+            settings?.currency ?? '₦',
+        ).catch(() => {});
+    }, [isDemoMode, expiringStock, settings?.currency]);
+
     // Same "ability to pay" check the Tax Filing Readiness tab already runs
     // -- distinct from taxDeadlineStatus above, which is purely about the
     // filing date. This is about whether cash on hand covers tax already
@@ -706,13 +725,15 @@ export default function DashboardScreen() {
             assetsNearingReplacement,
             stockoutRiskItems,
             slowMovingItems,
+            expiredInventoryBatches: expiringStock.itemsExpired,
+            expiringSoonInventoryBatches: expiringStock.itemsExpiringSoon,
             lowStockItems,
             overspentBudgets,
             financingOpportunity,
             currency: settings?.currency ?? '₦',
             primaryGoal: settings?.primaryGoal,
         }),
-        [alerts, overdueInvoices, overdueLoans, overdueTransactions, overdueRecurringTransactions, assetsNearingReplacement, stockoutRiskItems, slowMovingItems, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
+        [alerts, overdueInvoices, overdueLoans, overdueTransactions, overdueRecurringTransactions, assetsNearingReplacement, stockoutRiskItems, slowMovingItems, expiringStock, lowStockItems, overspentBudgets, financingOpportunity, settings?.currency, settings?.primaryGoal]
     );
 
     // Day-of-week revenue/expense shape (weekdayPattern.ts) -- feeds both the

@@ -410,16 +410,20 @@ export default function InventoryScreen() {
             // A plain Edit is a manual override -- "this is the truth now,"
             // the same tool a Count uses but without needing a reason/note.
             // Rather than silently leave stale batches whose total no
-            // longer matches the quantity just typed (or whose costs no
-            // longer match what the average now claims), a quantity/cost
-            // change here collapses batches to a single new one reflecting
-            // exactly what was just entered -- same tradeoff Count's
-            // surplus path already makes: no real purchase record exists
-            // for a manual override, so per-batch history can't be
+            // longer matches the quantity just typed, whose costs no
+            // longer match what the average now claims, OR whose expiry
+            // date is no longer what was just entered (batch-aware expiry
+            // reads each batch's own date, not item.expiryDate -- leaving
+            // batches untouched here would silently keep the OLD date
+            // driving alerts even after the owner corrected it), any of
+            // those three changes collapses batches to a single new one
+            // reflecting exactly what was just entered -- same tradeoff
+            // Count's surplus path already makes: no real purchase record
+            // exists for a manual override, so per-batch history can't be
             // preserved through one. Editing anything else (name, price,
             // reorder level, ...) leaves batches untouched.
             const current = inventory.find(i => i.id === editingId);
-            const changedStock = !!current && (qty !== current.quantity || cost !== current.costPrice);
+            const changedStock = !!current && (qty !== current.quantity || cost !== current.costPrice || (payload.expiryDate ?? '') !== (current.expiryDate ?? ''));
             const now = new Date().toISOString();
             updateInventoryItem(editingId, {
                 ...payload,

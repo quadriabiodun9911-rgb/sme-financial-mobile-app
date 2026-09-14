@@ -32,6 +32,7 @@ const KEYS = {
     stockoutRiskId: '@quad360/notif_stockout_risk_id',
     taxAbilityToPayId: '@quad360/notif_tax_ability_to_pay_id',
     slowMovingStockId: '@quad360/notif_slow_moving_stock_id',
+    expiringInventoryId: '@quad360/notif_expiring_inventory_id',
     lowCashRunwayId: '@quad360/notif_low_cash_runway_id',
     risingCostCategoryId: '@quad360/notif_rising_cost_category_id',
     morningBriefingId: '@quad360/notif_morning_briefing_id',
@@ -442,6 +443,40 @@ export async function notifySlowMovingStock(count: number, totalValue: number, c
         });
 
         await AsyncStorage.setItem(KEYS.slowMovingStockId, Date.now().toString());
+    } catch {
+        // Fail silently
+    }
+}
+
+// Perishable stock already spoiled, or about to (computeExpiringStock,
+// foodExpiry.ts) -- the one inventory risk that's a real write-off, not
+// just cash tied up, so this fires even for a single expired unit rather
+// than waiting for a count threshold. Same once-a-day throttle as its
+// siblings above; one combined notification covers both buckets rather
+// than competing for attention with two separate pushes the same day.
+export async function notifyExpiringInventory(expiredCount: number, expiringSoonCount: number, totalValue: number, currency: string): Promise<void> {
+    try {
+        if (Platform.OS === 'web' || (expiredCount === 0 && expiringSoonCount === 0)) return;
+
+        const prevNotified = await AsyncStorage.getItem(KEYS.expiringInventoryId);
+        if (prevNotified) {
+            const daysSinceLastNotif = (Date.now() - parseInt(prevNotified, 10)) / (1000 * 60 * 60 * 24);
+            if (daysSinceLastNotif < 1) return;
+        }
+
+        const title = expiredCount > 0
+            ? `${expiredCount} item${expiredCount === 1 ? '' : 's'} already expired 🔴`
+            : `${expiringSoonCount} item${expiringSoonCount === 1 ? '' : 's'} expiring soon 🟡`;
+        const body = expiredCount > 0 && expiringSoonCount > 0
+            ? `${currency}${Math.round(totalValue).toLocaleString()} at risk — some already expired, more expiring soon.`
+            : `${currency}${Math.round(totalValue).toLocaleString()} at risk of becoming a total write-off, not just a slow sale.`;
+
+        await Notifications.scheduleNotificationAsync({
+            content: { title, body },
+            trigger: null,
+        });
+
+        await AsyncStorage.setItem(KEYS.expiringInventoryId, Date.now().toString());
     } catch {
         // Fail silently
     }

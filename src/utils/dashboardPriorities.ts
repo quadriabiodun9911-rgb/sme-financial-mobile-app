@@ -3,6 +3,7 @@ import { ForecastAlert } from '../types/forecast';
 import { FinancingRecommendation } from './financingRecommendation';
 import { monthlyPayment } from './loanMath';
 import { computeAssetCurrentValue } from './finance';
+import { ExpiringItem } from './foodExpiry';
 
 /**
  * Unifies every source the dashboard already tracks separately -- cash-flow
@@ -35,7 +36,9 @@ export type PriorityKind =
     | 'asset_nearing_replacement'
     | 'inventory_stockout_risk'
     | 'tax_ability_to_pay_shortfall'
-    | 'inventory_slow_moving';
+    | 'inventory_slow_moving'
+    | 'inventory_expired'
+    | 'inventory_expiring_soon';
 
 export interface PriorityItem {
     id: string;
@@ -66,8 +69,9 @@ const GOAL_KINDS: Record<PrimaryGoal, PriorityKind[]> = {
 };
 
 // alertEngine reports one alert per overdue invoice, overdue loan, overdue
-// transaction, overdue recurring transaction, asset nearing replacement, or
-// inventory item at stockout risk or moving too slowly; the dashboard
+// transaction, overdue recurring transaction, asset nearing replacement,
+// inventory item at stockout risk or moving too slowly, or expiring/expired
+// inventory BATCH; the dashboard
 // already aggregates each of those into a single card ("3 customers,
 // ₦420,000 to collect"), so those alert types are excluded here to avoid
 // double-reporting the same risk in two different shapes. Payroll and the
@@ -106,6 +110,8 @@ export function buildDashboardPriorities(input: {
     assetsNearingReplacement?: Asset[];
     stockoutRiskItems?: InventoryItem[];
     slowMovingItems?: InventoryItem[];
+    expiredInventoryBatches?: ExpiringItem[];
+    expiringSoonInventoryBatches?: ExpiringItem[];
     lowStockItems: InventoryItem[];
     overspentBudgets: OverspentBudget[];
     financingOpportunity: FinancingRecommendation | null;
@@ -113,7 +119,7 @@ export function buildDashboardPriorities(input: {
     /** Undefined ("not sure yet", or not asked) means no preference -- today's tier/amount ordering, unchanged. */
     primaryGoal?: PrimaryGoal;
 }): PriorityItem[] {
-    const { alerts, overdueInvoices, overdueLoans = [], overdueTransactions = [], overdueRecurringTransactions = [], assetsNearingReplacement = [], stockoutRiskItems = [], slowMovingItems = [], lowStockItems, overspentBudgets, financingOpportunity, currency, primaryGoal } = input;
+    const { alerts, overdueInvoices, overdueLoans = [], overdueTransactions = [], overdueRecurringTransactions = [], assetsNearingReplacement = [], stockoutRiskItems = [], slowMovingItems = [], expiredInventoryBatches = [], expiringSoonInventoryBatches = [], lowStockItems, overspentBudgets, financingOpportunity, currency, primaryGoal } = input;
     const items: PriorityItem[] = [];
 
     for (const alert of alerts) {
@@ -224,6 +230,39 @@ export function buildDashboardPriorities(input: {
             tier: 'watch',
             title: `${slowMovingItems.length} Item${slowMovingItems.length > 1 ? 's' : ''} Moving Slowly`,
             subtitle: `${currency}${total.toLocaleString()} tied up in slow-selling stock`,
+            impactAmount: total,
+        });
+    }
+
+    // Perishable stock already spoiled -- a realized write-off, not just a
+    // risk, so this is 'attention' tier unlike the two watch-tier inventory
+    // cards above. One entry per expiring/expired BATCH from
+    // computeExpiringStock (foodExpiry.ts), aggregated into a single card
+    // the same way overdue invoices/loans are, rather than one alertEngine
+    // row per batch -- hence excluded from PASSTHROUGH_ALERT_TYPES above.
+    if (expiredInventoryBatches.length > 0) {
+        const total = expiredInventoryBatches.reduce((s, e) => s + e.valueAtRisk, 0);
+        items.push({
+            id: 'priority-inventory-expired',
+            kind: 'inventory_expired',
+            tier: 'attention',
+            title: `${expiredInventoryBatches.length} Batch${expiredInventoryBatches.length > 1 ? 'es' : ''} Already Expired`,
+            subtitle: `${currency}${Math.round(total).toLocaleString()} now a write-off -- remove it from sale`,
+            impactAmount: total,
+        });
+    }
+
+    // The mirror image of the above -- still sellable, but expiring within
+    // foodExpiry's own warning window. 'watch' tier: there's still time to
+    // act, unlike an already-expired batch.
+    if (expiringSoonInventoryBatches.length > 0) {
+        const total = expiringSoonInventoryBatches.reduce((s, e) => s + e.valueAtRisk, 0);
+        items.push({
+            id: 'priority-inventory-expiring-soon',
+            kind: 'inventory_expiring_soon',
+            tier: 'watch',
+            title: `${expiringSoonInventoryBatches.length} Batch${expiringSoonInventoryBatches.length > 1 ? 'es' : ''} Expiring Soon`,
+            subtitle: `${currency}${Math.round(total).toLocaleString()} at risk of becoming a total write-off`,
             impactAmount: total,
         });
     }
