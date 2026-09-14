@@ -41,6 +41,7 @@ describe('auditDataIntegrity', () => {
                 { id: 't2', date: '2026-01-02', amount: 50, description: 'ok', category: 'Sales' } as any,
             ],
             invoices: [{ id: 'i1', invoiceNumber: 'INV-1', amount_encrypted: 'x' } as any],
+            bills: [],
             assets: [],
             inventory: [],
             goals: [],
@@ -57,6 +58,7 @@ describe('auditDataIntegrity', () => {
         const issues = auditDataIntegrity({
             transactions: [{ id: 't1', date: '2026-01-01', amount: 10, description: 'x', category: 'y' } as any],
             invoices: [],
+            bills: [],
             assets: [],
             inventory: [],
             goals: [],

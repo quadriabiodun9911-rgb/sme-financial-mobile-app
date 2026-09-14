@@ -272,6 +272,12 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'assets',
     },
     {
+        id: 'bills', label: 'Vendor Bills', icon: '📥',
+        description: 'Collect, review and record supplier invoices — with duplicate, threshold and cash-impact checks',
+        keywords: ['bills', 'vendor', 'supplier invoice', 'accounts payable', 'ap', 'expense intake'],
+        screen: 'bills',
+    },
+    {
         id: 'payroll', label: 'Payroll', icon: '👥',
         description: 'Staff, pay runs, payroll costs, and payroll provider status',
         keywords: ['staff', 'salary', 'wages', 'gusto', 'deel', 'provider'],

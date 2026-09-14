@@ -4,7 +4,7 @@ import { Colors } from './src/theme/colors';
 import * as Updates from 'expo-updates';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from './src/contexts/ThemeContext';
-import { AuthProvider, SettingsProvider, FinanceProvider, GoalProvider, InvoiceProvider, useAuth, useAppReady } from './src/contexts/OptimizedContexts';
+import { AuthProvider, SettingsProvider, FinanceProvider, GoalProvider, InvoiceProvider, BillProvider, useAuth, useAppReady } from './src/contexts/OptimizedContexts';
 import { trackScreenViewed, trackAppOpened } from './src/utils/analytics';
 import { initSentry, setSentryUser } from './src/utils/sentry';
 import ErrorBoundary from './src/components/ErrorBoundary';
@@ -22,6 +22,7 @@ import InsightsScreen from './src/screens/InsightsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import GoalsScreen from './src/screens/GoalsScreen';
 import InvoicesScreen from './src/screens/InvoicesScreen';
+import BillsScreen from './src/screens/BillsScreen';
 import AssetsScreen from './src/screens/AssetsScreen';
 import LoansScreen from './src/screens/LoansScreen';
 import InventoryScreen from './src/screens/InventoryScreen';
@@ -187,6 +188,7 @@ function NavigatorContent() {
             {currentScreen === 'settings'     && <SettingsScreen />}
             {currentScreen === 'goals'        && <GoalsScreen />}
             {currentScreen === 'invoices'     && <InvoicesScreen />}
+            {currentScreen === 'bills'        && <BillsScreen />}
             {currentScreen === 'assets'       && <AssetsScreen />}
             {currentScreen === 'loans'        && <LoansScreen />}
             {currentScreen === 'inventory'    && <InventoryScreen />}
@@ -326,11 +328,13 @@ export default function App() {
                             <FinanceProvider>
                                 <GoalProvider>
                                     <InvoiceProvider>
-                                        <OtaUpdater />
-                                        <ErrorBoundary>
-                                            <NavigatorContent />
-                                        </ErrorBoundary>
-                                        <AlertHost />
+                                        <BillProvider>
+                                            <OtaUpdater />
+                                            <ErrorBoundary>
+                                                <NavigatorContent />
+                                            </ErrorBoundary>
+                                            <AlertHost />
+                                        </BillProvider>
                                     </InvoiceProvider>
                                 </GoalProvider>
                             </FinanceProvider>

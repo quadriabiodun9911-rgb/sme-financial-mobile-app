@@ -1,4 +1,4 @@
-import { Transaction, Invoice, Asset, InventoryItem, FinancialGoal, Loan, Budget } from '../types';
+import { Transaction, Invoice, Bill, Asset, InventoryItem, FinancialGoal, Loan, Budget } from '../types';
 import { getUndecryptedFields, ENCRYPTED_FIELDS } from './encryption';
 
 export type IntegrityEntityType = keyof typeof ENCRYPTED_FIELDS;
@@ -19,6 +19,7 @@ export interface IntegrityIssue {
 export function auditDataIntegrity(data: {
     transactions: Transaction[];
     invoices: Invoice[];
+    bills: Bill[];
     assets: Asset[];
     inventory: InventoryItem[];
     goals: FinancialGoal[];
@@ -42,6 +43,7 @@ export function auditDataIntegrity(data: {
 
     scan(data.transactions, 'transactions', t => `${t.date || 'Undated'} transaction`);
     scan(data.invoices, 'invoices', i => `Invoice ${i.invoiceNumber || i.id}`);
+    scan(data.bills, 'bills', b => `Bill from ${b.vendorName || 'unknown vendor'}`);
     scan(data.assets, 'assets', a => a.name || `Asset ${a.id}`);
     scan(data.inventory, 'inventory', i => i.name || `Inventory item ${i.id}`);
     scan(data.goals, 'goals', g => g.title || `Goal ${g.id}`);
@@ -54,6 +56,7 @@ export function auditDataIntegrity(data: {
 export const ENTITY_LABELS: Record<IntegrityEntityType, string> = {
     transactions: 'Transactions',
     invoices: 'Invoices',
+    bills: 'Vendor Bills',
     assets: 'Assets',
     inventory: 'Inventory Items',
     goals: 'Goals',

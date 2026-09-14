@@ -8,6 +8,7 @@ export type Screen =
     | 'settings'
     | 'goals'
     | 'invoices'
+    | 'bills'
     | 'assets'
     | 'loans'
     | 'inventory'
@@ -382,6 +383,12 @@ export interface BusinessSettings {
     openingLoans: string;
     openingOtherAssets: string;
     defaultTaxRate: string;
+    // A vendor bill at or above this amount gets flagged for a second look
+    // on BillsScreen (billIntelligence.ts's 'above_threshold' flag). Empty
+    // string / unset / '0' all mean "no threshold set", never "flag every
+    // bill" -- same ambiguous-zero fix already applied to the AI Advisor's
+    // reserve target.
+    billFlagThreshold?: string;
     // Provider secret keys used to actually collect payments live in the
     // payment_provider_secrets table (write-only from the client, see
     // supabase/migrations/025_payment_provider_secrets.sql and
@@ -621,6 +628,53 @@ export interface Invoice {
     // into the next invoice themselves. See recurringInvoices.ts.
     isRecurring?: boolean;
     recurringFrequency?: RecurringFrequency;
+}
+
+// A vendor bill (money owed BY the business) -- the AP-side counterpart to
+// Invoice (money owed TO the business). Deliberately a separate type, not a
+// variant of Invoice: Invoice is shaped around a customer being billed
+// (clientName/clientEmail, no vendor concept), while a Bill is shaped around
+// a supplier's own invoice reaching the business, captured for intake and
+// review only -- no bill-pay/scheduling here, matching the "collect, review
+// and organize" scope this was built for, not a payables system.
+export type BillStatus = 'needs_review' | 'recorded' | 'dismissed';
+
+// Computed fresh from the bill + existing bills + the business's threshold
+// every time flags are needed (see billIntelligence.ts), never stored as a
+// frozen snapshot -- the same "recompute, don't cache a verdict" discipline
+// AR/AP aging and effectiveInvoiceStatus already use elsewhere, so a flag
+// never goes stale as more bills come in or the threshold changes.
+export type BillFlag =
+    | 'duplicate'
+    | 'above_threshold'
+    | 'new_vendor'
+    | 'missing_info';
+
+export interface Bill {
+    id: string;
+    vendorName: string;
+    invoiceNumber?: string; // the vendor's own invoice number, when legible/provided -- not this business's numbering
+    invoiceDate?: string;
+    dueDate?: string;
+    lineItems: InvoiceLineItem[];
+    notes?: string;
+    status: BillStatus;
+    subtotal: number;
+    taxTotal: number;
+    total: number;
+    currency: string; // symbol as issued on the bill; defaults to the business's own currency, no FX conversion in this pass
+    createdAt: string;
+    // Set when a photo/PDF was read by the scanner rather than typed by
+    // hand -- lets the review UI say "AI-read, please confirm" instead of
+    // presenting a machine guess with the same confidence as manual entry.
+    source: 'manual' | 'scanned';
+    // Set only once status becomes 'recorded' -- the id of the expense
+    // Transaction this bill turned into (see reviewBill in
+    // OptimizedContexts.tsx). Stored on the Bill itself rather than matched
+    // by reference the way Invoice<->Transaction linking works, so a
+    // vendor's invoice number can never collide with an unrelated
+    // customer-facing invoiceNumber in the same reference namespace.
+    linkedTransactionId?: string;
 }
 
 export type LoanStatus = 'active' | 'paid_off' | 'defaulted';

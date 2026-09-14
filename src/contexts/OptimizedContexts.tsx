@@ -10,7 +10,7 @@
 
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Platform } from 'react-native';
-import { User, Invoice, InvoiceStatus, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, UserRole, Screen } from '../types';
+import { User, Invoice, InvoiceStatus, Bill, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, UserRole, Screen } from '../types';
 import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore, computeLoanPaymentSplit } from '../utils/finance';
 import { buildLoanFromMerchantFinancing } from '../utils/merchantFinancingConversion';
 import { buildReadinessSnapshot, shouldRecordSnapshot, appendReadinessSnapshot } from '../utils/readinessHistory';
@@ -31,6 +31,7 @@ import {
   loadInventory, saveInventory,
   loadGoals, saveGoals,
   loadInvoices, saveInvoices,
+  loadBills, saveBills,
   loadSettings, saveSettings,
   loadStaff, saveStaff,
   loadPayrollRuns, savePayrollRuns,
@@ -1066,6 +1067,76 @@ export function useInvoices(): InvoiceContextValue {
   const context = useContext(InvoiceContext);
   if (!context) {
     throw new Error('useInvoices must be used within InvoiceProvider');
+  }
+  return context;
+}
+
+// Vendor Bill intake (AP-side, intake/review only -- see the Bill type's own
+// comment for why this isn't a variant of InvoiceProvider). Deliberately
+// stays a plain CRUD provider, same division of responsibility as
+// InvoiceProvider above: the finance-linking behavior ("record as expense"
+// creates a real Transaction) lives in useApp()'s merged object below, not
+// here, so this provider never needs to reach into FinanceContext itself.
+interface BillContextValue {
+  bills: Bill[];
+  addBill: (bill: Bill) => void;
+  updateBill: (id: string, bill: Partial<Bill>) => void;
+  deleteBill: (id: string) => void;
+  hydrated: boolean;
+}
+
+const BillContext = createContext<BillContextValue | undefined>(undefined);
+
+export function BillProvider({ children }: { children: ReactNode }) {
+  const [bills, setBills] = useState<Bill[]>([]);
+  const [hydrated, setHydrated] = useState(false);
+  const authCtx = useContext(AuthContext);
+  const syncUserId = authCtx?.user?.email;
+  const isDemoMode = authCtx?.isDemoMode ?? false;
+
+  useEffect(() => {
+    setHydrated(false);
+    setBills([]); // clear the previous identity's bills before loading the new one
+
+    if (isDemoMode) {
+      // No demo-business bill fixtures yet -- an empty inbox in demo mode
+      // rather than a crash reaching into DEMO_BUSINESSES for a field that
+      // doesn't exist there.
+      setHydrated(true);
+      return;
+    }
+
+    (async () => {
+      try { const b = await loadBills(); if (b) setBills(b); }
+      catch (e) { console.error('[Bills] hydrate failed:', e); }
+      finally { setHydrated(true); }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncUserId, isDemoMode]);
+  useEffect(() => { if (hydrated && !isDemoMode) saveBills(bills).catch(() => {}); }, [bills, hydrated, isDemoMode]);
+
+  const value: BillContextValue = useMemo(
+    () => ({
+      bills,
+      addBill: (bill) => setBills((prev) => [...prev, { ...bill, id: bill.id || genId(), createdAt: bill.createdAt || new Date().toISOString() }]),
+      updateBill: (id, patch) => setBills((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b))),
+      deleteBill: (id) => setBills((prev) => prev.filter((b) => b.id !== id)),
+      hydrated,
+    }),
+    [bills, hydrated]
+  );
+
+  return (
+    <BillContext.Provider value={value}>
+      {children}
+    </BillContext.Provider>
+  );
+}
+
+export function useBills(): BillContextValue {
+  const context = useContext(BillContext);
+  if (!context) {
+    throw new Error('useBills must be used within BillProvider');
   }
   return context;
 }
@@ -2390,9 +2461,10 @@ export function useApp() {
   const finance = useFinance();
   const goals = useContext(GoalContext);
   const invoices = useContext(InvoiceContext);
+  const bills = useContext(BillContext);
   const settings = useContext(SettingsContext);
 
-  if (!goals || !invoices || !settings) {
+  if (!goals || !invoices || !bills || !settings) {
     throw new Error('useApp must be used within AppProvider (all contexts)');
   }
 
@@ -2415,6 +2487,7 @@ export function useApp() {
     [goals?.goals, finance.finance, transactions]
   );
   const invoicesArray = invoices?.invoices ?? [];
+  const billsArray = bills?.bills ?? [];
 
   // Derived business metrics, computed from real data instead of being read
   // as raw User fields that were never populated anywhere (daysActive,
@@ -2606,6 +2679,47 @@ export function useApp() {
         if (linked) finance.deleteTransaction(linked.id);
       }
       invoices?.deleteInvoice(id);
+    },
+
+    // Vendor Bills state
+    bills: billsArray,
+    addBill: (bill) => bills?.addBill(bill),
+    updateBill: (id, patch) => bills?.updateBill(id, patch),
+    deleteBill: (id) => {
+      const bill = billsArray.find((b) => b.id === id);
+      if (bill?.linkedTransactionId && finance?.deleteTransaction) {
+        finance.deleteTransaction(bill.linkedTransactionId);
+      }
+      bills?.deleteBill(id);
+    },
+    // The one place a captured bill turns into (or explicitly doesn't turn
+    // into) real ledger data. 'record' books it as a normal expense
+    // Transaction -- pending, with the bill's own dueDate carried over, so
+    // it naturally shows up wherever pending/overdue expenses already do
+    // (Transactions, AP-style aging) without a second payables system built
+    // specifically for bills. 'dismiss' books nothing; the bill stays as a
+    // record of a reviewed-and-rejected document (a false OCR read, a
+    // cancelled order) without polluting the transaction history.
+    reviewBill: (id, action) => {
+      const bill = billsArray.find((b) => b.id === id);
+      if (!bill) return;
+      if (action === 'record') {
+        const txId = genId();
+        finance?.addTransaction?.({
+          id: txId,
+          date: bill.invoiceDate || localDateStr(),
+          description: `Bill: ${bill.vendorName}${bill.invoiceNumber ? ` (${bill.invoiceNumber})` : ''}`,
+          type: 'expense',
+          category: 'Vendor Bills',
+          amount: bill.total,
+          status: 'pending',
+          dueDate: bill.dueDate,
+          vendorCustomer: bill.vendorName || undefined,
+        } as any);
+        bills?.updateBill(id, { status: 'recorded', linkedTransactionId: txId });
+      } else {
+        bills?.updateBill(id, { status: 'dismissed' });
+      }
     },
 
     // Settings state
