@@ -25,7 +25,7 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { loadPipelineListingsForLender, PipelineListingFilters, describeListingFit, getDemoPipelineListings } from '../utils/financingPipeline';
 import {
     loadPortfolioSharesForLender, estimateOutstandingByCurrency, LoanMonitoringShareRow, getDemoPortfolioShares,
-    computeLenderExposureConcentration, computeLenderPortfolioOutcomes, LenderConcentrationGroup,
+    computeLenderExposureConcentration, computeLenderPortfolioOutcomes, countConcentrationEligibleShares, LenderConcentrationGroup,
 } from '../utils/loanMonitoringShare';
 import { FinancingProductType, PipelineListing, FinancingProduct } from '../types';
 import { PostFinancingStatus } from '../utils/postFinancingMonitor';
@@ -399,14 +399,21 @@ function PortfolioTab({ isLenderDemo }: { isLenderDemo: boolean }) {
     // Top concentration entry per dimension -- the single business or
     // purpose the book is most exposed to, not the full breakdown. A
     // concentration reading needs at least 2 loans to mean anything (one
-    // loan is always "100%").
-    const businessConcentration = useMemo(
-        () => shares.length >= 2 ? computeLenderExposureConcentration(shares, 'business').slice(0, 3) : [],
+    // loan is always "100%") -- counted only among shares the calculator
+    // actually uses (it silently drops rows with no currency/principal
+    // band), so a single eligible row doesn't render as a false "100% high
+    // concentration".
+    const concentrationEligibleCount = useMemo(
+        () => countConcentrationEligibleShares(shares),
         [shares],
     );
+    const businessConcentration = useMemo(
+        () => concentrationEligibleCount >= 2 ? computeLenderExposureConcentration(shares, 'business').slice(0, 3) : [],
+        [shares, concentrationEligibleCount],
+    );
     const purposeConcentration = useMemo(
-        () => shares.length >= 2 ? computeLenderExposureConcentration(shares, 'purpose').slice(0, 3) : [],
-        [shares],
+        () => concentrationEligibleCount >= 2 ? computeLenderExposureConcentration(shares, 'purpose').slice(0, 3) : [],
+        [shares, concentrationEligibleCount],
     );
 
     const outcomes = useMemo(() => computeLenderPortfolioOutcomes(shares), [shares]);

@@ -146,4 +146,19 @@ describe('computePostFinancingMonitor', () => {
         expect(monitor.revenueSinceFunding?.firstMonthRevenue).toBe(100_000);
         expect(monitor.revenueSinceFunding?.pctChange).toBeCloseTo(50, 5);
     });
+
+    it('excludes the current, still-in-progress month from revenue growth so the figure does not move mid-month', () => {
+        const loan = makeLoan({ startDate: '2026-05-01' });
+        const transactions = [
+            tx('2026-05-10', 'income', 200_000),
+            tx('2026-06-10', 'income', 250_000),
+            tx('2026-07-10', 'income', 300_000),
+            // now is 2026-08-10 -- this month is still in progress and
+            // shouldn't be treated as the "latest" complete month.
+            tx('2026-08-05', 'income', 999_999),
+        ];
+        const monitor = computePostFinancingMonitor(loan, transactions, [], healthyDscr(), now);
+        expect(monitor.revenueSinceFunding?.latestMonthRevenue).toBe(300_000);
+        expect(monitor.revenueSinceFunding?.pctChange).toBeCloseTo(50, 5);
+    });
 });

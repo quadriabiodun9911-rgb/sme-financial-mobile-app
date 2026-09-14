@@ -16,6 +16,7 @@ import { Loan, Transaction, ReadinessSnapshot } from '../types';
 import { DSCRResult } from './finance';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
 import { computeReadinessDelta, ReadinessDelta } from './readinessHistory';
+import { localMonthStr } from './localDate';
 
 export type PostFinancingStatus = 'healthy' | 'watch' | 'at-risk';
 
@@ -131,14 +132,19 @@ export function computePostFinancingMonitor(
     const sinceFundingHistory = readinessHistory.filter(h => h.date >= loan.startDate.slice(0, 10));
     const readinessSinceFunding = computeReadinessDelta(sinceFundingHistory);
 
-    // First vs. latest complete month on or after funding -- not first vs.
+    // First vs. latest COMPLETE month on or after funding -- not first vs.
     // last of an arbitrary window, so a loan funded mid-history still
     // measures growth from ITS OWN starting point, not the business's
-    // all-time first month.
+    // all-time first month. Excludes the current, still-in-progress
+    // calendar month (and any future-dated transaction's month) so the
+    // reported figure doesn't move mid-month or reflect revenue that
+    // hasn't happened yet.
+    const currentMonth = localMonthStr(now);
+    const completeMonthsSinceFunding = monthsSinceFunding.filter(m => m.month < currentMonth);
     let revenueSinceFunding: RevenueSinceFunding | null = null;
-    if (monthsSinceFunding.length >= 2) {
-        const firstMonthRevenue = monthsSinceFunding[0].revenue;
-        const latestMonthRevenue = monthsSinceFunding[monthsSinceFunding.length - 1].revenue;
+    if (completeMonthsSinceFunding.length >= 2) {
+        const firstMonthRevenue = completeMonthsSinceFunding[0].revenue;
+        const latestMonthRevenue = completeMonthsSinceFunding[completeMonthsSinceFunding.length - 1].revenue;
         const pctChange = firstMonthRevenue > 0 ? ((latestMonthRevenue - firstMonthRevenue) / firstMonthRevenue) * 100 : 0;
         revenueSinceFunding = { firstMonthRevenue, latestMonthRevenue, pctChange };
     }

@@ -1,4 +1,4 @@
-import { computeLenderExposureConcentration, computeLenderPortfolioOutcomes } from '../utils/loanMonitoringShare';
+import { computeLenderExposureConcentration, computeLenderPortfolioOutcomes, countConcentrationEligibleShares } from '../utils/loanMonitoringShare';
 import { LoanMonitoringShareRow } from '../utils/loanMonitoringShare';
 
 function share(overrides: Partial<LoanMonitoringShareRow>): LoanMonitoringShareRow {
@@ -66,6 +66,26 @@ describe('computeLenderExposureConcentration', () => {
         const shares = [share({ loanPurpose: undefined })];
         const groups = computeLenderExposureConcentration(shares, 'purpose');
         expect(groups[0].label).toBe('Unspecified');
+    });
+});
+
+describe('countConcentrationEligibleShares', () => {
+    it('counts only rows that carry both a currency and a principal band', () => {
+        const shares = [
+            share({}),
+            share({ currency: undefined }),
+            share({ principalBand: undefined }),
+        ];
+        expect(countConcentrationEligibleShares(shares)).toBe(1);
+    });
+
+    it('matches the number of groups-worth of rows computeLenderExposureConcentration would actually use, so a two-share book with one ineligible row is not treated as concentration-eligible', () => {
+        const shares = [
+            share({ businessName: 'Eligible Co' }),
+            share({ businessName: 'Ineligible Co', currency: undefined, principalBand: undefined }),
+        ];
+        expect(countConcentrationEligibleShares(shares)).toBe(1);
+        expect(countConcentrationEligibleShares(shares) >= 2).toBe(false);
     });
 });
 

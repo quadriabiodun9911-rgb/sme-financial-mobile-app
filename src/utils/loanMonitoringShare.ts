@@ -210,6 +210,15 @@ export interface LenderConcentrationGroup {
     risk: 'low' | 'medium' | 'high';
 }
 
+// How many rows computeLenderExposureConcentration will actually use --
+// callers deciding whether a concentration reading is meaningful (needs 2+)
+// must gate on this count, not rows.length, or a book with only one
+// currency/band-eligible row renders as a false "100% high concentration"
+// once the ineligible rows are silently dropped below.
+export function countConcentrationEligibleShares(rows: LoanMonitoringShareRow[]): number {
+    return rows.filter(r => r.currency && r.principalBand).length;
+}
+
 // The lender-side counterpart of finance.ts's computeCustomerConcentration --
 // same three-tier >=40%/>=20% risk cutoff, same "group first, never sum
 // across currencies" discipline as estimateOutstandingByCurrency above, just
