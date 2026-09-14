@@ -15,7 +15,7 @@
 
 import { getAuthUserId } from './storage';
 import { supabase } from './supabase';
-import { Loan } from '../types';
+import { Loan, LoanStatus } from '../types';
 import { PostFinancingMonitor, PostFinancingStatus } from './postFinancingMonitor';
 import { ReadinessTrend } from './readinessHistory';
 import { auditEvents } from './auditLog';
@@ -73,6 +73,11 @@ export async function publishLoanMonitoringShare(
             // below) never sums bands from different currencies into one
             // meaningless number -- see migration 012.
             currency,
+            // Terminal outcome (migration 035) -- mirrors loan.status verbatim
+            // so a payoff/default is a fact the lender's portfolio can roll up,
+            // not something that just silently drops off the feed.
+            loan_status: loan.status,
+            revenue_growth_pct: monitor.revenueSinceFunding?.pctChange ?? null,
             funded_at: loan.startDate,
             consent_active: true,
             expires_at: nextExpiry(),
@@ -148,6 +153,10 @@ export interface LoanMonitoringShareRow {
     loanPurpose?: string;
     principalBand?: string;
     currency?: string;
+    // Migration 035 -- both optional since rows published before that
+    // migration (or by the demo fixtures below) may not carry them.
+    loanStatus?: LoanStatus;
+    revenueGrowthPct?: number;
     fundedAt: string;
     updatedAt: string;
     expiresAt: string;
@@ -192,6 +201,97 @@ export function estimateOutstandingByCurrency(rows: LoanMonitoringShareRow[]): C
     return Array.from(byCurrency.values()).sort((a, b) => b.total - a.total);
 }
 
+export interface LenderConcentrationGroup {
+    label: string;
+    currency: string;
+    estimatedAmount: number;
+    loanCount: number;
+    percentage: number;
+    risk: 'low' | 'medium' | 'high';
+}
+
+// The lender-side counterpart of finance.ts's computeCustomerConcentration --
+// same three-tier >=40%/>=20% risk cutoff, same "group first, never sum
+// across currencies" discipline as estimateOutstandingByCurrency above, just
+// answering "how exposed is MY BOOK to one borrower or one purpose" instead
+// of "how exposed is this business to one customer." Weighted by estimated
+// exposure (band midpoint), not loan count -- a single 50M+ facility
+// dominating the book is the real risk a count-only view would understate.
+// A band-less/currency-less row (predates migration 012, or the demo
+// fixtures were edited without one) is excluded from every group, same as
+// estimateOutstandingByCurrency.
+export function computeLenderExposureConcentration(
+    rows: LoanMonitoringShareRow[],
+    dimension: 'business' | 'purpose',
+): LenderConcentrationGroup[] {
+    const byCurrency = new Map<string, LoanMonitoringShareRow[]>();
+    for (const r of rows) {
+        if (!r.currency || !r.principalBand) continue;
+        const arr = byCurrency.get(r.currency) ?? [];
+        arr.push(r);
+        byCurrency.set(r.currency, arr);
+    }
+
+    const result: LenderConcentrationGroup[] = [];
+    for (const [currency, currencyRows] of byCurrency) {
+        const groups = new Map<string, { amount: number; count: number }>();
+        let total = 0;
+        for (const r of currencyRows) {
+            const amount = PRINCIPAL_BAND_MIDPOINT[r.principalBand!] ?? 0;
+            const label = dimension === 'business' ? r.businessName : (r.loanPurpose || 'Unspecified');
+            const g = groups.get(label) ?? { amount: 0, count: 0 };
+            g.amount += amount;
+            g.count += 1;
+            groups.set(label, g);
+            total += amount;
+        }
+        for (const [label, { amount, count }] of groups) {
+            const percentage = total > 0 ? (amount / total) * 100 : 0;
+            const risk: LenderConcentrationGroup['risk'] = percentage >= 40 ? 'high' : percentage >= 20 ? 'medium' : 'low';
+            result.push({ label, currency, estimatedAmount: amount, loanCount: count, percentage, risk });
+        }
+    }
+    return result.sort((a, b) => b.percentage - a.percentage);
+}
+
+export interface LenderPortfolioOutcomes {
+    activeCount: number;
+    paidOffCount: number;
+    defaultedCount: number;
+    // Of loans with a known terminal outcome (paid off or defaulted) --
+    // still-active loans haven't resolved yet, so including them would
+    // understate a young portfolio's real repayment rate.
+    repaymentRatePct: number | null;
+    // Simple mean across every row carrying a revenueGrowthPct (i.e. at
+    // least 2 months of revenue history since funding) -- not weighted by
+    // exposure, since this answers "are the businesses I fund growing," a
+    // headcount question, not a dollar-weighted one.
+    avgRevenueGrowthPct: number | null;
+    revenueGrowthSampleSize: number;
+}
+
+// The "real economic impact, in aggregate" rollup -- the single number set
+// this whole feature exists to produce. Both numbers are honest about being
+// null when there isn't enough data yet, same discipline as
+// estimateOutstandingByCurrency's own "explicitly a rough estimate" framing.
+export function computeLenderPortfolioOutcomes(rows: LoanMonitoringShareRow[]): LenderPortfolioOutcomes {
+    let activeCount = 0, paidOffCount = 0, defaultedCount = 0;
+    let revenueGrowthSum = 0, revenueGrowthSampleSize = 0;
+    for (const r of rows) {
+        if (r.loanStatus === 'paid_off') paidOffCount++;
+        else if (r.loanStatus === 'defaulted') defaultedCount++;
+        else activeCount++;
+        if (typeof r.revenueGrowthPct === 'number' && !Number.isNaN(r.revenueGrowthPct)) {
+            revenueGrowthSum += r.revenueGrowthPct;
+            revenueGrowthSampleSize++;
+        }
+    }
+    const resolvedCount = paidOffCount + defaultedCount;
+    const repaymentRatePct = resolvedCount > 0 ? (paidOffCount / resolvedCount) * 100 : null;
+    const avgRevenueGrowthPct = revenueGrowthSampleSize > 0 ? revenueGrowthSum / revenueGrowthSampleSize : null;
+    return { activeCount, paidOffCount, defaultedCount, repaymentRatePct, avgRevenueGrowthPct, revenueGrowthSampleSize };
+}
+
 // Synthetic portfolio for the landing page's "Preview as Lender (Demo)" mode.
 // Unlike the pipeline demo above, this table's rows DO carry a business name
 // (see file header — funded businesses are no longer anonymous to their own
@@ -207,10 +307,11 @@ export function getDemoPortfolioShares(): LoanMonitoringShareRow[] {
     const daysAgoDate = (n: number) => daysAgo(n).split('T')[0];
     const daysFromNow = (n: number) => new Date(now.getTime() + n * 86400000).toISOString();
     return [
-        { id: 'demo-p1', loanId: 'demo-loan-1', businessName: 'Sample Foods Co. (Demo)', status: 'healthy', readinessTrend: 'improving', dscrFlag: false, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Working capital', principalBand: '2M–10M', currency: '₦', fundedAt: daysAgoDate(210), updatedAt: daysAgo(2), expiresAt: daysFromNow(88) },
-        { id: 'demo-p2', loanId: 'demo-loan-2', businessName: 'Demo Textiles Ltd.', status: 'watch', readinessTrend: 'stable', dscrFlag: true, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Asset financing', principalBand: '500K–2M', currency: '₦', fundedAt: daysAgoDate(140), updatedAt: daysAgo(5), expiresAt: daysFromNow(85) },
-        { id: 'demo-p3', loanId: 'demo-loan-3', businessName: 'Sample Logistics (Demo)', status: 'at-risk', readinessTrend: 'declining', dscrFlag: true, revenueDeclineFlag: true, repaymentPaceFlag: true, loanPurpose: 'Fleet expansion', principalBand: '10M–50M', currency: '₦', fundedAt: daysAgoDate(300), updatedAt: daysAgo(1), expiresAt: daysFromNow(89) },
-        { id: 'demo-p4', loanId: 'demo-loan-4', businessName: 'Demo Home Goods Co.', status: 'healthy', readinessTrend: 'improving', dscrFlag: false, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Inventory restock', principalBand: '500K–2M', currency: '₦', fundedAt: daysAgoDate(95), updatedAt: daysAgo(3), expiresAt: daysFromNow(87) },
+        { id: 'demo-p1', loanId: 'demo-loan-1', businessName: 'Sample Foods Co. (Demo)', status: 'healthy', readinessTrend: 'improving', dscrFlag: false, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Working capital', principalBand: '2M–10M', currency: '₦', loanStatus: 'active', revenueGrowthPct: 18.4, fundedAt: daysAgoDate(210), updatedAt: daysAgo(2), expiresAt: daysFromNow(88) },
+        { id: 'demo-p2', loanId: 'demo-loan-2', businessName: 'Demo Textiles Ltd.', status: 'watch', readinessTrend: 'stable', dscrFlag: true, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Asset financing', principalBand: '500K–2M', currency: '₦', loanStatus: 'active', revenueGrowthPct: -3.9, fundedAt: daysAgoDate(140), updatedAt: daysAgo(5), expiresAt: daysFromNow(85) },
+        { id: 'demo-p3', loanId: 'demo-loan-3', businessName: 'Sample Logistics (Demo)', status: 'at-risk', readinessTrend: 'declining', dscrFlag: true, revenueDeclineFlag: true, repaymentPaceFlag: true, loanPurpose: 'Fleet expansion', principalBand: '10M–50M', currency: '₦', loanStatus: 'active', revenueGrowthPct: -21.7, fundedAt: daysAgoDate(300), updatedAt: daysAgo(1), expiresAt: daysFromNow(89) },
+        { id: 'demo-p4', loanId: 'demo-loan-4', businessName: 'Demo Home Goods Co.', status: 'healthy', readinessTrend: 'improving', dscrFlag: false, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Inventory restock', principalBand: '500K–2M', currency: '₦', loanStatus: 'paid_off', revenueGrowthPct: 34.6, fundedAt: daysAgoDate(95), updatedAt: daysAgo(3), expiresAt: daysFromNow(87) },
+        { id: 'demo-p5', loanId: 'demo-loan-5', businessName: 'Demo Print Shop Ltd.', status: 'at-risk', readinessTrend: 'declining', dscrFlag: true, revenueDeclineFlag: true, repaymentPaceFlag: true, loanPurpose: 'Working capital', principalBand: '500K–2M', currency: '₦', loanStatus: 'defaulted', revenueGrowthPct: -48.2, fundedAt: daysAgoDate(260), updatedAt: daysAgo(30), expiresAt: daysFromNow(60) },
     ];
 }
 
@@ -265,6 +366,8 @@ export async function loadMyActiveLoanMonitoringShares(): Promise<LoanMonitoring
             loanPurpose: r.loan_purpose ?? undefined,
             principalBand: r.principal_band ?? undefined,
             currency: r.currency ?? undefined,
+            loanStatus: r.loan_status ?? undefined,
+            revenueGrowthPct: r.revenue_growth_pct ?? undefined,
             fundedAt: r.funded_at,
             updatedAt: r.updated_at,
             expiresAt: r.expires_at,
@@ -296,6 +399,8 @@ export async function loadPortfolioSharesForLender(): Promise<LoanMonitoringShar
             loanPurpose: r.loan_purpose ?? undefined,
             principalBand: r.principal_band ?? undefined,
             currency: r.currency ?? undefined,
+            loanStatus: r.loan_status ?? undefined,
+            revenueGrowthPct: r.revenue_growth_pct ?? undefined,
             fundedAt: r.funded_at,
             updatedAt: r.updated_at,
             expiresAt: r.expires_at,

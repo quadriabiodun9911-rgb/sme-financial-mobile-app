@@ -114,4 +114,36 @@ describe('computePostFinancingMonitor', () => {
         const monitor = computePostFinancingMonitor(loan, [], [], unhealthyDscr(), now);
         expect(monitor.tactics.length).toBeGreaterThan(0);
     });
+
+    it('computes revenue growth since funding from the first to the latest complete month', () => {
+        const loan = makeLoan({ startDate: '2026-05-01' });
+        const transactions = [
+            tx('2026-05-10', 'income', 200_000),
+            tx('2026-06-10', 'income', 250_000),
+            tx('2026-07-10', 'income', 300_000),
+        ];
+        const monitor = computePostFinancingMonitor(loan, transactions, [], healthyDscr(), now);
+        expect(monitor.revenueSinceFunding?.firstMonthRevenue).toBe(200_000);
+        expect(monitor.revenueSinceFunding?.latestMonthRevenue).toBe(300_000);
+        expect(monitor.revenueSinceFunding?.pctChange).toBeCloseTo(50, 5);
+    });
+
+    it('is null for revenueSinceFunding when fewer than two months of history exist since funding', () => {
+        const loan = makeLoan({ startDate: '2026-08-01' });
+        const transactions = [tx('2026-08-05', 'income', 100_000)];
+        const monitor = computePostFinancingMonitor(loan, transactions, [], healthyDscr(), now);
+        expect(monitor.revenueSinceFunding).toBeNull();
+    });
+
+    it('ignores revenue months before the loan was funded when computing revenue growth', () => {
+        const loan = makeLoan({ startDate: '2026-06-01' });
+        const transactions = [
+            tx('2026-01-10', 'income', 900_000), // before funding, excluded
+            tx('2026-06-10', 'income', 100_000),
+            tx('2026-07-10', 'income', 150_000),
+        ];
+        const monitor = computePostFinancingMonitor(loan, transactions, [], healthyDscr(), now);
+        expect(monitor.revenueSinceFunding?.firstMonthRevenue).toBe(100_000);
+        expect(monitor.revenueSinceFunding?.pctChange).toBeCloseTo(50, 5);
+    });
 });

@@ -69,6 +69,7 @@ describe('buildPostFinancingShareExport', () => {
             { label: 'Repayment pace', tripped: true, detail: '25% of the term has elapsed but only ¥12,345 of principal is repaid.' },
         ],
         readinessSinceFunding: { trend: 'declining', scoreDelta: -10, fromScore: 70, toScore: 60, periodLabel: '3 months', improvedFactors: [], worsenedFactors: [] },
+        revenueSinceFunding: null,
         tactics: ['Review every active loan\'s payment schedule together.'],
     };
 
