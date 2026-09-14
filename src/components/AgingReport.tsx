@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { computeAgingBuckets } from '../utils/finance';
+import { localDateStr } from '../utils/localDate';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow } from '../theme/tokens';
 import { Transaction } from '../types';
@@ -12,7 +13,16 @@ export default function AgingReport() {
     const { currency } = settings;
     const [activeTab, setActiveTab] = useState<'ar' | 'ap'>('ar');
 
-    const arBuckets = useMemo(() => computeAgingBuckets(transactions, 'income'), [transactions]);
+    // A synthesized invoice receivable's "pending" vs "overdue" label and
+    // aging bucket both come from effectiveInvoiceStatus/today at the moment
+    // this memo last ran, not a live clock -- todayKey forces a recompute
+    // once the calendar date advances, on whatever next render happens to
+    // touch this screen (the same day-boundary staleness already existed for
+    // computeAgingBuckets's own `today` capture; this just gives it a
+    // dependency to invalidate on instead of only reacting to transactions/
+    // invoices actually changing).
+    const todayKey = localDateStr();
+    const arBuckets = useMemo(() => computeAgingBuckets(transactions, 'income', invoices), [transactions, invoices, todayKey]);
     const apBuckets = useMemo(() => computeAgingBuckets(transactions, 'expense'), [transactions]);
 
     const buckets = activeTab === 'ar' ? arBuckets : apBuckets;
