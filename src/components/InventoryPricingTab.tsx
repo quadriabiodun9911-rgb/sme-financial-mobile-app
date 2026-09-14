@@ -7,6 +7,7 @@ import { computeInventoryPricingScenario, computeRequiredUniformPriceChange, Pro
 import { computeRequiredPriceIncrease } from '../utils/priceAdjustment';
 import { computeInventoryPricingInsights } from '../utils/inventoryPricingInsights';
 import { computeInventoryDecisions, InventoryDecisionAction } from '../utils/inventoryDecisions';
+import { computeInventoryPriceRecommendations } from '../utils/inventoryPriceRecommendations';
 
 function fmt(currency: string, n: number): string {
     return `${currency}${Math.round(n).toLocaleString()}`;
@@ -96,6 +97,11 @@ export default function InventoryPricingTab() {
     );
 
     const costDriftInsights = useMemo(() => computeInventoryPricingInsights(inventory, currency), [inventory, currency]);
+
+    const priceRecommendations = useMemo(
+        () => computeInventoryPriceRecommendations(inventory, parseFloat(settings.targetMargin) || 0),
+        [inventory, settings.targetMargin],
+    );
 
     const inventoryDecisions = useMemo(
         () => computeInventoryDecisions(inventory, transactions, finance?.cashBalance ?? 0, currency),
@@ -218,6 +224,36 @@ export default function InventoryPricingTab() {
                     <Text style={s.suggestText}>{priceAdjustment.reason}</Text>
                 )}
             </View>
+
+            {/* Price Recommendations — which specific products to reprice,
+                and by how much, to hit the business's own target margin
+                (settings.targetMargin), vs. the two cards above which only
+                answer aggregate/manual "what if" questions. */}
+            {priceRecommendations.length > 0 && (
+                <View style={s.card}>
+                    <Text style={s.cardTitle}>Price Recommendations</Text>
+                    <Text style={s.disc}>
+                        {priceRecommendations.length} item{priceRecommendations.length > 1 ? 's are' : ' is'} priced below your {parseFloat(settings.targetMargin)}% target margin — here's the exact price that closes the gap for each.
+                    </Text>
+                    {priceRecommendations.slice(0, 8).map(rec => (
+                        <View key={rec.item.id} style={s.prRow}>
+                            <View style={s.flex1}>
+                                <Text style={s.productName}>{rec.item.name}</Text>
+                                <Text style={s.productCategory}>
+                                    {rec.currentMarginPct.toFixed(0)}% margin now → {rec.targetMarginPct.toFixed(0)}% at {currency}{rec.recommendedPrice.toFixed(2)}
+                                </Text>
+                            </View>
+                            <View style={s.prRight}>
+                                <Text style={s.prIncrease}>+{rec.priceIncreasePct.toFixed(0)}%</Text>
+                                <Text style={s.prGain}>+{fmt(currency, rec.profitGainPerUnit)}/unit</Text>
+                            </View>
+                        </View>
+                    ))}
+                    {priceRecommendations.length > 8 && (
+                        <Text style={s.disc}>+{priceRecommendations.length - 8} more item{priceRecommendations.length - 8 > 1 ? 's' : ''} below target.</Text>
+                    )}
+                </View>
+            )}
 
             {/* Scenario Results */}
             <View style={s.card}>
@@ -398,6 +434,11 @@ const s = StyleSheet.create({
     noSalesData: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic' },
     productName: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
     productCategory: { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
+
+    prRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 8 },
+    prRight: { alignItems: 'flex-end' },
+    prIncrease: { fontSize: 13, fontWeight: '800', color: Colors.warning },
+    prGain: { fontSize: 10.5, color: Colors.income, marginTop: 2, fontWeight: '600' },
     // minWidth: 0 overrides a browser default that plain Text siblings
     // don't have -- without it, this <input> (via react-native-web) refuses
     // to shrink as much as the other flex:1 columns on a narrow phone

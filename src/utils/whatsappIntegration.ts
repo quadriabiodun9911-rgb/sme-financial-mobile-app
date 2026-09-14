@@ -244,6 +244,24 @@ export const openSupportChat = (supportNumber: string, prefillMessage?: string):
   return true;
 };
 
+// ─── Send a promotional/win-back message to one customer ─────────────────
+// Every function above this one sends a fixed, system-generated message
+// (a reminder, a confirmation, a report) about something that already
+// happened. This is the one place the OWNER's own free-text message goes
+// out to a customer -- a promotion, a win-back nudge, an announcement.
+// wa.me only ever opens one conversation at a time (there is no bulk-send
+// API behind this), so a "broadcast" to several customers is this same
+// call made once per recipient, with the caller stepping through the list
+// -- see BroadcastModal (GrowthIntelligenceScreen.tsx) for that loop. This
+// function itself sends to exactly one number, honestly, rather than
+// implying a real bulk send it can't actually do.
+export const sendPromotionalMessageViaWhatsApp = (customerPhone: string, message: string): boolean => {
+  if (!customerPhone || !message.trim()) return false;
+  const formattedPhone = formatPhoneToE164(customerPhone);
+  openWhatsAppWithMessage(formattedPhone, message);
+  return true;
+};
+
 // ─── Send automated overdue invoice alert ─────────────────────────────────
 export const sendOverdueInvoiceAlert = async (
   customerPhone: string,
