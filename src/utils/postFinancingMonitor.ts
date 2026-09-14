@@ -16,6 +16,7 @@ import { Loan, Transaction, ReadinessSnapshot } from '../types';
 import { DSCRResult } from './finance';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
 import { computeReadinessDelta, ReadinessDelta } from './readinessHistory';
+import { localMonthStr } from './localDate';
 
 export type PostFinancingStatus = 'healthy' | 'watch' | 'at-risk';
 
@@ -25,6 +26,12 @@ export interface PostFinancingSignal {
     detail: string;
 }
 
+export interface RevenueSinceFunding {
+    firstMonthRevenue: number;
+    latestMonthRevenue: number;
+    pctChange: number;
+}
+
 export interface PostFinancingMonitor {
     status: PostFinancingStatus;
     signals: PostFinancingSignal[];
@@ -32,6 +39,12 @@ export interface PostFinancingMonitor {
     // loan's start date -- same "not enough history" honesty as everywhere
     // else readiness trend is shown.
     readinessSinceFunding: ReadinessDelta | null;
+    // Real-economic-impact signal: revenue in the most recent complete month
+    // vs. the first month on or after funding, using the same
+    // monthsSinceFunding buckets Signal 2 already computes -- null before
+    // there are at least two distinct months of history since the loan
+    // started, same "not enough data yet" honesty as readinessSinceFunding.
+    revenueSinceFunding: RevenueSinceFunding | null;
     tactics: string[];
 }
 
@@ -119,5 +132,22 @@ export function computePostFinancingMonitor(
     const sinceFundingHistory = readinessHistory.filter(h => h.date >= loan.startDate.slice(0, 10));
     const readinessSinceFunding = computeReadinessDelta(sinceFundingHistory);
 
-    return { status, signals, readinessSinceFunding, tactics };
+    // First vs. latest COMPLETE month on or after funding -- not first vs.
+    // last of an arbitrary window, so a loan funded mid-history still
+    // measures growth from ITS OWN starting point, not the business's
+    // all-time first month. Excludes the current, still-in-progress
+    // calendar month (and any future-dated transaction's month) so the
+    // reported figure doesn't move mid-month or reflect revenue that
+    // hasn't happened yet.
+    const currentMonth = localMonthStr(now);
+    const completeMonthsSinceFunding = monthsSinceFunding.filter(m => m.month < currentMonth);
+    let revenueSinceFunding: RevenueSinceFunding | null = null;
+    if (completeMonthsSinceFunding.length >= 2) {
+        const firstMonthRevenue = completeMonthsSinceFunding[0].revenue;
+        const latestMonthRevenue = completeMonthsSinceFunding[completeMonthsSinceFunding.length - 1].revenue;
+        const pctChange = firstMonthRevenue > 0 ? ((latestMonthRevenue - firstMonthRevenue) / firstMonthRevenue) * 100 : 0;
+        revenueSinceFunding = { firstMonthRevenue, latestMonthRevenue, pctChange };
+    }
+
+    return { status, signals, readinessSinceFunding, revenueSinceFunding, tactics };
 }

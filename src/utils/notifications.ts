@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PostFinancingStatus } from './postFinancingMonitor';
+import { LoanMonitoringShareRow } from './loanMonitoringShare';
 import { PayrollReminderStatus } from './payrollReminders';
 import { TaxDeadlineStatus } from './taxDeadline';
 import { DailyBriefingResult } from './dailyBriefing';
@@ -524,6 +525,52 @@ export async function notifyLoanRiskStatusChange(loanId: string, loanLabel: stri
     } catch {
         // Fail silently
     }
+}
+
+// Lender-side counterpart of notifyLoanRiskStatusChange above -- same
+// "remember what it was last time this ran, only fire on a genuine
+// worsening transition" logic, just applied per-share and batched into one
+// notification instead of one loan at a time. This is a LOCAL notification
+// on the lender's own device the next time they open the Funded Portfolio
+// tab while the app is foregrounded -- it does not reach a lender who has
+// the app closed (that would need a server-side push keyed on a lender
+// push-token table and a scheduled function reading loan_monitoring_shares,
+// neither of which exists yet; see migration 028's cash_position_summary
+// for the closest precedent on the SME side). Returns the list of shares
+// that worsened so the caller can also render an in-app banner, which does
+// reach a lender on web (where Platform.OS === 'web' skips the native
+// notification entirely, same guard as notifyLoanRiskStatusChange).
+export async function checkLenderPortfolioForWorseningRisk(shares: LoanMonitoringShareRow[]): Promise<LoanMonitoringShareRow[]> {
+    const worsened: LoanMonitoringShareRow[] = [];
+    try {
+        for (const sh of shares) {
+            const key = `@quad360/notif_lender_share_status_${sh.id}`;
+            const prevStatus = await AsyncStorage.getItem(key) as PostFinancingStatus | null;
+            await AsyncStorage.setItem(key, sh.status);
+            // First time this share has ever been seen -- nothing to compare
+            // against yet, same "not a flip" guard as the borrower-side check.
+            if (prevStatus === null) continue;
+            if (POST_FINANCING_STATUS_RANK[sh.status] > POST_FINANCING_STATUS_RANK[prevStatus]) {
+                worsened.push(sh);
+            }
+        }
+
+        if (worsened.length > 0 && Platform.OS !== 'web') {
+            const title = worsened.length === 1
+                ? `Borrower risk update ⚠️`
+                : `${worsened.length} borrowers newly flagged ⚠️`;
+            const names = worsened.map(w => w.businessName).slice(0, 3).join(', ') + (worsened.length > 3 ? ', …' : '');
+            const body = worsened.length === 1
+                ? `"${worsened[0].businessName}" just moved to ${worsened[0].status === 'at-risk' ? 'At Risk' : 'Watch'}. Open Quad360 to review.`
+                : `${names} need a closer look. Open Quad360 to review your Funded Portfolio.`;
+            await Notifications.scheduleNotificationAsync({ content: { title, body }, trigger: null });
+        }
+    } catch {
+        // Fail silently -- worsened still reflects whatever was computed
+        // before a mid-loop AsyncStorage failure, same partial-progress
+        // tolerance as the rest of this file's notification checks.
+    }
+    return worsened;
 }
 
 // Mirrors DashboardScreen's own Cash Runway gauge -- same <30-day threshold

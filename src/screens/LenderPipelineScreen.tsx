@@ -23,9 +23,13 @@ import { ChipGroup } from '../components/ui/ChipGroup';
 import { ExpandableCard } from '../components/ui/ExpandableCard';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { loadPipelineListingsForLender, PipelineListingFilters, describeListingFit, getDemoPipelineListings } from '../utils/financingPipeline';
-import { loadPortfolioSharesForLender, estimateOutstandingByCurrency, LoanMonitoringShareRow, getDemoPortfolioShares } from '../utils/loanMonitoringShare';
+import {
+    loadPortfolioSharesForLender, estimateOutstandingByCurrency, LoanMonitoringShareRow, getDemoPortfolioShares,
+    computeLenderExposureConcentration, computeLenderPortfolioOutcomes, countConcentrationEligibleShares, LenderConcentrationGroup,
+} from '../utils/loanMonitoringShare';
 import { FinancingProductType, PipelineListing, FinancingProduct } from '../types';
 import { PostFinancingStatus } from '../utils/postFinancingMonitor';
+import { checkLenderPortfolioForWorseningRisk } from '../utils/notifications';
 import { loadFinancingProductsForLenderOrg, saveFinancingProduct, deleteFinancingProduct } from '../utils/financingAdmin';
 import { FinancingProductForm, emptyFinancingProduct } from '../components/FinancingProductForm';
 import { showAlert, confirmAction } from '../utils/webAlert';
@@ -343,10 +347,17 @@ const FLAG_LABEL: Record<'dscrFlag' | 'revenueDeclineFlag' | 'repaymentPaceFlag'
     repaymentPaceFlag: 'Behind on repayment pace',
 };
 
+const LOAN_STATUS_LABEL: Record<string, string> = { active: 'Active', paid_off: 'Paid Off', defaulted: 'Defaulted' };
+const CONCENTRATION_RISK_COLOR: Record<'low' | 'medium' | 'high', string> = {
+    low: Colors.income, medium: Colors.warning, high: Colors.expense,
+};
+
 function PortfolioTab({ isLenderDemo }: { isLenderDemo: boolean }) {
     const [shares, setShares] = useState<LoanMonitoringShareRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [worsened, setWorsened] = useState<LoanMonitoringShareRow[]>([]);
+    const [showWorsenedBanner, setShowWorsenedBanner] = useState(true);
 
     useEffect(() => {
         if (isLenderDemo) {
@@ -356,6 +367,20 @@ function PortfolioTab({ isLenderDemo }: { isLenderDemo: boolean }) {
         }
         loadPortfolioSharesForLender().then(setShares).finally(() => setLoading(false));
     }, [isLenderDemo]);
+
+    // Fires once shares are loaded -- detects any share that worsened since
+    // this lender last had the app open (see checkLenderPortfolioForWorseningRisk's
+    // own comment for why this is a local, foregrounded-only notification,
+    // not a true push to an offline lender). Runs in demo mode too: the
+    // first load of any share never counts as a transition, so the demo
+    // portfolio's static data correctly produces no banner on its own,
+    // exactly like a lender's first-ever visit to a real portfolio.
+    useEffect(() => {
+        if (shares.length === 0) return;
+        setShowWorsenedBanner(true);
+        checkLenderPortfolioForWorseningRisk(shares).then(setWorsened);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [shares.map(sh => `${sh.id}:${sh.status}`).join(',')]);
 
     const counts = useMemo(() => {
         const c: Record<PostFinancingStatus, number> = { healthy: 0, watch: 0, 'at-risk': 0 };
@@ -371,6 +396,28 @@ function PortfolioTab({ isLenderDemo }: { isLenderDemo: boolean }) {
     const estimatedByCurrency = useMemo(() => estimateOutstandingByCurrency(shares), [shares]);
     const pct = (n: number) => shares.length > 0 ? Math.round((n / shares.length) * 100) : 0;
 
+    // Top concentration entry per dimension -- the single business or
+    // purpose the book is most exposed to, not the full breakdown. A
+    // concentration reading needs at least 2 loans to mean anything (one
+    // loan is always "100%") -- counted only among shares the calculator
+    // actually uses (it silently drops rows with no currency/principal
+    // band), so a single eligible row doesn't render as a false "100% high
+    // concentration".
+    const concentrationEligibleCount = useMemo(
+        () => countConcentrationEligibleShares(shares),
+        [shares],
+    );
+    const businessConcentration = useMemo(
+        () => concentrationEligibleCount >= 2 ? computeLenderExposureConcentration(shares, 'business').slice(0, 3) : [],
+        [shares, concentrationEligibleCount],
+    );
+    const purposeConcentration = useMemo(
+        () => concentrationEligibleCount >= 2 ? computeLenderExposureConcentration(shares, 'purpose').slice(0, 3) : [],
+        [shares, concentrationEligibleCount],
+    );
+
+    const outcomes = useMemo(() => computeLenderPortfolioOutcomes(shares), [shares]);
+
     const sorted = useMemo(
         () => [...shares].sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status)),
         [shares],
@@ -384,6 +431,22 @@ function PortfolioTab({ isLenderDemo }: { isLenderDemo: boolean }) {
                 picture of your book, only what's been opted in below. Never raw transactions, only a status,
                 a trend, and which categories are flagged.
             </Text>
+
+            {showWorsenedBanner && worsened.length > 0 && (
+                <View style={s.worsenedBanner}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={s.worsenedBannerTitle}>
+                            {worsened.length} borrower{worsened.length === 1 ? '' : 's'} newly flagged since your last visit
+                        </Text>
+                        <Text style={s.worsenedBannerText}>
+                            {worsened.map(w => w.businessName).join(', ')}
+                        </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setShowWorsenedBanner(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Icon name="x" size={16} color={Colors.expense} />
+                    </TouchableOpacity>
+                </View>
+            )}
 
             {shares.length > 0 && (
                 <>
@@ -411,6 +474,70 @@ function PortfolioTab({ isLenderDemo }: { isLenderDemo: boolean }) {
                     </View>
                 </>
             )}
+
+            {/* Real-economic-impact rollup: terminal outcomes across the book
+                (migration 035) plus the average revenue growth of funded
+                businesses since they were funded -- the "did lending this
+                money actually help" answer this feature exists to produce. */}
+            {shares.length > 0 && (
+                <View style={s.outcomesCard}>
+                    <Text style={s.outcomesTitle}>Portfolio Outcomes</Text>
+                    <View style={s.outcomesRow}>
+                        <View style={s.outcomeStat}>
+                            <Text style={s.outcomeStatValue}>{outcomes.activeCount}</Text>
+                            <Text style={s.outcomeStatLabel}>{LOAN_STATUS_LABEL.active}</Text>
+                        </View>
+                        <View style={s.outcomeStat}>
+                            <Text style={[s.outcomeStatValue, { color: Colors.income }]}>{outcomes.paidOffCount}</Text>
+                            <Text style={s.outcomeStatLabel}>{LOAN_STATUS_LABEL.paid_off}</Text>
+                        </View>
+                        <View style={s.outcomeStat}>
+                            <Text style={[s.outcomeStatValue, { color: Colors.expense }]}>{outcomes.defaultedCount}</Text>
+                            <Text style={s.outcomeStatLabel}>{LOAN_STATUS_LABEL.defaulted}</Text>
+                        </View>
+                    </View>
+                    <Text style={s.outcomesCaption}>
+                        {outcomes.repaymentRatePct !== null
+                            ? `${outcomes.repaymentRatePct.toFixed(0)}% repayment rate across resolved loans (paid off or defaulted).`
+                            : 'No loans have resolved (paid off or defaulted) yet — repayment rate isn\'t meaningful until some do.'}
+                    </Text>
+                    <Text style={s.outcomesCaption}>
+                        {outcomes.avgRevenueGrowthPct !== null
+                            ? `Average revenue growth since funding: ${outcomes.avgRevenueGrowthPct >= 0 ? '+' : ''}${outcomes.avgRevenueGrowthPct.toFixed(0)}% (across ${outcomes.revenueGrowthSampleSize} business${outcomes.revenueGrowthSampleSize === 1 ? '' : 'es'} with enough history to measure).`
+                            : 'Not enough revenue history yet to measure growth since funding.'}
+                    </Text>
+                </View>
+            )}
+
+            {/* Concentration risk: same >=40%/>=20% high/medium/low cutoff as
+                finance.ts's computeCustomerConcentration, just answering "how
+                exposed is MY book" instead of a single business's own
+                customer exposure. Needs 2+ loans to mean anything. */}
+            {(businessConcentration.length > 0 || purposeConcentration.length > 0) && (
+                <View style={s.outcomesCard}>
+                    <Text style={s.outcomesTitle}>Concentration Risk</Text>
+                    <Text style={s.outcomesCaption}>
+                        Weighted by each loan's estimated exposure (coarse principal band), grouped by currency.
+                    </Text>
+                    {businessConcentration.length > 0 && (
+                        <>
+                            <Text style={s.concentrationSubhead}>By business</Text>
+                            {businessConcentration.map(g => (
+                                <ConcentrationRow key={`biz-${g.currency}-${g.label}`} group={g} />
+                            ))}
+                        </>
+                    )}
+                    {purposeConcentration.length > 0 && (
+                        <>
+                            <Text style={s.concentrationSubhead}>By loan purpose</Text>
+                            {purposeConcentration.map(g => (
+                                <ConcentrationRow key={`purpose-${g.currency}-${g.label}`} group={g} />
+                            ))}
+                        </>
+                    )}
+                </View>
+            )}
+
             {shares.length > 0 && (
                 <Text style={s.resultCount}>Of {shares.length} loan{shares.length === 1 ? '' : 's'} currently sharing status with you</Text>
             )}
@@ -444,6 +571,16 @@ function PortfolioTab({ isLenderDemo }: { isLenderDemo: boolean }) {
                             <View style={s.rowMetrics}>
                                 <Text style={[s.rowMetric, { color: Colors.textMuted }]}>Funded {sh.fundedAt}</Text>
                                 {sh.readinessTrend && <Text style={s.rowMetric}>Trend: {TREND_LABEL[sh.readinessTrend]}</Text>}
+                                {sh.loanStatus && sh.loanStatus !== 'active' && (
+                                    <Text style={[s.rowMetric, { color: sh.loanStatus === 'paid_off' ? Colors.income : Colors.expense }]}>
+                                        {LOAN_STATUS_LABEL[sh.loanStatus]}
+                                    </Text>
+                                )}
+                                {typeof sh.revenueGrowthPct === 'number' && (
+                                    <Text style={[s.rowMetric, { color: sh.revenueGrowthPct >= 0 ? Colors.income : Colors.expense }]}>
+                                        Revenue {sh.revenueGrowthPct >= 0 ? '+' : ''}{sh.revenueGrowthPct.toFixed(0)}% since funding
+                                    </Text>
+                                )}
                             </View>
                         </>
                     }
@@ -464,6 +601,21 @@ function PortfolioTab({ isLenderDemo }: { isLenderDemo: boolean }) {
                 </ExpandableCard>
             ))}
         </ScrollView>
+    );
+}
+
+function ConcentrationRow({ group }: { group: LenderConcentrationGroup }) {
+    const color = CONCENTRATION_RISK_COLOR[group.risk];
+    return (
+        <View style={s.concentrationRow}>
+            <View style={{ flex: 1 }}>
+                <Text style={s.concentrationLabel} numberOfLines={1}>{group.label}</Text>
+                <Text style={s.concentrationMeta}>{group.loanCount} loan{group.loanCount === 1 ? '' : 's'} · ~{group.currency}{fmtAmt(group.estimatedAmount)}</Text>
+            </View>
+            <View style={[s.concentrationBadge, { backgroundColor: color + '22' }]}>
+                <Text style={[s.concentrationBadgeText, { color }]}>{group.percentage.toFixed(0)}%</Text>
+            </View>
+        </View>
     );
 }
 
@@ -664,6 +816,28 @@ const s = StyleSheet.create({
     amountInput: { borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 12.5, color: Colors.textPrimary, backgroundColor: Colors.bg },
 
     resultCount: { fontSize: 12, color: Colors.textMuted, marginBottom: 10 },
+
+    worsenedBanner: {
+        flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: Colors.expense + '15',
+        borderRadius: Radius.md, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: Colors.expense + '33',
+    },
+    worsenedBannerTitle: { fontSize: 12.5, fontWeight: '800', color: Colors.expense, marginBottom: 2 },
+    worsenedBannerText: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16 },
+
+    outcomesCard: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    outcomesTitle: { fontSize: 13.5, fontWeight: '800', color: Colors.textPrimary, marginBottom: 10 },
+    outcomesRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+    outcomeStat: { flex: 1, alignItems: 'center', backgroundColor: Colors.bg, borderRadius: Radius.sm, paddingVertical: 10 },
+    outcomeStatValue: { fontSize: 18, fontWeight: '800', color: Colors.textPrimary },
+    outcomeStatLabel: { fontSize: 10.5, color: Colors.textMuted, marginTop: 2 },
+    outcomesCaption: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16, marginBottom: 4 },
+
+    concentrationSubhead: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 10, marginBottom: 6 },
+    concentrationRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, borderTopWidth: 1, borderTopColor: Colors.border, gap: 8 },
+    concentrationLabel: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
+    concentrationMeta: { fontSize: 10.5, color: Colors.textMuted, marginTop: 1 },
+    concentrationBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.pill },
+    concentrationBadgeText: { fontSize: 11, fontWeight: '800' },
 
     emptyState: { alignItems: 'center', paddingVertical: 40, gap: 8 },
     emptyText: { fontSize: 12.5, color: Colors.textMuted },
