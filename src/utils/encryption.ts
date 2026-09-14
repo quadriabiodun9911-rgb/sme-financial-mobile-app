@@ -25,6 +25,7 @@ export const ENCRYPTED_FIELDS = {
     goals: ['targetAmount', 'currentAmount', 'name'],
     loans: ['amount', 'interestRate', 'lenderName'],
     budgets: ['amount', 'spent', 'name'],
+    bills: ['vendorName', 'subtotal', 'taxTotal', 'total'],
 };
 
 interface EncryptionMetadata {
@@ -276,6 +277,55 @@ export function decryptInvoice(
     const decrypted = { ...encrypted };
 
     const fieldsToEncrypt = ENCRYPTED_FIELDS.invoices;
+    for (const field of fieldsToEncrypt) {
+        const encryptedField = `${field}_encrypted`;
+        if (encryptedField in decrypted && decrypted[encryptedField]) {
+            const value = decryptValue(decrypted[encryptedField], key);
+            if (value) {
+                decrypted[field] = isNaN(Number(value)) ? value : Number(value);
+            }
+        }
+    }
+
+    const { encrypted: _, version: __, timestamp: ___, ...cleanDecrypted } = decrypted;
+    return cleanDecrypted;
+}
+
+/**
+ * Encrypt sensitive fields in a vendor bill object
+ */
+export function encryptBill(
+    bill: Record<string, any>,
+    key: string,
+): Record<string, any> & EncryptionMetadata {
+    const encrypted = { ...bill };
+
+    const fieldsToEncrypt = ENCRYPTED_FIELDS.bills;
+    for (const field of fieldsToEncrypt) {
+        if (field in encrypted && encrypted[field] != null) {
+            encrypted[`${field}_encrypted`] = encryptValue(encrypted[field], key);
+            delete encrypted[field];
+        }
+    }
+
+    return {
+        ...encrypted,
+        encrypted: true,
+        version: 1,
+        timestamp: Date.now(),
+    };
+}
+
+/**
+ * Decrypt sensitive fields in a vendor bill object
+ */
+export function decryptBill(
+    encrypted: Record<string, any> & EncryptionMetadata,
+    key: string,
+): Record<string, any> {
+    const decrypted = { ...encrypted };
+
+    const fieldsToEncrypt = ENCRYPTED_FIELDS.bills;
     for (const field of fieldsToEncrypt) {
         const encryptedField = `${field}_encrypted`;
         if (encryptedField in decrypted && decrypted[encryptedField]) {

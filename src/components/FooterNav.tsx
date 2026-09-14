@@ -78,6 +78,7 @@ const UNDERSTAND_ITEMS: { label: string; icon: IconName; screen: Screen; color: 
     { label: 'Inventory',      icon: 'package',       screen: 'inventory',      color: '#f59e0b', desc: 'Stock levels & margins' },
     { label: 'Assets',         icon: 'briefcase',     screen: 'assets',         color: '#0ea5e9', desc: 'What you own & what it\'s worth' },
     { label: 'Loans',          icon: 'percent',       screen: 'loans',          color: '#f97316', desc: 'What you owe & repayment status' },
+    { label: 'Vendor Bills',   icon: 'inbox',         screen: 'bills',          color: '#c026d3', desc: 'Collect, review & record supplier invoices' },
     { label: 'Payroll',        icon: 'users',         screen: 'payroll',        color: '#10b981', desc: 'Staff & monthly pay runs' },
     { label: 'Reconciliation', icon: 'link-2',        screen: 'reconciliation', color: '#8b5cf6', desc: 'Confirm the numbers above match your bank' },
 ];

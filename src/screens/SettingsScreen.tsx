@@ -88,7 +88,7 @@ export default function SettingsScreen() {
         language, setLanguage,
         transactions, user, updateProfile,
         finance, assets, loans, isDemoMode,
-        invoices, inventory, goals, budgets,
+        invoices, bills, inventory, goals, budgets,
     } = useApp() as ReturnType<typeof useApp>;
 
     // Drives the Data & Backup card below -- it must never claim data is
@@ -96,8 +96,8 @@ export default function SettingsScreen() {
     // in the account (see DataIntegrityScreen). Skipped in demo mode, whose
     // sample data was never encrypted and would always read as broken.
     const integrityIssueCount = useMemo(
-        () => isDemoMode ? 0 : auditDataIntegrity({ transactions, invoices, assets, inventory, goals, loans, budgets }).length,
-        [isDemoMode, transactions, invoices, assets, inventory, goals, loans, budgets]
+        () => isDemoMode ? 0 : auditDataIntegrity({ transactions, invoices, bills, assets, inventory, goals, loans, budgets }).length,
+        [isDemoMode, transactions, invoices, bills, assets, inventory, goals, loans, budgets]
     );
 
     // Feature flags
@@ -238,6 +238,9 @@ export default function SettingsScreen() {
         }
         if (form.openingLiabilities && isNaN(parseFloat(form.openingLiabilities))) {
             showAlert('Invalid value', 'Opening liabilities must be a number.'); return;
+        }
+        if (form.billFlagThreshold && (isNaN(parseFloat(form.billFlagThreshold)) || parseFloat(form.billFlagThreshold) < 0)) {
+            showAlert('Invalid value', 'Bill flag threshold must be a non-negative number, or left blank.'); return;
         }
         if (phone.trim() && !/^\+?[\d\s\-().]{7,20}$/.test(phone.trim())) {
             showAlert('Invalid phone', 'Enter your number with country code, e.g. +1 555 000 1234 (USA), +44 7700 900123 (UK), +234 801 234 5678 (Nigeria).'); return;
@@ -818,6 +821,12 @@ export default function SettingsScreen() {
                             <TextInput style={styles.input} value={form.targetMargin}
                                 onChangeText={v => setForm((f: typeof form) => ({ ...f, targetMargin: v }))}
                                 keyboardType="numeric" placeholder="65" placeholderTextColor={Colors.muted} />
+
+                            <FieldLabel>Flag vendor bills above ({form.currency})</FieldLabel>
+                            <Text style={styles.hint}>A captured bill at or above this amount gets flagged for a second look before it's recorded. Leave blank to turn this off.</Text>
+                            <TextInput style={styles.input} value={form.billFlagThreshold ?? ''}
+                                onChangeText={v => setForm((f: typeof form) => ({ ...f, billFlagThreshold: v }))}
+                                keyboardType="numeric" placeholder="e.g. 500000" placeholderTextColor={Colors.muted} />
                         </Section>
 
                         <Section title="Tax Settings">

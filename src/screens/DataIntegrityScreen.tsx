@@ -12,8 +12,8 @@ import { canWriteBusinessData } from '../utils/rolePermissions';
 
 export default function DataIntegrityScreen() {
     const {
-        transactions, invoices, assets, inventory, goals, loans, budgets,
-        deleteTransaction, deleteInvoice, deleteAsset, deleteInventoryItem, deleteGoal, deleteLoan, deleteBudget,
+        transactions, invoices, bills, assets, inventory, goals, loans, budgets,
+        deleteTransaction, deleteInvoice, deleteBill, deleteAsset, deleteInventoryItem, deleteGoal, deleteLoan, deleteBudget,
         userRole,
     } = useApp();
     // 'viewer'/'external_accountant' can open Data Integrity
@@ -25,14 +25,15 @@ export default function DataIntegrityScreen() {
     const [version, setVersion] = useState(0); // bump to force re-audit after a delete
 
     const issues = useMemo(
-        () => auditDataIntegrity({ transactions, invoices, assets, inventory, goals, loans, budgets }),
+        () => auditDataIntegrity({ transactions, invoices, bills, assets, inventory, goals, loans, budgets }),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [transactions, invoices, assets, inventory, goals, loans, budgets, version]
+        [transactions, invoices, bills, assets, inventory, goals, loans, budgets, version]
     );
 
     const deleters: Record<IntegrityEntityType, (id: string) => void> = {
         transactions: deleteTransaction,
         invoices: deleteInvoice,
+        bills: deleteBill,
         assets: deleteAsset,
         inventory: deleteInventoryItem,
         goals: deleteGoal,

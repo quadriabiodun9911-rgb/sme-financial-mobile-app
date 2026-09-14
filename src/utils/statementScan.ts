@@ -13,6 +13,7 @@
  */
 
 import { supabase } from './supabase';
+import { InvoiceLineItem } from '../types';
 
 export type ScannedDirection = 'income' | 'expense';
 
@@ -23,10 +24,30 @@ export interface ScannedTransaction {
     direction:   ScannedDirection;
 }
 
+// Only present when documentType is 'invoice' AND the edge function
+// identified it as a vendor bill reaching this business, not one this
+// business issued -- see statement-scan/index.ts's system prompt. Every
+// field is optional for the same "never guess a value" reason
+// ScannedTransaction's own fields aren't: a scanned document is often
+// partially illegible, and BillsScreen's own flags (missing_info) are what
+// surface that to the person reviewing it, not a fabricated placeholder.
+export interface ScannedBillDetails {
+    vendorName?:     string;
+    invoiceNumber?:  string;
+    invoiceDate?:    string;
+    dueDate?:        string;
+    subtotal?:       number;
+    taxTotal?:       number;
+    total?:          number;
+    currency?:       string;
+    lineItems?:      InvoiceLineItem[];
+}
+
 export interface ScanResult {
     documentType:  'bank_statement' | 'receipt' | 'invoice' | 'unknown';
     transactions:  ScannedTransaction[];
     warning?:      string;
+    billDetails?:  ScannedBillDetails;
 }
 
 export type ScanMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' | 'application/pdf';
@@ -64,5 +85,6 @@ export async function scanStatementImage(base64: string, mediaType: ScanMediaTyp
         documentType: data?.documentType ?? 'unknown',
         transactions: rawTransactions.filter(isScannedTransaction),
         warning:      typeof data?.warning === 'string' ? data.warning : undefined,
+        billDetails:  data?.billDetails && typeof data.billDetails === 'object' ? data.billDetails as ScannedBillDetails : undefined,
     };
 }

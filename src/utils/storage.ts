@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CryptoJS from 'crypto-js';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, FxRateSnapshot } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, Bill, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, FxRateSnapshot } from '../types';
 import { supabase } from './supabase';
 import {
     savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData, saveAuthSecretSecurely, loadAuthSecretSecurely, clearAuthSecretSecurely,
@@ -10,7 +10,7 @@ import { enqueue } from './syncQueue';
 import {
     getFieldEncryptionKey, encryptGoal, decryptGoal, encryptLoan, decryptLoan, encryptBudget, decryptBudget,
     encryptTransaction, decryptTransaction, encryptInvoice, decryptInvoice, encryptAsset, decryptAsset,
-    encryptInventoryItem, decryptInventoryItem, deriveFieldEncryptionKey, generateEncryptionKey, setEncryptionKey,
+    encryptInventoryItem, decryptInventoryItem, encryptBill, decryptBill, deriveFieldEncryptionKey, generateEncryptionKey, setEncryptionKey,
 } from './encryption';
 
 // Corrupt/partial storage must never crash a loader — parse defensively.
@@ -27,6 +27,7 @@ const KEYS = {
     pin:            '@quad360/pin',
     profile:        '@quad360/profile',
     invoices:       '@quad360/invoices',
+    bills:          '@quad360/bills',
     workspaceOwner: '@quad360/workspaceOwner',
     language:       '@quad360/language',
     assets:         '@quad360/assets',
@@ -397,6 +398,74 @@ export async function loadInvoices(): Promise<Invoice[] | null> {
     }
     const raw = await AsyncStorage.getItem(KEYS.invoices);
     return safeParse<Invoice[]>(raw);
+}
+
+// ─── Vendor Bills ───────────────────────────────────────────────────────────────
+export async function saveBills(bills: Bill[]): Promise<void> {
+    await AsyncStorage.setItem(KEYS.bills, JSON.stringify(bills));
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    const changed = diffChangedRows('bills', bills);
+    try {
+        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+        const rows = changed.length > 0 ? changed.map(b => ({
+            id: b.id, user_id: ownerId,
+            data: encKey ? encryptBill(b as unknown as Record<string, any>, encKey) : b,
+            updated_at: new Date().toISOString(),
+        })) : [];
+
+        const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
+            rows.length > 0 ? supabase.from('bills').upsert(rows, { onConflict: 'id' }) : Promise.resolve({ error: null }),
+            supabase.from('bills').select('id').eq('user_id', ownerId),
+        ]);
+
+        if (upsertResult.error) {
+            logSyncError('bills', 'upsert', upsertResult.error);
+        } else {
+            recordSyncedRows('bills', bills);
+        }
+        if (fetchErr) { logSyncError('bills', 'select', fetchErr); return; }
+
+        if (remote && remote.length > 0) {
+            const localIds = new Set(bills.map(b => b.id));
+            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+            if (toDelete.length > 0) {
+                const { error: delErr } = await supabase.from('bills').delete().in('id', toDelete);
+                if (delErr) logSyncError('bills', 'delete', delErr);
+            }
+        }
+    } catch (e) {
+        logSyncError('bills', 'sync', e);
+        const rows = bills.map(b => ({ id: b.id, user_id: ownerId, data: b, updated_at: new Date().toISOString() }));
+        await enqueue({ table: 'bills', op: 'upsert', rows, userId: ownerId });
+    }
+}
+
+export async function loadBills(): Promise<Bill[] | null> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (ownerId) {
+        try {
+            const { data, error } = await supabase
+                .from('bills')
+                .select('data')
+                .eq('user_id', ownerId)
+                .order('updated_at', { ascending: false });
+            if (error) { logSyncError('bills', 'load', error); }
+            else if (data && data.length > 0) {
+                const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+                const list = data.map(r => {
+                    const raw = r.data as Record<string, any>;
+                    return (encKey && raw?.encrypted ? decryptBill(raw as any, encKey) : raw) as Bill;
+                });
+                await AsyncStorage.setItem(KEYS.bills, JSON.stringify(list));
+                return list;
+            }
+        } catch (e) {
+            logSyncError('bills', 'load', e);
+        }
+    }
+    const raw = await AsyncStorage.getItem(KEYS.bills);
+    return safeParse<Bill[]>(raw);
 }
 
 // ─── Assets ───────────────────────────────────────────────────────────────────

@@ -56,7 +56,16 @@ Rules:
 - Skip non-transaction lines: running/opening/closing balance summaries, headers, footers, account numbers, page numbers.
 - "amount" is always a positive number; put the direction (money in vs out) in "direction".
 - "date" should be YYYY-MM-DD. If the year isn't printed on the page, infer it from context (e.g. a visible statement period) rather than guessing a specific day wrong; if you truly cannot determine a date, use today's date and mention it in "warning".
-- If the image contains no legible transactions at all, return an empty transactions array and explain why in "warning".`;
+- If the image contains no legible transactions at all, return an empty transactions array and explain why in "warning".
+
+If, and only if, documentType is "invoice" AND the document is a VENDOR bill
+reaching this business (an invoice addressed TO this business FROM a
+supplier -- not an invoice this business is sending to one of ITS OWN
+customers), also fill in "billDetails" with whatever of vendorName,
+invoiceNumber, invoiceDate, dueDate, subtotal, taxTotal, total, currency and
+lineItems you can actually read. Same discipline as everything else here:
+omit a field entirely rather than guess it, and leave "billDetails" out
+altogether if you can't tell which direction the invoice runs.`;
 
 const EXTRACT_TOOL = {
   name: 'extract_transactions',
@@ -84,6 +93,33 @@ const EXTRACT_TOOL = {
       warning: {
         type: 'string',
         description: 'Any caveat about image quality, illegible rows, or uncertain dates. Omit if none.',
+      },
+      billDetails: {
+        type: 'object',
+        description: 'Only when documentType is "invoice" and it is a vendor bill reaching this business (not one this business issued). Omit any field you cannot actually read; omit the whole object if the direction is unclear.',
+        properties: {
+          vendorName: { type: 'string' },
+          invoiceNumber: { type: 'string' },
+          invoiceDate: { type: 'string', description: 'YYYY-MM-DD' },
+          dueDate: { type: 'string', description: 'YYYY-MM-DD' },
+          subtotal: { type: 'number' },
+          taxTotal: { type: 'number' },
+          total: { type: 'number' },
+          currency: { type: 'string', description: 'The currency symbol or code as printed on the document' },
+          lineItems: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                description: { type: 'string' },
+                quantity: { type: 'number' },
+                unitPrice: { type: 'number' },
+                taxRate: { type: 'number' },
+              },
+              required: ['description'],
+            },
+          },
+        },
       },
     },
     required: ['documentType', 'transactions'],
@@ -171,11 +207,13 @@ Deno.serve(async (req: Request) => {
 
     const input = toolUse.input ?? {};
     const transactions = Array.isArray(input.transactions) ? input.transactions.slice(0, MAX_TRANSACTIONS) : [];
+    const billDetails = input.billDetails && typeof input.billDetails === 'object' ? input.billDetails : undefined;
 
     return json({
       documentType: input.documentType ?? 'unknown',
       transactions,
       warning: typeof input.warning === 'string' ? input.warning : undefined,
+      billDetails,
     }, 200);
   } catch (e) {
     console.error('[statement-scan]', e);
