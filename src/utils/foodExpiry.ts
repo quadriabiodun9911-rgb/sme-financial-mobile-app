@@ -9,17 +9,32 @@
  * yesterday and expiring tomorrow can be moving perfectly normally and
  * still be the single most urgent thing on the shelf.
  *
+ * Batch-aware: a business that restocks the same product more than once can
+ * have several purchase lots on the shelf at once, each with its own real
+ * expiry date -- an older lot can be about to spoil while a newer one just
+ * bought is fine. This iterates InventoryItem.batches (via
+ * inventoryCosting.getEffectiveBatches, so an item with no batches yet still
+ * gets one accurate result synthesized from its own quantity/cost/expiry)
+ * rather than treating "the item" as having one expiry date and one value,
+ * so a single item can appear more than once here -- once per batch that's
+ * expired or expiring soon -- each with its own accurate days-left and
+ * value-at-risk.
+ *
  * Only ever computed from a real expiryDate the owner entered themselves
- * (InventoryItem.expiryDate) -- never inferred or estimated, matching
- * this app's "no fabricated data" discipline everywhere else.
+ * (on the item, or per Stock In once batches exist) -- never inferred or
+ * estimated, matching this app's "no fabricated data" discipline everywhere
+ * else.
  */
 
 import { InventoryItem } from '../types';
+import { getEffectiveBatches } from './inventoryCosting';
 
 export interface ExpiringItem {
     item: InventoryItem;
-    daysUntilExpiry: number; // negative = already past its expiry date
-    valueAtRisk: number;     // quantity * costPrice -- what's lost if it's thrown out
+    batchId: string;
+    daysUntilExpiry: number;  // negative = already past its expiry date
+    remainingQuantity: number;
+    valueAtRisk: number;      // remainingQuantity * this batch's own cost -- what's lost if it's thrown out
 }
 
 export interface ExpiringStockResult {
@@ -42,16 +57,18 @@ export function computeExpiringStock(inventory: InventoryItem[], now: Date = new
     const itemsExpiringSoon: ExpiringItem[] = [];
 
     for (const item of inventory) {
-        if (!item.expiryDate || item.quantity <= 0) continue;
-        const expiry = new Date(item.expiryDate + 'T00:00:00');
-        if (isNaN(expiry.getTime())) continue;
+        for (const batch of getEffectiveBatches(item)) {
+            if (!batch.expiryDate || batch.remainingQuantity <= 0) continue;
+            const expiry = new Date(batch.expiryDate + 'T00:00:00');
+            if (isNaN(expiry.getTime())) continue;
 
-        const daysUntilExpiry = daysBetween(now, expiry);
-        const valueAtRisk = item.quantity * (item.costPrice ?? 0);
-        const entry: ExpiringItem = { item, daysUntilExpiry, valueAtRisk };
+            const daysUntilExpiry = daysBetween(now, expiry);
+            const valueAtRisk = batch.remainingQuantity * (batch.costPrice ?? 0);
+            const entry: ExpiringItem = { item, batchId: batch.id, daysUntilExpiry, remainingQuantity: batch.remainingQuantity, valueAtRisk };
 
-        if (daysUntilExpiry < 0) itemsExpired.push(entry);
-        else if (daysUntilExpiry <= WARNING_WINDOW_DAYS) itemsExpiringSoon.push(entry);
+            if (daysUntilExpiry < 0) itemsExpired.push(entry);
+            else if (daysUntilExpiry <= WARNING_WINDOW_DAYS) itemsExpiringSoon.push(entry);
+        }
     }
 
     // Most urgent first within each list -- already-expired sorted by how

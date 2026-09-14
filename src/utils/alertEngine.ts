@@ -10,6 +10,7 @@ import { nextRecurringDueDate, daysUntilRecurringDue, isRecurringTransactionOver
 import { isBudgetPeriodLapsed, currentPeriodString } from './budgetPeriod';
 import { computeAssetsNearingReplacement, computeAssetCurrentValue } from './finance';
 import { computeStockVelocity } from './stockVelocity';
+import { computeExpiringStock } from './foodExpiry';
 import { computeTaxAbilityToPay } from './taxFilingReadiness';
 import { localDateStr } from './localDate';
 
@@ -161,6 +162,11 @@ export class AlertEngine {
     // Dead-slow inventory tying up cash for far longer than needed
     const slowMovingAlerts = this.detectSlowMovingInventoryAlerts();
     alerts.push(...slowMovingAlerts);
+
+    // Perishable stock already spoiled, or about to -- the one inventory
+    // risk that isn't just cash tied up, but a total write-off if missed
+    const expiringStockAlerts = this.detectExpiringInventoryAlerts();
+    alerts.push(...expiringStockAlerts);
 
     // Cash on hand won't cover tax already collected but not yet remitted
     const taxAbilityToPayAlert = this.detectTaxAbilityToPayAlert();
@@ -746,6 +752,54 @@ export class AlertEngine {
         description: velocity.summary,
         amount: item.quantity * (item.costPrice ?? 0),
         recommendations: ['Consider a discount or bundle to free up the cash tied up in this stock'],
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    return alerts;
+  }
+
+  /**
+   * Perishable stock that's already expired, or expiring within
+   * foodExpiry's own warning window (computeExpiringStock, foodExpiry.ts --
+   * shared with the Inventory screen's own "Expiring Stock" card, so the
+   * two never disagree on what counts as urgent). Previously this was only
+   * ever visible by opening Inventory -> Analytics and scrolling to it --
+   * unlike stockout-risk and slow-moving above, it never reached the
+   * Dashboard's alert widget or WhatsApp, so a business had no way to be
+   * told about stock about to become a total write-off unless they went
+   * looking. One alert per expiring/expired BATCH, not per item -- a
+   * business that's restocked the same product more than once can have an
+   * old lot about to spoil while a newer one is fine, and each deserves its
+   * own urgency and value-at-risk rather than being averaged away.
+   */
+  private detectExpiringInventoryAlerts(): ForecastAlert[] {
+    const { itemsExpired, itemsExpiringSoon } = computeExpiringStock(this.inventory);
+    const alerts: ForecastAlert[] = [];
+
+    for (const e of itemsExpired) {
+      const daysAgo = Math.abs(e.daysUntilExpiry);
+      alerts.push({
+        id: `alert-inventory-expired-${e.item.id}-${e.batchId}`,
+        type: 'inventory_expired',
+        priority: 'high',
+        title: `🔴 Already Expired — ${e.item.name}`,
+        description: `${e.remainingQuantity} ${e.item.unit} of "${e.item.name}" expired ${daysAgo} day${daysAgo === 1 ? '' : 's'} ago and is now a write-off, not just unsold stock.`,
+        amount: e.valueAtRisk,
+        recommendations: ['Remove it from sale and write it off before it\'s sold or counted as good stock'],
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    for (const e of itemsExpiringSoon) {
+      alerts.push({
+        id: `alert-inventory-expiring-soon-${e.item.id}-${e.batchId}`,
+        type: 'inventory_expiring_soon',
+        priority: e.daysUntilExpiry <= 1 ? 'high' : 'medium',
+        title: `🟡 Expiring Soon — ${e.item.name}`,
+        description: `${e.remainingQuantity} ${e.item.unit} of "${e.item.name}" ${e.daysUntilExpiry === 0 ? 'expires today' : `expires in ${e.daysUntilExpiry} day${e.daysUntilExpiry === 1 ? '' : 's'}`} -- ${this.currency}${Math.round(e.valueAtRisk).toLocaleString()} at risk of becoming a total write-off.`,
+        amount: e.valueAtRisk,
+        recommendations: ['Discount or push this stock now, before it expires unsold'],
         createdAt: new Date().toISOString(),
       });
     }

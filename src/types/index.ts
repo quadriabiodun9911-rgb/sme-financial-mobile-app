@@ -468,12 +468,27 @@ export interface InventoryItem {
     category: string;
     quantity: number;
     unit: string; // 'pcs', 'kg', 'litres', etc.
-    // Weighted-average cost per unit across everything currently in stock --
-    // not simply "what the last purchase cost". Stock In (see
-    // inventoryCosting.applyStockIn) blends this with each new purchase's
-    // cost, proportionally to quantity, so it stays a true average cost
-    // rather than snapping to whatever was bought most recently.
+    // The weighted-average cost of every unit CURRENTLY in stock, kept in
+    // sync with `batches` below (recomputed via
+    // inventoryCosting.recomputeCostPrice any time batches change) rather
+    // than being its own independent source of truth. Every existing
+    // consumer of this field (margin displays, credit scoring, risk
+    // exposure -- see inventoryCosting.ts's own comment for the full list)
+    // keeps reading `quantity * costPrice` for "inventory value at cost"
+    // exactly as before; this invariant is what lets that keep working
+    // unchanged while `batches` underneath it does the real FIFO tracking.
     costPrice: number;
+    // Real purchase lots, oldest first, the actual source of truth for both
+    // cost and expiry once this feature ships -- see inventoryCosting.ts
+    // (getEffectiveBatches, addBatch, consumeFifo) and foodExpiry.ts.
+    // Absent/empty for an item that predates this feature or hasn't had a
+    // Stock In/Sell/Count since: getEffectiveBatches() synthesizes a single
+    // "opening batch" from this item's own quantity/costPrice/expiryDate in
+    // that case, so nothing needs an explicit one-time migration -- every
+    // mutating action (Stock In, Sell, Count, Edit) persists real batches
+    // back onto the item the first time it touches one.
+    batches?: InventoryBatch[];
+
     sellingPrice: number;  // what you sell for per unit
     // Reorder point -- kept as the pre-existing field name (renaming would
     // touch every screen/engine that already reads it) but shown to the
@@ -520,6 +535,22 @@ export interface PriceHistoryEntry {
     sellingPrice: number;
     costPrice: number;    // cost at the time of this price change
     reason?: string;
+}
+
+// One purchase lot of an InventoryItem -- created by Stock In (or a linked
+// bank-statement purchase), consumed oldest-first by a Sale (see
+// inventoryCosting.consumeFifo). Kept even once fully consumed
+// (remainingQuantity 0) as a purchase history record, same spirit as
+// priceHistory/stockCountHistory above.
+export interface InventoryBatch {
+    id: string;
+    quantity: number;          // originally received into this batch
+    remainingQuantity: number; // reduced as sales/count-shrinkage consume it
+    costPrice: number;         // this lot's own cost per unit -- never blended
+    expiryDate?: string;       // this lot's own expiry, if the business tracks it
+    supplier?: string;
+    purchaseDate: string;
+    createdAt: string;
 }
 
 export interface StockCountEntry {
