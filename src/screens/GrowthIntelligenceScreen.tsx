@@ -23,6 +23,8 @@ import {
     MonthlySnapshot,
 } from '../utils/profitability';
 import { computeCustomerMetrics } from '../utils/customerMetrics';
+import { computeWinbackList } from '../utils/customerWinback';
+import CustomerBroadcastModal from '../components/CustomerBroadcastModal';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 
@@ -388,22 +390,65 @@ function PerformersTab({ currency }: { currency: string }) {
 
 // ─── Customers Tab (CAC & Churn) ───────────────────────────────────────────────
 function CustomersTab({ currency }: { currency: string }) {
-    const { transactions } = useApp();
+    const { transactions, user } = useApp();
     const m = useMemo(() => computeCustomerMetrics(transactions), [transactions]);
+    const winback = useMemo(() => computeWinbackList(transactions), [transactions]);
+    const [broadcastOpen, setBroadcastOpen] = useState(false);
+
+    const latest = m.latestMonth;
+
+    // Win-back has its own, looser data gate (just 3 distinct customers,
+    // no 2-month requirement) than CAC/churn above -- a business new
+    // enough that churn/CAC can't be read yet can still have real lapsed
+    // customers worth listing, so this renders independently rather than
+    // being hidden behind m.hasEnoughData.
+    const winbackSection = winback.hasEnoughData && winback.customers.length > 0 && (
+        <View style={gs.tableCard}>
+            <View style={gs.wbHeaderRow}>
+                <Text style={gs.sectionTitle}>WIN-BACK LIST</Text>
+                <TouchableOpacity style={gs.broadcastBtn} onPress={() => setBroadcastOpen(true)}>
+                    <Icon name="send" size={12} color={Colors.primary} />
+                    <Text style={gs.broadcastBtnText}>Message Them</Text>
+                </TouchableOpacity>
+            </View>
+            <Text style={gs.wbSubtitle}>
+                Customers who've bought before but not in the last 60+ days, highest lifetime value first.
+            </Text>
+            {winback.customers.slice(0, 10).map(c => (
+                <View key={c.key} style={gs.wbRow}>
+                    <View style={gs.flex1}>
+                        <Text style={gs.wbName}>{c.name}</Text>
+                        <Text style={gs.wbSub}>{c.daysSinceLastPurchase} days since last order · {c.purchaseCount} order{c.purchaseCount === 1 ? '' : 's'} total</Text>
+                    </View>
+                    <Text style={gs.wbValue}>{fmt(c.totalRevenue, currency)}</Text>
+                </View>
+            ))}
+            {winback.customers.length > 10 && (
+                <Text style={gs.wbMore}>+ {winback.customers.length - 10} more</Text>
+            )}
+            <CustomerBroadcastModal
+                visible={broadcastOpen}
+                onClose={() => setBroadcastOpen(false)}
+                customers={winback.customers}
+                businessName={user?.businessName || ''}
+            />
+        </View>
+    );
 
     if (!m.hasEnoughData) {
         return (
-            <View style={gs.emptyBox}>
-                <View style={gs.emptyIconWrap}>
-                    <Icon name="users" size={44} color={Colors.textMuted} />
+            <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={gs.emptyBox}>
+                    <View style={gs.emptyIconWrap}>
+                        <Icon name="users" size={44} color={Colors.textMuted} />
+                    </View>
+                    <Text style={gs.emptyTitle}>Not enough customer data yet</Text>
+                    <Text style={gs.emptyBody}>{m.reason}</Text>
                 </View>
-                <Text style={gs.emptyTitle}>Not enough customer data yet</Text>
-                <Text style={gs.emptyBody}>{m.reason}</Text>
-            </View>
+                {winbackSection}
+            </ScrollView>
         );
     }
-
-    const latest = m.latestMonth!;
 
     return (
         <ScrollView showsVerticalScrollIndicator={false}>
@@ -411,14 +456,14 @@ function CustomersTab({ currency }: { currency: string }) {
             <View style={gs.momCard}>
                 <View style={gs.momRow}>
                     <View style={gs.momBox}>
-                        <Text style={gs.momLabel}>Churn Rate ({latest.month})</Text>
-                        <Text style={[gs.momVal, { color: latest.churnRate === null ? Colors.textMuted : latest.churnRate > 0.2 ? Colors.expense : Colors.income }]}>
-                            {latest.churnRate === null ? 'N/A' : `${Math.round(latest.churnRate * 100)}%`}
+                        <Text style={gs.momLabel}>Churn Rate ({latest!.month})</Text>
+                        <Text style={[gs.momVal, { color: latest!.churnRate === null ? Colors.textMuted : latest!.churnRate > 0.2 ? Colors.expense : Colors.income }]}>
+                            {latest!.churnRate === null ? 'N/A' : `${Math.round(latest!.churnRate * 100)}%`}
                         </Text>
                     </View>
                     <View style={gs.momBox}>
-                        <Text style={gs.momLabel}>CAC ({latest.month})</Text>
-                        <Text style={gs.momVal}>{latest.cac === null ? 'N/A' : fmt(latest.cac, currency)}</Text>
+                        <Text style={gs.momLabel}>CAC ({latest!.month})</Text>
+                        <Text style={gs.momVal}>{latest!.cac === null ? 'N/A' : fmt(latest!.cac, currency)}</Text>
                     </View>
                     <View style={gs.momBox}>
                         <Text style={gs.momLabel}>Avg CAC (12mo)</Text>
@@ -446,6 +491,8 @@ function CustomersTab({ currency }: { currency: string }) {
                     </View>
                 ))}
             </View>
+
+            {winbackSection}
 
             <View style={gs.focusCard}>
                 <Icon name="zap" size={20} color={Colors.primary} />
@@ -604,4 +651,16 @@ const gs = StyleSheet.create({
     emptyIconWrap: { marginBottom: 14 },
     emptyTitle:    { fontSize: 17, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.sm },
     emptyBody:     { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
+
+    // Win-back list
+    flex1:            { flex: 1 },
+    wbHeaderRow:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    wbSubtitle:        { fontSize: 11.5, color: Colors.textMuted, marginTop: 2, marginBottom: 10, lineHeight: 16 },
+    broadcastBtn:      { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 20, backgroundColor: Colors.primary + '15' },
+    broadcastBtnText:  { fontSize: 11.5, fontWeight: '700', color: Colors.primary },
+    wbRow:             { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 8 },
+    wbName:            { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    wbSub:             { fontSize: 10.5, color: Colors.textMuted, marginTop: 2 },
+    wbValue:           { fontSize: 13, fontWeight: '800', color: Colors.textPrimary },
+    wbMore:            { fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginTop: 8, fontStyle: 'italic' },
 });

@@ -38,3 +38,17 @@ export function entityKey(vendorCustomer: string | undefined | null): string | n
 export function entityDisplayName(vendorCustomer: string | undefined | null): string | null {
     return extractName(vendorCustomer);
 }
+
+// The phone number half of "Name | phone" (see TransactionsScreen's
+// joinVendorCustomer, the only writer of this format) -- null when absent,
+// never guessed. The one place this app can reach a customer directly (a
+// win-back nudge, a broadcast) without a separate Invoice.clientPhone
+// lookup, so it lives beside entityKey/entityDisplayName rather than being
+// re-parsed independently wherever it's needed.
+export function entityPhone(vendorCustomer: string | undefined | null): string | null {
+    if (!vendorCustomer) return null;
+    const idx = vendorCustomer.indexOf(' | ');
+    if (idx === -1) return null;
+    const phone = vendorCustomer.slice(idx + 3).trim();
+    return phone || null;
+}

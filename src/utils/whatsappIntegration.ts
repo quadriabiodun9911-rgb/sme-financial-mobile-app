@@ -207,17 +207,21 @@ const buildReportMessage = (title: string, summary: string): string => {
   return `📊 ${title}\n\n${summary}\n\nGenerated from Quad360 Financial Management`;
 };
 
+// ─── Helper: Build the platform-appropriate WhatsApp deep link ────────────
+const buildWhatsAppUrl = (phoneNumber: string, message: string): string | undefined => {
+  const formattedPhone = formatPhoneToE164(phoneNumber);
+  const encodedMessage = encodeURIComponent(message);
+  return Platform.select({
+    ios: `whatsapp://wa.me/${formattedPhone}?text=${encodedMessage}`,
+    android: `whatsapp://send?phone=${formattedPhone}&text=${encodedMessage}`,
+    default: `https://wa.me/${formattedPhone}?text=${encodedMessage}`,
+  });
+};
+
 // ─── Helper: Open WhatsApp with message ────────────────────────────────────
 const openWhatsAppWithMessage = (phoneNumber: string, message: string) => {
   try {
-    const formattedPhone = formatPhoneToE164(phoneNumber);
-    const encodedMessage = encodeURIComponent(message);
-
-    const url = Platform.select({
-      ios: `whatsapp://wa.me/${formattedPhone}?text=${encodedMessage}`,
-      android: `whatsapp://send?phone=${formattedPhone}&text=${encodedMessage}`,
-      default: `https://wa.me/${formattedPhone}?text=${encodedMessage}`,
-    });
+    const url = buildWhatsAppUrl(phoneNumber, message);
 
     if (url) {
       Linking.openURL(url).catch(() => {
@@ -242,6 +246,34 @@ export const openSupportChat = (supportNumber: string, prefillMessage?: string):
   const message = prefillMessage ?? 'Hi Quad360, I need help with my account.';
   openWhatsAppWithMessage(supportNumber, message);
   return true;
+};
+
+// ─── Send a promotional/win-back message to one customer ─────────────────
+// Every function above this one sends a fixed, system-generated message
+// (a reminder, a confirmation, a report) about something that already
+// happened. This is the one place the OWNER's own free-text message goes
+// out to a customer -- a promotion, a win-back nudge, an announcement.
+// wa.me only ever opens one conversation at a time (there is no bulk-send
+// API behind this), so a "broadcast" to several customers is this same
+// call made once per recipient, with the caller stepping through the list
+// -- see BroadcastModal (GrowthIntelligenceScreen.tsx) for that loop. This
+// function itself sends to exactly one number, honestly, rather than
+// implying a real bulk send it can't actually do.
+//
+// Returns a promise resolving only once Linking.openURL actually succeeds --
+// the caller (CustomerBroadcastModal) awaits this before marking a customer
+// "sent" and advancing, so a rejected launch (WhatsApp not installed, etc.)
+// is reported as a failure the owner can retry rather than a silent success.
+export const sendPromotionalMessageViaWhatsApp = async (customerPhone: string, message: string): Promise<boolean> => {
+  if (!customerPhone || !message.trim()) return false;
+  const url = buildWhatsAppUrl(customerPhone, message);
+  if (!url) return false;
+  try {
+    await Linking.openURL(url);
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 // ─── Send automated overdue invoice alert ─────────────────────────────────
