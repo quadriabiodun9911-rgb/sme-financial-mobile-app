@@ -793,14 +793,28 @@ export function getTopCategories(
 // linked transaction closes that gap without touching stored data; "Mark
 // Paid" on one of these still works because AgingReport's markPaid already
 // looks up `invoices.find(i => i.invoiceNumber === tx.reference)` first.
+//
+// A linked transaction only suppresses synthesis when IT is itself currently
+// pending/overdue (i.e. it's the thing actually representing this invoice's
+// debt in the aging buckets below) -- not merely "some transaction with this
+// reference exists". The two can drift: editing a linked transaction's
+// status directly from Transactions (bypassing markInvoiceStatus) flips the
+// transaction to 'paid' without touching the invoice's own stored status, so
+// effectiveInvoiceStatus(inv) still reads 'sent'/'overdue'. Checking for any
+// reference match regardless of status would then suppress synthesis while
+// the now-paid transaction itself fails the pending/overdue filter below --
+// the exact "silently vanishes from AR" bug this function exists to close,
+// just reached via transaction-side drift instead of a missing transaction.
 function unlinkedInvoiceReceivables(transactions: Transaction[], invoices: Invoice[]): Transaction[] {
     if (invoices.length === 0) return [];
-    const linkedInvoiceNumbers = new Set(
-        transactions.filter(t => t.type === 'income' && t.reference).map(t => t.reference)
+    const arEligibleInvoiceNumbers = new Set(
+        transactions
+            .filter(t => t.type === 'income' && t.reference && (t.status === 'pending' || t.status === 'overdue'))
+            .map(t => t.reference)
     );
     const receivables: Transaction[] = [];
     for (const inv of invoices) {
-        if (linkedInvoiceNumbers.has(inv.invoiceNumber)) continue;
+        if (arEligibleInvoiceNumbers.has(inv.invoiceNumber)) continue;
         const status = effectiveInvoiceStatus(inv);
         if (status !== 'sent' && status !== 'overdue') continue;
         receivables.push({

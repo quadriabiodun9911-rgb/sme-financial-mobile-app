@@ -79,4 +79,14 @@ describe('computeAgingBuckets — unlinked invoice receivables', () => {
         );
         expect(withLink.reduce((s, b) => s + b.total, 0)).toBe(198000);
     });
+
+    it('still surfaces the invoice when its linked transaction drifted to a non-AR status (e.g. marked paid directly from Transactions, bypassing markInvoiceStatus)', () => {
+        const invoices = [invoice({ invoiceNumber: 'INV-CN-056', dueDate: NOW_ISO_DUE, total: 198000, status: 'sent' })];
+        const transactions = [transaction({
+            type: 'income', status: 'paid', dueDate: NOW_ISO_DUE, amount: 198000, reference: 'INV-CN-056',
+        })];
+        const buckets = computeAgingBuckets(transactions, 'income', invoices);
+        const total = buckets.reduce((s, b) => s + b.total, 0);
+        expect(total).toBe(198000);
+    });
 });

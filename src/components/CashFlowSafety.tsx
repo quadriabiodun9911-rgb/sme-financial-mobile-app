@@ -4,6 +4,7 @@ import { Colors } from '../theme/colors';
 import { Radius, Shadow } from '../theme/tokens';
 import { FinanceData, Transaction, Invoice } from '../types';
 import { computeAgingBuckets } from '../utils/finance';
+import { localDateStr } from '../utils/localDate';
 import { computeCashRunway } from '../utils/cashRunway';
 import { generateCashFlowForecast } from '../utils/forecastEngine';
 import { buildForecastInput } from '../utils/alertEngine';
@@ -34,7 +35,10 @@ export default function CashFlowSafety({ finance, transactions, invoices, curren
     const surplusShortfall = finance.cashBalance - reserve;
     const coverageRatio = reserve > 0 ? finance.cashBalance / reserve : null;
 
-    const arBuckets = useMemo(() => computeAgingBuckets(transactions, 'income', invoices), [transactions, invoices]);
+    // See AgingReport.tsx's identical todayKey for why a synthesized invoice
+    // receivable's day-boundary staleness needs a dependency to invalidate on.
+    const todayKey = localDateStr();
+    const arBuckets = useMemo(() => computeAgingBuckets(transactions, 'income', invoices), [transactions, invoices, todayKey]);
     const apBuckets = useMemo(() => computeAgingBuckets(transactions, 'expense'), [transactions]);
 
     const totalAR = arBuckets.reduce((s, b) => s + b.total, 0);
