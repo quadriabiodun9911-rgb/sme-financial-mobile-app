@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PostFinancingStatus } from './postFinancingMonitor';
 import { PayrollReminderStatus } from './payrollReminders';
 import { TaxDeadlineStatus } from './taxDeadline';
 import { DailyBriefingResult } from './dailyBriefing';
@@ -477,6 +478,49 @@ export async function notifyExpiringInventory(expiredCount: number, expiringSoon
         });
 
         await AsyncStorage.setItem(KEYS.expiringInventoryId, Date.now().toString());
+    } catch {
+        // Fail silently
+    }
+}
+
+// Rank used only to tell "got worse" from "got better/unchanged" -- never
+// shown to the user, never persisted.
+const POST_FINANCING_STATUS_RANK: Record<PostFinancingStatus, number> = { healthy: 0, watch: 1, 'at-risk': 2 };
+
+// Post-Financing Monitor (postFinancingMonitor.ts) recomputes a loan's
+// status fresh on every render -- there's no scheduled job, so this is the
+// one place that actually remembers what the status was last time this
+// function ran, per loan, so it can tell a genuine transition from "still
+// at-risk, same as an hour ago" (which would otherwise notify every time
+// the Loans screen is simply opened). Deliberately WORSENING-only: an
+// improving loan is good news the monitor's own UI already shows, not
+// something that needs to interrupt the owner; the whole point of a push
+// here is "you may need to act," not "nice work."
+export async function notifyLoanRiskStatusChange(loanId: string, loanLabel: string, newStatus: PostFinancingStatus): Promise<void> {
+    try {
+        if (Platform.OS === 'web') return;
+
+        const key = `@quad360/notif_loan_risk_status_${loanId}`;
+        const prevStatus = await AsyncStorage.getItem(key) as PostFinancingStatus | null;
+        if (prevStatus === newStatus) return;
+        await AsyncStorage.setItem(key, newStatus);
+
+        // First time this loan has ever been checked -- nothing to compare
+        // against yet, and definitely not a "flip" worth interrupting for.
+        if (prevStatus === null) return;
+        if (POST_FINANCING_STATUS_RANK[newStatus] <= POST_FINANCING_STATUS_RANK[prevStatus]) return;
+
+        const title = newStatus === 'at-risk'
+            ? `Loan at risk ⚠️`
+            : `Loan needs a closer look 🟡`;
+        const body = newStatus === 'at-risk'
+            ? `"${loanLabel}" just moved to At Risk — talk to your lender before a payment is missed. Open Quad360 to see what changed.`
+            : `"${loanLabel}" is worth watching now. Open Quad360 to see what changed and what to do next.`;
+
+        await Notifications.scheduleNotificationAsync({
+            content: { title, body },
+            trigger: null,
+        });
     } catch {
         // Fail silently
     }

@@ -30,6 +30,7 @@ import { buildPostFinancingShareExport } from '../utils/lenderSummaryExport';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { loadActiveLenderOrganizations, LenderDirectoryEntry } from '../utils/lenderDirectory';
 import { publishLoanMonitoringShare, revokeLoanMonitoringShare } from '../utils/loanMonitoringShare';
+import { notifyLoanRiskStatusChange } from '../utils/notifications';
 import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
@@ -960,6 +961,18 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
         publishLoanMonitoringShare(loan, monitor, user?.businessName || 'Your Business', currency);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [monitor?.status, monitor?.readinessSinceFunding?.trend, monitor?.signals.map(s => s.tripped).join(','), loan.lenderOrgId, loan.shareWithLenderConsent]);
+
+    // Business-facing (Phase 1), regardless of lender consent -- the owner
+    // should hear about a worsening loan even if they've never linked a
+    // lender or opted into sharing at all. See notifyLoanRiskStatusChange's
+    // own comment for why this persists last-seen status itself rather than
+    // relying on this effect's dependency array (which only tells "changed
+    // since the last render," not "changed since the last time the owner
+    // had the app open").
+    useEffect(() => {
+        if (!monitor || isDemoMode) return;
+        notifyLoanRiskStatusChange(loan.id, loan.lenderName || loan.purpose || loan.id, monitor.status).catch(() => {});
+    }, [monitor?.status, loan.id, loan.lenderName, loan.purpose, isDemoMode]);
 
     const handleShareStatus = async () => {
         if (!monitor) return;
