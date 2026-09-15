@@ -16,6 +16,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Header from '../components/Header';
+import FooterNav from '../components/FooterNav';
 import Icon, { IconName } from '../components/ui/Icon';
 import DateInput from '../components/DateInput';
 import { showAlert, confirmAction } from '../utils/webAlert';
@@ -423,6 +424,7 @@ export default function BillsScreen() {
                     )}
                 </View>
             </ScrollView>
+            <FooterNav />
         </SafeAreaView>
     );
 }
