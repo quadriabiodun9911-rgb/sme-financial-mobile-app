@@ -154,8 +154,8 @@ export default function LandingScreen() {
                         Stop guessing.{'\n'}Start <Text style={[s.headlineAccent, display('italic')]}>understanding</Text> your business.
                     </Text>
                     <Text style={[s.subhead, isWide && s.subheadWide, body('regular')]}>
-                        Know your cash runway, identify financial risks, and discover what you can improve — in 60 seconds.
-                        Enter three numbers you already know and get an instant snapshot.
+                        Know if your business is really okay — before the cash runs out and it's too late to fix.
+                        Enter three numbers you already know and get the truth in under a minute.
                     </Text>
 
                     <View style={s.widgetWrap}>
@@ -163,7 +163,7 @@ export default function LandingScreen() {
                     </View>
 
                     <Text style={[s.northStar, isWide && s.northStarWide, body('bold')]}>
-                        Quad360 helps businesses save time, save money, gain clarity, and turn that recovered capacity into profitable growth.
+                        Built for owners with no accountant and no time for jargon — who just want to know: am I actually making money?
                     </Text>
 
                     <View style={s.ctaRow}>
