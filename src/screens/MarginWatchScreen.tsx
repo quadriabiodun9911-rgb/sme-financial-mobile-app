@@ -192,10 +192,20 @@ export default function MarginWatchScreen() {
                     >
                         <View style={s.affordRow}>
                             <View style={s.affordFigure}>
-                                <Text style={s.affordValue}>{fmt(cur, discretionary.discretionaryCash)}</Text>
+                                <Text style={[s.affordValue, discretionary.discretionaryCash <= 0 && { color: Colors.danger }]}>
+                                    {fmt(cur, discretionary.discretionaryCash)}
+                                </Text>
                                 <Text style={s.affordLabel}>actually free to spend, of {fmt(cur, discretionary.cashBalance)} in the bank</Text>
                             </View>
                         </View>
+                        {discretionary.discretionaryCash <= 0 && (
+                            <View style={s.warnBox}>
+                                <Icon name="alert-triangle" size={16} color={Colors.warning} />
+                                <Text style={s.warnText}>
+                                    Everything in the account is already committed to near-term costs, loan repayments and bills awaiting your review — there's nothing free to spend right now.
+                                </Text>
+                            </View>
+                        )}
                         <View style={s.commitList}>
                             <View style={s.commitRow}>
                                 <Text style={s.commitLabel}>Near-term operating costs (30 days)</Text>

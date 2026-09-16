@@ -625,16 +625,18 @@ export default function FinancingMarketplaceScreen() {
                         </Text>
                     )}
                     {capitalNeed.withinCapacity === false && (
-                        <Text style={s.assessmentWarn}>{capitalNeed.message}</Text>
-                    )}
-                    {gapDiagnosis?.available && gapDiagnosis.primaryCause && (
-                        <View style={s.gapCauseBox}>
-                            <Text style={s.gapCauseTitle}>
-                                Likely driver: {gapDiagnosis.primaryCause.label}
-                                {gapDiagnosis.recurring ? ' · recurring' : ''}
-                            </Text>
-                            <Text style={s.gapCauseDetail}>{gapDiagnosis.primaryCause.detail}</Text>
-                        </View>
+                        <>
+                            <Text style={s.assessmentWarn}>{capitalNeed.message}</Text>
+                            {gapDiagnosis?.available && gapDiagnosis.primaryCause && (
+                                <View style={s.gapCauseBox}>
+                                    <Text style={s.gapCauseTitle}>
+                                        Likely driver: {gapDiagnosis.primaryCause.label}
+                                        {gapDiagnosis.recurring ? ' · recurring' : ''}
+                                    </Text>
+                                    <Text style={s.gapCauseDetail}>{gapDiagnosis.primaryCause.detail}</Text>
+                                </View>
+                            )}
+                        </>
                     )}
                     {readinessDelta && readinessDelta.trend !== 'stable' && (
                         <Text style={[s.readinessTrend, { color: readinessDelta.trend === 'improving' ? Colors.income : Colors.expense }]}>
