@@ -77,7 +77,14 @@ export function computeHiddenGrowthRisk(
     const marginDeclining = flow.marginDeclinePts != null && flow.marginDeclinePts >= MARGIN_DECLINE_PP_THRESHOLD;
 
     const runwayNow = computeCashRunway(transactions, cashBalance, now);
-    const priorNow = new Date(now); priorNow.setDate(priorNow.getDate() - 30);
+    // computeCashRunway's own trailing window is [referenceDate - 30,
+    // referenceDate] inclusive on both ends -- shifting the reference date
+    // back by exactly 30 days would make that window's END (day -30)
+    // collide with runwayNow's window's START (also day -30), double
+    // -counting that one day's expenses in both burn figures. -31 keeps
+    // the two windows adjacent and non-overlapping, the same discipline
+    // computeFlowSignals' own current/prior windows already follow.
+    const priorNow = new Date(now); priorNow.setDate(priorNow.getDate() - 31);
     const runwayPrior = computeCashRunway(transactions, cashBalance, priorNow);
     const cashBurnWorsening = runwayNow.dailyBurn > 0 && runwayNow.dailyBurn > runwayPrior.dailyBurn;
 

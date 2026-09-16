@@ -172,7 +172,13 @@ export function computeFundingGapDiagnosis(
         if (primaryCause.cause === 'inventory' || primaryCause.cause === 'receivables') {
             recurring = true; // a 60+ day receivable or a 'slow' stock tier already implies this has sat unresolved a while
         } else {
-            const priorNow = new Date(now); priorNow.setDate(priorNow.getDate() - 30);
+            // -31, not -30: computeFlowSignals' own "current" window is
+            // [referenceDate - 30, referenceDate] inclusive on both ends,
+            // so shifting the reference date back by exactly 30 days would
+            // make ITS current window end (day -30) collide with the
+            // original current window's start (also day -30) -- double
+            // -counting that one day. -31 keeps the two non-overlapping.
+            const priorNow = new Date(now); priorNow.setDate(priorNow.getDate() - 31);
             const priorFlow = computeFlowSignals(transactions, priorNow);
             recurring = primaryCause.cause === 'margin'
                 ? (priorFlow.marginDeclinePts ?? 0) >= MARGIN_DECLINE_PP_THRESHOLD
