@@ -76,6 +76,7 @@ const UNDERSTAND_ITEMS: { label: string; icon: IconName; screen: Screen; color: 
     { label: 'Scoreboard',     icon: 'activity',      screen: 'scoreboard',     color: '#22d3ee', desc: 'Financial health at a glance' },
     { label: 'Cash Flow',      icon: 'droplet',       screen: 'cashflow',       color: '#3b82f6', desc: 'Runway & receivables risk' },
     { label: 'Inventory',      icon: 'package',       screen: 'inventory',      color: '#f59e0b', desc: 'Stock levels & margins' },
+    { label: 'Margin Watch',   icon: 'shield',        screen: 'margin-watch',   color: '#fb7185', desc: 'Supplier cost pressure, FX impact, discretionary cash & product cash efficiency' },
     { label: 'Assets',         icon: 'briefcase',     screen: 'assets',         color: '#0ea5e9', desc: 'What you own & what it\'s worth' },
     { label: 'Loans',          icon: 'percent',       screen: 'loans',          color: '#f97316', desc: 'What you owe & repayment status' },
     { label: 'Vendor Bills',   icon: 'inbox',         screen: 'bills',          color: '#c026d3', desc: 'Collect, review & record supplier invoices' },

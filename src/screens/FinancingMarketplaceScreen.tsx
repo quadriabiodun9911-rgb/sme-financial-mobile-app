@@ -12,6 +12,8 @@ import { computeRiskScore, computeDSCR, computeFinancingReadinessScore, RiskScor
 import { buildFinancingFitInput, rankFinancingProducts, FinancingFitResult, FinancingFitVerdict } from '../utils/financingFit';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { assessCapitalNeed, CAPITAL_PURPOSE_PRODUCT_TYPES } from '../utils/capitalNeedAssessment';
+import { computeFundingGapDiagnosis } from '../utils/fundingGapDiagnosis';
+import { computeCashRunway } from '../utils/cashRunway';
 import { computeReadinessDelta } from '../utils/readinessHistory';
 import { recommendFinancingTypes, FinancingRecommendation, buildFinancingProfileNarrative } from '../utils/financingRecommendation';
 import { computeCashFlowHealth } from '../utils/cashFlowHealth';
@@ -292,6 +294,23 @@ export default function FinancingMarketplaceScreen() {
     const capitalNeed = useMemo(
         () => assessCapitalNeed(requestedAmount, lendingCapacity.minAmount, lendingCapacity.maxAmount, currency),
         [requestedAmount, lendingCapacity.minAmount, lendingCapacity.maxAmount, currency],
+    );
+
+    // Why does the ask exceed capacity, not just that it does -- see
+    // fundingGapDiagnosis.ts. Only worth computing once there's an actual
+    // requested amount to measure a gap against. The operating buffer is a
+    // near-term (30-day) running-cost figure from the same dailyBurn engine
+    // Margin Watch's Discretionary Cash already uses -- so the gap reflects
+    // "enough to cover this AND keep operating," not just the bare ask.
+    const operatingBuffer = useMemo(
+        () => computeCashRunway(transactions, finance.cashBalance).dailyBurn * 30,
+        [transactions, finance.cashBalance],
+    );
+    const gapDiagnosis = useMemo(
+        () => requestedAmount !== undefined
+            ? computeFundingGapDiagnosis(transactions, invoices, inventory, finance.cashBalance, requestedAmount, operatingBuffer, currency)
+            : null,
+        [requestedAmount, transactions, invoices, inventory, finance.cashBalance, operatingBuffer, currency],
     );
 
     // A single-point score tells a lender nothing about direction -- this is
@@ -614,7 +633,18 @@ export default function FinancingMarketplaceScreen() {
                         </Text>
                     )}
                     {capitalNeed.withinCapacity === false && (
-                        <Text style={s.assessmentWarn}>{capitalNeed.message}</Text>
+                        <>
+                            <Text style={s.assessmentWarn}>{capitalNeed.message}</Text>
+                            {gapDiagnosis?.available && gapDiagnosis.primaryCause && (
+                                <View style={s.gapCauseBox}>
+                                    <Text style={s.gapCauseTitle}>
+                                        Likely driver: {gapDiagnosis.primaryCause.label}
+                                        {gapDiagnosis.recurring ? ' · recurring' : ''}
+                                    </Text>
+                                    <Text style={s.gapCauseDetail}>{gapDiagnosis.primaryCause.detail}</Text>
+                                </View>
+                            )}
+                        </>
                     )}
                     {readinessDelta && readinessDelta.trend !== 'stable' && (
                         <Text style={[s.readinessTrend, { color: readinessDelta.trend === 'improving' ? Colors.income : Colors.expense }]}>
@@ -817,6 +847,9 @@ const s = StyleSheet.create({
     assessmentLabel: { fontSize: 12.5, color: Colors.textSecondary, flex: 1 },
     assessmentValue: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, textAlign: 'right' },
     assessmentWarn: { fontSize: 12, color: Colors.warning, marginTop: 10, lineHeight: 16 },
+    gapCauseBox: { marginTop: 10, padding: 10, borderRadius: 8, backgroundColor: Colors.surfaceVariant },
+    gapCauseTitle: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
+    gapCauseDetail: { fontSize: 11.5, color: Colors.textMuted, marginTop: 3, lineHeight: 15 },
 
     amountLabel: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.sm },
     amountInput: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 10, fontSize: 14, color: Colors.textPrimary, backgroundColor: Colors.bg },

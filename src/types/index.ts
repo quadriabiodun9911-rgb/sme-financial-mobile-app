@@ -9,6 +9,7 @@ export type Screen =
     | 'goals'
     | 'invoices'
     | 'bills'
+    | 'margin-watch'
     | 'assets'
     | 'loans'
     | 'inventory'

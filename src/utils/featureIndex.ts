@@ -266,6 +266,12 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'invoices',
     },
     {
+        id: 'margin-watch', label: 'Margin Watch', icon: '🛡️',
+        description: 'Supplier cost pressure, FX purchase impact, discretionary cash, affordable stock, and which products convert to cash fastest',
+        keywords: ['inflation', 'margin', 'supplier price', 'cost pressure', 'affordable inventory', 'runway', 'product profitability', 'cash efficiency', 'working capital', 'fx', 'exchange rate', 'dollar', 'naira', 'discretionary cash'],
+        screen: 'margin-watch',
+    },
+    {
         id: 'assets', label: 'Assets', icon: '🏗️',
         description: 'Equipment and property register, with depreciation',
         keywords: ['equipment', 'depreciation', 'property'],
