@@ -40,10 +40,13 @@ describe('computeFxPurchaseImpact', () => {
 
     it('computes runway impact per scenario when cash context is given', () => {
         const txs = [tx({ amount: 30000, date: '2026-08-20', isRecurring: false })]; // dailyBurn = 1000/day
+        // Balance large enough that even the base-rate purchase doesn't
+        // overdraw the account -- otherwise both scenarios clamp to 0 and
+        // there's nothing left to compare (see the clamping test below).
         const result = computeFxPurchaseImpact(10000, 1000, {
             scenarioPcts: [0, 10],
             transactions: txs,
-            cashBalance: 2_000_000,
+            cashBalance: 20_000_000,
             now: NOW,
         });
 
@@ -51,5 +54,16 @@ describe('computeFxPurchaseImpact', () => {
         const worse = result.scenarios.find(s => s.ratePct === 10)!;
         // Higher rate -> more cash spent on the purchase -> less runway left.
         expect(worse.runwayDaysAfter).toBeLessThan(base.runwayDaysAfter!);
+    });
+
+    it('clamps runwayDaysAfter to 0 when the purchase would overdraw the balance, never negative', () => {
+        const txs = [tx({ amount: 30000, date: '2026-08-20', isRecurring: false })]; // dailyBurn = 1000/day
+        const result = computeFxPurchaseImpact(10000, 1500, {
+            scenarioPcts: [20], // 10000 * 1500 * 1.2 = 18,000,000 against a much smaller balance
+            transactions: txs,
+            cashBalance: 2_000_000,
+            now: NOW,
+        });
+        expect(result.scenarios[0].runwayDaysAfter).toBe(0);
     });
 });
