@@ -60,6 +60,7 @@ const FEATURE_ITEMS: { icon: IconName; title: string; desc: string }[] = [
     { icon: 'credit-card', title: 'Credit Worthiness', desc: "The Five C's of Credit, computed from real activity." },
     { icon: 'search', title: 'Financing Marketplace', desc: 'Matched to lenders who actually fit — not one blind application.' },
     { icon: 'smartphone', title: 'Quick Capture', desc: 'WhatsApp, voice notes, or a receipt photo — no typing required.' },
+    { icon: 'shield', title: 'Margin Watch', desc: 'Supplier price pressure, FX purchase impact, and hidden growth risk — surfaced before inflation quietly erodes your margin.' },
 ];
 
 const LENDER_STEPS: { icon: IconName; title: string; desc: string }[] = [
@@ -262,7 +263,7 @@ export default function LandingScreen() {
                 <View style={s.featureSection}>
                     <Text style={[s.sectionEyebrow, body('bold')]}>WHAT'S INSIDE</Text>
                     <Text style={[s.sectionTitle, display('semibold')]}>Built for how an SME actually runs</Text>
-                    <Text style={[s.sectionSubtitle, body('regular')]}>Eight tools working off one shared ledger, not eight disconnected apps that each need their own login.</Text>
+                    <Text style={[s.sectionSubtitle, body('regular')]}>{FEATURE_ITEMS.length} tools working off one shared ledger, not {FEATURE_ITEMS.length} disconnected apps that each need their own login.</Text>
                     <View style={[s.featureGrid, isWide && s.featureGridWide]}>
                         {FEATURE_ITEMS.map(item => (
                             <View key={item.title} style={[s.featureCard, isWide && s.featureCardWide]}>
