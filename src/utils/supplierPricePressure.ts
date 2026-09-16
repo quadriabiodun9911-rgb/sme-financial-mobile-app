@@ -20,6 +20,7 @@
  * anything about it -- one purchase has a cost, not a trend.
  */
 import { InventoryItem } from '../types';
+import { computeMarginPct } from './priceHistory';
 
 export interface SupplierPricePressureFlag {
     itemId: string;
@@ -31,6 +32,16 @@ export interface SupplierPricePressureFlag {
     earliestCost: number;
     latestCost: number;
     currentSellingPrice: number;
+    // "Your selling price hasn't changed, but your replacement cost has" --
+    // the same margin formula computeMarginPct already uses on the
+    // Inventory pricing tab, applied to the item's own before/after cost
+    // basis rather than a single point-in-time figure. marginAtOldCostPct
+    // pairs the earliest known selling price with the earliest cost (both
+    // from the same historical moment); marginAtReplacementCostPct pairs
+    // TODAY's selling price with the latest (replacement) cost -- the
+    // margin the next unit sold at the current price actually earns.
+    marginAtOldCostPct: number;
+    marginAtReplacementCostPct: number;
 }
 
 // Below this gap, normal rounding/timing noise between a cost update and a
@@ -71,6 +82,8 @@ export function detectSupplierPricePressure(items: InventoryItem[]): SupplierPri
             earliestCost: earliest.costPrice,
             latestCost: latest.costPrice,
             currentSellingPrice: item.sellingPrice,
+            marginAtOldCostPct: computeMarginPct(earliestPrice, earliest.costPrice),
+            marginAtReplacementCostPct: computeMarginPct(item.sellingPrice, latest.costPrice),
         });
     }
 

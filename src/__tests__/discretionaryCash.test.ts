@@ -35,7 +35,7 @@ describe('computeDiscretionaryCash', () => {
         const loans = [loan({ principal: 1_200_000, interestRate: 0, termMonths: 12 })]; // ~100000/mo at 0% interest
         const bills = [bill({ total: 50000 })];
 
-        const result = computeDiscretionaryCash(txs, 500000, loans, bills, NOW);
+        const result = computeDiscretionaryCash(txs, 500000, loans, bills, [], 0, NOW);
 
         expect(result.operatingCommitment).toBeCloseTo(30000, 0);
         expect(result.debtServiceCommitment).toBeCloseTo(100000, 0);
@@ -50,19 +50,39 @@ describe('computeDiscretionaryCash', () => {
             bill({ total: 999999, status: 'recorded' }),
             bill({ total: 999999, status: 'dismissed' }),
         ];
-        const result = computeDiscretionaryCash([], 500000, [], bills, NOW);
+        const result = computeDiscretionaryCash([], 500000, [], bills, [], 0, NOW);
         expect(result.pendingBillsCommitment).toBe(50000);
     });
 
     it('excludes inactive loans from debt service', () => {
         const loans = [loan({ status: 'paid_off' as Loan['status'] })];
-        const result = computeDiscretionaryCash([], 500000, loans, [], NOW);
+        const result = computeDiscretionaryCash([], 500000, loans, [], [], 0, NOW);
         expect(result.debtServiceCommitment).toBe(0);
     });
 
     it('never returns negative discretionary cash -- floors at 0', () => {
         const bills = [bill({ total: 10_000_000 })];
-        const result = computeDiscretionaryCash([], 500000, [], bills, NOW);
+        const result = computeDiscretionaryCash([], 500000, [], bills, [], 0, NOW);
         expect(result.discretionaryCash).toBe(0);
+    });
+
+    it('adds back near-term (not seriously overdue) receivables', () => {
+        const notOverdue = tx({ type: 'income', status: 'pending', date: '2026-09-01', dueDate: '2026-09-20', amount: 200000 });
+        const result = computeDiscretionaryCash([notOverdue], 500000, [], [], [], 0, NOW);
+        expect(result.expectedNearTermReceivables).toBe(200000);
+        expect(result.discretionaryCash).toBeCloseTo(700000, 0);
+    });
+
+    it('does not count seriously overdue (60+ day) receivables as near-term', () => {
+        const seriouslyOverdue = tx({ type: 'income', status: 'overdue', date: '2026-06-01', dueDate: '2026-06-01', amount: 200000 });
+        const result = computeDiscretionaryCash([seriouslyOverdue], 500000, [], [], [], 0, NOW);
+        expect(result.expectedNearTermReceivables).toBe(0);
+    });
+
+    it('subtracts a supplied planned-purchase figure', () => {
+        const withoutPlan = computeDiscretionaryCash([], 500000, [], [], [], 0, NOW);
+        const withPlan = computeDiscretionaryCash([], 500000, [], [], [], 150000, NOW);
+        expect(withoutPlan.discretionaryCash - withPlan.discretionaryCash).toBeCloseTo(150000, 0);
+        expect(withPlan.plannedPurchasesCommitment).toBe(150000);
     });
 });

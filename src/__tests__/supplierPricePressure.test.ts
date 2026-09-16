@@ -37,6 +37,23 @@ describe('detectSupplierPricePressure', () => {
         expect(flags[0].gapPct).toBeCloseTo(10, 1);
     });
 
+    it('reports margin at old cost vs margin at replacement cost', () => {
+        // The exact worked example: previous landed cost 8,000, current
+        // replacement cost 9,200, selling price unchanged at 10,000 ->
+        // margin at old cost 20%, margin at replacement cost 8%.
+        const item = makeItem({
+            sellingPrice: 10_000,
+            batches: [
+                { id: 'b1', quantity: 1, remainingQuantity: 1, costPrice: 8_000, purchaseDate: '2025-01-01', createdAt: '2025-01-01T00:00:00.000Z' },
+                { id: 'b2', quantity: 1, remainingQuantity: 1, costPrice: 9_200, purchaseDate: '2025-06-01', createdAt: '2025-06-01T00:00:00.000Z' },
+            ],
+        });
+
+        const [flag] = detectSupplierPricePressure([item]);
+        expect(flag.marginAtOldCostPct).toBeCloseTo(20, 5);
+        expect(flag.marginAtReplacementCostPct).toBeCloseTo(8, 5);
+    });
+
     it('does not flag when price kept pace with cost', () => {
         const item = makeItem({
             sellingPrice: 1150,

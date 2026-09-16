@@ -74,7 +74,16 @@ function pctChange(current: number, prior: number): number | null {
     return ((current - prior) / prior) * 100;
 }
 
-function computeFlowSignals(transactions: Transaction[], now: Date): { marginDeclinePts: number | null; expenseOutrunPp: number | null } {
+export interface FlowSignals {
+    revenueGrowthPct: number | null;
+    expenseGrowthPct: number | null;
+    marginDeclinePts: number | null;
+    expenseOutrunPp: number | null;
+}
+
+// Exported for hiddenGrowthRisk.ts -- the same trailing-30-vs-prior-30-day
+// comparison, never a second window definition invented per feature.
+export function computeFlowSignals(transactions: Transaction[], now: Date): FlowSignals {
     const day = (offset: number) => { const d = new Date(now); d.setDate(d.getDate() + offset); return localDateStr(d); };
     const current = windowTotals(transactions, day(-30), day(0));
     const prior = windowTotals(transactions, day(-60), day(-31));
@@ -87,7 +96,7 @@ function computeFlowSignals(transactions: Transaction[], now: Date): { marginDec
     const expenseGrowthPct = pctChange(current.expense, prior.expense);
     const expenseOutrunPp = revenueGrowthPct != null && expenseGrowthPct != null ? expenseGrowthPct - revenueGrowthPct : null;
 
-    return { marginDeclinePts, expenseOutrunPp };
+    return { revenueGrowthPct, expenseGrowthPct, marginDeclinePts, expenseOutrunPp };
 }
 
 export function computeFundingGapDiagnosis(
@@ -96,10 +105,16 @@ export function computeFundingGapDiagnosis(
     inventory: InventoryItem[],
     cashBalance: number,
     requiredAmount: number,
+    // An operating buffer to hold back on top of the required amount --
+    // e.g. a month of normal running costs -- so the gap reflects "enough
+    // to cover this AND keep operating," not just the bare purchase price.
+    // Defaults to 0 (the original behaviour) for callers with no buffer
+    // figure of their own to supply.
+    operatingBufferRequired: number = 0,
     currency: string = '₦',
     now: Date = new Date(),
 ): FundingGapDiagnosis {
-    const gapAmount = Math.max(0, requiredAmount - cashBalance);
+    const gapAmount = Math.max(0, requiredAmount + operatingBufferRequired - cashBalance);
     if (gapAmount === 0) {
         return { available: false, reason: 'Available cash already covers the required amount -- there is no gap to diagnose.', gapAmount: 0, signals: [], primaryCause: null, recurring: null };
     }

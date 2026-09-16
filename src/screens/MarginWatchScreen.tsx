@@ -2,15 +2,22 @@
  * Margin Watch -- one screen for the inflation/cost-pressure and FX
  * questions that don't already have a home elsewhere in the app:
  *
+ * 0. Hidden Growth Risk (hiddenGrowthRisk.ts) -- a leading banner, not a
+ *    card: is revenue growing while several of inventory cost, expenses,
+ *    margin and cash burn are quietly weakening underneath it. The one
+ *    place several existing individual diagnoses get checked together.
  * 1. Supplier Price Pressure (supplierPricePressure.ts) -- which items'
- *    real purchase cost is outrunning the price charged for them.
+ *    real purchase cost is outrunning the price charged for them, shown
+ *    as margin at old cost vs. margin at today's replacement cost.
  * 2. Affordable Stock Level (affordableInventory.ts) -- how much new
  *    inventory the current cash position can actually absorb without
  *    pushing runway below the app's own safe-runway benchmark.
- * 3. Discretionary Cash (discretionaryCash.ts) -- the cash balance minus
+ * 3. Discretionary Cash (discretionaryCash.ts) -- the cash balance, plus
+ *    what customers already owe that isn't seriously overdue, minus
  *    what's already spoken for (near-term operating burn, scheduled loan
- *    repayments, vendor bills awaiting review), so "how much is actually
- *    free to spend" replaces just watching the raw balance.
+ *    repayments, vendor bills awaiting review, and any planned purchase
+ *    entered in the FX calculator below), so "how much is actually free
+ *    to spend" replaces just watching the raw balance.
  * 4. FX Purchase Impact (fxPurchaseImpact.ts) -- what one upcoming
  *    foreign-currency purchase costs across a few rate scenarios, and
  *    what paying it today would do to runway -- deliberately narrower
@@ -41,6 +48,7 @@ import { computeAffordableInventoryLevel } from '../utils/affordableInventory';
 import { computeProductCashContribution, ProductCashContribution } from '../utils/productCashContribution';
 import { computeDiscretionaryCash } from '../utils/discretionaryCash';
 import { computeFxPurchaseImpact } from '../utils/fxPurchaseImpact';
+import { computeHiddenGrowthRisk } from '../utils/hiddenGrowthRisk';
 
 function fmt(currency: string, value: number): string {
     const sign = value < 0 ? '-' : '';
@@ -66,7 +74,7 @@ function SectionCard({ icon, title, subtitle, children }: { icon: string; title:
 }
 
 export default function MarginWatchScreen() {
-    const { inventory, transactions, finance, settings, loans, bills } = useApp();
+    const { inventory, transactions, finance, settings, loans, bills, invoices } = useApp();
     const cur = settings.currency || '';
     const [sortBy, setSortBy] = useState<'efficiency' | 'revenue' | 'tiedUp'>('efficiency');
     const [fxAmount, setFxAmount] = useState('');
@@ -74,14 +82,14 @@ export default function MarginWatchScreen() {
 
     const pressureFlags = useMemo(() => detectSupplierPricePressure(inventory), [inventory]);
 
+    const hiddenRisk = useMemo(
+        () => computeHiddenGrowthRisk(transactions, inventory, finance.cashBalance),
+        [transactions, inventory, finance.cashBalance]
+    );
+
     const affordable = useMemo(
         () => computeAffordableInventoryLevel(transactions, finance.cashBalance, inventory),
         [transactions, finance.cashBalance, inventory]
-    );
-
-    const discretionary = useMemo(
-        () => computeDiscretionaryCash(transactions, finance.cashBalance, loans, bills),
-        [transactions, finance.cashBalance, loans, bills]
     );
 
     const fxAmountNum = parseFloat(fxAmount) || 0;
@@ -91,6 +99,14 @@ export default function MarginWatchScreen() {
             ? computeFxPurchaseImpact(fxAmountNum, fxRateNum, { transactions, cashBalance: finance.cashBalance })
             : null,
         [fxAmountNum, fxRateNum, transactions, finance.cashBalance]
+    );
+
+    // A purchase actively being sized in the FX calculator above counts as
+    // a planned commitment here too -- the two cards are answering related
+    // questions about the same real, specific spend, not independent ones.
+    const discretionary = useMemo(
+        () => computeDiscretionaryCash(transactions, finance.cashBalance, loans, bills, invoices, fxImpact?.baseCost ?? 0),
+        [transactions, finance.cashBalance, loans, bills, invoices, fxImpact]
     );
 
     const productRows = useMemo(() => {
@@ -116,6 +132,23 @@ export default function MarginWatchScreen() {
                         Where rising costs are quietly eating into your business, and how much room you actually have to respond.
                     </Text>
 
+                    {hiddenRisk.available && hiddenRisk.flagged && (
+                        <View style={s.riskBanner}>
+                            <Icon name="alert-triangle" size={18} color="#92400E" />
+                            <View style={{ flex: 1 }}>
+                                <Text style={s.riskBannerTitle}>Hidden risk behind your growth</Text>
+                                <Text style={s.riskBannerText}>{hiddenRisk.headline}</Text>
+                                <Text style={s.riskBannerDetail}>
+                                    Revenue is up {hiddenRisk.revenueGrowthPct!.toFixed(0)}%, but {hiddenRisk.flaggedSignals.map(sig =>
+                                        sig === 'inventoryCost' ? 'inventory cost is outrunning it' :
+                                        sig === 'expenses' ? 'expenses are outrunning it' :
+                                        sig === 'margin' ? 'margin is compressing' : 'the burn rate is climbing'
+                                    ).join(', ')}.
+                                </Text>
+                            </View>
+                        </View>
+                    )}
+
                     {/* 1. Supplier Price Pressure */}
                     <SectionCard
                         icon="trending-up"
@@ -137,13 +170,18 @@ export default function MarginWatchScreen() {
                                         <Text style={s.flagSupplier}>{f.supplier}</Text>
                                     </View>
                                     <View style={{ alignItems: 'flex-end' }}>
-                                        <Text style={s.flagGap}>+{f.gapPct.toFixed(0)}pp gap</Text>
+                                        <Text style={s.flagGap}>{f.marginAtOldCostPct.toFixed(0)}% → {f.marginAtReplacementCostPct.toFixed(0)}% margin</Text>
                                         <Text style={s.flagDetail}>
                                             cost +{f.costGrowthPct.toFixed(0)}% · price +{f.priceGrowthPct.toFixed(0)}%
                                         </Text>
                                     </View>
                                 </View>
                             ))
+                        )}
+                        {pressureFlags.length > 0 && (
+                            <Text style={s.footnote}>
+                                Margin shown is at the item's earliest recorded cost vs. today's replacement cost, both against the same selling price basis — the gap is what's silently happening to your margin even if you haven't touched your price.
+                            </Text>
                         )}
                     </SectionCard>
 
@@ -207,18 +245,30 @@ export default function MarginWatchScreen() {
                             </View>
                         )}
                         <View style={s.commitList}>
+                            {discretionary.expectedNearTermReceivables > 0 && (
+                                <View style={s.commitRow}>
+                                    <Text style={s.commitLabel}>+ Owed by customers, not seriously overdue</Text>
+                                    <Text style={[s.commitValue, { color: Colors.income }]}>{fmt(cur, discretionary.expectedNearTermReceivables)}</Text>
+                                </View>
+                            )}
                             <View style={s.commitRow}>
-                                <Text style={s.commitLabel}>Near-term operating costs (30 days)</Text>
+                                <Text style={s.commitLabel}>− Near-term operating costs (30 days)</Text>
                                 <Text style={s.commitValue}>{fmt(cur, discretionary.operatingCommitment)}</Text>
                             </View>
                             <View style={s.commitRow}>
-                                <Text style={s.commitLabel}>Loan repayments due this cycle</Text>
+                                <Text style={s.commitLabel}>− Loan repayments due this cycle</Text>
                                 <Text style={s.commitValue}>{fmt(cur, discretionary.debtServiceCommitment)}</Text>
                             </View>
                             <View style={s.commitRow}>
-                                <Text style={s.commitLabel}>Vendor bills awaiting your review</Text>
+                                <Text style={s.commitLabel}>− Vendor bills awaiting your review</Text>
                                 <Text style={s.commitValue}>{fmt(cur, discretionary.pendingBillsCommitment)}</Text>
                             </View>
+                            {discretionary.plannedPurchasesCommitment > 0 && (
+                                <View style={s.commitRow}>
+                                    <Text style={s.commitLabel}>− Planned purchase (from FX calculator below)</Text>
+                                    <Text style={s.commitValue}>{fmt(cur, discretionary.plannedPurchasesCommitment)}</Text>
+                                </View>
+                            )}
                         </View>
                     </SectionCard>
 
@@ -352,6 +402,14 @@ const s = StyleSheet.create({
 
     warnBox: { flexDirection: 'row', gap: Spacing.sm, backgroundColor: '#FEF3C7', borderRadius: Radius.sm, padding: Spacing.md, alignItems: 'flex-start' },
     warnText: { flex: 1, fontSize: 12.5, color: '#92400E', lineHeight: 17 },
+
+    riskBanner: {
+        flexDirection: 'row', gap: Spacing.sm, backgroundColor: '#FEF3C7', borderRadius: Radius.md,
+        padding: Spacing.lg, marginBottom: Spacing.md, borderWidth: 1, borderColor: '#FDE68A', alignItems: 'flex-start',
+    },
+    riskBannerTitle: { fontSize: 12, fontWeight: '700', color: '#92400E', textTransform: 'uppercase', letterSpacing: 0.4 },
+    riskBannerText: { fontSize: 14.5, fontWeight: '700', color: '#78350F', marginTop: 4, lineHeight: 19 },
+    riskBannerDetail: { fontSize: 12, color: '#92400E', marginTop: 4, lineHeight: 16 },
 
     affordRow: { alignItems: 'center', paddingVertical: Spacing.sm },
     affordFigure: { alignItems: 'center' },

@@ -39,7 +39,7 @@ describe('computeFundingGapDiagnosis', () => {
             amount: 1500, unitsSold: 1, date: '2026-09-10', status: 'paid',
         })]; // 1 unit sold in 30 days against 100 in stock -> daysOfStockLeft huge -> 'slow'
 
-        const result = computeFundingGapDiagnosis(sales, [], items, 100_000, 600_000, '₦', NOW);
+        const result = computeFundingGapDiagnosis(sales, [], items, 100_000, 600_000, 0, '₦', NOW);
         expect(result.available).toBe(true);
         expect(result.gapAmount).toBe(500_000);
         const inventorySignal = result.signals.find(s => s.cause === 'inventory')!;
@@ -52,7 +52,7 @@ describe('computeFundingGapDiagnosis', () => {
         const overdueInvoice = tx({
             type: 'income', status: 'pending', date: '2026-07-01', dueDate: '2026-07-01', amount: 400_000,
         });
-        const result = computeFundingGapDiagnosis([overdueInvoice], [], [], 100_000, 600_000, '₦', NOW);
+        const result = computeFundingGapDiagnosis([overdueInvoice], [], [], 100_000, 600_000, 0, '₦', NOW);
         const receivablesSignal = result.signals.find(s => s.cause === 'receivables')!;
         expect(receivablesSignal.flagged).toBe(true);
         expect(result.primaryCause?.cause).toBe('receivables');
@@ -67,16 +67,23 @@ describe('computeFundingGapDiagnosis', () => {
             tx({ type: 'income', amount: 100_000, date: '2026-09-10', status: 'paid' }),
             tx({ type: 'expense', amount: 95_000, date: '2026-09-10', status: 'paid' }),
         ];
-        const result = computeFundingGapDiagnosis(txs, [], [], 100_000, 600_000, '₦', NOW);
+        const result = computeFundingGapDiagnosis(txs, [], [], 100_000, 600_000, 0, '₦', NOW);
         const marginSignal = result.signals.find(s => s.cause === 'margin')!;
         expect(marginSignal.flagged).toBe(true);
         expect(marginSignal.value).toBeGreaterThan(40); // margin fell from 50% to 5%
     });
 
     it('returns no primary cause when nothing crosses its own threshold', () => {
-        const result = computeFundingGapDiagnosis([], [], [], 100_000, 150_000, '₦', NOW);
+        const result = computeFundingGapDiagnosis([], [], [], 100_000, 150_000, 0, '₦', NOW);
         expect(result.available).toBe(true);
         expect(result.primaryCause).toBeNull();
         expect(result.recurring).toBeNull();
+    });
+
+    it('adds the operating buffer on top of the required amount when computing the gap', () => {
+        const withoutBuffer = computeFundingGapDiagnosis([], [], [], 500_000, 600_000, 0, '₦', NOW);
+        const withBuffer = computeFundingGapDiagnosis([], [], [], 500_000, 600_000, 200_000, '₦', NOW);
+        expect(withoutBuffer.gapAmount).toBe(100_000);
+        expect(withBuffer.gapAmount).toBe(300_000);
     });
 });
