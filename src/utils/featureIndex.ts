@@ -267,8 +267,8 @@ export const FEATURE_INDEX: FeatureEntry[] = [
     },
     {
         id: 'margin-watch', label: 'Margin Watch', icon: '🛡️',
-        description: 'Supplier cost pressure, how much stock you can afford right now, and which products convert to cash fastest',
-        keywords: ['inflation', 'margin', 'supplier price', 'cost pressure', 'affordable inventory', 'runway', 'product profitability', 'cash efficiency', 'working capital'],
+        description: 'Supplier cost pressure, FX purchase impact, discretionary cash, affordable stock, and which products convert to cash fastest',
+        keywords: ['inflation', 'margin', 'supplier price', 'cost pressure', 'affordable inventory', 'runway', 'product profitability', 'cash efficiency', 'working capital', 'fx', 'exchange rate', 'dollar', 'naira', 'discretionary cash'],
         screen: 'margin-watch',
     },
     {

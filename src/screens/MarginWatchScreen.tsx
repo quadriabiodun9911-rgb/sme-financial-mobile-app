@@ -1,5 +1,5 @@
 /**
- * Margin Watch -- one screen for the three inflation/cost-pressure
+ * Margin Watch -- one screen for the inflation/cost-pressure and FX
  * questions that don't already have a home elsewhere in the app:
  *
  * 1. Supplier Price Pressure (supplierPricePressure.ts) -- which items'
@@ -7,7 +7,17 @@
  * 2. Affordable Stock Level (affordableInventory.ts) -- how much new
  *    inventory the current cash position can actually absorb without
  *    pushing runway below the app's own safe-runway benchmark.
- * 3. Product Cash Contribution (productCashContribution.ts) -- which
+ * 3. Discretionary Cash (discretionaryCash.ts) -- the cash balance minus
+ *    what's already spoken for (near-term operating burn, scheduled loan
+ *    repayments, vendor bills awaiting review), so "how much is actually
+ *    free to spend" replaces just watching the raw balance.
+ * 4. FX Purchase Impact (fxPurchaseImpact.ts) -- what one upcoming
+ *    foreign-currency purchase costs across a few rate scenarios, and
+ *    what paying it today would do to runway -- deliberately narrower
+ *    than MacroShield's whole-business inflation/FX shock, for the
+ *    concrete "I need $X, what if the rate moves" question an owner
+ *    staring at one import actually has.
+ * 5. Product Cash Contribution (productCashContribution.ts) -- which
  *    products convert to real cash fastest vs which ones just tie
  *    working capital up in stock.
  *
@@ -19,7 +29,7 @@
  * single, findable answer instead of being scattered across screens.
  */
 import React, { useMemo, useState } from 'react';
-import { SafeAreaView, ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { SafeAreaView, ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
@@ -29,6 +39,8 @@ import Icon from '../components/ui/Icon';
 import { detectSupplierPricePressure } from '../utils/supplierPricePressure';
 import { computeAffordableInventoryLevel } from '../utils/affordableInventory';
 import { computeProductCashContribution, ProductCashContribution } from '../utils/productCashContribution';
+import { computeDiscretionaryCash } from '../utils/discretionaryCash';
+import { computeFxPurchaseImpact } from '../utils/fxPurchaseImpact';
 
 function fmt(currency: string, value: number): string {
     const sign = value < 0 ? '-' : '';
@@ -54,15 +66,31 @@ function SectionCard({ icon, title, subtitle, children }: { icon: string; title:
 }
 
 export default function MarginWatchScreen() {
-    const { inventory, transactions, finance, settings } = useApp();
+    const { inventory, transactions, finance, settings, loans, bills } = useApp();
     const cur = settings.currency || '';
     const [sortBy, setSortBy] = useState<'efficiency' | 'revenue' | 'tiedUp'>('efficiency');
+    const [fxAmount, setFxAmount] = useState('');
+    const [fxRate, setFxRate] = useState('');
 
     const pressureFlags = useMemo(() => detectSupplierPricePressure(inventory), [inventory]);
 
     const affordable = useMemo(
         () => computeAffordableInventoryLevel(transactions, finance.cashBalance, inventory),
         [transactions, finance.cashBalance, inventory]
+    );
+
+    const discretionary = useMemo(
+        () => computeDiscretionaryCash(transactions, finance.cashBalance, loans, bills),
+        [transactions, finance.cashBalance, loans, bills]
+    );
+
+    const fxAmountNum = parseFloat(fxAmount) || 0;
+    const fxRateNum = parseFloat(fxRate) || 0;
+    const fxImpact = useMemo(
+        () => (fxAmountNum > 0 && fxRateNum > 0)
+            ? computeFxPurchaseImpact(fxAmountNum, fxRateNum, { transactions, cashBalance: finance.cashBalance })
+            : null,
+        [fxAmountNum, fxRateNum, transactions, finance.cashBalance]
     );
 
     const productRows = useMemo(() => {
@@ -156,7 +184,85 @@ export default function MarginWatchScreen() {
                         </View>
                     </SectionCard>
 
-                    {/* 3. Product Cash Contribution */}
+                    {/* 3. Discretionary Cash */}
+                    <SectionCard
+                        icon="unlock"
+                        title="Discretionary Cash"
+                        subtitle="Your real balance minus what's already spoken for"
+                    >
+                        <View style={s.affordRow}>
+                            <View style={s.affordFigure}>
+                                <Text style={s.affordValue}>{fmt(cur, discretionary.discretionaryCash)}</Text>
+                                <Text style={s.affordLabel}>actually free to spend, of {fmt(cur, discretionary.cashBalance)} in the bank</Text>
+                            </View>
+                        </View>
+                        <View style={s.commitList}>
+                            <View style={s.commitRow}>
+                                <Text style={s.commitLabel}>Near-term operating costs (30 days)</Text>
+                                <Text style={s.commitValue}>{fmt(cur, discretionary.operatingCommitment)}</Text>
+                            </View>
+                            <View style={s.commitRow}>
+                                <Text style={s.commitLabel}>Loan repayments due this cycle</Text>
+                                <Text style={s.commitValue}>{fmt(cur, discretionary.debtServiceCommitment)}</Text>
+                            </View>
+                            <View style={s.commitRow}>
+                                <Text style={s.commitLabel}>Vendor bills awaiting your review</Text>
+                                <Text style={s.commitValue}>{fmt(cur, discretionary.pendingBillsCommitment)}</Text>
+                            </View>
+                        </View>
+                    </SectionCard>
+
+                    {/* 4. FX Purchase Impact */}
+                    <SectionCard
+                        icon="repeat"
+                        title="FX Purchase Impact"
+                        subtitle="What an upcoming foreign-currency purchase actually costs if the rate moves"
+                    >
+                        <View style={s.fxInputRow}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={s.fieldLabel}>Purchase amount (foreign currency)</Text>
+                                <TextInput style={s.input} value={fxAmount} onChangeText={setFxAmount} keyboardType="numeric" placeholder="e.g. 10000" placeholderTextColor={Colors.textMuted} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={s.fieldLabel}>Current rate (1 unit = ? {cur})</Text>
+                                <TextInput style={s.input} value={fxRate} onChangeText={setFxRate} keyboardType="numeric" placeholder="e.g. 1330" placeholderTextColor={Colors.textMuted} />
+                            </View>
+                        </View>
+
+                        {!fxImpact ? (
+                            <View style={s.emptyBox}>
+                                <Icon name="repeat" size={18} color={Colors.textMuted} />
+                                <Text style={s.emptyText}>Enter an amount and your current rate to see what this purchase costs if the rate moves before you pay.</Text>
+                            </View>
+                        ) : (
+                            <>
+                                {fxImpact.scenarios.map(sc => (
+                                    <View key={sc.ratePct} style={s.fxScenarioRow}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={s.fxScenarioLabel}>
+                                                {sc.ratePct === 0 ? 'At your current rate' : `${sc.ratePct > 0 ? '+' : ''}${sc.ratePct}% (${fmt(cur, sc.rate)})`}
+                                            </Text>
+                                            {sc.runwayDaysAfter != null && (
+                                                <Text style={s.fxScenarioDetail}>
+                                                    Runway after: {Number.isFinite(sc.runwayDaysAfter) ? `${sc.runwayDaysAfter}d` : '∞'}
+                                                </Text>
+                                            )}
+                                        </View>
+                                        <View style={{ alignItems: 'flex-end' }}>
+                                            <Text style={s.fxScenarioCost}>{fmt(cur, sc.totalCost)}</Text>
+                                            {sc.deltaVsBase !== 0 && (
+                                                <Text style={[s.fxScenarioDelta, sc.deltaVsBase > 0 && { color: Colors.danger }]}>
+                                                    {sc.deltaVsBase > 0 ? '+' : ''}{fmt(cur, sc.deltaVsBase)}
+                                                </Text>
+                                            )}
+                                        </View>
+                                    </View>
+                                ))}
+                            </>
+                        )}
+                    </SectionCard>
+
+                    {/* 5. Product Cash Contribution */}
                     <SectionCard
                         icon="bar-chart-2"
                         title="Product Cash Contribution"
@@ -252,6 +358,23 @@ const s = StyleSheet.create({
     sortChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
     sortChipText: { fontSize: 11.5, fontWeight: '600', color: Colors.textMuted },
     sortChipTextActive: { color: '#fff' },
+
+    commitList: { marginTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm },
+    commitRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
+    commitLabel: { fontSize: 12.5, color: Colors.textMuted, flex: 1, paddingRight: Spacing.sm },
+    commitValue: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
+
+    fieldLabel: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted, marginBottom: 6 },
+    input: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: Colors.textPrimary, backgroundColor: Colors.bg },
+    fxInputRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm },
+    fxScenarioRow: {
+        flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm,
+        borderTopWidth: 1, borderTopColor: Colors.border,
+    },
+    fxScenarioLabel: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
+    fxScenarioDetail: { fontSize: 11, color: Colors.textMuted, marginTop: 1 },
+    fxScenarioCost: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
+    fxScenarioDelta: { fontSize: 11.5, fontWeight: '600', color: Colors.income, marginTop: 1 },
 
     productRow: {
         flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm,
