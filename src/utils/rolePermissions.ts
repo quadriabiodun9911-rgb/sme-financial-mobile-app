@@ -117,7 +117,7 @@ export function canPublishToLenders(role: UserRole): boolean {
 // exposed.
 const STAFF_ALLOWED_SCREENS: Screen[] = [
     'landing', 'login', 'contact', 'blog', 'blog-post', 'privacy-policy', '2fa', 'two-factor-verify', 'onboarding-choice',
-    'dashboard', 'transactions', 'invoices', 'bills', 'inventory', 'payment-link', 'payment-complete',
+    'dashboard', 'transactions', 'invoices', 'bills', 'inventory', 'margin-watch', 'payment-link', 'payment-complete',
 ];
 // Note: 'settings' is deliberately excluded — it mixes team-management,
 // tax config, and opening balances into one screen alongside things a
@@ -136,7 +136,7 @@ const STAFF_ALLOWED_SCREENS: Screen[] = [
 const EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS: Screen[] = [
     'landing', 'login', 'contact', 'blog', 'blog-post', 'privacy-policy', '2fa', 'two-factor-verify', 'onboarding-choice',
     'dashboard', 'reports', 'transactions', 'reconciliation', 'import-transactions',
-    'scoreboard', 'cashflow', 'analysis', 'future-statements', 'insights',
+    'scoreboard', 'cashflow', 'analysis', 'future-statements', 'insights', 'margin-watch',
     'business-passport', 'financial-assessment', 'financial-health',
     'risk-management', 'macro-assumptions', 'macroshield-detail', 'audit-log', 'business-timeline', 'data-integrity',
 ];
