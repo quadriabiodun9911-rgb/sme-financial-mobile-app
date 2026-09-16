@@ -155,7 +155,7 @@ export default function LandingScreen() {
                     </Text>
                     <Text style={[s.subhead, isWide && s.subheadWide, body('regular')]}>
                         Know if your business is really okay — before the cash runs out and it's too late to fix.
-                        Enter three numbers you already know and get the truth in under a minute.
+                        Enter three numbers you already know and get a quick financial snapshot in under a minute.
                     </Text>
 
                     <View style={s.widgetWrap}>
