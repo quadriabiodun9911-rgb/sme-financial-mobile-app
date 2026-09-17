@@ -160,32 +160,45 @@ export function buildJournalEntryDraftForNewTransaction(tx: Transaction): Journa
 }
 
 /**
- * The clearing entry for when an EXISTING transaction transitions to
- * status 'paid' (an invoice collected, a bill or pending expense paid) --
- * moves the balance from Accounts Receivable/Payable to Cash. Revenue and
- * expense were already recognized by buildJournalEntryDraftForNewTransaction
- * at creation time, so this never touches a revenue/expense account again.
- * Caller is responsible for detecting the transition itself (previous
- * status !== 'paid' and new status === 'paid') -- this always returns the
- * clearing entry for whatever tx currently says, so it must only be called
- * once per genuine transition.
+ * The one place a Transaction's journal presence is brought in line with an
+ * edit -- not just a pending -> paid settlement, but ALSO an amount/category/
+ * type change on a transaction that was already posted (e.g. an invoice's
+ * line items edited after it was already marked paid, previously a real
+ * gap: the original entry stayed at the stale amount forever). Reverses
+ * every not-yet-reversed entry this transaction previously posted, then
+ * posts fresh from its current state via buildJournalEntryDraftForNewTransaction
+ * -- which already produces the correct Cash vs Accounts Receivable/Payable
+ * side for whatever status the transaction is NOW in, so a plain settle
+ * (pending -> paid, amount unchanged) nets to exactly the same final
+ * balances as a dedicated clearing entry would, without needing a second,
+ * parallel code path for that case.
+ *
+ * Caller decides WHEN to call this (only on a genuine financially-relevant
+ * change -- amount/type/category/status/principalPortion -- never on a
+ * cosmetic edit like description, which would reverse-and-repost an
+ * identical entry for no reason).
  */
-export function buildJournalEntryDraftForTransactionSettled(tx: Transaction): JournalEntryDraft | null {
-    if (!(tx.amount > 0)) return null;
-    if (tx.type === 'expense' && tx.category === 'Loan Repayment') return null; // addLoanPayment always posts these paid-in-full already
-
-    if (tx.type === 'income') {
-        return {
-            date: tx.date, memo: `${tx.description} — payment received`,
-            lines: [ln(SYSTEM_ACCOUNTS.cashAndBank, tx.amount, 0), ln(SYSTEM_ACCOUNTS.accountsReceivable, 0, tx.amount)],
-            source: 'transaction', sourceId: tx.id,
-        };
+export function reconcileTransactionEntries(entries: JournalEntry[], transaction: Transaction, now: Date = new Date()): JournalEntry[] {
+    let next = entries;
+    // A reversal entry itself carries the same source/sourceId as the entry
+    // it reversed (see buildReversalDraft), so without this it would look
+    // like just another live posting eligible for reversal on a later call.
+    // Every reversal entry's id appears as exactly one OTHER entry's
+    // reversedByEntryId (the entry it reversed) -- collecting that set of
+    // ids and excluding them is how a reversal is told apart from a real,
+    // still-open posting.
+    const reversalIds = new Set(next.map(e => e.reversedByEntryId).filter((id): id is string => !!id));
+    const toReverse = next.filter(e =>
+        e.source === 'transaction' && e.sourceId === transaction.id && !e.reversedByEntryId && !reversalIds.has(e.id)
+    );
+    for (const original of toReverse) {
+        next = postJournalEntry(next, buildReversalDraft(original, now), now);
+        const reversal = next[next.length - 1];
+        next = next.map(e => (e.id === original.id ? { ...e, reversedByEntryId: reversal.id } : e));
     }
-    return {
-        date: tx.date, memo: `${tx.description} — payment made`,
-        lines: [ln(SYSTEM_ACCOUNTS.accountsPayable, tx.amount, 0), ln(SYSTEM_ACCOUNTS.cashAndBank, 0, tx.amount)],
-        source: 'transaction', sourceId: tx.id,
-    };
+    const draft = buildJournalEntryDraftForNewTransaction(transaction);
+    if (draft) next = postJournalEntry(next, draft, now);
+    return next;
 }
 
 export interface TrialBalanceRow {
