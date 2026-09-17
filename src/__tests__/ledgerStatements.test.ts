@@ -80,6 +80,17 @@ describe('computeLedgerPnL parity with computeEnhancedPnL', () => {
         ]);
     });
 
+    it('matches when an imported bank-statement row is an Internal Transfer (principalPortion excludes it from P&L)', () => {
+        expectParity([
+            tx({ type: 'income', category: 'Sales', amount: 400000, status: 'paid' }),
+            tx({
+                type: 'expense', category: 'Internal Transfer', amount: 60000,
+                principalPortion: 60000, status: 'paid',
+            }),
+            tx({ type: 'expense', category: 'Rent', amount: 50000, status: 'paid' }),
+        ]);
+    });
+
     it('matches when an asset disposal posts a gain and a loss', () => {
         expectParity([
             tx({ type: 'income', category: 'Sales', amount: 250000, status: 'paid' }),

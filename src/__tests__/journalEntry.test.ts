@@ -134,9 +134,64 @@ describe('buildJournalEntryDraftForNewTransaction', () => {
         ]));
     });
 
+    it('credits Accounts Payable, not Cash and Bank, for an unsettled Loan Repayment -- category is free text, so a manual entry can carry it with any status', () => {
+        const draft = buildJournalEntryDraftForNewTransaction(tx({
+            type: 'expense', category: 'Loan Repayment', amount: 100000, principalPortion: 80000, status: 'pending',
+        }))!;
+        expect(isBalanced(draft.lines)).toBe(true);
+        expect(draft.lines.some(l => l.accountId === SYSTEM_ACCOUNTS.cashAndBank)).toBe(false);
+        expect(draft.lines).toEqual(expect.arrayContaining([
+            { accountId: SYSTEM_ACCOUNTS.accountsPayable, debit: 0, credit: 100000 },
+        ]));
+    });
+
     it('returns null for a zero/invalid amount', () => {
         expect(buildJournalEntryDraftForNewTransaction(tx({ amount: 0 }))).toBeNull();
         expect(buildJournalEntryDraftForNewTransaction(tx({ amount: -50 }))).toBeNull();
+    });
+
+    it('excludes an Internal Transfer (principalPortion) from P&L entirely -- it debits back into Cash and Bank, not an expense account', () => {
+        const draft = buildJournalEntryDraftForNewTransaction(tx({
+            type: 'expense', category: 'Internal Transfer', amount: 50000, principalPortion: 50000, status: 'paid',
+        }))!;
+        expect(isBalanced(draft.lines)).toBe(true);
+        // Net effect on Cash and Bank is zero -- the money never left the
+        // business, it moved to an account this app's Chart of Accounts
+        // doesn't separately track (see the function's own header comment).
+        const cashLines = draft.lines.filter(l => l.accountId === SYSTEM_ACCOUNTS.cashAndBank);
+        expect(cashLines.reduce((s, l) => s + l.debit - l.credit, 0)).toBe(0);
+        // No expense account is touched at all.
+        expect(draft.lines.some(l => l.accountId === SYSTEM_ACCOUNTS.otherOperatingExpense)).toBe(false);
+    });
+
+    it('splits a partial principalPortion on a non-Loan-Repayment expense between the excluded transfer and the real expense', () => {
+        const draft = buildJournalEntryDraftForNewTransaction(tx({
+            type: 'expense', category: 'Utilities', amount: 10000, principalPortion: 4000, status: 'paid',
+        }))!;
+        expect(isBalanced(draft.lines)).toBe(true);
+        const accounts = buildDefaultChartOfAccounts();
+        const rows = computeTrialBalance(accounts, postJournalEntry([], draft));
+        expect(rows.find(r => r.accountId === 'acct-6600')!.debitBalance).toBe(6000); // Utilities Expense: only the non-transfer remainder
+        expect(rows.find(r => r.accountId === SYSTEM_ACCOUNTS.cashAndBank)!.debitBalance).toBe(0);
+        expect(rows.find(r => r.accountId === SYSTEM_ACCOUNTS.cashAndBank)!.creditBalance).toBe(6000); // net cash outflow is only the real expense
+    });
+
+    it('never touches Cash and Bank for an unsettled transaction carrying a principalPortion -- the offset follows status, same as the amount it nets against', () => {
+        const draft = buildJournalEntryDraftForNewTransaction(tx({
+            type: 'expense', category: 'Internal Transfer', amount: 30000, principalPortion: 30000, status: 'pending',
+        }))!;
+        expect(isBalanced(draft.lines)).toBe(true);
+        // Cash and Bank must be untouched -- nothing has settled yet, so
+        // nothing can have hit the bank account, cash-received or otherwise.
+        expect(draft.lines.some(l => l.accountId === SYSTEM_ACCOUNTS.cashAndBank)).toBe(false);
+        const accounts = buildDefaultChartOfAccounts();
+        const rows = computeTrialBalance(accounts, postJournalEntry([], draft));
+        // The principal offset nets to zero against Accounts Payable too,
+        // the same self-cancelling pattern the settled case uses against
+        // Cash and Bank -- so no liability is recorded for money that was
+        // never actually owed to anyone.
+        expect(rows.find(r => r.accountId === SYSTEM_ACCOUNTS.accountsPayable)!.debitBalance).toBe(0);
+        expect(rows.find(r => r.accountId === SYSTEM_ACCOUNTS.accountsPayable)!.creditBalance).toBe(0);
     });
 });
 
