@@ -164,6 +164,24 @@ describe('buildJournalEntryDraftForNewTransaction', () => {
         expect(rows.find(r => r.accountId === SYSTEM_ACCOUNTS.cashAndBank)!.debitBalance).toBe(0);
         expect(rows.find(r => r.accountId === SYSTEM_ACCOUNTS.cashAndBank)!.creditBalance).toBe(6000); // net cash outflow is only the real expense
     });
+
+    it('never touches Cash and Bank for an unsettled transaction carrying a principalPortion -- the offset follows status, same as the amount it nets against', () => {
+        const draft = buildJournalEntryDraftForNewTransaction(tx({
+            type: 'expense', category: 'Internal Transfer', amount: 30000, principalPortion: 30000, status: 'pending',
+        }))!;
+        expect(isBalanced(draft.lines)).toBe(true);
+        // Cash and Bank must be untouched -- nothing has settled yet, so
+        // nothing can have hit the bank account, cash-received or otherwise.
+        expect(draft.lines.some(l => l.accountId === SYSTEM_ACCOUNTS.cashAndBank)).toBe(false);
+        const accounts = buildDefaultChartOfAccounts();
+        const rows = computeTrialBalance(accounts, postJournalEntry([], draft));
+        // The principal offset nets to zero against Accounts Payable too,
+        // the same self-cancelling pattern the settled case uses against
+        // Cash and Bank -- so no liability is recorded for money that was
+        // never actually owed to anyone.
+        expect(rows.find(r => r.accountId === SYSTEM_ACCOUNTS.accountsPayable)!.debitBalance).toBe(0);
+        expect(rows.find(r => r.accountId === SYSTEM_ACCOUNTS.accountsPayable)!.creditBalance).toBe(0);
+    });
 });
 
 describe('reconcileTransactionEntries', () => {

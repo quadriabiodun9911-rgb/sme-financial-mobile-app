@@ -159,13 +159,17 @@ export function buildJournalEntryDraftForNewTransaction(tx: Transaction): Journa
     const otherSide = settled ? SYSTEM_ACCOUNTS.cashAndBank : SYSTEM_ACCOUNTS.accountsPayable;
     // Same principalPortion exclusion as the Loan Repayment branch above,
     // generalized: whatever portion isn't a real expense debits back into
-    // Cash and Bank (see this function's header comment) instead of an
-    // expense account, so it never inflates opex the way it would if the
-    // full amount posted through mapExpenseCategoryToAccountId unconditionally.
+    // `otherSide` -- the SAME account the full amount credits into, not
+    // hardcoded to Cash and Bank -- so it self-offsets against whichever
+    // side this transaction is actually posted against. An unsettled
+    // transaction posts against Accounts Payable, never Cash and Bank; if
+    // the principal offset were hardcoded to Cash and Bank instead, an
+    // unsettled expense carrying a principalPortion would wrongly debit
+    // cash as if it had been received before the transaction ever settled.
     const principal = Math.min(Math.max(tx.principalPortion ?? 0, 0), tx.amount);
     const remainder = tx.amount - principal;
     const lines: JournalLine[] = [];
-    if (principal > 0) lines.push(ln(SYSTEM_ACCOUNTS.cashAndBank, principal, 0, 'Non-P&L transfer'));
+    if (principal > 0) lines.push(ln(otherSide, principal, 0, 'Non-P&L transfer'));
     if (remainder > 0) lines.push(ln(mapExpenseCategoryToAccountId(tx.category), remainder, 0));
     lines.push(ln(otherSide, 0, tx.amount));
     return { date: tx.date, memo: tx.description, lines, source: 'transaction', sourceId: tx.id };
