@@ -12,8 +12,9 @@ import { canWriteBusinessData } from '../utils/rolePermissions';
 
 export default function DataIntegrityScreen() {
     const {
-        transactions, invoices, bills, assets, inventory, goals, loans, budgets,
+        transactions, invoices, bills, assets, inventory, goals, loans, budgets, accounts, journalEntries,
         deleteTransaction, deleteInvoice, deleteBill, deleteAsset, deleteInventoryItem, deleteGoal, deleteLoan, deleteBudget,
+        deleteLedgerAccount, deleteJournalEntry,
         userRole,
     } = useApp();
     // 'viewer'/'external_accountant' can open Data Integrity
@@ -25,9 +26,9 @@ export default function DataIntegrityScreen() {
     const [version, setVersion] = useState(0); // bump to force re-audit after a delete
 
     const issues = useMemo(
-        () => auditDataIntegrity({ transactions, invoices, bills, assets, inventory, goals, loans, budgets }),
+        () => auditDataIntegrity({ transactions, invoices, bills, assets, inventory, goals, loans, budgets, accounts, journalEntries }),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [transactions, invoices, bills, assets, inventory, goals, loans, budgets, version]
+        [transactions, invoices, bills, assets, inventory, goals, loans, budgets, accounts, journalEntries, version]
     );
 
     const deleters: Record<IntegrityEntityType, (id: string) => void> = {
@@ -39,6 +40,8 @@ export default function DataIntegrityScreen() {
         goals: deleteGoal,
         loans: deleteLoan,
         budgets: deleteBudget,
+        accounts: deleteLedgerAccount,
+        journalEntries: deleteJournalEntry,
     };
 
     const grouped = useMemo(() => {
