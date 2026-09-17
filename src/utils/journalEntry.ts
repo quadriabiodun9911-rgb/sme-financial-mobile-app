@@ -27,11 +27,17 @@
  *   statements, which would make the two silently disagree -- exactly what
  *   this file exists to avoid. A perpetual-inventory pass is future work,
  *   not something to slip in unannounced while building the ledger itself.
- * - Loan repayments are the one case needing a real split: principalPortion
- *   reduces the Loans Payable liability, never an expense -- the same
- *   split computeEnhancedPnL already applies by excluding principalPortion
- *   from every expense figure (see addLoanPayment's own header comment in
- *   OptimizedContexts.tsx).
+ * - principalPortion is never a P&L expense, for ANY expense category --
+ *   mirroring computeEnhancedPnL's own unconditional `amount -
+ *   principalPortion` (see addLoanPayment's own header comment in
+ *   OptimizedContexts.tsx). A real loan repayment's principal reduces the
+ *   Loans Payable liability it was actually drawn against. Every other
+ *   category that carries a principalPortion today (Internal Transfer --
+ *   money moved to the business's own savings/reserve account, set by
+ *   ImportTransactionsScreen/ReconciliationScreen) isn't owed to anyone, so
+ *   there's no liability to reduce -- it debits straight back into Cash and
+ *   Bank, netting to zero on that account rather than fabricating a
+ *   destination this app's Chart of Accounts doesn't track.
  * - Asset acquisitions/disposals are NOT capitalized to Fixed Assets here,
  *   for the same reason: this app doesn't record an asset's purchase or
  *   book value as a Transaction at all today (Asset[] is tracked
@@ -150,13 +156,19 @@ export function buildJournalEntryDraftForNewTransaction(tx: Transaction): Journa
         };
     }
 
-    const expenseAccount = mapExpenseCategoryToAccountId(tx.category);
     const otherSide = settled ? SYSTEM_ACCOUNTS.cashAndBank : SYSTEM_ACCOUNTS.accountsPayable;
-    return {
-        date: tx.date, memo: tx.description,
-        lines: [ln(expenseAccount, tx.amount, 0), ln(otherSide, 0, tx.amount)],
-        source: 'transaction', sourceId: tx.id,
-    };
+    // Same principalPortion exclusion as the Loan Repayment branch above,
+    // generalized: whatever portion isn't a real expense debits back into
+    // Cash and Bank (see this function's header comment) instead of an
+    // expense account, so it never inflates opex the way it would if the
+    // full amount posted through mapExpenseCategoryToAccountId unconditionally.
+    const principal = Math.min(Math.max(tx.principalPortion ?? 0, 0), tx.amount);
+    const remainder = tx.amount - principal;
+    const lines: JournalLine[] = [];
+    if (principal > 0) lines.push(ln(SYSTEM_ACCOUNTS.cashAndBank, principal, 0, 'Non-P&L transfer'));
+    if (remainder > 0) lines.push(ln(mapExpenseCategoryToAccountId(tx.category), remainder, 0));
+    lines.push(ln(otherSide, 0, tx.amount));
+    return { date: tx.date, memo: tx.description, lines, source: 'transaction', sourceId: tx.id };
 }
 
 /**
