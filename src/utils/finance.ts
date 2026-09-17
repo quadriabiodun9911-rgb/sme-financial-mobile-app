@@ -107,7 +107,7 @@ export interface EnhancedPnL {
 // elsewhere in the app. Returns 1 (no reduction) for fewer than 2 dated
 // transactions, since a meaningful span can't be measured from a single
 // point — matches the pre-existing convention this replaces.
-function transactionSpanYears(transactions: Transaction[]): number {
+export function transactionSpanYears(transactions: Transaction[]): number {
     const dates = transactions.map(t => t.date).sort();
     if (dates.length === 0) return 0;
     if (dates.length === 1) return 1;
