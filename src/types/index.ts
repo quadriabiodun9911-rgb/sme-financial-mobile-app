@@ -10,6 +10,7 @@ export type Screen =
     | 'invoices'
     | 'bills'
     | 'margin-watch'
+    | 'general-ledger'
     | 'assets'
     | 'loans'
     | 'inventory'

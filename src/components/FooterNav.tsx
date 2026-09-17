@@ -82,6 +82,7 @@ const UNDERSTAND_ITEMS: { label: string; icon: IconName; screen: Screen; color: 
     { label: 'Vendor Bills',   icon: 'inbox',         screen: 'bills',          color: '#c026d3', desc: 'Collect, review & record supplier invoices' },
     { label: 'Payroll',        icon: 'users',         screen: 'payroll',        color: '#10b981', desc: 'Staff & monthly pay runs' },
     { label: 'Reconciliation', icon: 'link-2',        screen: 'reconciliation', color: '#8b5cf6', desc: 'Confirm the numbers above match your bank' },
+    { label: 'General Ledger', icon: 'book-open',     screen: 'general-ledger', color: '#64748b', desc: 'Trial Balance & journal entries — for a bookkeeper' },
 ];
 
 const ANTICIPATE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string }[] = [

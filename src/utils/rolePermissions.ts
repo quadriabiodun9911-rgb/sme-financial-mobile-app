@@ -139,6 +139,11 @@ const EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS: Screen[] = [
     'scoreboard', 'cashflow', 'analysis', 'future-statements', 'insights', 'margin-watch',
     'business-passport', 'financial-assessment', 'financial-health',
     'risk-management', 'macro-assumptions', 'macroshield-detail', 'audit-log', 'business-timeline', 'data-integrity',
+    // Read-only here too (canWriteBusinessData already excludes both this
+    // role and 'viewer' below) -- the screen itself gates posting a manual
+    // journal entry behind that same check, the same pattern DataIntegrityScreen
+    // already uses for its own delete action.
+    'general-ledger',
 ];
 
 // Screens a pure viewer can open -- EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS
