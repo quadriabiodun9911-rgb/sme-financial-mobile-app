@@ -1,6 +1,6 @@
 import {
     isBalanced, postJournalEntry, buildReversalDraft,
-    buildJournalEntryDraftForNewTransaction, buildJournalEntryDraftForTransactionSettled,
+    buildJournalEntryDraftForNewTransaction, reconcileTransactionEntries,
     computeTrialBalance, backfillJournalEntries, JournalEntryDraft,
 } from '../utils/journalEntry';
 import { buildDefaultChartOfAccounts, SYSTEM_ACCOUNTS } from '../utils/chartOfAccounts';
@@ -140,26 +140,56 @@ describe('buildJournalEntryDraftForNewTransaction', () => {
     });
 });
 
-describe('buildJournalEntryDraftForTransactionSettled', () => {
-    it('clears an income transaction from Accounts Receivable to Cash', () => {
-        const draft = buildJournalEntryDraftForTransactionSettled(tx({ type: 'income', amount: 50000 }))!;
-        expect(isBalanced(draft.lines)).toBe(true);
-        expect(draft.lines).toEqual(expect.arrayContaining([
-            { accountId: SYSTEM_ACCOUNTS.cashAndBank, debit: 50000, credit: 0 },
-            { accountId: SYSTEM_ACCOUNTS.accountsReceivable, debit: 0, credit: 50000 },
-        ]));
+describe('reconcileTransactionEntries', () => {
+    it('nets a pending -> paid settlement to Cash, the same final balances a dedicated clearing entry would give', () => {
+        const pending = tx({ id: 'inv1', type: 'income', category: 'Sales', amount: 50000, status: 'pending' });
+        let entries = postJournalEntry([], buildJournalEntryDraftForNewTransaction(pending)!);
+        expect(entries).toHaveLength(1);
+
+        const paid = { ...pending, status: 'paid' as const };
+        entries = reconcileTransactionEntries(entries, paid);
+
+        // Original entry reversed, not deleted -- ledger history stays intact.
+        expect(entries).toHaveLength(3); // original + reversal + fresh posting
+        expect(entries[0].reversedByEntryId).toBe(entries[1].id);
+
+        const accounts = buildDefaultChartOfAccounts();
+        const rows = computeTrialBalance(accounts, entries);
+        expect(rows.find(r => r.accountId === SYSTEM_ACCOUNTS.cashAndBank)!.debitBalance).toBe(50000);
+        expect(rows.find(r => r.accountId === SYSTEM_ACCOUNTS.accountsReceivable)!.debitBalance).toBe(0);
+        expect(rows.find(r => r.accountId === SYSTEM_ACCOUNTS.salesRevenue)!.creditBalance).toBe(50000); // recognized once, not twice
     });
 
-    it('clears an expense transaction from Accounts Payable to Cash', () => {
-        const draft = buildJournalEntryDraftForTransactionSettled(tx({ type: 'expense', amount: 15000 }))!;
-        expect(draft.lines).toEqual(expect.arrayContaining([
-            { accountId: SYSTEM_ACCOUNTS.accountsPayable, debit: 15000, credit: 0 },
-            { accountId: SYSTEM_ACCOUNTS.cashAndBank, debit: 0, credit: 15000 },
-        ]));
+    it('corrects an already-paid transaction whose amount was edited afterward -- the real gap this closes', () => {
+        const original = tx({ id: 'inv1', type: 'income', category: 'Sales', amount: 50000, status: 'paid' });
+        let entries = postJournalEntry([], buildJournalEntryDraftForNewTransaction(original)!);
+
+        const edited = { ...original, amount: 75000 }; // invoice line items edited after it was already marked paid
+        entries = reconcileTransactionEntries(entries, edited);
+
+        const accounts = buildDefaultChartOfAccounts();
+        const rows = computeTrialBalance(accounts, entries);
+        // Before this fix, the ledger would have stayed frozen at 50000 forever.
+        expect(rows.find(r => r.accountId === SYSTEM_ACCOUNTS.cashAndBank)!.debitBalance).toBe(75000);
+        expect(rows.find(r => r.accountId === SYSTEM_ACCOUNTS.salesRevenue)!.creditBalance).toBe(75000);
     });
 
-    it('never re-clears a loan repayment -- those always post paid-in-full at creation', () => {
-        expect(buildJournalEntryDraftForTransactionSettled(tx({ type: 'expense', category: 'Loan Repayment', amount: 100000 }))).toBeNull();
+    it('only reverses entries not already reversed -- calling it twice never double-reverses', () => {
+        const original = tx({ id: 'inv1', type: 'expense', category: 'Rent', amount: 20000, status: 'paid' });
+        let entries = postJournalEntry([], buildJournalEntryDraftForNewTransaction(original)!);
+
+        entries = reconcileTransactionEntries(entries, original); // no real change, but exercises the reverse-and-repost path
+        const afterFirst = entries.length;
+        entries = reconcileTransactionEntries(entries, original);
+        // Each call reverses exactly the one still-open entry and posts one fresh one.
+        expect(entries.length).toBe(afterFirst + 2);
+        // The real invariant: the Rent balance is still a single 20000 debit,
+        // not doubled -- reversal entries never carry their own
+        // reversedByEntryId (only the entries they reverse do), so counting
+        // "entries without reversedByEntryId" isn't a meaningful check here.
+        const accounts = buildDefaultChartOfAccounts();
+        const rows = computeTrialBalance(accounts, entries);
+        expect(rows.find(r => r.accountId === 'acct-6000')!.debitBalance).toBe(20000);
     });
 });
 

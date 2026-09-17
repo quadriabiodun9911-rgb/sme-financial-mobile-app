@@ -15,7 +15,7 @@ import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthly
 import { buildDefaultChartOfAccounts } from '../utils/chartOfAccounts';
 import {
   postJournalEntry, isBalanced, backfillJournalEntries,
-  buildJournalEntryDraftForNewTransaction, buildJournalEntryDraftForTransactionSettled,
+  buildJournalEntryDraftForNewTransaction, reconcileTransactionEntries,
 } from '../utils/journalEntry';
 import { buildLoanFromMerchantFinancing } from '../utils/merchantFinancingConversion';
 import { buildReadinessSnapshot, shouldRecordSnapshot, appendReadinessSnapshot } from '../utils/readinessHistory';
@@ -628,15 +628,27 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         setTransactions((prev) =>
           prev.map((t) => (t.id === id ? { ...t, ...tx } : t))
         );
-        // Only the pending/overdue -> paid transition posts a clearing
-        // entry -- the initial revenue/expense recognition already happened
-        // in addTransaction, and re-posting it here on every unrelated edit
-        // (description, category, amount while still pending) would double
-        // it. See buildJournalEntryDraftForTransactionSettled's own comment.
-        if (!isDemoMode && before && before.status !== 'paid' && tx.status === 'paid') {
+        // Reverses and re-posts from the transaction's new state on any
+        // financially-relevant change -- not just a pending -> paid
+        // settlement, but also an amount/category/type edit on a
+        // transaction that was already posted (e.g. an invoice's line
+        // items edited after it was already marked paid -- previously a
+        // real gap: the ledger stayed frozen at the stale amount forever).
+        // A cosmetic edit (description only) touches none of these fields,
+        // so it correctly posts nothing. See reconcileTransactionEntries's
+        // own comment for why this single path also covers the plain
+        // settle case without a separate clearing-entry function.
+        if (!isDemoMode && before) {
           const after = { ...before, ...tx } as Transaction;
-          const draft = buildJournalEntryDraftForTransactionSettled(after);
-          if (draft) postEntry(draft);
+          const relevantFields: (keyof Transaction)[] = ['amount', 'type', 'category', 'status', 'principalPortion'];
+          const financiallyRelevant = relevantFields.some((k) => tx[k] !== undefined && tx[k] !== before[k]);
+          if (financiallyRelevant) {
+            try {
+              setJournalEntries((prev) => reconcileTransactionEntries(prev, after));
+            } catch (e) {
+              console.error('[Ledger] failed to reconcile journal entries:', e);
+            }
+          }
         }
       },
       deleteTransaction: (id) => {
