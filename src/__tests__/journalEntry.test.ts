@@ -134,6 +134,17 @@ describe('buildJournalEntryDraftForNewTransaction', () => {
         ]));
     });
 
+    it('credits Accounts Payable, not Cash and Bank, for an unsettled Loan Repayment -- category is free text, so a manual entry can carry it with any status', () => {
+        const draft = buildJournalEntryDraftForNewTransaction(tx({
+            type: 'expense', category: 'Loan Repayment', amount: 100000, principalPortion: 80000, status: 'pending',
+        }))!;
+        expect(isBalanced(draft.lines)).toBe(true);
+        expect(draft.lines.some(l => l.accountId === SYSTEM_ACCOUNTS.cashAndBank)).toBe(false);
+        expect(draft.lines).toEqual(expect.arrayContaining([
+            { accountId: SYSTEM_ACCOUNTS.accountsPayable, debit: 0, credit: 100000 },
+        ]));
+    });
+
     it('returns null for a zero/invalid amount', () => {
         expect(buildJournalEntryDraftForNewTransaction(tx({ amount: 0 }))).toBeNull();
         expect(buildJournalEntryDraftForNewTransaction(tx({ amount: -50 }))).toBeNull();

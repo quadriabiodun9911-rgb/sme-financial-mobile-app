@@ -35,9 +35,11 @@
  *   category that carries a principalPortion today (Internal Transfer --
  *   money moved to the business's own savings/reserve account, set by
  *   ImportTransactionsScreen/ReconciliationScreen) isn't owed to anyone, so
- *   there's no liability to reduce -- it debits straight back into Cash and
- *   Bank, netting to zero on that account rather than fabricating a
- *   destination this app's Chart of Accounts doesn't track.
+ *   there's no liability to reduce -- it debits straight back into whichever
+ *   account the transaction's own status already posts against (Cash and
+ *   Bank once settled, Accounts Payable until then), netting to zero there
+ *   rather than fabricating a destination this app's Chart of Accounts
+ *   doesn't track.
  * - Asset acquisitions/disposals are NOT capitalized to Fixed Assets here,
  *   for the same reason: this app doesn't record an asset's purchase or
  *   book value as a Transaction at all today (Asset[] is tracked
@@ -142,7 +144,14 @@ export function buildJournalEntryDraftForNewTransaction(tx: Transaction): Journa
         const lines: JournalLine[] = [];
         if (principal > 0) lines.push(ln(SYSTEM_ACCOUNTS.loansPayableCurrent, principal, 0, 'Principal'));
         if (interest > 0) lines.push(ln(SYSTEM_ACCOUNTS.interestExpense, interest, 0, 'Interest'));
-        lines.push(ln(SYSTEM_ACCOUNTS.cashAndBank, 0, tx.amount));
+        // addLoanPayment always posts a repayment as status: 'paid', but
+        // category is free text (see TransactionsScreen's own form) -- a
+        // manually-entered transaction can carry category: 'Loan Repayment'
+        // with status: 'pending'/'overdue', and this must follow `settled`
+        // the same as every other branch here, not credit Cash and Bank
+        // unconditionally (that would record cash leaving before the
+        // repayment ever settled).
+        lines.push(ln(settled ? SYSTEM_ACCOUNTS.cashAndBank : SYSTEM_ACCOUNTS.accountsPayable, 0, tx.amount));
         return { date: tx.date, memo: tx.description, lines, source: 'transaction', sourceId: tx.id };
     }
 
