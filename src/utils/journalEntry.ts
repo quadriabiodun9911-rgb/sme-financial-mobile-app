@@ -227,3 +227,31 @@ export function computeTrialBalance(accounts: Account[], entries: JournalEntry[]
         })
         .sort((a, b) => a.code.localeCompare(b.code));
 }
+
+/**
+ * One-time backfill for a business that already had Transaction history
+ * before the ledger existed -- posts each existing transaction's initial
+ * recognition entry (buildJournalEntryDraftForNewTransaction) so the ledger
+ * isn't empty just because the feature shipped after the business started.
+ *
+ * Deliberately does NOT try to reconstruct historical status transitions
+ * (a transaction that sat pending for weeks before being marked paid): this
+ * app has no record of WHEN that transition happened, only the transaction's
+ * CURRENT status, and inventing a transition date would be exactly the kind
+ * of fabricated data this app's other engines already avoid. Each backfilled
+ * transaction posts ONE entry reflecting its current status -- final account
+ * balances come out correct either way, only the historical AR/AP-then-Cash
+ * two-step for an item that's since settled collapses into a single entry.
+ *
+ * Ordered by transaction date so the resulting ledger reads chronologically,
+ * though the trial balance is order-independent either way.
+ */
+export function backfillJournalEntries(transactions: Transaction[], now: Date = new Date()): JournalEntry[] {
+    const sorted = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
+    let entries: JournalEntry[] = [];
+    for (const tx of sorted) {
+        const draft = buildJournalEntryDraftForNewTransaction(tx);
+        if (draft) entries = postJournalEntry(entries, draft, now);
+    }
+    return entries;
+}

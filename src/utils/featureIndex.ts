@@ -278,6 +278,12 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'assets',
     },
     {
+        id: 'general-ledger', label: 'General Ledger', icon: '📒',
+        description: 'Trial Balance and every journal entry posted from your records — double-entry bookkeeping for a professional bookkeeper',
+        keywords: ['ledger', 'bookkeeping', 'bookkeeper', 'journal entry', 'trial balance', 'double entry', 'chart of accounts', 'debit', 'credit', 'accounting'],
+        screen: 'general-ledger',
+    },
+    {
         id: 'bills', label: 'Vendor Bills', icon: '📥',
         description: 'Collect, review and record supplier invoices — with duplicate, threshold and cash-impact checks',
         keywords: ['bills', 'vendor', 'supplier invoice', 'accounts payable', 'ap', 'expense intake'],

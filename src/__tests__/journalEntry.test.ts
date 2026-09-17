@@ -1,7 +1,7 @@
 import {
     isBalanced, postJournalEntry, buildReversalDraft,
     buildJournalEntryDraftForNewTransaction, buildJournalEntryDraftForTransactionSettled,
-    computeTrialBalance, JournalEntryDraft,
+    computeTrialBalance, backfillJournalEntries, JournalEntryDraft,
 } from '../utils/journalEntry';
 import { buildDefaultChartOfAccounts, SYSTEM_ACCOUNTS } from '../utils/chartOfAccounts';
 import { Transaction, JournalEntry } from '../types';
@@ -204,5 +204,39 @@ describe('computeTrialBalance', () => {
 
         const rowsFeb = computeTrialBalance(accounts, entries, '2026-02-28');
         expect(rowsFeb.find(r => r.accountId === 'acct-6000')!.debitBalance).toBe(25000);
+    });
+});
+
+describe('backfillJournalEntries', () => {
+    const accounts = buildDefaultChartOfAccounts('2026-01-01T00:00:00.000Z');
+
+    it('posts one entry per existing transaction and leaves the trial balance in balance', () => {
+        const txs = [
+            tx({ id: 't1', date: '2026-08-01', type: 'income', category: 'Sales', amount: 100000, status: 'paid' }),
+            tx({ id: 't2', date: '2026-08-05', type: 'expense', category: 'Rent', amount: 30000, status: 'paid' }),
+            tx({ id: 't3', date: '2026-08-10', type: 'income', category: 'Sales', amount: 20000, status: 'pending' }),
+        ];
+        const entries = backfillJournalEntries(txs);
+        expect(entries).toHaveLength(3);
+        expect(entries.map(e => e.sourceId).sort()).toEqual(['t1', 't2', 't3']);
+
+        const rows = computeTrialBalance(accounts, entries);
+        const totalDebit = rows.reduce((s, r) => s + r.debitBalance, 0);
+        const totalCredit = rows.reduce((s, r) => s + r.creditBalance, 0);
+        expect(totalDebit).toBeCloseTo(totalCredit, 6);
+    });
+
+    it('orders posted entries chronologically by transaction date', () => {
+        const txs = [
+            tx({ id: 'later', date: '2026-08-20', type: 'expense', category: 'Rent', amount: 1000, status: 'paid' }),
+            tx({ id: 'earlier', date: '2026-08-01', type: 'expense', category: 'Rent', amount: 1000, status: 'paid' }),
+        ];
+        const entries = backfillJournalEntries(txs);
+        expect(entries.map(e => e.sourceId)).toEqual(['earlier', 'later']);
+    });
+
+    it('skips zero/invalid-amount transactions the same way the live posting path does', () => {
+        const txs = [tx({ id: 't1', amount: 0 })];
+        expect(backfillJournalEntries(txs)).toEqual([]);
     });
 });

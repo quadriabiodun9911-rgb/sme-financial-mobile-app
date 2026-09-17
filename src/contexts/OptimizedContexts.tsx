@@ -14,7 +14,7 @@ import { User, Invoice, InvoiceStatus, Bill, Transaction, Loan, Asset, Budget, I
 import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore, computeLoanPaymentSplit } from '../utils/finance';
 import { buildDefaultChartOfAccounts } from '../utils/chartOfAccounts';
 import {
-  postJournalEntry, isBalanced,
+  postJournalEntry, isBalanced, backfillJournalEntries,
   buildJournalEntryDraftForNewTransaction, buildJournalEntryDraftForTransactionSettled,
 } from '../utils/journalEntry';
 import { buildLoanFromMerchantFinancing } from '../utils/merchantFinancingConversion';
@@ -352,6 +352,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         setAssets(biz.assets);
         setLoans(biz.loans.map((x) => ({ ...x, payments: x.payments ?? [] })));
         setInventory(biz.inventory);
+        // A canned demo persona should show a populated General Ledger like
+        // every other screen does with its own fixture data -- backfilled
+        // fresh from biz.transactions each session (never persisted, same
+        // as everything else demo mode sets), not left empty just because
+        // this feature's own demo-mode branch predates it. Blank Guest Mode
+        // (demoBusinessId === null, no biz match) stays empty on purpose --
+        // there's no fixture data to backfill from, and "Nothing is saved"
+        // already means nothing is worth precomputing there either.
+        setAccounts(buildDefaultChartOfAccounts());
+        setJournalEntries(backfillJournalEntries(biz.transactions));
       }
       setHydrated(true);
       return;
@@ -392,9 +402,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         // transaction -- every later hydration just loads what's already
         // there instead of reseeding over real account edits/archives.
         const acc = isStaffRole ? null : await loadAccounts();
-        setAccounts(acc && acc.length > 0 ? acc : buildDefaultChartOfAccounts());
+        const isFirstLedgerHydration = !acc || acc.length === 0;
+        setAccounts(isFirstLedgerHydration ? buildDefaultChartOfAccounts() : acc);
         const je = isStaffRole ? null : await loadJournalEntries();
-        if (je) setJournalEntries(je);
+        // A business that already had Transaction history before this
+        // feature shipped would otherwise see an empty ledger forever --
+        // backfill once, on the same "no ledger row anywhere yet" signal
+        // that triggers the Chart of Accounts seed above, never again after
+        // (a real, empty ledger on a genuinely new business must stay
+        // empty, not get re-backfilled from nothing on every login).
+        if (je && je.length > 0) {
+          setJournalEntries(je);
+        } else if (isFirstLedgerHydration && !isStaffRole && t && t.length > 0) {
+          setJournalEntries(backfillJournalEntries(t));
+        }
 
         const financingRaw = isStaffRole ? null : await AsyncStorage.getItem('@quad360/financing').catch(() => null);
         if (financingRaw) {
