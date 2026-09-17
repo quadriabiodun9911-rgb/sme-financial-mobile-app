@@ -57,8 +57,12 @@ export function computeFxPurchaseImpact(
     const scenarios: FxScenario[] = scenarioPcts.map(ratePct => {
         const rate = baseRate * (1 + ratePct / 100);
         const totalCost = purchaseAmountForeign * rate;
+        // Clamped to 0, same convention every other cash/runway figure in
+        // this app follows (computeDiscretionaryCash, computeAffordableInventoryLevel,
+        // computeFundingGapDiagnosis) -- a purchase big enough to overdraw the
+        // balance leaves zero days of runway, not a negative count.
         const runwayDaysAfter = canComputeRunway
-            ? computeCashRunway(options.transactions!, options.cashBalance! - totalCost, options.now).runwayDays
+            ? Math.max(0, computeCashRunway(options.transactions!, options.cashBalance! - totalCost, options.now).runwayDays)
             : null;
 
         return {
