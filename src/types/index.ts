@@ -678,6 +678,79 @@ export interface Bill {
     linkedTransactionId?: string;
 }
 
+// ─── General Ledger (double-entry bookkeeping) ─────────────────────────────
+// Additive on top of the existing Transaction/Invoice/Bill/Loan model, not a
+// replacement -- every write path an owner already uses keeps working
+// exactly as it does today. This is a second, parallel record: a real
+// Chart of Accounts and a balanced Journal Entry for every financial event,
+// so a professional bookkeeper gets a General Ledger and Trial Balance they
+// can actually work from, rather than statements algorithmically derived
+// from a flat Transaction[] with no account-level audit trail.
+export type AccountType = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
+
+// Drives which section of the classified Balance Sheet an asset/liability
+// account rolls into -- the same current/non-current split
+// balanceSheetTrend.ts's loansCurrentPortion/loansNonCurrentPortion already
+// applies to loans, generalized to every account instead of just loans.
+export type AccountSubtype =
+    | 'current_asset' | 'fixed_asset'
+    | 'current_liability' | 'non_current_liability'
+    | 'equity' | 'revenue' | 'cost_of_goods_sold' | 'operating_expense';
+
+export interface Account {
+    id: string;
+    code: string;   // e.g. "1000", "2100" -- standard SME numbering blocks, sorts naturally
+    name: string;   // e.g. "Cash and Bank", "Accounts Receivable", "Sales Revenue"
+    type: AccountType;
+    subtype: AccountSubtype;
+    // Sub-account under another account, e.g. "Bank - GTBank" under
+    // "Cash and Bank" -- optional, most businesses never need this depth.
+    parentAccountId?: string;
+    // True for the accounts the app itself posts system-generated entries
+    // to (see journalEntry.ts's DEFAULT_CHART_OF_ACCOUNTS) -- these can be
+    // archived but never deleted, since deleting one out from under posted
+    // journal entries would leave orphaned lines with no account to sum.
+    isSystemAccount: boolean;
+    createdAt: string;
+    archivedAt?: string;
+}
+
+export interface JournalLine {
+    accountId: string;
+    // Exactly one of debit/credit is non-zero on any given line -- the
+    // other is 0, never omitted, so summing either column never needs an
+    // undefined check.
+    debit: number;
+    credit: number;
+    description?: string;
+}
+
+export type JournalEntrySource =
+    | 'transaction' | 'invoice' | 'bill' | 'payroll' | 'loan_payment' | 'inventory' | 'manual';
+
+export interface JournalEntry {
+    id: string;
+    date: string;
+    memo: string;
+    // Invariant, enforced at post time by journalEntry.ts's postJournalEntry
+    // (never by a screen or a raw setJournalEntries call): sum(debit) across
+    // lines === sum(credit) across lines. An entry that doesn't balance is
+    // not a valid double-entry record and must never be persisted.
+    lines: JournalLine[];
+    source: JournalEntrySource;
+    // The Transaction/Invoice/Bill/Loan id this was auto-posted from, when
+    // source !== 'manual' -- lets the General Ledger link a ledger line back
+    // to the everyday record an owner actually sees and edited.
+    sourceId?: string;
+    postedBy: 'system' | 'bookkeeper';
+    createdAt: string;
+    // A posted entry is never edited or deleted, the same discipline this
+    // app already applies to Loan.payments history -- a correction is a new
+    // entry that reverses this one, and this field links the two so the
+    // General Ledger can show "reversed" rather than silently double-count.
+    reversedByEntryId?: string;
+}
+
 export type LoanStatus = 'active' | 'paid_off' | 'defaulted';
 
 export interface LoanPayment {

@@ -10,8 +10,13 @@
 
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Platform } from 'react-native';
-import { User, Invoice, InvoiceStatus, Bill, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, UserRole, Screen } from '../types';
+import { User, Invoice, InvoiceStatus, Bill, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, UserRole, Screen, Account, JournalEntry, JournalLine } from '../types';
 import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore, computeLoanPaymentSplit } from '../utils/finance';
+import { buildDefaultChartOfAccounts } from '../utils/chartOfAccounts';
+import {
+  postJournalEntry, isBalanced,
+  buildJournalEntryDraftForNewTransaction, buildJournalEntryDraftForTransactionSettled,
+} from '../utils/journalEntry';
 import { buildLoanFromMerchantFinancing } from '../utils/merchantFinancingConversion';
 import { buildReadinessSnapshot, shouldRecordSnapshot, appendReadinessSnapshot } from '../utils/readinessHistory';
 import { buildForecastSnapshot, shouldRecordForecastSnapshot, appendForecastSnapshot } from '../utils/forecastHistory';
@@ -32,6 +37,8 @@ import {
   loadGoals, saveGoals,
   loadInvoices, saveInvoices,
   loadBills, saveBills,
+  loadAccounts, saveAccounts,
+  loadJournalEntries, saveJournalEntries,
   loadSettings, saveSettings,
   loadStaff, saveStaff,
   loadPayrollRuns, savePayrollRuns,
@@ -190,6 +197,31 @@ interface FinanceContextValue {
   forecastHistory: ForecastSnapshot[];
   dataConfidenceHistory: DataConfidenceSnapshot[];
 
+  // General Ledger: the Chart of Accounts every business is seeded with
+  // (see chartOfAccounts.ts) and every journal entry posted against it --
+  // system-generated alongside addTransaction/addLoanPayment/disposeAsset/
+  // stockInInventory/runPayroll (see journalEntry.ts's own header comment
+  // for the posting rules), plus whatever a bookkeeper posts directly
+  // through postManualJournalEntry. Additive: nothing here changes what any
+  // of those methods already do to transactions/loans/assets/inventory.
+  accounts: Account[];
+  journalEntries: JournalEntry[];
+  // Returns { ok: false, error } instead of throwing -- a bookkeeper's own
+  // Journal Entry screen needs to show why an unbalanced draft was rejected,
+  // not crash. postedBy is always 'bookkeeper' here; system postings never
+  // go through this method.
+  postManualJournalEntry: (date: string, memo: string, lines: JournalLine[]) => { ok: boolean; error?: string };
+  // Plain deletes, not a "reverse" posting -- exist for DataIntegrityScreen's
+  // undecryptable-record cleanup (a corrupted row can't be reversed, it can
+  // only be removed) and for archiving a custom sub-account that was never
+  // posted against. Normal ledger corrections still go through
+  // buildReversalDraft (journalEntry.ts), never this.
+  // Named deleteLedgerAccount, not deleteAccount -- AuthContextValue already
+  // owns that name for "delete my Quad360 account" (a completely different
+  // action), and useApp()'s merged object would silently collide on it.
+  deleteLedgerAccount: (id: string) => void;
+  deleteJournalEntry: (id: string) => void;
+
   // True once this provider's own async load (AsyncStorage + Supabase) has
   // resolved for the current identity -- see useAppReady below, which
   // combines this with the other three data-owning providers' own flags so
@@ -213,6 +245,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [readinessHistory, setReadinessHistory] = useState<ReadinessSnapshot[]>([]);
   const [forecastHistory, setForecastHistory] = useState<ForecastSnapshot[]>([]);
   const [dataConfidenceHistory, setDataConfidenceHistory] = useState<DataConfidenceSnapshot[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [financing, setFinancing] = useState<FinancingContextData>({
     isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
     maxQualifiedAmount: undefined, application: undefined,
@@ -253,10 +287,21 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const now = new Date().toISOString();
     const txId = existingTransactionId ?? genId();
     if (!existingTransactionId) {
-      setTransactions((prev) => [...prev, {
+      const payrollTx: Transaction = {
         id: txId, date: periodEndDate, description: `Payroll — ${period}`,
         type: 'expense', category: 'Salaries', amount: totalNet, status: 'paid',
-      } as Transaction]);
+      };
+      setTransactions((prev) => [...prev, payrollTx]);
+      // A run linked to an existingTransactionId (an imported bank payment
+      // matched to this run, see runPayroll's own doc comment) posts
+      // nothing here -- that transaction already has (or will get, via
+      // addTransaction/updateTransaction above) its own journal entry from
+      // wherever it actually entered the ledger; this only posts for a
+      // transaction this run itself just created.
+      if (!isDemoMode) {
+        const draft = buildJournalEntryDraftForNewTransaction(payrollTx);
+        if (draft) postEntry(draft);
+      }
     }
     const run: PayrollRun = {
       id: genId(), period, runDate: now, items, totalGross, totalDeductions,
@@ -289,7 +334,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setHydrated(false);
     setTransactions([]); setAssets([]); setLoans([]); setBudgets([]); setInventory([]);
     setStaff([]); setPayrollRuns([]); setCashPockets([]); setCapitalCommitments([]); setReadinessHistory([]);
-    setForecastHistory([]); setDataConfidenceHistory([]);
+    setForecastHistory([]); setDataConfidenceHistory([]); setAccounts([]); setJournalEntries([]);
     setFinancing({
       isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
       maxQualifiedAmount: undefined, application: undefined,
@@ -340,6 +385,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (rh) setReadinessHistory(rh);
         if (fh) setForecastHistory(fh);
         if (dch) setDataConfidenceHistory(dch);
+
+        // Chart of Accounts: seed the default set the first time this
+        // business ever hydrates (no accounts row yet, anywhere) so the
+        // ledger has somewhere to post against from the very first
+        // transaction -- every later hydration just loads what's already
+        // there instead of reseeding over real account edits/archives.
+        const acc = isStaffRole ? null : await loadAccounts();
+        setAccounts(acc && acc.length > 0 ? acc : buildDefaultChartOfAccounts());
+        const je = isStaffRole ? null : await loadJournalEntries();
+        if (je) setJournalEntries(je);
+
         const financingRaw = isStaffRole ? null : await AsyncStorage.getItem('@quad360/financing').catch(() => null);
         if (financingRaw) {
           try { setFinancing(JSON.parse(financingRaw)); } catch { /* corrupted cache, keep default */ }
@@ -391,6 +447,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (hydrated && !isDemoMode) saveReadinessHistory(readinessHistory).catch(() => {}); }, [readinessHistory, hydrated, isDemoMode]);
   useEffect(() => { if (hydrated && !isDemoMode) saveForecastHistory(forecastHistory).catch(() => {}); }, [forecastHistory, hydrated, isDemoMode]);
   useEffect(() => { if (hydrated && !isDemoMode) saveDataConfidenceHistory(dataConfidenceHistory).catch(() => {}); }, [dataConfidenceHistory, hydrated, isDemoMode]);
+  useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveAccounts(accounts).catch(() => {}); }, [accounts, hydrated, isDemoMode, isStaffRole]);
+  useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveJournalEntries(journalEntries).catch(() => {}); }, [journalEntries, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => {
     // Never loaded for 'staff' (see the hydrate effect above), so `financing`
     // is still just the never-qualified default here -- writing that would
@@ -497,8 +555,34 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setDataConfidenceHistory(prev => shouldRecordDataConfidenceSnapshot(prev) ? appendDataConfidenceSnapshot(prev, buildDataConfidenceSnapshot(dataQuality)) : prev);
   }, [hydrated, isDemoMode, transactions.length, dataQuality]);
 
+  // The one place a system-generated journal entry actually reaches
+  // journalEntries state -- called alongside every write path below that
+  // creates or settles a real Transaction (see journalEntry.ts's own header
+  // comment for the posting rules). A drafting bug (an unbalanced entry)
+  // must never block the underlying write it was posted alongside -- the
+  // ledger is an additive second record, not a gate on the app's primary
+  // one, so this logs and swallows rather than throwing into the caller.
+  const postEntry = (draft: Parameters<typeof postJournalEntry>[1]) => {
+    try {
+      setJournalEntries((prev) => postJournalEntry(prev, draft));
+    } catch (e) {
+      console.error('[Ledger] failed to post journal entry:', e);
+    }
+  };
+
   const value: FinanceContextValue = useMemo(
     () => ({
+      accounts,
+      journalEntries,
+      postManualJournalEntry: (date, memo, lines) => {
+        if (!isBalanced(lines)) {
+          return { ok: false, error: 'Debits and credits must be equal.' };
+        }
+        setJournalEntries((prev) => postJournalEntry(prev, { date, memo, lines, source: 'manual', postedBy: 'bookkeeper' }));
+        return { ok: true };
+      },
+      deleteLedgerAccount: (id) => setAccounts((prev) => prev.filter((a) => a.id !== id)),
+      deleteJournalEntry: (id) => setJournalEntries((prev) => prev.filter((je) => je.id !== id)),
       transactions,
       assets,
       loans,
@@ -511,11 +595,29 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         // product-usage data -- same convention already used above for
         // persistence (saveTransactions etc. all skip while isDemoMode).
         if (!isDemoMode) trackTransactionAdded(tx.type, tx.amount, settingsForFinance?.settings?.currency ?? '₦');
-        setTransactions((prev) => [...prev, { ...tx, id: tx.id || genId() }]);
+        const resolved = { ...tx, id: tx.id || genId() } as Transaction;
+        setTransactions((prev) => [...prev, resolved]);
+        if (!isDemoMode) {
+          const draft = buildJournalEntryDraftForNewTransaction(resolved);
+          if (draft) postEntry(draft);
+        }
       },
-      updateTransaction: (id, tx) => setTransactions((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, ...tx } : t))
-      ),
+      updateTransaction: (id, tx) => {
+        const before = transactions.find((t) => t.id === id);
+        setTransactions((prev) =>
+          prev.map((t) => (t.id === id ? { ...t, ...tx } : t))
+        );
+        // Only the pending/overdue -> paid transition posts a clearing
+        // entry -- the initial revenue/expense recognition already happened
+        // in addTransaction, and re-posting it here on every unrelated edit
+        // (description, category, amount while still pending) would double
+        // it. See buildJournalEntryDraftForTransactionSettled's own comment.
+        if (!isDemoMode && before && before.status !== 'paid' && tx.status === 'paid') {
+          const after = { ...before, ...tx } as Transaction;
+          const draft = buildJournalEntryDraftForTransactionSettled(after);
+          if (draft) postEntry(draft);
+        }
+      },
       deleteTransaction: (id) => {
         setTransactions((prev) => prev.filter((t) => t.id !== id));
         // Explicit, by-id remote delete -- saveTransactions' own sync no
@@ -569,19 +671,21 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (loan) {
           ({ principalPortion, interestPortion } = computeLoanPaymentSplit(loan, payment.amount));
 
-          setTransactions((prev) => [
-            {
-              id: genId(),
-              date: payment.date,
-              description: payment.note || `Loan repayment: ${loan.lenderName || 'lender'}`,
-              type: 'expense',
-              category: 'Loan Repayment',
-              amount: payment.amount,
-              principalPortion,
-              status: 'paid',
-            } as Transaction,
-            ...prev,
-          ]);
+          const repaymentTx: Transaction = {
+            id: genId(),
+            date: payment.date,
+            description: payment.note || `Loan repayment: ${loan.lenderName || 'lender'}`,
+            type: 'expense',
+            category: 'Loan Repayment',
+            amount: payment.amount,
+            principalPortion,
+            status: 'paid',
+          };
+          setTransactions((prev) => [repaymentTx, ...prev]);
+          if (!isDemoMode) {
+            const draft = buildJournalEntryDraftForNewTransaction(repaymentTx);
+            if (draft) postEntry(draft);
+          }
         }
         setLoans((prev) =>
           prev.map((l) => {
@@ -610,18 +714,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           const bookValue = computeAssetCurrentValue(asset);
           const gainLoss = disposalValue - bookValue;
           if (gainLoss !== 0) {
-            setTransactions((prev) => [
-              {
-                id: genId(),
-                date: disposalDate,
-                description: `Asset disposal: ${asset.name}`,
-                type: gainLoss >= 0 ? 'income' : 'expense',
-                category: gainLoss >= 0 ? 'Asset Sale Gain' : 'Asset Disposal Loss',
-                amount: Math.abs(gainLoss),
-                status: 'paid',
-              } as Transaction,
-              ...prev,
-            ]);
+            const disposalTx: Transaction = {
+              id: genId(),
+              date: disposalDate,
+              description: `Asset disposal: ${asset.name}`,
+              type: gainLoss >= 0 ? 'income' : 'expense',
+              category: gainLoss >= 0 ? 'Asset Sale Gain' : 'Asset Disposal Loss',
+              amount: Math.abs(gainLoss),
+              status: 'paid',
+            };
+            setTransactions((prev) => [disposalTx, ...prev]);
+            if (!isDemoMode) {
+              const draft = buildJournalEntryDraftForNewTransaction(disposalTx);
+              if (draft) postEntry(draft);
+            }
           }
         }
         setAssets((prev) =>
@@ -686,7 +792,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           } : i))
         );
         if (recordCashPurchase) {
-          setTransactions((prev) => [...prev, {
+          const purchaseTx: Transaction = {
             id: genId(),
             date: purchaseDate,
             description: `Stock In: ${item.name}`,
@@ -697,7 +803,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             transactionCategory: 'purchase',
             vendorCustomer: supplier || undefined,
             inventoryItemId: id,
-          } as Transaction]);
+          };
+          setTransactions((prev) => [...prev, purchaseTx]);
+          if (!isDemoMode) {
+            const draft = buildJournalEntryDraftForNewTransaction(purchaseTx);
+            if (draft) postEntry(draft);
+          }
         }
       },
       linkInventoryCostTransaction: (transactionId, itemId, quantityAdded) => {
@@ -881,7 +992,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         });
       },
     }),
-    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, capitalCommitments, readinessHistory, forecastHistory, dataConfidenceHistory, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency, hydrated]
+    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, capitalCommitments, readinessHistory, forecastHistory, dataConfidenceHistory, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency, hydrated, accounts, journalEntries]
   );
 
   return (
@@ -2474,6 +2585,8 @@ export function useApp() {
   const loans = finance?.loans ?? [];
   const budgets = finance?.budgets ?? [];
   const inventory = finance?.inventory ?? [];
+  const accounts = finance?.accounts ?? [];
+  const journalEntries = finance?.journalEntries ?? [];
   // Recomputes currentValue/progress/status against live finance/transaction
   // data on every read instead of trusting whatever was stored at creation
   // (or last edit) time — GoalProvider's addGoal/updateGoal never refresh
@@ -2581,6 +2694,11 @@ export function useApp() {
     loans,
     budgets,
     inventory,
+    accounts,
+    journalEntries,
+    postManualJournalEntry: finance?.postManualJournalEntry || (() => ({ ok: false, error: 'Not ready yet.' })),
+    deleteLedgerAccount: finance?.deleteLedgerAccount || (() => {}),
+    deleteJournalEntry: finance?.deleteJournalEntry || (() => {}),
     finance: finance?.finance,
     addTransaction: finance?.addTransaction || (() => {}),
     updateTransaction: finance?.updateTransaction || (() => {}),

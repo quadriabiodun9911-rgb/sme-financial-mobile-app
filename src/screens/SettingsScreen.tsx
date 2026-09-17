@@ -88,7 +88,7 @@ export default function SettingsScreen() {
         language, setLanguage,
         transactions, user, updateProfile,
         finance, assets, loans, isDemoMode,
-        invoices, bills, inventory, goals, budgets,
+        invoices, bills, inventory, goals, budgets, accounts, journalEntries,
     } = useApp() as ReturnType<typeof useApp>;
 
     // Drives the Data & Backup card below -- it must never claim data is
@@ -96,8 +96,8 @@ export default function SettingsScreen() {
     // in the account (see DataIntegrityScreen). Skipped in demo mode, whose
     // sample data was never encrypted and would always read as broken.
     const integrityIssueCount = useMemo(
-        () => isDemoMode ? 0 : auditDataIntegrity({ transactions, invoices, bills, assets, inventory, goals, loans, budgets }).length,
-        [isDemoMode, transactions, invoices, bills, assets, inventory, goals, loans, budgets]
+        () => isDemoMode ? 0 : auditDataIntegrity({ transactions, invoices, bills, assets, inventory, goals, loans, budgets, accounts, journalEntries }).length,
+        [isDemoMode, transactions, invoices, bills, assets, inventory, goals, loans, budgets, accounts, journalEntries]
     );
 
     // Feature flags

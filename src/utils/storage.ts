@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CryptoJS from 'crypto-js';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, Bill, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, FxRateSnapshot } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, Bill, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, FxRateSnapshot, Account, JournalEntry } from '../types';
 import { supabase } from './supabase';
 import {
     savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData, saveAuthSecretSecurely, loadAuthSecretSecurely, clearAuthSecretSecurely,
@@ -10,7 +10,8 @@ import { enqueue } from './syncQueue';
 import {
     getFieldEncryptionKey, encryptGoal, decryptGoal, encryptLoan, decryptLoan, encryptBudget, decryptBudget,
     encryptTransaction, decryptTransaction, encryptInvoice, decryptInvoice, encryptAsset, decryptAsset,
-    encryptInventoryItem, decryptInventoryItem, encryptBill, decryptBill, deriveFieldEncryptionKey, generateEncryptionKey, setEncryptionKey,
+    encryptInventoryItem, decryptInventoryItem, encryptBill, decryptBill, encryptAccount, decryptAccount,
+    encryptJournalEntry, decryptJournalEntry, deriveFieldEncryptionKey, generateEncryptionKey, setEncryptionKey,
 } from './encryption';
 
 // Corrupt/partial storage must never crash a loader — parse defensively.
@@ -28,6 +29,8 @@ const KEYS = {
     profile:        '@quad360/profile',
     invoices:       '@quad360/invoices',
     bills:          '@quad360/bills',
+    accounts:       '@quad360/accounts',
+    journalEntries: '@quad360/journal-entries',
     workspaceOwner: '@quad360/workspaceOwner',
     language:       '@quad360/language',
     assets:         '@quad360/assets',
@@ -466,6 +469,145 @@ export async function loadBills(): Promise<Bill[] | null> {
     }
     const raw = await AsyncStorage.getItem(KEYS.bills);
     return safeParse<Bill[]>(raw);
+}
+
+// ─── General Ledger: Chart of Accounts + Journal Entries ───────────────────────
+export async function saveAccounts(accounts: Account[]): Promise<void> {
+    await AsyncStorage.setItem(KEYS.accounts, JSON.stringify(accounts));
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    const changed = diffChangedRows('accounts', accounts);
+    try {
+        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+        const rows = changed.length > 0 ? changed.map(a => ({
+            id: a.id, user_id: ownerId,
+            data: encKey ? encryptAccount(a as unknown as Record<string, any>, encKey) : a,
+            updated_at: new Date().toISOString(),
+        })) : [];
+
+        const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
+            rows.length > 0 ? supabase.from('accounts').upsert(rows, { onConflict: 'id' }) : Promise.resolve({ error: null }),
+            supabase.from('accounts').select('id').eq('user_id', ownerId),
+        ]);
+
+        if (upsertResult.error) {
+            logSyncError('accounts', 'upsert', upsertResult.error);
+        } else {
+            recordSyncedRows('accounts', accounts);
+        }
+        if (fetchErr) { logSyncError('accounts', 'select', fetchErr); return; }
+
+        if (remote && remote.length > 0) {
+            const localIds = new Set(accounts.map(a => a.id));
+            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+            if (toDelete.length > 0) {
+                const { error: delErr } = await supabase.from('accounts').delete().in('id', toDelete);
+                if (delErr) logSyncError('accounts', 'delete', delErr);
+            }
+        }
+    } catch (e) {
+        logSyncError('accounts', 'sync', e);
+        const rows = accounts.map(a => ({ id: a.id, user_id: ownerId, data: a, updated_at: new Date().toISOString() }));
+        await enqueue({ table: 'accounts', op: 'upsert', rows, userId: ownerId });
+    }
+}
+
+export async function loadAccounts(): Promise<Account[] | null> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (ownerId) {
+        try {
+            const { data, error } = await supabase
+                .from('accounts')
+                .select('data')
+                .eq('user_id', ownerId)
+                .order('updated_at', { ascending: false });
+            if (error) { logSyncError('accounts', 'load', error); }
+            else if (data && data.length > 0) {
+                const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+                const list = data.map(r => {
+                    const raw = r.data as Record<string, any>;
+                    return (encKey && raw?.encrypted ? decryptAccount(raw as any, encKey) : raw) as Account;
+                });
+                await AsyncStorage.setItem(KEYS.accounts, JSON.stringify(list));
+                return list;
+            }
+        } catch (e) {
+            logSyncError('accounts', 'load', e);
+        }
+    }
+    const raw = await AsyncStorage.getItem(KEYS.accounts);
+    return safeParse<Account[]>(raw);
+}
+
+// Journal entries are append-mostly (see JournalEntry's own doc comment on
+// reversedByEntryId: a posted entry is never edited, only reversed by a new
+// one) -- saved/loaded with the exact same sync shape as every other entity
+// here regardless, since a reversal is itself just a new row like any other.
+export async function saveJournalEntries(entries: JournalEntry[]): Promise<void> {
+    await AsyncStorage.setItem(KEYS.journalEntries, JSON.stringify(entries));
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    const changed = diffChangedRows('journalEntries', entries);
+    try {
+        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+        const rows = changed.length > 0 ? changed.map(je => ({
+            id: je.id, user_id: ownerId,
+            data: encKey ? encryptJournalEntry(je as unknown as Record<string, any>, encKey) : je,
+            updated_at: new Date().toISOString(),
+        })) : [];
+
+        const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
+            rows.length > 0 ? supabase.from('journal_entries').upsert(rows, { onConflict: 'id' }) : Promise.resolve({ error: null }),
+            supabase.from('journal_entries').select('id').eq('user_id', ownerId),
+        ]);
+
+        if (upsertResult.error) {
+            logSyncError('journalEntries', 'upsert', upsertResult.error);
+        } else {
+            recordSyncedRows('journalEntries', entries);
+        }
+        if (fetchErr) { logSyncError('journalEntries', 'select', fetchErr); return; }
+
+        if (remote && remote.length > 0) {
+            const localIds = new Set(entries.map(je => je.id));
+            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+            if (toDelete.length > 0) {
+                const { error: delErr } = await supabase.from('journal_entries').delete().in('id', toDelete);
+                if (delErr) logSyncError('journalEntries', 'delete', delErr);
+            }
+        }
+    } catch (e) {
+        logSyncError('journalEntries', 'sync', e);
+        const rows = entries.map(je => ({ id: je.id, user_id: ownerId, data: je, updated_at: new Date().toISOString() }));
+        await enqueue({ table: 'journal_entries', op: 'upsert', rows, userId: ownerId });
+    }
+}
+
+export async function loadJournalEntries(): Promise<JournalEntry[] | null> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (ownerId) {
+        try {
+            const { data, error } = await supabase
+                .from('journal_entries')
+                .select('data')
+                .eq('user_id', ownerId)
+                .order('updated_at', { ascending: false });
+            if (error) { logSyncError('journalEntries', 'load', error); }
+            else if (data && data.length > 0) {
+                const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+                const list = data.map(r => {
+                    const raw = r.data as Record<string, any>;
+                    return (encKey && raw?.encrypted ? decryptJournalEntry(raw as any, encKey) : raw) as JournalEntry;
+                });
+                await AsyncStorage.setItem(KEYS.journalEntries, JSON.stringify(list));
+                return list;
+            }
+        } catch (e) {
+            logSyncError('journalEntries', 'load', e);
+        }
+    }
+    const raw = await AsyncStorage.getItem(KEYS.journalEntries);
+    return safeParse<JournalEntry[]>(raw);
 }
 
 // ─── Assets ───────────────────────────────────────────────────────────────────

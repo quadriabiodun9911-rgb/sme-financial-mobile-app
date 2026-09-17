@@ -1,4 +1,4 @@
-import { Transaction, Invoice, Bill, Asset, InventoryItem, FinancialGoal, Loan, Budget } from '../types';
+import { Transaction, Invoice, Bill, Asset, InventoryItem, FinancialGoal, Loan, Budget, Account, JournalEntry } from '../types';
 import { getUndecryptedFields, ENCRYPTED_FIELDS } from './encryption';
 
 export type IntegrityEntityType = keyof typeof ENCRYPTED_FIELDS;
@@ -25,6 +25,8 @@ export function auditDataIntegrity(data: {
     goals: FinancialGoal[];
     loans: Loan[];
     budgets: Budget[];
+    accounts: Account[];
+    journalEntries: JournalEntry[];
 }): IntegrityIssue[] {
     const issues: IntegrityIssue[] = [];
 
@@ -49,6 +51,8 @@ export function auditDataIntegrity(data: {
     scan(data.goals, 'goals', g => g.title || `Goal ${g.id}`);
     scan(data.loans, 'loans', l => `Loan from ${l.lenderName || 'unknown lender'}`);
     scan(data.budgets, 'budgets', b => `Budget: ${b.category || b.id}`);
+    scan(data.accounts, 'accounts', a => a.name || `Account ${a.code}`);
+    scan(data.journalEntries, 'journalEntries', je => je.memo || `Journal entry ${je.date}`);
 
     return issues;
 }
@@ -62,4 +66,6 @@ export const ENTITY_LABELS: Record<IntegrityEntityType, string> = {
     goals: 'Goals',
     loans: 'Loans',
     budgets: 'Budgets',
+    accounts: 'Chart of Accounts',
+    journalEntries: 'Journal Entries',
 };

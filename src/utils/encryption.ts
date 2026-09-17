@@ -26,6 +26,11 @@ export const ENCRYPTED_FIELDS = {
     loans: ['amount', 'interestRate', 'lenderName'],
     budgets: ['amount', 'spent', 'name'],
     bills: ['vendorName', 'subtotal', 'taxTotal', 'total'],
+    accounts: ['name'],
+    // 'lines' is a JSON-serialized blob (see encryptJournalEntry below), not
+    // a flat scalar field -- the amounts a bookkeeper cares about hiding
+    // live inside it, not in 'memo' alone.
+    journalEntries: ['memo', 'lines'],
 };
 
 interface EncryptionMetadata {
@@ -332,6 +337,107 @@ export function decryptBill(
             const value = decryptValue(decrypted[encryptedField], key);
             if (value) {
                 decrypted[field] = isNaN(Number(value)) ? value : Number(value);
+            }
+        }
+    }
+
+    const { encrypted: _, version: __, timestamp: ___, ...cleanDecrypted } = decrypted;
+    return cleanDecrypted;
+}
+
+/**
+ * Encrypt sensitive fields in a Chart of Accounts account object
+ */
+export function encryptAccount(
+    account: Record<string, any>,
+    key: string,
+): Record<string, any> & EncryptionMetadata {
+    const encrypted = { ...account };
+
+    const fieldsToEncrypt = ENCRYPTED_FIELDS.accounts;
+    for (const field of fieldsToEncrypt) {
+        if (field in encrypted && encrypted[field] != null) {
+            encrypted[`${field}_encrypted`] = encryptValue(encrypted[field], key);
+            delete encrypted[field];
+        }
+    }
+
+    return {
+        ...encrypted,
+        encrypted: true,
+        version: 1,
+        timestamp: Date.now(),
+    };
+}
+
+/**
+ * Decrypt sensitive fields in a Chart of Accounts account object
+ */
+export function decryptAccount(
+    encrypted: Record<string, any> & EncryptionMetadata,
+    key: string,
+): Record<string, any> {
+    const decrypted = { ...encrypted };
+
+    const fieldsToEncrypt = ENCRYPTED_FIELDS.accounts;
+    for (const field of fieldsToEncrypt) {
+        const encryptedField = `${field}_encrypted`;
+        if (encryptedField in decrypted && decrypted[encryptedField]) {
+            const value = decryptValue(decrypted[encryptedField], key);
+            if (value) {
+                decrypted[field] = isNaN(Number(value)) ? value : Number(value);
+            }
+        }
+    }
+
+    const { encrypted: _, version: __, timestamp: ___, ...cleanDecrypted } = decrypted;
+    return cleanDecrypted;
+}
+
+/**
+ * Encrypt sensitive fields in a journal entry object. 'lines' carries the
+ * actual debit/credit amounts (JournalLine[]) -- serialized to JSON before
+ * encryptValue, since that function only accepts a scalar string | number,
+ * unlike the other flat fields this same loop handles for every other
+ * entity in this file.
+ */
+export function encryptJournalEntry(
+    entry: Record<string, any>,
+    key: string,
+): Record<string, any> & EncryptionMetadata {
+    const encrypted = { ...entry };
+
+    for (const field of ENCRYPTED_FIELDS.journalEntries) {
+        if (field in encrypted && encrypted[field] != null) {
+            const raw = field === 'lines' ? JSON.stringify(encrypted[field]) : encrypted[field];
+            encrypted[`${field}_encrypted`] = encryptValue(raw, key);
+            delete encrypted[field];
+        }
+    }
+
+    return {
+        ...encrypted,
+        encrypted: true,
+        version: 1,
+        timestamp: Date.now(),
+    };
+}
+
+/**
+ * Decrypt sensitive fields in a journal entry object.
+ */
+export function decryptJournalEntry(
+    encrypted: Record<string, any> & EncryptionMetadata,
+    key: string,
+): Record<string, any> {
+    const decrypted = { ...encrypted };
+
+    for (const field of ENCRYPTED_FIELDS.journalEntries) {
+        const encryptedField = `${field}_encrypted`;
+        if (encryptedField in decrypted && decrypted[encryptedField]) {
+            const value = decryptValue(decrypted[encryptedField], key);
+            if (value != null) {
+                decrypted[field] = field === 'lines' ? JSON.parse(value) : value;
             }
         }
     }

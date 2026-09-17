@@ -47,6 +47,8 @@ describe('auditDataIntegrity', () => {
             goals: [],
             loans: [],
             budgets: [],
+            accounts: [],
+            journalEntries: [],
         });
 
         expect(issues).toHaveLength(2);
@@ -64,6 +66,8 @@ describe('auditDataIntegrity', () => {
             goals: [],
             loans: [],
             budgets: [],
+            accounts: [],
+            journalEntries: [],
         });
         expect(issues).toEqual([]);
     });
