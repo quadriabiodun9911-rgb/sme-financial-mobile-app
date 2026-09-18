@@ -17,6 +17,7 @@ import { showAlert, confirmAction } from '../utils/webAlert';
 import { classifyByDescription, loadLearnedRules } from '../utils/transactionCategorization';
 import { findMatchingProfile, saveBankProfile, updateProfileLastUsed } from '../utils/bankProfileManager';
 import { localDateStr } from '../utils/localDate';
+import { canWriteBusinessData } from '../utils/rolePermissions';
 
 // Bank transaction as imported from a statement or manual entry
 interface BankTx {
@@ -135,7 +136,12 @@ function ColumnPicker({ label, required, headers, sample, selected, onSelect }: 
 }
 
 export default function ReconciliationScreen() {
-    const { transactions, addTransaction, settings, setCurrentScreen } = useApp();
+    const { transactions, addTransaction, settings, setCurrentScreen, userRole } = useApp();
+    // external_accountant is allowed onto this screen to see reconciliation
+    // status (canViewFinancials), but is documented as read-only everywhere
+    // (canWriteBusinessData excludes it) -- same pattern GeneralLedgerScreen
+    // already uses for its own write action.
+    const canWrite = canWriteBusinessData(userRole);
 
     useEffect(() => { loadLearnedRules(); }, []);
 
@@ -311,6 +317,7 @@ export default function ReconciliationScreen() {
     };
 
     const importUnmatchedBankTx = (b: BankTx) => {
+        if (!canWrite) return;
         const txType: 'income' | 'expense' = b.type === 'credit' ? 'income' : 'expense';
 
         // Shared duplicate guard — don't re-add a transaction that already exists
@@ -520,9 +527,11 @@ export default function ReconciliationScreen() {
                                                 {b.type === 'credit' ? '+' : '-'}{fmt(b.amount)}
                                             </Text>
                                         </View>
-                                        <TouchableOpacity style={styles.importBtn} onPress={() => importUnmatchedBankTx(b)} activeOpacity={0.8}>
-                                            <Text style={styles.importBtnText}>Import</Text>
-                                        </TouchableOpacity>
+                                        {canWrite && (
+                                            <TouchableOpacity style={styles.importBtn} onPress={() => importUnmatchedBankTx(b)} activeOpacity={0.8}>
+                                                <Text style={styles.importBtnText}>Import</Text>
+                                            </TouchableOpacity>
+                                        )}
                                     </View>
                                 ))}
                             </>
