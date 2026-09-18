@@ -24,6 +24,7 @@ import { auditEvents } from '../utils/auditLog';
 import { checkStatementBalance } from '../utils/statementBalanceCheck';
 import DataConfidenceBadge from '../components/DataConfidenceBadge';
 import AhaMomentFeedback from '../components/AhaMomentFeedback';
+import { canWriteBusinessData } from '../utils/rolePermissions';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -369,7 +370,11 @@ const CATEGORY_OPTIONS: { label: string; category: TxCategory; subCategory: stri
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ImportTransactionsScreen() {
-    const { navigate, goBack, addTransaction, transactions, invoices, finance, settings, loans, inventory, assets, navParams } = useApp();
+    const { navigate, goBack, addTransaction, transactions, invoices, finance, settings, loans, inventory, assets, navParams, userRole } = useApp();
+    // external_accountant is allowed onto this screen (reporting visibility),
+    // but is documented as read-only everywhere -- canWriteBusinessData
+    // excludes it, same as ReconciliationScreen/GeneralLedgerScreen's own gate.
+    const canWrite = canWriteBusinessData(userRole);
     // Set by setupAccount when a brand-new account already carries real
     // numbers from Quick Health Check or a Guest Mode session -- skips
     // straight to this screen's post-import diagnosis instead of an empty
@@ -789,6 +794,7 @@ export default function ImportTransactionsScreen() {
     };
 
     const handleImport = () => {
+        if (!canWrite) return;
         const flagged = rows.filter(r => r.flagged);
         if (flagged.length > 0) {
             // Not knowing which category a transaction belongs in is normal
@@ -1263,17 +1269,19 @@ export default function ImportTransactionsScreen() {
             />
 
             {/* Import button — fixed bottom */}
-            <View style={styles.importBar}>
-                <TouchableOpacity style={styles.importBtn} onPress={handleImport}>
-                    <Text style={styles.importBtnText}>
-                        {duplicateCount === 0
-                            ? `Import ${rows.length} transaction${rows.length !== 1 ? 's' : ''}`
-                            : duplicateCount === rows.length
-                                ? 'All transactions already recorded — nothing new to import'
-                                : `Import ${rows.length - duplicateCount} new transaction${rows.length - duplicateCount !== 1 ? 's' : ''} (${duplicateCount} duplicate${duplicateCount !== 1 ? 's' : ''} skipped)`}
-                    </Text>
-                </TouchableOpacity>
-            </View>
+            {canWrite && (
+                <View style={styles.importBar}>
+                    <TouchableOpacity style={styles.importBtn} onPress={handleImport}>
+                        <Text style={styles.importBtnText}>
+                            {duplicateCount === 0
+                                ? `Import ${rows.length} transaction${rows.length !== 1 ? 's' : ''}`
+                                : duplicateCount === rows.length
+                                    ? 'All transactions already recorded — nothing new to import'
+                                    : `Import ${rows.length - duplicateCount} new transaction${rows.length - duplicateCount !== 1 ? 's' : ''} (${duplicateCount} duplicate${duplicateCount !== 1 ? 's' : ''} skipped)`}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            )}
 
             {/* Category picker modal */}
             <Modal visible={!!pickerRow} transparent animationType="slide" onRequestClose={() => { setPickerRow(null); setCustomCategoryLabel(''); }}>
