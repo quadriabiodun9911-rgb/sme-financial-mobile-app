@@ -241,6 +241,20 @@ const T = {
         navCredit: 'Credit', navFinancing: 'Financing',
         navSettingsDesc: 'Business, team & account',
         navExportData: 'Export Data', navExportDataDesc: 'Download reports & backups',
+
+        // Dashboard -- Vital Signs / Business Health (top of screen)
+        dashboardSearchPlaceholder: 'Search transactions, invoices, assets...',
+        guestModeBanner: 'Guest Mode — data is not saved', demoModeBanner: 'Demo Mode — sample data, not saved',
+        createAccountArrow: 'Create Account →',
+        businessHealthTitle: '🩺 BUSINESS HEALTH', noScoreYet: 'No score yet',
+        healthEmptyText: "Your Business Health Score needs some real activity to mean anything. Add your first transaction (or import a bank statement) and it'll appear here.",
+        addFirstTransactionArrow: '+ Add your first transaction →',
+        whyWhatBuiltOn: 'Why? What is this built on?',
+        definitionLabel: 'Definition', dataConfidenceLabel: 'Data confidence', triggerLabel: 'Trigger',
+        seeFullBreakdownTrend: 'See full breakdown & trend →',
+        vitalSigns: 'Vital Signs', cashInHand: 'Cash in Hand', inPocketsSuffix: 'in pockets',
+        cashLast30Days: 'Cash, last 30 days', yesterdayLabel: 'Yesterday', inWord: 'in', outWord: 'out',
+        thisMonthLabel: 'This Month',
     },
 
     zh: {
@@ -453,6 +467,20 @@ const T = {
         navCredit: '信用', navFinancing: '融资',
         navSettingsDesc: '企业、团队与账户',
         navExportData: '导出数据', navExportDataDesc: '下载报告与备份',
+
+        // Dashboard -- Vital Signs / Business Health (top of screen)
+        dashboardSearchPlaceholder: '搜索交易、发票、资产...',
+        guestModeBanner: '访客模式 — 数据不会被保存', demoModeBanner: '演示模式 — 示例数据，不会保存',
+        createAccountArrow: '创建账户 →',
+        businessHealthTitle: '🩺 企业健康', noScoreYet: '暂无评分',
+        healthEmptyText: '您的企业健康评分需要一些真实的活动才有意义。添加您的第一笔交易（或导入银行对账单）后即会显示。',
+        addFirstTransactionArrow: '+ 添加您的第一笔交易 →',
+        whyWhatBuiltOn: '为什么？这是基于什么计算的？',
+        definitionLabel: '定义', dataConfidenceLabel: '数据可信度', triggerLabel: '触发因素',
+        seeFullBreakdownTrend: '查看完整明细与趋势 →',
+        vitalSigns: '生命体征', cashInHand: '现有资金', inPocketsSuffix: '存于备用金',
+        cashLast30Days: '近30天现金', yesterdayLabel: '昨天', inWord: '收入', outWord: '支出',
+        thisMonthLabel: '本月',
     },
 
     ha: {
@@ -666,6 +694,20 @@ const T = {
         navCredit: 'Amincewar Bashi', navFinancing: 'Kasuwar Kuɗi',
         navSettingsDesc: 'Kasuwanci, ƙungiya da asusu',
         navExportData: 'Fitar da Bayanai', navExportDataDesc: "Sauke rahotanni da ma'ajiyar bayanai",
+
+        // Dashboard -- Vital Signs / Business Health (top of screen)
+        dashboardSearchPlaceholder: 'Nemo ciniki, takardun kudi, kadarori...',
+        guestModeBanner: 'Yanayin Baƙo — ba a adana bayanai ba', demoModeBanner: 'Yanayin Gwaji — bayanan misali, ba a adana su ba',
+        createAccountArrow: 'Ƙirƙiri Asusu →',
+        businessHealthTitle: '🩺 LAFIYAR KASUWANCI', noScoreYet: 'Babu maki tukuna',
+        healthEmptyText: "Makin Lafiyar Kasuwancinka yana bukatar wani ainihin aiki don ya nuna wani abu. Ƙara ciniki na farko (ko shigo da bayanin banki) sannan zai bayyana anan.",
+        addFirstTransactionArrow: '+ Ƙara cinikinka na farko →',
+        whyWhatBuiltOn: 'Me ya sa? Me aka gina wannan a kai?',
+        definitionLabel: 'Ma\'ana', dataConfidenceLabel: 'Amincewar bayanai', triggerLabel: 'Abin da ya jawo',
+        seeFullBreakdownTrend: 'Duba cikakken bayani & yanayi →',
+        vitalSigns: 'Alamomin Rayuwa', cashInHand: 'Kuɗin da ke Hannu', inPocketsSuffix: 'a cikin apo',
+        cashLast30Days: 'Kuɗi, kwanaki 30 da suka gabata', yesterdayLabel: 'Jiya', inWord: 'shiga', outWord: 'fita',
+        thisMonthLabel: 'Wannan Wata',
     },
 
     yo: {
@@ -879,6 +921,20 @@ const T = {
         navCredit: 'Kírẹ́díìtì', navFinancing: 'Ìnáwó',
         navSettingsDesc: 'Iṣẹ́ òwò, àwùjọ àti àkántì',
         navExportData: 'Yọ Dátà Jáde', navExportDataDesc: 'Gba àwọn ìròyìn àti ẹ̀dà àfẹ̀yìntì',
+
+        // Dashboard -- Vital Signs / Business Health (top of screen)
+        dashboardSearchPlaceholder: 'Wa àwọn ìṣòwò, owó tí a fi ránṣẹ́, ohun-ìní...',
+        guestModeBanner: 'Ipò Àlejò — a kò fi dátà pamọ́', demoModeBanner: 'Ipò Àfihàn — dátà àpẹẹrẹ, a kò fi pamọ́',
+        createAccountArrow: 'Ṣẹ̀dá Àkántì →',
+        businessHealthTitle: '🩺 ÌLERA IṢẸ́ ÒWÒ', noScoreYet: 'Kò tíì sí àmì kankan',
+        healthEmptyText: 'Àmì Ìlera Iṣẹ́ Òwò rẹ nílò iṣẹ́ ojúlówó kí ó tó túmọ̀ sí ohunkóhun. Fi ìṣòwò àkọ́kọ́ rẹ kún (tàbí gbe àkọsílẹ̀ báńkì wọlé) yóò sì fara hàn níhìn-ín.',
+        addFirstTransactionArrow: '+ Fi ìṣòwò àkọ́kọ́ rẹ kún →',
+        whyWhatBuiltOn: 'Kí nìdí? Kí ni a fi kọ́ èyí?',
+        definitionLabel: 'Ìtumọ̀', dataConfidenceLabel: 'Ìgbẹ́kẹ̀lé dátà', triggerLabel: 'Okùnfà',
+        seeFullBreakdownTrend: 'Wo àlàyé kíkún & ìrésẹ̀ →',
+        vitalSigns: 'Àwọn Àmì Ìwàláàyè', cashInHand: 'Owó Lọ́wọ́', inPocketsSuffix: 'nínú àpò',
+        cashLast30Days: 'Owó, ọjọ́ 30 sẹ́yìn', yesterdayLabel: 'Àná', inWord: 'wọlé', outWord: 'jáde',
+        thisMonthLabel: 'Oṣù Yìí',
     },
 
     ig: {
@@ -1092,6 +1148,20 @@ const T = {
         navCredit: 'Kredit', navFinancing: 'Inweta Ego',
         navSettingsDesc: 'Azụmahịa, ndị otu na akaụntụ',
         navExportData: 'Bupụ Data', navExportDataDesc: 'Budata akụkọ na nchekwa',
+
+        // Dashboard -- Vital Signs / Business Health (top of screen)
+        dashboardSearchPlaceholder: 'Chọọ azụmahịa, akwụkwọ ụgwọ, ihe onwunwe...',
+        guestModeBanner: 'Ọnọdụ Ọbịa — a chekwaghị data', demoModeBanner: 'Ọnọdụ Ngosi — data ihe atụ, a chekwaghị ya',
+        createAccountArrow: 'Mepụta Akaụntụ →',
+        businessHealthTitle: '🩺 AHỤIKE AZỤMAHỊA', noScoreYet: 'Enwebeghị akara',
+        healthEmptyText: "Akara Ahụike Azụmahịa gị chọrọ ezigbo omume tupu ọ pụta ihe ọ bụla. Tinye azụmahịa mbụ gị (ma ọ bụ bulite akwụkwọ ụlọ akụ) ọ ga-apụtakwa ebe a.",
+        addFirstTransactionArrow: '+ Tinye azụmahịa mbụ gị →',
+        whyWhatBuiltOn: 'Gịnị mere? Gịnị ka e ji wuo nke a?',
+        definitionLabel: 'Nkọwa', dataConfidenceLabel: 'Ntụkwasị obi data', triggerLabel: 'Ihe kpaliri ya',
+        seeFullBreakdownTrend: 'Lelee nkọwa zuru oke & usoro →',
+        vitalSigns: 'Ihe Mgbaàmà Ndụ', cashInHand: 'Ego Dị n\'Aka', inPocketsSuffix: 'n\'ime akpa',
+        cashLast30Days: 'Ego, ụbọchị 30 gara aga', yesterdayLabel: 'Ụnyaahụ', inWord: 'na-abata', outWord: 'na-apụ',
+        thisMonthLabel: 'Ọnwa a',
     },
 } as const;
 
