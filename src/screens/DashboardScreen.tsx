@@ -1478,7 +1478,7 @@ export default function DashboardScreen() {
 
                 <TouchableOpacity style={styles.searchTrigger} onPress={() => setShowSearch(true)}>
                     <Icon name="search" size={14} color={Colors.textMuted} />
-                    <Text style={styles.searchTriggerText}>Search transactions, invoices, assets...</Text>
+                    <Text style={styles.searchTriggerText}>{t(language, 'dashboardSearchPlaceholder')}</Text>
                 </TouchableOpacity>
                 <Text style={styles.title}>{t(language, 'dashboard')}</Text>
 
@@ -1490,7 +1490,7 @@ export default function DashboardScreen() {
                     <View style={styles.quickActionsRow}>
                         <TouchableOpacity style={styles.quickAction} onPress={() => navigate('payment-link')}>
                             <Icon name="credit-card" size={18} color={Colors.primary} />
-                            <Text style={[styles.quickActionText, { color: Colors.textPrimary }]}>Collect Payment</Text>
+                            <Text style={[styles.quickActionText, { color: Colors.textPrimary }]}>{t(language, 'collectPayment')}</Text>
                         </TouchableOpacity>
                     </View>
                 )}
@@ -1507,8 +1507,8 @@ export default function DashboardScreen() {
                             <Icon name="eye" size={14} color="#fff" />
                             <Text style={styles.demoBannerText}>
                                 {demoBusinessId === null
-                                    ? 'Guest Mode — data is not saved'
-                                    : 'Demo Mode — sample data, not saved'}
+                                    ? t(language, 'guestModeBanner')
+                                    : t(language, 'demoModeBanner')}
                             </Text>
                         </View>
                         <TouchableOpacity
@@ -1528,7 +1528,7 @@ export default function DashboardScreen() {
                             }}
                             style={styles.demoBannerBtn}
                         >
-                            <Text style={styles.demoBannerBtnText}>Create Account →</Text>
+                            <Text style={styles.demoBannerBtnText}>{t(language, 'createAccountArrow')}</Text>
                         </TouchableOpacity>
                     </View>
                 )}
@@ -1559,7 +1559,7 @@ export default function DashboardScreen() {
                     Tapping through goes to the full breakdown. */}
                 {canViewFinancials && (
                     <View style={[styles.operationsSection, isWideDashboard && styles.dashboardCol]}>
-                      <Text style={styles.operationsSectionTitle}>🩺 BUSINESS HEALTH</Text>
+                      <Text style={styles.operationsSectionTitle}>{t(language, 'businessHealthTitle')}</Text>
                       {healthIntelligence.dataQuality.totalTransactions === 0 ? (
                         // A blank account has nothing to score yet -- showing
                         // a confident number/grade here (the old behaviour)
@@ -1573,12 +1573,11 @@ export default function DashboardScreen() {
                           activeOpacity={0.85}
                           onPress={() => openFab()}
                         >
-                            <Text style={styles.healthEmptyTitle}>No score yet</Text>
+                            <Text style={styles.healthEmptyTitle}>{t(language, 'noScoreYet')}</Text>
                             <Text style={styles.healthEmptyText}>
-                                Your Business Health Score needs some real activity to mean anything.
-                                Add your first transaction (or import a bank statement) and it'll appear here.
+                                {t(language, 'healthEmptyText')}
                             </Text>
-                            <Text style={styles.healthLinkText}>+ Add your first transaction →</Text>
+                            <Text style={styles.healthLinkText}>{t(language, 'addFirstTransactionArrow')}</Text>
                         </PressScale>
                       ) : (
                         <PressScale
@@ -1614,27 +1613,27 @@ export default function DashboardScreen() {
                                 onPress={(e) => { e.stopPropagation(); setHealthWhyOpen(o => !o); }}
                             >
                                 <Icon name="help-circle" size={12} color={Colors.textMuted} />
-                                <Text style={styles.healthWhyBtnText}>Why? What is this built on?</Text>
+                                <Text style={styles.healthWhyBtnText}>{t(language, 'whyWhatBuiltOn')}</Text>
                                 <Icon name={healthWhyOpen ? 'chevron-up' : 'chevron-down'} size={12} color={Colors.textMuted} />
                             </TouchableOpacity>
 
                             {healthWhyOpen && (
                                 <TouchableOpacity style={styles.healthWhyBox} activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-                                    <Text style={styles.healthWhyLabel}>Definition</Text>
+                                    <Text style={styles.healthWhyLabel}>{t(language, 'definitionLabel')}</Text>
                                     <Text style={styles.healthWhyText}>{healthIntelligence.definition}</Text>
 
-                                    <Text style={styles.healthWhyLabel}>Data confidence</Text>
+                                    <Text style={styles.healthWhyLabel}>{t(language, 'dataConfidenceLabel')}</Text>
                                     <Text style={styles.healthWhyText}>{healthIntelligence.dataQuality.summary}</Text>
                                     {healthIntelligence.builtOn.map((line, i) => (
                                         <Text key={i} style={styles.healthWhyBullet}>• {line}</Text>
                                     ))}
 
-                                    <Text style={styles.healthWhyLabel}>Trigger</Text>
+                                    <Text style={styles.healthWhyLabel}>{t(language, 'triggerLabel')}</Text>
                                     <Text style={[styles.healthWhyText, { color: Colors.warning, fontWeight: '700' }]}>⚠️ {healthIntelligence.trigger}</Text>
                                 </TouchableOpacity>
                             )}
 
-                            <Text style={styles.healthLinkText}>See full breakdown & trend →</Text>
+                            <Text style={styles.healthLinkText}>{t(language, 'seeFullBreakdownTrend')}</Text>
                         </PressScale>
                       )}
                     </View>
@@ -1658,7 +1657,7 @@ export default function DashboardScreen() {
                   <View style={[styles.sectionTitleRow, { justifyContent: 'space-between' }]}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <Icon name="activity" size={13} color={Colors.textMuted} />
-                      <Text style={styles.operationsSectionTitle}>Vital Signs</Text>
+                      <Text style={styles.operationsSectionTitle}>{t(language, 'vitalSigns')}</Text>
                       <Text style={styles.vitalGreeting}>· {dailyBriefing.greeting}</Text>
                     </View>
                     <PressScale style={styles.vitalAskBtn} onPress={() => navigate('cfo', { tab: 'questions' })}>
@@ -1670,9 +1669,9 @@ export default function DashboardScreen() {
                   <View style={styles.vitalCard}>
                     <View style={styles.vitalCardTop}>
                       <View style={styles.vitalMetric}>
-                        <Text style={styles.vitalLabel}>Cash in Hand</Text>
+                        <Text style={styles.vitalLabel}>{t(language, 'cashInHand')}</Text>
                         <Text style={styles.vitalValue}>{currency}{Math.round(finance.cashBalance).toLocaleString()}</Text>
-                        <Text style={styles.vitalSubtext}>+{currency}{Math.round(totalCash).toLocaleString()} in pockets</Text>
+                        <Text style={styles.vitalSubtext}>+{currency}{Math.round(totalCash).toLocaleString()} {t(language, 'inPocketsSuffix')}</Text>
                       </View>
                       <RadialGauge
                         displayValue={runwayDisplay.value}
@@ -1686,7 +1685,7 @@ export default function DashboardScreen() {
                     {cashTrend.length >= 2 && (
                       <View style={styles.cashTrendWrap}>
                         <TrendSparkline data={cashTrend} color={Colors.primary} height={44} />
-                        <Text style={styles.cashTrendCaption}>Cash, last 30 days</Text>
+                        <Text style={styles.cashTrendCaption}>{t(language, 'cashLast30Days')}</Text>
                       </View>
                     )}
                     <View style={styles.vitalDivider} />
@@ -1698,16 +1697,16 @@ export default function DashboardScreen() {
                           always a complete, real number, which is exactly
                           why dailyBriefing.ts's pulse was built around it. */}
                       <View style={styles.vitalMetric}>
-                        <Text style={styles.vitalLabel}>Yesterday</Text>
+                        <Text style={styles.vitalLabel}>{t(language, 'yesterdayLabel')}</Text>
                         <Text style={[styles.vitalValue, { color: dailyBriefing.pulse.netMovement >= 0 ? Colors.income : Colors.expense }]}>
                           {dailyBriefing.pulse.netMovement >= 0 ? '+' : '-'}{currency}{Math.round(Math.abs(dailyBriefing.pulse.netMovement)).toLocaleString()}
                         </Text>
                         <Text style={styles.vitalSubtext}>
-                          {currency}{Math.round(dailyBriefing.pulse.yesterdayRevenue).toLocaleString()} in · {currency}{Math.round(dailyBriefing.pulse.yesterdayExpense).toLocaleString()} out
+                          {currency}{Math.round(dailyBriefing.pulse.yesterdayRevenue).toLocaleString()} {t(language, 'inWord')} · {currency}{Math.round(dailyBriefing.pulse.yesterdayExpense).toLocaleString()} {t(language, 'outWord')}
                         </Text>
                       </View>
                       <View style={styles.vitalMetric}>
-                        <Text style={styles.vitalLabel}>This Month</Text>
+                        <Text style={styles.vitalLabel}>{t(language, 'thisMonthLabel')}</Text>
                         <Text style={[styles.vitalValue, { color: thisMonthProfit >= 0 ? Colors.income : Colors.expense }]}>
                           {thisMonthProfit >= 0 ? '+' : ''}{currency}{Math.round(thisMonthProfit).toLocaleString()}
                         </Text>
