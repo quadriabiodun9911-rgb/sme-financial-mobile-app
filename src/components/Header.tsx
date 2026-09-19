@@ -14,11 +14,12 @@ import { ForecastAlert } from '../types/forecast';
 import { sendCashFlowAlert, sendOverdueInvoiceAlert } from '../utils/whatsappIntegration';
 import { ROLE_DISPLAY_LABEL } from '../utils/rolePermissions';
 import { accountDisplayName } from '../utils/storage';
+import { t } from '../utils/i18n';
 
 const DISMISSED_ALERTS_KEY = '@quad360/dismissed_alerts';
 
 export default function Header() {
-    const { user, logout, setCurrentScreen, goBack, currentScreen, finance, transactions, invoices, loans, staff, payrollRuns, settings, goals, budgets, assets, inventory, localAccounts, switchAccountDirect, teamMemberships, refreshTeamMemberships, switchBusiness, userRole, canViewFinancials } = useApp();
+    const { user, logout, setCurrentScreen, goBack, currentScreen, finance, transactions, invoices, loans, staff, payrollRuns, settings, goals, budgets, assets, inventory, localAccounts, switchAccountDirect, teamMemberships, refreshTeamMemberships, switchBusiness, userRole, canViewFinancials, language } = useApp();
     const showBack = currentScreen !== 'dashboard' && currentScreen !== 'login';
     const { width } = useWindowDimensions();
     const isNarrow = width < 480;
@@ -148,7 +149,7 @@ export default function Header() {
                     <LinearGradient colors={[Colors.primary, Colors.secondary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.mark} />
                     <View>
                         <Text style={styles.title}>Quad360</Text>
-                        <Text style={styles.subtitle}>{user?.businessName || 'Business Suite'}</Text>
+                        <Text style={styles.subtitle}>{user?.businessName || t(language, 'businessSuiteFallback')}</Text>
                     </View>
                 </TouchableOpacity>
             </View>
@@ -180,14 +181,14 @@ export default function Header() {
                         activeOpacity={canSwitch ? 0.7 : 1}
                     >
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                            <Text style={styles.userText}>{(user?.email && accountDisplayName(user.email)) || 'Admin'}</Text>
+                            <Text style={styles.userText}>{(user?.email && accountDisplayName(user.email)) || t(language, 'adminFallback')}</Text>
                             {canSwitch && <Icon name="chevron-down" size={12} color={Colors.textMuted} />}
                         </View>
                         <Text style={styles.userRole}>{ROLE_DISPLAY_LABEL[userRole]}</Text>
                     </TouchableOpacity>
                 )}
                 <TouchableOpacity style={styles.signOutBtn} onPress={logout} activeOpacity={0.8}>
-                    <Text style={styles.signOutText}>{isNarrow ? 'Out' : 'Sign Out'}</Text>
+                    <Text style={styles.signOutText}>{isNarrow ? t(language, 'signOutShort') : t(language, 'signOut')}</Text>
                 </TouchableOpacity>
             </View>
             <GlobalSearch visible={showSearch} onClose={() => setShowSearch(false)} />
@@ -199,7 +200,7 @@ export default function Header() {
             >
                 <TouchableOpacity style={styles.switcherBackdrop} activeOpacity={1} onPress={() => setSwitcherOpen(false)}>
                     <TouchableOpacity activeOpacity={1} style={styles.switcherSheet}>
-                        <Text style={styles.switcherTitle}>Switch Account</Text>
+                        <Text style={styles.switcherTitle}>{t(language, 'switchAccountTitle')}</Text>
                         <View style={styles.switcherCurrentRow}>
                             <View style={[styles.switcherAvatar, styles.switcherAvatarCurrent]}>
                                 <Text style={styles.switcherAvatarText}>{(user?.businessName || '?').trim().charAt(0).toUpperCase()}</Text>
@@ -212,7 +213,7 @@ export default function Header() {
                         </View>
                         {teamMemberships.length > 0 && (
                             <>
-                                <Text style={styles.switcherSectionLabel}>Businesses You're On</Text>
+                                <Text style={styles.switcherSectionLabel}>{t(language, 'businessesYoureOn')}</Text>
                                 {teamMemberships.map(m => (
                                     <TouchableOpacity
                                         key={m.membershipId}
@@ -226,7 +227,7 @@ export default function Header() {
                                         </View>
                                         <View style={{ flex: 1 }}>
                                             <Text style={styles.switcherName} numberOfLines={1}>{m.ownerBusinessName}</Text>
-                                            <Text style={styles.switcherEmail} numberOfLines={1}>Your role: {m.role}</Text>
+                                            <Text style={styles.switcherEmail} numberOfLines={1}>{t(language, 'yourRolePrefix')} {m.role}</Text>
                                         </View>
                                         {switchingToBusiness === m.ownerUserId
                                             ? <ActivityIndicator size="small" color={Colors.primary} />
@@ -237,7 +238,7 @@ export default function Header() {
                             </>
                         )}
                         {otherAccounts.length > 0 && teamMemberships.length > 0 && (
-                            <Text style={styles.switcherSectionLabel}>Other Accounts</Text>
+                            <Text style={styles.switcherSectionLabel}>{t(language, 'otherAccounts')}</Text>
                         )}
                         {otherAccounts.map(acct => (
                             <TouchableOpacity
@@ -261,7 +262,7 @@ export default function Header() {
                             </TouchableOpacity>
                         ))}
                         <TouchableOpacity style={styles.switcherCancelBtn} onPress={() => setSwitcherOpen(false)} disabled={switchingTo !== null}>
-                            <Text style={styles.switcherCancelText}>Cancel</Text>
+                            <Text style={styles.switcherCancelText}>{t(language, 'cancel')}</Text>
                         </TouchableOpacity>
                     </TouchableOpacity>
                 </TouchableOpacity>

@@ -12,6 +12,7 @@ import Icon, { IconName } from './ui/Icon';
 import { Screen } from '../types';
 import { isScreenAllowedForRole } from '../utils/rolePermissions';
 import { accountDisplayName, isUsernameAccountEmail } from '../utils/storage';
+import { t, TranslationKey } from '../utils/i18n';
 
 // ─── Icon accent colours per section ────────────────────────────────────────
 // A closed loop, not a flat list: Understand where you stand -> Anticipate
@@ -68,67 +69,71 @@ import { accountDisplayName, isUsernameAccountEmail } from '../utils/storage';
 // Understand list. Scoreboard (in Understand) is the at-a-glance score;
 // Financial Assessment is the full write-up -- money leaks, performance,
 // cash, financing readiness, SWOT, and the top 3 fixes -- one tap deeper.
-const DIAGNOSIS_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
-    { label: 'Financial Health Score', icon: 'clipboard', screen: 'financial-assessment', color: '#f43f5e', desc: 'Full diagnosis, SWOT & action plan' },
+// label/desc are TranslationKey references (resolved via t(language, ...) at
+// render time), not literal display strings -- these arrays are module-level
+// constants built before `language` is known, so translation must happen
+// where they're rendered, not where they're declared.
+const DIAGNOSIS_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey }[] = [
+    { label: 'navFinancialHealthScore', icon: 'clipboard', screen: 'financial-assessment', color: '#f43f5e', desc: 'navFinancialHealthScoreDesc' },
 ];
 
-const UNDERSTAND_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
-    { label: 'Scoreboard',     icon: 'activity',      screen: 'scoreboard',     color: '#22d3ee', desc: 'Financial health at a glance' },
-    { label: 'Cash Flow',      icon: 'droplet',       screen: 'cashflow',       color: '#3b82f6', desc: 'Runway & receivables risk' },
-    { label: 'Inventory',      icon: 'package',       screen: 'inventory',      color: '#f59e0b', desc: 'Stock levels & margins' },
-    { label: 'Margin Watch',   icon: 'shield',        screen: 'margin-watch',   color: '#fb7185', desc: 'Supplier cost pressure, FX impact, discretionary cash & product cash efficiency' },
-    { label: 'Assets',         icon: 'briefcase',     screen: 'assets',         color: '#0ea5e9', desc: 'What you own & what it\'s worth' },
-    { label: 'Loans',          icon: 'percent',       screen: 'loans',          color: '#f97316', desc: 'What you owe & repayment status' },
-    { label: 'Vendor Bills',   icon: 'inbox',         screen: 'bills',          color: '#c026d3', desc: 'Collect, review & record supplier invoices' },
-    { label: 'Payroll',        icon: 'users',         screen: 'payroll',        color: '#10b981', desc: 'Staff & monthly pay runs' },
-    { label: 'Reconciliation', icon: 'link-2',        screen: 'reconciliation', color: '#8b5cf6', desc: 'Confirm the numbers above match your bank' },
-    { label: 'General Ledger', icon: 'book-open',     screen: 'general-ledger', color: '#64748b', desc: 'Trial Balance & journal entries — for a bookkeeper' },
+const UNDERSTAND_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey }[] = [
+    { label: 'navScoreboard',     icon: 'activity',      screen: 'scoreboard',     color: '#22d3ee', desc: 'navScoreboardDesc' },
+    { label: 'navCashFlow',       icon: 'droplet',       screen: 'cashflow',       color: '#3b82f6', desc: 'navCashFlowDesc' },
+    { label: 'navInventory',      icon: 'package',       screen: 'inventory',      color: '#f59e0b', desc: 'navInventoryDesc' },
+    { label: 'navMarginWatch',    icon: 'shield',        screen: 'margin-watch',   color: '#fb7185', desc: 'navMarginWatchDesc' },
+    { label: 'assets',            icon: 'briefcase',     screen: 'assets',         color: '#0ea5e9', desc: 'navAssetsDesc' },
+    { label: 'navLoans',          icon: 'percent',       screen: 'loans',          color: '#f97316', desc: 'navLoansDesc' },
+    { label: 'navVendorBills',    icon: 'inbox',         screen: 'bills',          color: '#c026d3', desc: 'navVendorBillsDesc' },
+    { label: 'navPayroll',        icon: 'users',         screen: 'payroll',        color: '#10b981', desc: 'navPayrollDesc' },
+    { label: 'navReconciliation', icon: 'link-2',        screen: 'reconciliation', color: '#8b5cf6', desc: 'navReconciliationDesc' },
+    { label: 'navGeneralLedger',  icon: 'book-open',     screen: 'general-ledger', color: '#64748b', desc: 'navGeneralLedgerDesc' },
 ];
 
-const ANTICIPATE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string }[] = [
-    { label: 'Risk',     icon: 'radio',          screen: 'risk-management', color: '#ef4444' },
-    { label: 'Forecast', icon: 'compass',         screen: 'future-statements', color: '#a855f7' },
-    { label: 'Growth',   icon: 'trending-up',     screen: 'growth',   color: '#10b981' },
+const ANTICIPATE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string }[] = [
+    { label: 'navRisk',     icon: 'radio',          screen: 'risk-management', color: '#ef4444' },
+    { label: 'navForecast', icon: 'compass',         screen: 'future-statements', color: '#a855f7' },
+    { label: 'growth',      icon: 'trending-up',     screen: 'growth',   color: '#10b981' },
 ];
 
-const DECIDE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string; params?: { tab: string } }[] = [
-    { label: 'Insights', icon: 'zap',             screen: 'insights', color: '#f59e0b', desc: 'What actually needs a decision right now' },
+const DECIDE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey; params?: { tab: string } }[] = [
+    { label: 'insights', icon: 'zap',             screen: 'insights', color: '#f59e0b', desc: 'navInsightsDesc' },
     // Advisor's own screen defaults to its 'pulse' tab when opened with no
     // params (a health-overview digest, not the Q&A) -- landing there would
     // contradict this item's own promise of "ask about it." Deep-link
     // straight to the Q&A tab so tapping Advisor does what it says.
-    { label: 'Advisor',  icon: 'message-circle',  screen: 'cfo',      color: '#8b5cf6', desc: 'Ask about it — AI diagnosis, plain answers', params: { tab: 'questions' } },
-    { label: 'Analysis & Decisions', icon: 'pie-chart', screen: 'analysis', color: '#14b8a6', desc: 'Why is this happening, and what if I...' },
-    { label: 'Before You Decide', icon: 'help-circle', screen: 'before-you-decide', color: '#06b6d4', desc: 'Pressure-test a hire, purchase, discount, or loan' },
-    { label: 'Goals',    icon: 'target',          screen: 'goals',    color: '#ef4444', desc: 'Set the target this decision is aimed at' },
-    { label: 'Budget',   icon: 'dollar-sign',     screen: 'budget',   color: '#10b981', desc: 'Put a spending plan behind that target' },
+    { label: 'navAdvisor',  icon: 'message-circle',  screen: 'cfo',      color: '#8b5cf6', desc: 'navAdvisorDesc', params: { tab: 'questions' } },
+    { label: 'navAnalysisDecisions', icon: 'pie-chart', screen: 'analysis', color: '#14b8a6', desc: 'navAnalysisDecisionsDesc' },
+    { label: 'navBeforeYouDecide', icon: 'help-circle', screen: 'before-you-decide', color: '#06b6d4', desc: 'navBeforeYouDecideDesc' },
+    { label: 'goals',    icon: 'target',          screen: 'goals',    color: '#ef4444', desc: 'navGoalsDesc' },
+    { label: 'navBudget',   icon: 'dollar-sign',     screen: 'budget',   color: '#10b981', desc: 'navBudgetDesc' },
 ];
 
-const IMPROVE_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
-    { label: 'Action Tracker', icon: 'check-circle', screen: 'action-tracker', color: '#ef4444', desc: 'Act on it, then see if it worked' },
+const IMPROVE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey }[] = [
+    { label: 'navActionTracker', icon: 'check-circle', screen: 'action-tracker', color: '#ef4444', desc: 'navActionTrackerDesc' },
 ];
 
-const FUND_ITEMS: { label: string; icon: IconName; screen: Screen; color: string }[] = [
-    { label: 'Credit',      icon: 'credit-card',  screen: 'credit-worthiness', color: '#eab308' },
-    { label: 'Financing',   icon: 'search',       screen: 'financing-marketplace', color: '#14b8a6' },
+const FUND_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string }[] = [
+    { label: 'navCredit',      icon: 'credit-card',  screen: 'credit-worthiness', color: '#eab308' },
+    { label: 'navFinancing',   icon: 'search',       screen: 'financing-marketplace', color: '#14b8a6' },
 ];
 
-const ACCOUNT_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
-    { label: 'Settings', icon: 'settings', screen: 'settings', color: '#94a3b8', desc: 'Business, team & account' },
-    { label: 'Export Data', icon: 'download', screen: 'settings', color: '#10b981', desc: 'Download reports & backups' },
+const ACCOUNT_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey }[] = [
+    { label: 'settings', icon: 'settings', screen: 'settings', color: '#94a3b8', desc: 'navSettingsDesc' },
+    { label: 'navExportData', icon: 'download', screen: 'settings', color: '#10b981', desc: 'navExportDataDesc' },
 ];
 
 // ─── Footer tabs ─────────────────────────────────────────────────────────────
-const TABS: { label: string; screen: Screen; icon: IconName }[] = [
-    { label: 'Home',      screen: 'dashboard',        icon: 'home' },
-    { label: 'Passport',  screen: 'business-passport', icon: 'shield' },
-    { label: 'Transactions', screen: 'transactions',   icon: 'list' },
-    { label: 'Invoices',  screen: 'invoices',          icon: 'file-text' },
-    { label: 'Reports',   screen: 'reports',           icon: 'bar-chart-2' },
+const TABS: { label: TranslationKey; screen: Screen; icon: IconName }[] = [
+    { label: 'tabHome',      screen: 'dashboard',        icon: 'home' },
+    { label: 'tabPassport',  screen: 'business-passport', icon: 'shield' },
+    { label: 'tabTransactions', screen: 'transactions',   icon: 'list' },
+    { label: 'invoices',  screen: 'invoices',          icon: 'file-text' },
+    { label: 'reports',   screen: 'reports',           icon: 'bar-chart-2' },
 ];
 
 export default function FooterNav() {
-    const { currentScreen, setCurrentScreen, navigate, user, pendingSyncCount, transactions, goals, invoices, finance, userRole, canViewFinancials, settings } = useApp();
+    const { currentScreen, setCurrentScreen, navigate, user, pendingSyncCount, transactions, goals, invoices, finance, userRole, canViewFinancials, settings, language } = useApp();
     const [moreOpen, setMoreOpen] = useState(false);
     // Modal renders via a portal on web (react-native-web), completely
     // outside App.tsx's centeredAppColumn wrapper -- so unlike every
@@ -221,7 +226,7 @@ export default function FooterNav() {
                             activeOpacity={0.7}
                         >
                             <Icon name={tab.icon} size={18} color={active ? Colors.primary : Colors.textMuted} />
-                            <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{tab.label}</Text>
+                            <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{t(language, tab.label)}</Text>
                             {active && <View style={styles.tabIndicator} />}
                         </TouchableOpacity>
                     );
@@ -234,7 +239,7 @@ export default function FooterNav() {
                     activeOpacity={0.7}
                 >
                     <Icon name="more-horizontal" size={18} color={moreOpen ? Colors.primary : Colors.textMuted} />
-                    <Text style={[styles.tabLabel, moreOpen && styles.tabLabelActive]}>More</Text>
+                    <Text style={[styles.tabLabel, moreOpen && styles.tabLabelActive]}>{t(language, 'moreLabel')}</Text>
                     {moreOpen && <View style={styles.tabIndicator} />}
                 </TouchableOpacity>
             </View>
@@ -253,7 +258,7 @@ export default function FooterNav() {
 
                     {/* Header */}
                     <View style={styles.header}>
-                        <Text style={styles.headerTitle}>More</Text>
+                        <Text style={styles.headerTitle}>{t(language, 'moreLabel')}</Text>
                         <TouchableOpacity style={styles.closeBtn} onPress={() => setMoreOpen(false)} activeOpacity={0.7}>
                             <Icon name="x" size={15} color={Colors.textMuted} />
                         </TouchableOpacity>
@@ -267,18 +272,18 @@ export default function FooterNav() {
                                 <Text style={styles.avatarText}>{initials}</Text>
                             </View>
                             <View style={styles.profileInfo}>
-                                <Text style={styles.profileName}>{user?.businessName || 'My Business'}</Text>
+                                <Text style={styles.profileName}>{user?.businessName || t(language, 'myBusinessFallback')}</Text>
                                 <Text style={styles.profileEmail}>{maskedEmail}</Text>
                                 <View style={styles.syncRow}>
                                     {pendingSyncCount > 0 ? (
                                         <>
                                             <View style={[styles.syncDot, { backgroundColor: Colors.warning }]} />
-                                            <Text style={styles.syncTextPending}>{pendingSyncCount} change{pendingSyncCount > 1 ? 's' : ''} pending sync</Text>
+                                            <Text style={styles.syncTextPending}>{pendingSyncCount} {t(language, pendingSyncCount > 1 ? 'pendingSyncSuffixPlural' : 'pendingSyncSuffixSingular')}</Text>
                                         </>
                                     ) : (
                                         <>
                                             <View style={[styles.syncDot, { backgroundColor: Colors.success }]} />
-                                            <Text style={styles.syncTextOk}>All data synced</Text>
+                                            <Text style={styles.syncTextOk}>{t(language, 'allDataSynced')}</Text>
                                         </>
                                     )}
                                 </View>
@@ -290,17 +295,17 @@ export default function FooterNav() {
                         <View style={styles.statsRow}>
                             <TouchableOpacity style={styles.statBox} onPress={() => goTo('transactions')} activeOpacity={0.8}>
                                 <Text style={styles.statValue}>{totalTx}</Text>
-                                <Text style={styles.statLabel}>Transactions</Text>
+                                <Text style={styles.statLabel}>{t(language, 'tabTransactions')}</Text>
                             </TouchableOpacity>
                             <View style={styles.statDivider} />
                             <TouchableOpacity style={styles.statBox} onPress={() => goTo('goals')} activeOpacity={0.8}>
                                 <Text style={styles.statValue}>{activeGoals}</Text>
-                                <Text style={styles.statLabel}>Active Goals</Text>
+                                <Text style={styles.statLabel}>{t(language, 'statActiveGoals')}</Text>
                             </TouchableOpacity>
                             <View style={styles.statDivider} />
                             <TouchableOpacity style={styles.statBox} onPress={() => goTo('invoices')} activeOpacity={0.8}>
                                 <Text style={styles.statValue}>{unpaidInv}</Text>
-                                <Text style={styles.statLabel}>Unpaid Inv.</Text>
+                                <Text style={styles.statLabel}>{t(language, 'statUnpaidInv')}</Text>
                             </TouchableOpacity>
                             {canViewFinancials && (
                             <>
@@ -309,7 +314,7 @@ export default function FooterNav() {
                                 <Text style={[styles.statValue, { color: profit >= 0 ? Colors.income : Colors.expense }]}>
                                     {profit >= 0 ? '+' : ''}{Math.abs(profit) >= 1000 ? `${(profit / 1000).toFixed(0)}k` : profit.toFixed(0)}
                                 </Text>
-                                <Text style={styles.statLabel}>Profit</Text>
+                                <Text style={styles.statLabel}>{t(language, 'statProfit')}</Text>
                             </TouchableOpacity>
                             </>
                             )}
@@ -318,8 +323,8 @@ export default function FooterNav() {
                         {/* ── Diagnosis ─────────────────────────────────── */}
                         {visibleDiagnosis.length > 0 && (
                             <>
-                                <Text style={styles.sectionHeader}>Diagnosis</Text>
-                                <Text style={styles.sectionSubtitle}>Where do I stand, in full?</Text>
+                                <Text style={styles.sectionHeader}>{t(language, 'sectionDiagnosis')}</Text>
+                                <Text style={styles.sectionSubtitle}>{t(language, 'subDiagnosis')}</Text>
                                 <View style={styles.listCard}>
                                     {visibleDiagnosis.map((item, i, arr) => (
                                         <TouchableOpacity
@@ -332,8 +337,8 @@ export default function FooterNav() {
                                                 <Icon name={item.icon} size={16} color={item.color} />
                                             </View>
                                             <View style={styles.listTextCol}>
-                                                <Text style={styles.listLabel}>{item.label}</Text>
-                                                <Text style={styles.listDesc}>{item.desc}</Text>
+                                                <Text style={styles.listLabel}>{t(language, item.label)}</Text>
+                                                <Text style={styles.listDesc}>{t(language, item.desc)}</Text>
                                             </View>
                                             <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                                         </TouchableOpacity>
@@ -343,9 +348,9 @@ export default function FooterNav() {
                         )}
 
                         {/* ── Understand ────────────────────────────────── */}
-                        <Text style={styles.sectionHeader}>Understand</Text>
-                        <Text style={styles.sectionSubtitle}>Where does my business stand?</Text>
-                        <Text style={styles.flowHint}>Start with your score, then cash, stock and equipment, then what you owe and pay out — finish by confirming the numbers match your bank.</Text>
+                        <Text style={styles.sectionHeader}>{t(language, 'sectionUnderstand')}</Text>
+                        <Text style={styles.sectionSubtitle}>{t(language, 'subUnderstand')}</Text>
+                        <Text style={styles.flowHint}>{t(language, 'hintUnderstand')}</Text>
                         <View style={styles.listCard}>
                             {visibleUnderstand.map((item, i, arr) => (
                                 <TouchableOpacity
@@ -358,8 +363,8 @@ export default function FooterNav() {
                                         <Icon name={item.icon} size={16} color={item.color} />
                                     </View>
                                     <View style={styles.listTextCol}>
-                                        <Text style={styles.listLabel}>{item.label}</Text>
-                                        <Text style={styles.listDesc}>{item.desc}</Text>
+                                        <Text style={styles.listLabel}>{t(language, item.label)}</Text>
+                                        <Text style={styles.listDesc}>{t(language, item.desc)}</Text>
                                     </View>
                                     <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                                 </TouchableOpacity>
@@ -367,9 +372,9 @@ export default function FooterNav() {
                         </View>
 
                         {/* ── Anticipate ────────────────────────────────── */}
-                        <Text style={styles.sectionHeader}>Anticipate</Text>
-                        <Text style={styles.sectionSubtitle}>What is likely to happen?</Text>
-                        <Text style={styles.flowHint}>Know your risks first, then what's likely ahead, then where you could grow.</Text>
+                        <Text style={styles.sectionHeader}>{t(language, 'sectionAnticipate')}</Text>
+                        <Text style={styles.sectionSubtitle}>{t(language, 'subAnticipate')}</Text>
+                        <Text style={styles.flowHint}>{t(language, 'hintAnticipate')}</Text>
                         <View style={styles.gridCard}>
                             {visibleAnticipate.map(item => (
                                 <TouchableOpacity
@@ -381,15 +386,15 @@ export default function FooterNav() {
                                     <View style={[styles.gridIconBox, { backgroundColor: item.color + '22' }]}>
                                         <Icon name={item.icon} size={19} color={item.color} />
                                     </View>
-                                    <Text style={styles.gridLabel}>{item.label}</Text>
+                                    <Text style={styles.gridLabel}>{t(language, item.label)}</Text>
                                 </TouchableOpacity>
                             ))}
                         </View>
 
                         {/* ── Decide ────────────────────────────────────── */}
-                        <Text style={styles.sectionHeader}>Decide</Text>
-                        <Text style={styles.sectionSubtitle}>What should I do?</Text>
-                        <Text style={styles.flowHint}>See what's flagged, ask about it, dig into why, test the decision — then set a target and budget for it.</Text>
+                        <Text style={styles.sectionHeader}>{t(language, 'sectionDecide')}</Text>
+                        <Text style={styles.sectionSubtitle}>{t(language, 'subDecide')}</Text>
+                        <Text style={styles.flowHint}>{t(language, 'hintDecide')}</Text>
                         <View style={styles.listCard}>
                             {visibleDecide.map((item, i, arr) => (
                                 <TouchableOpacity
@@ -402,8 +407,8 @@ export default function FooterNav() {
                                         <Icon name={item.icon} size={16} color={item.color} />
                                     </View>
                                     <View style={styles.listTextCol}>
-                                        <Text style={styles.listLabel}>{item.label}</Text>
-                                        <Text style={styles.listDesc}>{item.desc}</Text>
+                                        <Text style={styles.listLabel}>{t(language, item.label)}</Text>
+                                        <Text style={styles.listDesc}>{t(language, item.desc)}</Text>
                                     </View>
                                     <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                                 </TouchableOpacity>
@@ -411,9 +416,9 @@ export default function FooterNav() {
                         </View>
 
                         {/* ── Act & Results ─────────────────────────────── */}
-                        <Text style={styles.sectionHeader}>Act & Results</Text>
-                        <Text style={styles.sectionSubtitle}>Did I act on it? Did it work?</Text>
-                        <Text style={styles.flowHint}>Track what you do, then see if it moved your score — closing the loop back to Understand.</Text>
+                        <Text style={styles.sectionHeader}>{t(language, 'sectionActResults')}</Text>
+                        <Text style={styles.sectionSubtitle}>{t(language, 'subActResults')}</Text>
+                        <Text style={styles.flowHint}>{t(language, 'hintActResults')}</Text>
                         <View style={styles.listCard}>
                             {visibleImprove.map((item, i, arr) => (
                                 <TouchableOpacity
@@ -426,8 +431,8 @@ export default function FooterNav() {
                                         <Icon name={item.icon} size={16} color={item.color} />
                                     </View>
                                     <View style={styles.listTextCol}>
-                                        <Text style={styles.listLabel}>{item.label}</Text>
-                                        <Text style={styles.listDesc}>{item.desc}</Text>
+                                        <Text style={styles.listLabel}>{t(language, item.label)}</Text>
+                                        <Text style={styles.listDesc}>{t(language, item.desc)}</Text>
                                     </View>
                                     <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                                 </TouchableOpacity>
@@ -435,9 +440,9 @@ export default function FooterNav() {
                         </View>
 
                         {/* ── Fund ──────────────────────────────────────── */}
-                        <Text style={styles.sectionHeader}>Fund</Text>
-                        <Text style={styles.sectionSubtitle}>Am I ready for capital?</Text>
-                        <Text style={styles.flowHint}>Not a stage in the loop — reads your Assets, Loans and Inventory to show what a lender would see, and where to look for capital.</Text>
+                        <Text style={styles.sectionHeader}>{t(language, 'sectionFund')}</Text>
+                        <Text style={styles.sectionSubtitle}>{t(language, 'subFund')}</Text>
+                        <Text style={styles.flowHint}>{t(language, 'hintFund')}</Text>
                         <View style={styles.gridCard}>
                             {visibleFund.map(item => (
                                 <TouchableOpacity
@@ -449,13 +454,13 @@ export default function FooterNav() {
                                     <View style={[styles.gridIconBox, { backgroundColor: item.color + '22' }]}>
                                         <Icon name={item.icon} size={19} color={item.color} />
                                     </View>
-                                    <Text style={styles.gridLabel}>{item.label}</Text>
+                                    <Text style={styles.gridLabel}>{t(language, item.label)}</Text>
                                 </TouchableOpacity>
                             ))}
                         </View>
 
                         {/* ── Account ───────────────────────────────────── */}
-                        <Text style={styles.sectionHeader}>Account</Text>
+                        <Text style={styles.sectionHeader}>{t(language, 'sectionAccount')}</Text>
                         <View style={styles.listCard}>
                             {visibleAccount.map((item, i, arr) => (
                                 <TouchableOpacity
@@ -468,8 +473,8 @@ export default function FooterNav() {
                                         <Icon name={item.icon} size={16} color={item.color} />
                                     </View>
                                     <View style={styles.listTextCol}>
-                                        <Text style={styles.listLabel}>{item.label}</Text>
-                                        <Text style={styles.listDesc}>{item.desc}</Text>
+                                        <Text style={styles.listLabel}>{t(language, item.label)}</Text>
+                                        <Text style={styles.listDesc}>{t(language, item.desc)}</Text>
                                     </View>
                                     <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                                 </TouchableOpacity>
