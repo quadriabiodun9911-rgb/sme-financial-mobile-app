@@ -15,6 +15,10 @@ interface Props {
     // owner would have no reason to suspect disagree. Still fully editable --
     // this only changes what's pre-selected, never what a user can choose.
     recommendedTargetMonths?: number;
+    // Set when currentCashBalance already has Cash Pockets money folded in,
+    // so this can disclose it instead of leaving "Current Reserve" looking
+    // like a bigger ledger balance than Reports actually shows elsewhere.
+    pocketsIncluded?: number;
 }
 
 const TARGET_MONTHS_OPTIONS = [3, 4, 5, 6];
@@ -33,7 +37,7 @@ function fmt(currency: string, n: number): string {
 // Turns generic "save 3-6 months of expenses" advice into a number against
 // this business's own burn rate — reuses the same dailyBurn source as Cash
 // Runway and the Cash Flow Stress Test, not a separate estimate.
-export default function RainyDayFundPlanner({ currency, currentCashBalance, dailyBurn, recommendedTargetMonths }: Props) {
+export default function RainyDayFundPlanner({ currency, currentCashBalance, dailyBurn, recommendedTargetMonths, pocketsIncluded }: Props) {
     // null = "no manual choice yet" -- tracks the recommendation live (it can
     // arrive after this mounts, e.g. once transactions finish hydrating, or
     // shift as the volatility tier changes) right up until the user actually
@@ -107,6 +111,9 @@ export default function RainyDayFundPlanner({ currency, currentCashBalance, dail
                     <View style={s.stat}>
                         <Text style={s.statLabel}>Current Reserve</Text>
                         <Text style={s.statVal}>{fmt(currency, plan.currentReserve)}</Text>
+                        {pocketsIncluded !== undefined && (
+                            <Text style={s.statSub}>incl. {fmt(currency, pocketsIncluded)} in pockets</Text>
+                        )}
                     </View>
                     <View style={s.stat}>
                         <Text style={s.statLabel}>Months Covered Now</Text>
@@ -148,6 +155,7 @@ const s = StyleSheet.create({
     stat: { backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: 10 },
     statLabel: { fontSize: 10, color: Colors.textMuted, marginBottom: 4, lineHeight: 13 },
     statVal: { fontSize: 13.5, fontWeight: '800', color: Colors.textPrimary },
+    statSub: { fontSize: 9.5, color: Colors.textMuted, marginTop: 2 },
 
     verdictBox: { borderRadius: 10, borderWidth: 1.5, padding: 12, marginTop: 12 },
     verdictText: { fontSize: 12.5, lineHeight: 18, fontWeight: '600' },
