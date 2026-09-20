@@ -34,7 +34,12 @@ function fmt(currency: string, n: number): string {
 // this business's own burn rate — reuses the same dailyBurn source as Cash
 // Runway and the Cash Flow Stress Test, not a separate estimate.
 export default function RainyDayFundPlanner({ currency, currentCashBalance, dailyBurn, recommendedTargetMonths }: Props) {
-    const [targetMonths, setTargetMonths] = useState(
+    // null = "no manual choice yet" -- tracks the recommendation live (it can
+    // arrive after this mounts, e.g. once transactions finish hydrating, or
+    // shift as the volatility tier changes) right up until the user actually
+    // picks a chip, at which point their choice sticks.
+    const [manualTargetMonths, setManualTargetMonths] = useState<number | null>(null);
+    const targetMonths = manualTargetMonths ?? (
         recommendedTargetMonths !== undefined ? closestOption(recommendedTargetMonths) : 3
     );
     const [timelineMonths, setTimelineMonths] = useState(12);
@@ -66,7 +71,7 @@ export default function RainyDayFundPlanner({ currency, currentCashBalance, dail
                     <TouchableOpacity
                         key={m}
                         style={[s.chip, targetMonths === m && s.chipSelected]}
-                        onPress={() => setTargetMonths(m)}
+                        onPress={() => setManualTargetMonths(m)}
                     >
                         <Text style={[s.chipText, targetMonths === m && s.chipTextSelected]}>{m} months</Text>
                     </TouchableOpacity>
