@@ -1668,11 +1668,11 @@ export default function DashboardScreen() {
                   {/* Cash Position Card - Most Important */}
                   <View style={styles.vitalCard}>
                     <View style={styles.vitalCardTop}>
-                      <View style={styles.vitalMetric}>
+                      <TouchableOpacity style={styles.vitalMetric} activeOpacity={0.7} onPress={() => setShowCashPockets(true)}>
                         <Text style={styles.vitalLabel}>{t(language, 'cashInHand')}</Text>
                         <Text style={styles.vitalValue}>{currency}{Math.round(finance.cashBalance).toLocaleString()}</Text>
                         <Text style={styles.vitalSubtext}>+{currency}{Math.round(totalCash).toLocaleString()} {t(language, 'inPocketsSuffix')}</Text>
-                      </View>
+                      </TouchableOpacity>
                       <RadialGauge
                         displayValue={runwayDisplay.value}
                         label={runwayDisplay.unit}
