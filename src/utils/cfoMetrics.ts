@@ -94,6 +94,18 @@ export function computeFreeCashFlow(
     return { deployableCash, cashBalance, upcoming30dayAP, upcoming30dayDebtService, reserveTarget };
 }
 
+// The reserve figure computeFreeCashFlow should actually net against --
+// never just the Settings minReserve field alone (it defaults to '0', so an
+// owner who's never touched it would otherwise get 100% of cash after bills
+// counted as safe to deploy) and never the app's own volatility-based
+// recommended reserve alone either (an owner who's deliberately set a HIGHER
+// manual target has made an explicit, informed choice that should win). The
+// max of the two is the only floor that can't recommend deploying cash
+// either source says should stay put.
+export function computeEffectiveReserveTarget(userSetReserve: number, recommendedReserve: number): number {
+    return Math.max(Math.max(0, userSetReserve), Math.max(0, recommendedReserve));
+}
+
 // ─── Q2: How fast do earnings turn into cash? ──────────────────────────────
 export interface CashConversionCycleResult {
     dso: number; // days sales outstanding

@@ -9,8 +9,10 @@ import { computeInventoryValue } from '../utils/stockVelocity';
 import { totalMonthlyLoanBurden } from '../utils/loanMath';
 import { computeInventoryDecisions } from '../utils/inventoryDecisions';
 import { computeIdleCashAllocation } from '../utils/idleCashAllocation';
+import { computeFinancialResilience } from '../utils/cashReservePlanning';
 import {
     computeFreeCashFlow,
+    computeEffectiveReserveTarget,
     computeCashConversionCycle,
     computeObligationsWaterfall,
     computeRevenueShockImpact,
@@ -131,7 +133,26 @@ export default function CFOQuestionsTab() {
         trailing30AccrualRevenue, trailing30AccrualExpenses, trailing90AccrualRevenue,
     } = useMemo(() => computeTrailingAccrualFigures(transactions), [transactions]);
 
-    const reserveTarget = parseFloat(settings.minReserve) || 0;
+    // Idle Cash Allocation used to net deployableCash only against Settings'
+    // minReserve, which defaults to '0' -- so a business that never touched
+    // that field got told 100% of cash (after bills/debt) was safe to deploy
+    // toward loan paydown, silently disagreeing with Cash Reserve Planning's
+    // own volatility-based recommended reserve (cashReservePlanning.ts,
+    // shown on Scoreboard) the moment that recommendation was anything above
+    // zero. Taking the max of the two -- never the app's own computed safety
+    // floor alone, never a lower manual figure alone -- means this can never
+    // recommend deploying cash either source says should stay put, while
+    // still respecting an owner who's deliberately set a HIGHER manual
+    // target than the computed one.
+    const financialResilience = useMemo(
+        () => computeFinancialResilience(transactions, finance.cashBalance),
+        [transactions, finance.cashBalance]
+    );
+    const recommendedReserve = financialResilience.available
+        ? financialResilience.essentialMonthlyExpenses * financialResilience.recommendedMonths
+        : 0;
+    const userSetReserve = parseFloat(settings.minReserve) || 0;
+    const reserveTarget = computeEffectiveReserveTarget(userSetReserve, recommendedReserve);
     // trailing90AccrualRevenue already covers ~one quarter, so it's applied
     // directly — no /4 needed (that would have divided an all-time total by
     // 4 quarters regardless of how much history actually exists).
@@ -227,7 +248,12 @@ export default function CFOQuestionsTab() {
                 <Row label="Due within 30 days (AP)" value={`− ${fmt(currency, freeCashFlow.upcoming30dayAP)}`} negative />
                 <Row label="Due within 30 days (loan repayments)" value={`− ${fmt(currency, freeCashFlow.upcoming30dayDebtService)}`} negative />
                 <Row label="Reserve target" value={`− ${fmt(currency, freeCashFlow.reserveTarget)}`} negative />
-                <Text style={s.qNote}>What's left after upcoming payables, loan repayments, and your reserve target — the number that's actually yours to spend.</Text>
+                <Text style={s.qNote}>
+                    What's left after upcoming payables, loan repayments, and your reserve target — the number that's actually yours to spend.
+                    {recommendedReserve > userSetReserve && (
+                        ` Reserve target uses Quad360's recommended ${financialResilience.recommendedMonths}-month reserve for your business (Scoreboard → Cash Reserve Resilience), since it's higher than your Settings reserve target.`
+                    )}
+                </Text>
 
                 {idleCashAllocation.length > 0 && (
                     <View style={s.allocationBlock}>

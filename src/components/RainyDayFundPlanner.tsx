@@ -8,10 +8,23 @@ interface Props {
     currency: string;
     currentCashBalance: number;
     dailyBurn: number;
+    // Cash Reserve Planning's own volatility-based target (cashReservePlanning.ts,
+    // shown on Scoreboard) -- pre-selects the closest chip instead of a fixed
+    // "3 months" default, so this planner and the Scoreboard's own reserve
+    // metric start from the same number instead of two unrelated defaults an
+    // owner would have no reason to suspect disagree. Still fully editable --
+    // this only changes what's pre-selected, never what a user can choose.
+    recommendedTargetMonths?: number;
 }
 
 const TARGET_MONTHS_OPTIONS = [3, 4, 5, 6];
 const TIMELINE_OPTIONS = [6, 12, 18, 24];
+
+function closestOption(target: number): number {
+    return TARGET_MONTHS_OPTIONS.reduce((closest, opt) =>
+        Math.abs(opt - target) < Math.abs(closest - target) ? opt : closest
+    );
+}
 
 function fmt(currency: string, n: number): string {
     return `${currency}${Math.round(n).toLocaleString()}`;
@@ -20,8 +33,10 @@ function fmt(currency: string, n: number): string {
 // Turns generic "save 3-6 months of expenses" advice into a number against
 // this business's own burn rate — reuses the same dailyBurn source as Cash
 // Runway and the Cash Flow Stress Test, not a separate estimate.
-export default function RainyDayFundPlanner({ currency, currentCashBalance, dailyBurn }: Props) {
-    const [targetMonths, setTargetMonths] = useState(3);
+export default function RainyDayFundPlanner({ currency, currentCashBalance, dailyBurn, recommendedTargetMonths }: Props) {
+    const [targetMonths, setTargetMonths] = useState(
+        recommendedTargetMonths !== undefined ? closestOption(recommendedTargetMonths) : 3
+    );
     const [timelineMonths, setTimelineMonths] = useState(12);
 
     const plan = useMemo(
@@ -41,6 +56,11 @@ export default function RainyDayFundPlanner({ currency, currentCashBalance, dail
             </Text>
 
             <Text style={s.fieldLabel}>Target: months of expenses in reserve</Text>
+            {recommendedTargetMonths !== undefined && (
+                <Text style={s.recommendedHint}>
+                    Pre-selected at {closestOption(recommendedTargetMonths)} months, based on how volatile your revenue has been (see Cash Reserve Resilience on Scoreboard).
+                </Text>
+            )}
             <View style={s.chipRow}>
                 {TARGET_MONTHS_OPTIONS.map(m => (
                     <TouchableOpacity
@@ -111,6 +131,7 @@ const s = StyleSheet.create({
     subtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: 14, lineHeight: 17 },
 
     fieldLabel: { fontSize: 12.5, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6, marginTop: 4 },
+    recommendedHint: { fontSize: 11, color: Colors.textMuted, marginBottom: 8, lineHeight: 15, fontStyle: 'italic' },
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
     chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border },
     chipSelected: { backgroundColor: Colors.primary + '20', borderColor: Colors.primary },

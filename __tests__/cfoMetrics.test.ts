@@ -1,5 +1,6 @@
 import {
     computeFreeCashFlow,
+    computeEffectiveReserveTarget,
     computeCashConversionCycle,
     computeObligationsWaterfall,
     computeRevenueShockImpact,
@@ -50,6 +51,25 @@ describe('computeFreeCashFlow', () => {
     it('never goes negative when obligations exceed cash', () => {
         const r = computeFreeCashFlow(10000, 20000, 15000, 10000);
         expect(r.deployableCash).toBe(0);
+    });
+});
+
+describe('computeEffectiveReserveTarget', () => {
+    it('uses the computed recommendation when it exceeds the manual Settings figure', () => {
+        expect(computeEffectiveReserveTarget(10000, 45000)).toBe(45000);
+    });
+
+    it('keeps the manual figure when the user has set a more conservative reserve than the recommendation', () => {
+        expect(computeEffectiveReserveTarget(60000, 45000)).toBe(60000);
+    });
+
+    it('does not let an unset (zero) manual reserve silently override the recommendation', () => {
+        expect(computeEffectiveReserveTarget(0, 45000)).toBe(45000);
+    });
+
+    it('clamps negative inputs to zero instead of propagating them', () => {
+        expect(computeEffectiveReserveTarget(-5000, -100)).toBe(0);
+        expect(computeEffectiveReserveTarget(-5000, 20000)).toBe(20000);
     });
 });
 
