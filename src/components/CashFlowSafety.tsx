@@ -6,6 +6,7 @@ import { FinanceData, Transaction, Invoice } from '../types';
 import { computeAgingBuckets } from '../utils/finance';
 import { localDateStr } from '../utils/localDate';
 import { computeCashRunway } from '../utils/cashRunway';
+import { computeFinancialResilience } from '../utils/cashReservePlanning';
 import { generateCashFlowForecast } from '../utils/forecastEngine';
 import { buildForecastInput } from '../utils/alertEngine';
 import { ScenarioProjection, ScenarioType } from '../types/forecast';
@@ -51,6 +52,15 @@ export default function CashFlowSafety({ finance, transactions, invoices, curren
     // Weekly Dashboard, Loans & Debt, the stress tester, and the rainy-day
     // planner below — not a separate estimate invented here.
     const { dailyBurn } = computeCashRunway(transactions, finance.cashBalance);
+
+    // Same volatility-based recommendation Scoreboard's Cash Reserve
+    // Resilience metric already shows -- pre-selects the Rainy-Day Fund
+    // Planner's target chip below instead of a fixed 3-month default that
+    // had no relationship to what this business's own numbers say it needs.
+    const financialResilience = useMemo(
+        () => computeFinancialResilience(transactions, finance.cashBalance),
+        [transactions, finance.cashBalance]
+    );
 
     const forecast = useMemo(
         () => generateCashFlowForecast(buildForecastInput(finance.cashBalance, transactions, invoices, currency)),
@@ -208,7 +218,12 @@ export default function CashFlowSafety({ finance, transactions, invoices, curren
             </Collapsible>
 
             <Collapsible title="Rainy-Day Fund Planner">
-                <RainyDayFundPlanner currency={currency} currentCashBalance={finance.cashBalance} dailyBurn={dailyBurn} />
+                <RainyDayFundPlanner
+                    currency={currency}
+                    currentCashBalance={finance.cashBalance}
+                    dailyBurn={dailyBurn}
+                    recommendedTargetMonths={financialResilience.available ? financialResilience.recommendedMonths : undefined}
+                />
             </Collapsible>
         </View>
     );
