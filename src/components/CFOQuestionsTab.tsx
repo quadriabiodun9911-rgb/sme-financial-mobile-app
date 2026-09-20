@@ -204,10 +204,12 @@ export default function CFOQuestionsTab() {
         [freeCashFlow.deployableCash, inventoryValue],
     );
 
-    // Q6
+    // Q6 -- same totalLiquidCash Q1 nets deployable cash against, so "how
+    // long does our cash last" doesn't quietly ignore money sitting in a
+    // pocket while Q1 counts it.
     const revenueShock = useMemo(
-        () => computeRevenueShockImpact(finance.cashBalance, dailyBurn, trailing30Revenue, revenueMissPct),
-        [finance.cashBalance, dailyBurn, trailing30Revenue, revenueMissPct],
+        () => computeRevenueShockImpact(totalLiquidCash, dailyBurn, trailing30Revenue, revenueMissPct),
+        [totalLiquidCash, dailyBurn, trailing30Revenue, revenueMissPct],
     );
 
     // Revenue Stress Test -- the multi-scenario table (Current, -10%, -20%,
@@ -215,8 +217,8 @@ export default function CFOQuestionsTab() {
     // vulnerability threshold neither Q6 nor a coarse 3-point table alone
     // can show.
     const revenueStress = useMemo(
-        () => computeRevenueStressTest(transactions, finance.cashBalance, currency),
-        [transactions, finance.cashBalance, currency],
+        () => computeRevenueStressTest(transactions, totalLiquidCash, currency),
+        [transactions, totalLiquidCash, currency],
     );
 
     const resetForm = () => {
@@ -369,6 +371,9 @@ export default function CFOQuestionsTab() {
                 <View style={[s.verdictBox, { borderColor: revenueShock.verdict === 'safe' ? Colors.income : revenueShock.verdict === 'caution' ? Colors.warning : Colors.expense }]}>
                     <Text style={s.verdictText}>{revenueShock.reason}</Text>
                 </View>
+                {pocketsTotal > 0 && (
+                    <Text style={s.qNote}>Runway includes cash tracked in your Cash Pockets, not just your recorded transactions.</Text>
+                )}
             </View>
 
             {/* Revenue Stress Test -- decision intelligence, not just a

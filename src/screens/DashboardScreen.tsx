@@ -1297,16 +1297,20 @@ export default function DashboardScreen() {
     // cumulative total, not a monthly figure) by 30, which understated or
     // overstated runway depending purely on how long the business had been
     // tracked, and could show a different runway than every other screen.
+    // Cash still sitting in a pocket is real cash the business could spend
+    // down before running out, so it's counted here too -- and in
+    // CashFlowScreen's own Runway tab, so "Cash Runway" doesn't show one
+    // number on Dashboard and a different one there for the same business.
     const { dailyBurn: dashboardDailyBurn, runwayDays: computedRunwayDays } = useMemo(
-        () => computeCashRunway(transactions, finance.cashBalance),
-        [transactions, finance.cashBalance],
+        () => computeCashRunway(transactions, finance.cashBalance + totalCash),
+        [transactions, finance.cashBalance, totalCash],
     );
     const runwayDays = dashboardDailyBurn > 0 ? computedRunwayDays : null;
     // No measurable burn only reads as a genuine "5+ years" floor when
     // there's real cash behind it -- ₦0 cash with no burn data is "no data
     // yet", not a healthy runway, so it's kept visually neutral instead of
     // sharing the same reassuring green as an actual long runway.
-    const hasCashCushion = finance.cashBalance > 0;
+    const hasCashCushion = finance.cashBalance + totalCash > 0;
     const runwayColor = runwayDays === null
         ? (hasCashCushion ? Colors.income : Colors.textMuted)
         : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
@@ -1339,12 +1343,15 @@ export default function DashboardScreen() {
         () => buildDailyBriefing(priorities, weekdayPattern, {
             yesterdayRevenue: yesterdayBucket.revenue,
             yesterdayExpense: yesterdayBucket.expense,
-            cashBalance: finance.cashBalance,
+            // Same pocket-inclusive figure runwayDays was computed from --
+            // otherwise the briefing's own "Cash: ₦X, Yd runway" sentence
+            // wouldn't reconcile against itself.
+            cashBalance: finance.cashBalance + totalCash,
             runwayDays,
             currency: settings?.currency ?? '₦',
             businessName: settings?.businessName,
         }),
-        [priorities, weekdayPattern, yesterdayBucket, finance.cashBalance, runwayDays, settings?.currency, settings?.businessName]
+        [priorities, weekdayPattern, yesterdayBucket, finance.cashBalance, totalCash, runwayDays, settings?.currency, settings?.businessName]
     );
     useEffect(() => {
         if (isDemoMode) return;
@@ -1356,8 +1363,8 @@ export default function DashboardScreen() {
     // cash" number.
     useEffect(() => {
         if (isDemoMode || runwayDays === null || runwayDays >= 30) return;
-        notifyLowCashRunway(runwayDays, settings?.currency ?? '₦', finance.cashBalance).catch(() => {});
-    }, [isDemoMode, runwayDays, settings?.currency, finance.cashBalance]);
+        notifyLowCashRunway(runwayDays, settings?.currency ?? '₦', finance.cashBalance + totalCash).catch(() => {});
+    }, [isDemoMode, runwayDays, settings?.currency, finance.cashBalance, totalCash]);
 
     // Reuses costExposure.ts's own significance gate (MODEL.breadthThresholdPctPoints)
     // for "is this category's shift big enough to interrupt someone about" --

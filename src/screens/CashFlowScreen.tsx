@@ -50,7 +50,7 @@ function WeekBar({ pct, color }: { pct: number; color: string }) {
 }
 
 export default function CashFlowScreen() {
-    const { transactions, loans, invoices, budgets, finance, settings, setCurrentScreen, navigate, navParams } = useApp();
+    const { transactions, loans, invoices, budgets, finance, settings, setCurrentScreen, navigate, navParams, cashPockets } = useApp();
     const [tab, setTab] = useState<Tab>(
         (['forecast', 'runway', 'ar', 'breakeven'] as Tab[]).includes(navParams?.tab as Tab) ? (navParams!.tab as Tab) : 'forecast'
     );
@@ -74,10 +74,13 @@ export default function CashFlowScreen() {
     const weeks = useMemo(() => computeCashFlowForecast(transactions, loans, invoices, budgets, finance.cashBalance), [transactions, loans, invoices, budgets, finance.cashBalance]);
     const usesBudget = weeks.some(w => w.usedBudget);
 
-    // Cash runway
+    // Cash runway -- cash sitting in a pocket is counted the same way
+    // Dashboard's own Vital Signs gauge counts it, so "Cash Runway" doesn't
+    // disagree between the two screens showing the identical metric.
+    const pocketsTotal = useMemo(() => cashPockets.reduce((s, p) => s + p.amount, 0), [cashPockets]);
     const { runwayDays, dailyBurn, cashBalance } = useMemo(
-        () => computeCashRunway(transactions, finance.cashBalance),
-        [transactions, finance.cashBalance]
+        () => computeCashRunway(transactions, finance.cashBalance + pocketsTotal),
+        [transactions, finance.cashBalance, pocketsTotal]
     );
 
     // Infinite runway (no burn recorded) only reads as good news when
@@ -435,6 +438,9 @@ export default function CashFlowScreen() {
                             <View style={styles.card2}>
                                 <Text style={styles.card2Label}>Cash Balance</Text>
                                 <Text style={[styles.card2Val, { color: Colors.income }]}>{fmt(cashBalance)}</Text>
+                                {pocketsTotal > 0 && (
+                                    <Text style={styles.card2Sub}>incl. {fmt(pocketsTotal)} in pockets</Text>
+                                )}
                             </View>
                             <View style={styles.card2}>
                                 <Text style={styles.card2Label}>Daily Burn Rate</Text>
@@ -715,6 +721,7 @@ const styles = StyleSheet.create({
     card2: { flex: 1, backgroundColor: Colors.card, borderRadius: Radius.md, padding: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     card2Label: { fontSize: 11, color: Colors.muted, marginBottom: Spacing.xs },
     card2Val:   { fontSize: 18, fontWeight: '800' },
+    card2Sub:   { fontSize: 10, color: Colors.muted, marginTop: 2 },
 
     dscrCard: { backgroundColor: Colors.card, borderRadius: Radius.md, padding: 14, borderWidth: 1.5, marginBottom: Spacing.lg, ...Shadow.sm },
     dscrHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },

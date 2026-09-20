@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow } from '../theme/tokens';
-import { FinanceData, Transaction, Invoice } from '../types';
+import { FinanceData, Transaction, Invoice, CashPocket } from '../types';
 import { computeAgingBuckets } from '../utils/finance';
 import { localDateStr } from '../utils/localDate';
 import { computeCashRunway } from '../utils/cashRunway';
@@ -22,6 +22,7 @@ interface Props {
     currency: string;
     minReserve: string;
     inventoryValue?: number;
+    cashPockets?: CashPocket[];
 }
 
 // Merges what used to be two separately-tabbed screens that both claimed the
@@ -31,8 +32,13 @@ interface Props {
 // a manual, user-driven stress test). One flow now: where you stand today,
 // what the engine expects to happen automatically, then optional deeper
 // manual tools for testing your own what-if assumptions.
-export default function CashFlowSafety({ finance, transactions, invoices, currency, minReserve, inventoryValue }: Props) {
+export default function CashFlowSafety({ finance, transactions, invoices, currency, minReserve, inventoryValue, cashPockets = [] }: Props) {
     const reserve = parseFloat(minReserve) || 0;
+    // Cash still sitting in a pocket is real cash toward a rainy-day
+    // reserve, same as it's treated in Idle Cash Allocation -- kept scoped
+    // to the planner below rather than folded into "Current Cash Balance"
+    // above, which stays a straight read of the transaction ledger.
+    const pocketsTotal = useMemo(() => cashPockets.reduce((s, p) => s + p.amount, 0), [cashPockets]);
     const surplusShortfall = finance.cashBalance - reserve;
     const coverageRatio = reserve > 0 ? finance.cashBalance / reserve : null;
 
@@ -220,7 +226,8 @@ export default function CashFlowSafety({ finance, transactions, invoices, curren
             <Collapsible title="Rainy-Day Fund Planner">
                 <RainyDayFundPlanner
                     currency={currency}
-                    currentCashBalance={finance.cashBalance}
+                    currentCashBalance={finance.cashBalance + pocketsTotal}
+                    pocketsIncluded={pocketsTotal > 0 ? pocketsTotal : undefined}
                     dailyBurn={dailyBurn}
                     recommendedTargetMonths={financialResilience.available ? financialResilience.recommendedMonths : undefined}
                 />

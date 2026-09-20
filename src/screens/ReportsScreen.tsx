@@ -116,7 +116,7 @@ const PERIODS: { key: ReportPeriod; label: string }[] = [
 ];
 
 export default function ReportsScreen() {
-    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate, user, isDemoMode } = useApp();
+    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate, user, isDemoMode, cashPockets } = useApp();
     const { currency, minReserve, targetMargin } = settings;
     const businessName = user?.businessName || 'Your Business';
 
@@ -731,6 +731,7 @@ export default function ReportsScreen() {
                             currency={currency}
                             minReserve={minReserve}
                             inventoryValue={inventoryValue}
+                            cashPockets={cashPockets}
                         />
                     )}
 
