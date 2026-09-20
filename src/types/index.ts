@@ -47,6 +47,7 @@ export type Screen =
     | 'data-permission-centre'
     | 'before-you-decide'
     | 'macroshield-detail'
+    | 'team-chat'
     // Set on a lender session (see routeAfterAuth in OptimizedContexts.tsx)
     // but never matched in App.tsx's currentScreen switch -- isLenderSession
     // intercepts and renders LenderPipelineScreen before that switch is ever
@@ -538,6 +539,16 @@ export interface TeamMember {
     status: 'pending' | 'active';
     inviteCode: string;
     invitedAt: string;
+}
+
+export interface TeamChatMessage {
+    id: string;
+    workspaceOwnerId: string;
+    senderUserId: string;
+    senderName: string;
+    senderRole: UserRole;
+    body: string;
+    createdAt: string;
 }
 
 export interface AgingBucket {

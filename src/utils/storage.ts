@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CryptoJS from 'crypto-js';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, FxRateSnapshot } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, TeamMember, TeamChatMessage, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, FxRateSnapshot } from '../types';
 import { supabase } from './supabase';
 import {
     savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData, saveAuthSecretSecurely, loadAuthSecretSecurely, clearAuthSecretSecurely,
@@ -782,6 +782,55 @@ export async function joinTeamWithCode(
         .single();
     if (error || !data || !(data as any).owner_user_id) throw new Error('Invalid or already used invite code.');
     return { ownerId: (data as any).owner_user_id, role: (data as any).role };
+}
+
+// ─── Team Chat ──────────────────────────────────────────────────────────────
+// A single shared message channel per business workspace (see
+// 033_team_chat_messages.sql) -- not a DM/threading system, just one
+// running conversation the whole team can read, for leaving a note when
+// the person who needs it isn't around right now. RLS enforces who can
+// read/send (workspace owner, or an ACTIVE team_members row), same as
+// every other workspace table.
+export async function loadTeamChatMessages(): Promise<TeamChatMessage[]> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return [];
+    try {
+        const { data, error } = await supabase
+            .from('team_chat_messages')
+            .select('*')
+            .eq('workspace_owner_id', ownerId)
+            .order('created_at', { ascending: true })
+            .limit(200);
+        if (error || !data) { logSyncError('team_chat_messages', 'load', error); return []; }
+        return data.map(r => ({
+            id:               r.id,
+            workspaceOwnerId: r.workspace_owner_id,
+            senderUserId:     r.sender_user_id,
+            senderName:       r.sender_name,
+            senderRole:       r.sender_role,
+            body:             r.body,
+            createdAt:        r.created_at,
+        }));
+    } catch (e) {
+        logSyncError('team_chat_messages', 'load', e);
+        return [];
+    }
+}
+
+export async function sendTeamChatMessage(body: string, senderName: string, senderRole: string): Promise<void> {
+    const trimmed = body.trim();
+    if (!trimmed) return;
+    const ownerId = await getWorkspaceOwnerId();
+    const myId = await getAuthUserId();
+    if (!ownerId || !myId) throw new Error('Not authenticated.');
+    const { error } = await supabase.from('team_chat_messages').insert({
+        workspace_owner_id: ownerId,
+        sender_user_id: myId,
+        sender_name: senderName,
+        sender_role: senderRole,
+        body: trimmed,
+    });
+    if (error) throw new Error(error.message);
 }
 
 // ─── Inventory (now synced with Supabase for backup) ──────────────────────────

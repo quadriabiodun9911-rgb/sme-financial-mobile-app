@@ -102,6 +102,9 @@ const FUND_ITEMS: { label: string; icon: IconName; screen: Screen; color: string
 const ACCOUNT_ITEMS: { label: string; icon: IconName; screen: Screen; color: string; desc: string }[] = [
     { label: 'Settings', icon: 'settings', screen: 'settings', color: '#94a3b8', desc: 'Business, team & account' },
     { label: 'Export Data', icon: 'download', screen: 'settings', color: '#10b981', desc: 'Download reports & backups' },
+    // icon deliberately different from the CFO Advisor's 'message-circle' so
+    // the two message-shaped entries in this menu read as distinct features.
+    { label: 'Team Chat', icon: 'message-square', screen: 'team-chat', color: '#2563eb', desc: "Message your team, even when they're offline" },
 ];
 
 // ─── Footer tabs ─────────────────────────────────────────────────────────────
@@ -185,8 +188,10 @@ export default function FooterNav() {
     const visibleFund = useMemo(() => FUND_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
 
     const visibleAccount = useMemo(() =>
-        ACCOUNT_ITEMS.filter(item => isScreenAllowedForRole(item.screen, userRole)),
-        [userRole]
+        ACCOUNT_ITEMS.filter(item =>
+            isScreenAllowedForRole(item.screen, userRole) && (item.screen !== 'team-chat' || enableTeam)
+        ),
+        [userRole, enableTeam]
     );
 
     return (

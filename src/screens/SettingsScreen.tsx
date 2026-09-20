@@ -756,6 +756,25 @@ export default function SettingsScreen() {
                         </Section>
                     </CollapsibleSection>
 
+                    {/* Team Chat -- open to every role that can reach Settings, not just
+                        team management, since chatting with the team is a day-to-day
+                        thing rather than an owner/admin-only action. */}
+                    {enableTeam && (
+                        <>
+                        <SectionHeader icon="message-square" title="TEAM CHAT" />
+                        <CollapsibleSection title="Team Chat" icon="message-square" defaultOpen={false}>
+                            <Section title="Message Your Team">
+                                <Text style={styles.hint}>
+                                    Send a message to everyone on this business's team so they see it whenever they're next in the app, even if you're not online at the same time.
+                                </Text>
+                                <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('team-chat')}>
+                                    <Text style={styles.dataBtnText}>Open Team Chat</Text>
+                                </TouchableOpacity>
+                            </Section>
+                        </CollapsibleSection>
+                        </>
+                    )}
+
                     {/* Team */}
                     {enableTeam && canManageTeam(userRole) && (
                         <>

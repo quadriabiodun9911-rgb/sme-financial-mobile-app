@@ -117,7 +117,7 @@ export function canPublishToLenders(role: UserRole): boolean {
 // exposed.
 const STAFF_ALLOWED_SCREENS: Screen[] = [
     'landing', 'login', 'contact', 'blog', 'blog-post', 'privacy-policy', '2fa', 'two-factor-verify', 'onboarding-choice',
-    'dashboard', 'transactions', 'invoices', 'inventory', 'payment-link', 'payment-complete',
+    'dashboard', 'transactions', 'invoices', 'inventory', 'payment-link', 'payment-complete', 'team-chat',
 ];
 // Note: 'settings' is deliberately excluded — it mixes team-management,
 // tax config, and opening balances into one screen alongside things a
@@ -139,6 +139,7 @@ const EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS: Screen[] = [
     'scoreboard', 'cashflow', 'analysis', 'future-statements', 'insights',
     'business-passport', 'financial-assessment', 'financial-health',
     'risk-management', 'macro-assumptions', 'macroshield-detail', 'audit-log', 'business-timeline', 'data-integrity',
+    'team-chat',
 ];
 
 // Screens a pure viewer can open -- EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS
