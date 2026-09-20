@@ -70,7 +70,7 @@ export default function CFOQuestionsTab() {
     const {
         transactions, loans, inventory, finance, settings, navigate, goals, invoices,
         capitalCommitments, addCommitment, updateCommitment, deleteCommitment,
-        assets, user, readinessHistory, staff,
+        assets, user, readinessHistory, staff, cashPockets,
     } = useApp();
     const { currency } = settings;
 
@@ -159,10 +159,18 @@ export default function CFOQuestionsTab() {
     const quarterlyTaxEstimate = trailing90AccrualRevenue * (getTaxRatePercent(settings.defaultTaxRate) / 100);
     const upcoming30dayDebtService = useMemo(() => totalMonthlyLoanBurden(loans), [loans]);
 
+    // Cash Pockets money isn't in the transaction ledger (see Dashboard's own
+    // "+₦Y in pockets" line under Cash in Hand) -- it's cash the owner hasn't
+    // logged as a transaction yet, not a subset of finance.cashBalance. Left
+    // out of deployableCash, a business with real cash sitting in a pocket
+    // would be told less was safe to deploy than it actually has.
+    const pocketsTotal = useMemo(() => cashPockets.reduce((s, p) => s + p.amount, 0), [cashPockets]);
+    const totalLiquidCash = finance.cashBalance + pocketsTotal;
+
     // Q1
     const freeCashFlow = useMemo(
-        () => computeFreeCashFlow(finance.cashBalance, upcoming30dayAP, upcoming30dayDebtService, reserveTarget),
-        [finance.cashBalance, upcoming30dayAP, upcoming30dayDebtService, reserveTarget],
+        () => computeFreeCashFlow(totalLiquidCash, upcoming30dayAP, upcoming30dayDebtService, reserveTarget),
+        [totalLiquidCash, upcoming30dayAP, upcoming30dayDebtService, reserveTarget],
     );
 
     // "Where should this actually go?" -- the other half of Q1, reusing its
@@ -244,12 +252,16 @@ export default function CFOQuestionsTab() {
                 <Text style={s.qLabel}>Q1</Text>
                 <Text style={s.qTitle}>How much cash can we actually deploy?</Text>
                 <Text style={s.qResult}>{fmt(currency, freeCashFlow.deployableCash)}</Text>
-                <Row label="Cash balance" value={fmt(currency, freeCashFlow.cashBalance)} />
+                <Row label="Cash balance" value={fmt(currency, finance.cashBalance)} />
+                {pocketsTotal > 0 && (
+                    <Row label="+ Cash in pockets" value={fmt(currency, pocketsTotal)} />
+                )}
                 <Row label="Due within 30 days (AP)" value={`− ${fmt(currency, freeCashFlow.upcoming30dayAP)}`} negative />
                 <Row label="Due within 30 days (loan repayments)" value={`− ${fmt(currency, freeCashFlow.upcoming30dayDebtService)}`} negative />
                 <Row label="Reserve target" value={`− ${fmt(currency, freeCashFlow.reserveTarget)}`} negative />
                 <Text style={s.qNote}>
                     What's left after upcoming payables, loan repayments, and your reserve target — the number that's actually yours to spend.
+                    {pocketsTotal > 0 && ' Includes cash tracked in your Cash Pockets, not just your recorded transactions.'}
                     {recommendedReserve > userSetReserve && (
                         ` Reserve target uses Quad360's recommended ${financialResilience.recommendedMonths}-month reserve for your business (Scoreboard → Cash Reserve Resilience), since it's higher than your Settings reserve target.`
                     )}

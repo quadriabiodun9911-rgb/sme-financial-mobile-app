@@ -26,14 +26,14 @@ export default function CashPocketsModal({ visible, onClose }: Props) {
     const handleAdd = () => {
         if (!newName.trim()) { showAlert('Name required', 'Enter a name for this cash pocket.'); return; }
         const amt = parseFloat(newAmount);
-        if (isNaN(amt) || amt < 0) { showAlert('Invalid amount', 'Enter a valid amount.'); return; }
+        if (!Number.isFinite(amt) || amt < 0) { showAlert('Invalid amount', 'Enter a valid amount.'); return; }
         addCashPocket(newName.trim(), amt);
         setNewName(''); setNewAmount('');
     };
 
     const handleUpdate = (id: string) => {
         const amt = parseFloat(editAmount);
-        if (isNaN(amt) || amt < 0) { showAlert('Invalid amount', 'Enter a valid amount.'); return; }
+        if (!Number.isFinite(amt) || amt < 0) { showAlert('Invalid amount', 'Enter a valid amount.'); return; }
         updateCashPocket(id, amt);
         setEditingId(null);
     };
