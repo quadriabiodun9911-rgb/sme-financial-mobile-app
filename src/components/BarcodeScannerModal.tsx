@@ -1,9 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet, TextInput, Platform } from 'react-native';
-import { Camera, CameraType } from 'expo-camera';
 import { Colors } from '../theme/colors';
 import { Radius, Spacing } from '../theme/tokens';
 import Icon from './ui/Icon';
+
+// expo-camera is native-only here -- CAMERA_SCANNING_SUPPORTED below already
+// means web never renders a <Camera> (its web fallback only decodes QR, not
+// the EAN/UPC/Code128 formats a real product's barcode actually carries, so
+// web goes straight to manual entry instead). But this used to be a plain
+// top-level `import { Camera } from 'expo-camera'`, which meant the web
+// bundle still evaluated expo-camera's own module body -- including its web
+// implementation eagerly fetching a jsQR-decoding worker script from a CDN
+// -- on every single page load, even on screens that never open this modal.
+// Requiring it only on native, the same pattern supabase.ts already uses
+// for expo-secure-store, means the web bundle never runs that module at all.
+let CameraModule: typeof import('expo-camera') | null = null;
+if (Platform.OS !== 'web') {
+    CameraModule = require('expo-camera');
+}
 
 interface Props {
     visible: boolean;
@@ -31,7 +45,13 @@ const BARCODE_TYPES = ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39', '
 const CAMERA_SCANNING_SUPPORTED = Platform.OS !== 'web';
 
 export default function BarcodeScannerModal({ visible, onClose, onScanned, title = 'Scan Barcode', hint }: Props) {
-    const [permission, requestPermission] = Camera.useCameraPermissions();
+    // CAMERA_SCANNING_SUPPORTED mirrors Platform.OS !== 'web', which is fixed
+    // for the lifetime of a running app -- this takes the same branch on
+    // every render of every instance, so it never actually changes hook call
+    // order despite looking like a conditional hook call.
+    const [permission, requestPermission] = CAMERA_SCANNING_SUPPORTED
+        ? CameraModule!.Camera.useCameraPermissions()
+        : [null, async () => {}] as const;
     const [locked, setLocked] = useState(false);
     const [manualCode, setManualCode] = useState('');
     const [manualOnly, setManualOnly] = useState(!CAMERA_SCANNING_SUPPORTED);
@@ -89,9 +109,9 @@ export default function BarcodeScannerModal({ visible, onClose, onScanned, title
                         </View>
                     ) : (
                         <View style={styles.cameraBox}>
-                            <Camera
+                            <CameraModule.Camera
                                 style={StyleSheet.absoluteFill}
-                                type={CameraType.back}
+                                type={CameraModule.CameraType.back}
                                 barCodeScannerSettings={{ barCodeTypes: BARCODE_TYPES }}
                                 onBarCodeScanned={locked ? undefined : handleBarCodeScanned}
                             />
