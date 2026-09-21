@@ -48,6 +48,7 @@ export type Screen =
     | 'before-you-decide'
     | 'macroshield-detail'
     | 'team-chat'
+    | 'income'
     // Set on a lender session (see routeAfterAuth in OptimizedContexts.tsx)
     // but never matched in App.tsx's currentScreen switch -- isLenderSession
     // intercepts and renders LenderPipelineScreen before that switch is ever
@@ -407,9 +408,21 @@ export interface BusinessSettings {
     // fabricated to fit an answer the app has no data behind.
     primaryGoal?: PrimaryGoal;
     customerCreditLimits?: CustomerCreditLimit[]; // owner-set per-customer exposure ceilings, see CustomerCreditLimit
+    // Owner-defined target split of each period's income across purposes
+    // (reinvestment, tax, owner pay, etc.) -- see incomeAllocation.ts.
+    // Undefined means the owner hasn't customized it yet; the screen falls
+    // back to DEFAULT_ALLOCATION_BUCKETS rather than storing them here
+    // until the owner actually changes something.
+    incomeAllocationTargets?: IncomeAllocationBucket[];
 }
 
 export type PrimaryGoal = 'cashflow' | 'costs' | 'financing';
+
+export interface IncomeAllocationBucket {
+    id: string;
+    label: string;
+    targetPct: number;
+}
 
 export interface NavParams {
     reportSection?: 'statements' | 'customers' | 'tax' | 'planning' | 'growth';

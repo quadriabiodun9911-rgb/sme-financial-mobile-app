@@ -58,6 +58,7 @@ import SecurityCenterScreen from './src/screens/SecurityCenterScreen';
 import BusinessTimelineScreen from './src/screens/BusinessTimelineScreen';
 import DataPermissionCentreScreen from './src/screens/DataPermissionCentreScreen';
 import TeamChatScreen from './src/screens/TeamChatScreen';
+import IncomeScreen from './src/screens/IncomeScreen';
 import LenderPipelineScreen from './src/screens/LenderPipelineScreen';
 import RestrictedAccessScreen from './src/screens/RestrictedAccessScreen';
 import { isScreenAllowedForRole } from './src/utils/rolePermissions';
@@ -236,6 +237,7 @@ function NavigatorContent() {
             {currentScreen === 'business-timeline' && <BusinessTimelineScreen />}
             {currentScreen === 'data-permission-centre' && <DataPermissionCentreScreen />}
             {currentScreen === 'team-chat'      && <TeamChatScreen />}
+            {currentScreen === 'income'         && <IncomeScreen />}
             {currentScreen === 'before-you-decide' && <BeforeYouDecideScreen />}
         </View>
     );

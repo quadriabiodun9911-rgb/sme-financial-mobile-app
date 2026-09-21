@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Modal, Share, Platform, useWindowDimensions, Linking,
+    TouchableOpacity, StyleSheet, Modal, Share, Platform, useWindowDimensions, Linking, FlatList,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors, ColorThemeMode, getColorThemeMode, setColorThemeMode } from '../theme/colors';
@@ -25,6 +25,7 @@ import PinConfirmModal from '../components/PinConfirmModal';
 import { PaymentProvider, savePaymentSecret, deletePaymentSecret, getConnectedProviders } from '../utils/paymentSecrets';
 import { setBackupPassword, deleteBackupPassword, getBackupPasswordStatus } from '../utils/backupPassword';
 import { WhatsAppLinkStatus, WHATSAPP_BOT_NUMBER, getWhatsAppLinkStatus, createWhatsAppLinkRequest, disconnectWhatsApp } from '../utils/whatsappTransactions';
+import { CURRENCIES, CurrencyOption } from '../utils/currencies';
 
 const ROLE_BADGE_COLOR: Record<string, string> = {
     admin: Colors.expense,
@@ -35,21 +36,10 @@ const ROLE_BADGE_COLOR: Record<string, string> = {
     viewer: Colors.textMuted,
 };
 
-const CURRENCIES = [
-    { label: 'USD ($)',    value: '$',   code: 'USD' },
-    { label: 'GBP (£)',   value: '£',   code: 'GBP' },
-    { label: 'EUR (€)',   value: '€',   code: 'EUR' },
-    { label: 'NGN (₦)',   value: '₦',   code: 'NGN' },
-    { label: 'ZAR (R)',   value: 'R',   code: 'ZAR' },
-    { label: 'KES (KSh)', value: 'KSh', code: 'KES' },
-    { label: 'GHS (₵)',   value: '₵',   code: 'GHS' },
-    { label: 'EGP (E£)',  value: 'E£',  code: 'EGP' },
-    { label: 'AED (د.إ)', value: 'AED', code: 'AED' },
-    { label: 'INR (₹)',   value: '₹',   code: 'INR' },
-    { label: 'CNY (¥)',   value: '¥',   code: 'CNY' },
-    { label: 'CAD (C$)',  value: 'C$',  code: 'CAD' },
-    { label: 'AUD (A$)',  value: 'A$',  code: 'AUD' },
-];
+// Full list moved to utils/currencies.ts -- covers ~135 countries/ISO
+// currencies now, not just the dozen major trading currencies this used to
+// hardcode, so a business anywhere can pick their own currency directly
+// instead of approximating it with USD/EUR/GBP.
 
 const BUSINESS_TYPES: { label: string; value: BusinessSettings['businessType'] }[] = [
     { label: 'Product', value: 'product' },
@@ -199,6 +189,19 @@ export default function SettingsScreen() {
     // the action to actually run once the PIN is verified, plus the copy for
     // that specific action. See PinConfirmModal / verifyPin (storage.ts).
     const [pinConfirm, setPinConfirm] = useState<{ title: string; message: string; confirmLabel: string; destructive: boolean; action: () => void } | null>(null);
+
+    // Currency picker
+    const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
+    const [currencySearch, setCurrencySearch] = useState('');
+    const filteredCurrencies = useMemo(() => {
+        const q = currencySearch.trim().toLowerCase();
+        if (!q) return CURRENCIES;
+        return CURRENCIES.filter(c =>
+            c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q) || c.symbol.toLowerCase().includes(q)
+        );
+    }, [currencySearch]);
+    const selectedCurrency: CurrencyOption | undefined = CURRENCIES.find(c => c.code === form.currencyCode)
+        ?? CURRENCIES.find(c => c.symbol === form.currency);
 
     // Team invite modal
     const [inviteModal, setInviteModal]   = useState(false);
@@ -568,12 +571,12 @@ export default function SettingsScreen() {
 
                         <Section title={t(language, 'currency')}>
                             <Text style={styles.hint}>Unlike Theme and Language above, this only takes effect once you tap "Save Settings" below.</Text>
-                            <View style={styles.optRow}>
-                                {CURRENCIES.map(c => (
-                                    <Opt key={c.value} label={c.label} active={form.currency === c.value}
-                                        onPress={() => setForm((f: typeof form) => ({ ...f, currency: c.value, currencyCode: c.code }))} />
-                                ))}
-                            </View>
+                            <TouchableOpacity style={styles.dropdownTrigger} onPress={() => { setCurrencySearch(''); setCurrencyPickerOpen(true); }}>
+                                <Text style={styles.dropdownTriggerText}>
+                                    {selectedCurrency ? `${selectedCurrency.name} — ${selectedCurrency.code} (${selectedCurrency.symbol})` : (form.currencyCode || form.currency || 'Select currency')}
+                                </Text>
+                                <Icon name="chevron-down" size={16} color={Colors.textMuted} />
+                            </TouchableOpacity>
                         </Section>
 
                         <Text style={styles.saveScopeHint}>Saves every section on this screen, not just this one.</Text>
@@ -1123,6 +1126,52 @@ export default function SettingsScreen() {
             </ScrollView>
             <FooterNav />
 
+            {/* Currency Picker Modal */}
+            <Modal visible={currencyPickerOpen} animationType="slide" transparent onRequestClose={() => setCurrencyPickerOpen(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalCard, constrainSheetWidth && styles.modalCardWide, styles.currencyModalCard]}>
+                        <Text style={styles.modalTitle}>Select Currency</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={currencySearch}
+                            onChangeText={setCurrencySearch}
+                            placeholder="Search by country, currency, or code…"
+                            placeholderTextColor={Colors.muted}
+                            autoCapitalize="none"
+                            autoFocus={Platform.OS === 'web'}
+                        />
+                        <FlatList
+                            data={filteredCurrencies}
+                            keyExtractor={(c) => c.code}
+                            style={styles.currencyList}
+                            keyboardShouldPersistTaps="handled"
+                            ListEmptyComponent={<Text style={[styles.hint, { textAlign: 'center', marginTop: 20 }]}>No currency matches "{currencySearch}".</Text>}
+                            renderItem={({ item }) => {
+                                const active = item.code === form.currencyCode;
+                                return (
+                                    <TouchableOpacity
+                                        style={[styles.currencyRow, active && styles.currencyRowActive]}
+                                        onPress={() => {
+                                            setForm((f: typeof form) => ({ ...f, currency: item.symbol, currencyCode: item.code }));
+                                            setCurrencyPickerOpen(false);
+                                        }}
+                                    >
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.currencyRowName}>{item.name}</Text>
+                                            <Text style={styles.currencyRowCode}>{item.code} · {item.symbol}</Text>
+                                        </View>
+                                        {active && <Icon name="check" size={18} color={Colors.primary} />}
+                                    </TouchableOpacity>
+                                );
+                            }}
+                        />
+                        <TouchableOpacity style={styles.cancelBtn} onPress={() => setCurrencyPickerOpen(false)}>
+                            <Text style={styles.cancelBtnText}>Close</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
             {/* Invite Modal */}
             <Modal visible={inviteModal} animationType="slide" transparent>
                 <View style={styles.modalOverlay}>
@@ -1613,6 +1662,22 @@ const styles = StyleSheet.create({
     opt:       { paddingHorizontal: 14, paddingVertical: Spacing.sm, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm },
     optActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
     optText:   { color: Colors.textSecondary, fontSize: 13 },
+
+    dropdownTrigger: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border,
+        borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 12,
+    },
+    dropdownTriggerText: { color: Colors.textPrimary, fontSize: 14, flex: 1, marginRight: Spacing.sm },
+    currencyModalCard: { maxHeight: '80%' },
+    currencyList: { maxHeight: 360, marginTop: Spacing.sm },
+    currencyRow: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingVertical: 12, paddingHorizontal: Spacing.sm, borderRadius: Radius.sm,
+    },
+    currencyRowActive: { backgroundColor: Colors.bg },
+    currencyRowName: { color: Colors.textPrimary, fontSize: 14, fontWeight: '600' },
+    currencyRowCode: { color: Colors.textMuted, fontSize: 12, marginTop: 2 },
 
     saveScopeHint: { fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginBottom: Spacing.sm, fontStyle: 'italic' },
     saveBtn:     { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginBottom: Spacing.md },
