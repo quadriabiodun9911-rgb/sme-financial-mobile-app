@@ -262,13 +262,20 @@ export default function MacroShieldSimulator({ currency, transactions, loans, fi
                             </View>
                             {assumptionRange.points.map(p => (
                                 <View key={p.severityLabel} style={[s.stressRow, p.multiplier === 1 && s.stressRowActive]}>
-                                    <Text style={[s.stressCell, { flex: 1.3, fontWeight: p.multiplier === 1 ? '800' : '500' }]}>{p.severityLabel}</Text>
+                                    <Text style={[s.stressCell, { flex: 1.3, fontWeight: p.multiplier === 1 ? '800' : '500' }]}>
+                                        {p.severityLabel}{p.revenueImpactCapped ? ' (capped)' : ''}
+                                    </Text>
                                     <Text style={[s.stressCell, { color: p.runOutMonthLabel ? Colors.expense : Colors.income }]}>
                                         {p.runOutMonthLabel ?? 'Not within 12mo'}
                                     </Text>
                                     <Text style={[s.stressCell, { textAlign: 'right' }]}>{fmt(currency, p.endingCashAtHorizon)}</Text>
                                 </View>
                             ))}
+                            {assumptionRange.points.some(p => p.revenueImpactCapped) && (
+                                <Text style={s.stressCapNote}>
+                                    "(capped)" rows hit the most severe revenue collapse this tool can model (95%) — that's why they may show the same result as a less extreme row.
+                                </Text>
+                            )}
                         </View>
                     )}
 
@@ -325,6 +332,7 @@ const s = StyleSheet.create({
     stressRow: { flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
     stressRowActive: { backgroundColor: Colors.primary + '0c' },
     stressCell: { flex: 1, fontSize: 11.5, color: Colors.textSecondary },
+    stressCapNote: { fontSize: 10, color: Colors.textMuted, fontStyle: 'italic', marginTop: 6, lineHeight: 14 },
 
     detailLink: { marginTop: Spacing.md, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border },
     detailLinkText: { fontSize: 12, fontWeight: '700', color: Colors.primary },

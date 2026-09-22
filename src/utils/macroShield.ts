@@ -187,6 +187,15 @@ export interface MacroShieldAssumptionPoint {
     runOutMonthLabel: string | null;
     monthsOfRunwayLost: number | null;
     endingCashAtHorizon: number;
+    // True when this point's scaled revenue-impact input exceeded the
+    // ceiling computeMacroShieldImpact itself clamps to (see
+    // REVENUE_IMPACT_CEILING) -- without this, two different severities
+    // (e.g. "50% worse" and "Twice as bad" off a high base assumption) can
+    // both collapse to the same clamped input and render identical rows
+    // with no indication why, which reads as a bug rather than the honest
+    // "both are already past the worst revenue collapse this app can
+    // model" reality it actually is.
+    revenueImpactCapped: boolean;
 }
 
 export interface MacroShieldAssumptionRange {
@@ -202,6 +211,12 @@ const SEVERITY_MULTIPLIERS: { label: string; multiplier: number }[] = [
     { label: 'Twice as bad', multiplier: 2 },
 ];
 
+// Matches the ceiling computeMacroShieldImpact itself clamps revenueImpactPct
+// to -- kept as its own named constant here (rather than re-deriving it)
+// purely to detect and flag when a scaled point has been capped, not to
+// change the clamping behavior itself.
+const REVENUE_IMPACT_CEILING = 95;
+
 export function computeMacroShieldAssumptionRange(
     transactions: Transaction[],
     loans: Loan[],
@@ -215,11 +230,21 @@ export function computeMacroShieldAssumptionRange(
         return { available: false, reason: 'Move a slider above to set an assumption to stress-test.', points: [] };
     }
 
+    // If the underlying engine can't even compute the owner's own stated
+    // assumption (e.g. no transaction history yet), it can't honestly
+    // compute any scaled multiple of it either -- bail out here rather
+    // than returning available:true with four zero-valued, fabricated points.
+    const baseResult = computeMacroShieldImpact(transactions, loans, finance, staff, minReserve, baseInput);
+    if (!baseResult.available) {
+        return { available: false, reason: baseResult.reason, points: [] };
+    }
+
     const points: MacroShieldAssumptionPoint[] = SEVERITY_MULTIPLIERS.map(({ label, multiplier }) => {
+        const scaledRevenueImpactPct = (baseInput.revenueImpactPct ?? 0) * multiplier;
         const scaledInput: MacroShieldInput = {
             inflationPct: baseInput.inflationPct * multiplier,
             fxDevaluationPct: baseInput.fxDevaluationPct * multiplier,
-            revenueImpactPct: (baseInput.revenueImpactPct ?? 0) * multiplier,
+            revenueImpactPct: scaledRevenueImpactPct,
         };
         const result = computeMacroShieldImpact(transactions, loans, finance, staff, minReserve, scaledInput);
         const shockedMonths = result.available ? result.shocked.cashFlowMonths : [];
@@ -230,6 +255,7 @@ export function computeMacroShieldAssumptionRange(
             runOutMonthLabel: result.available ? result.shocked.runOutMonthLabel : null,
             monthsOfRunwayLost: result.available ? result.monthsOfRunwayLost : null,
             endingCashAtHorizon: horizon?.endingCash ?? 0,
+            revenueImpactCapped: scaledRevenueImpactPct > REVENUE_IMPACT_CEILING,
         };
     });
 

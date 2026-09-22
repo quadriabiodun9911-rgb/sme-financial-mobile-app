@@ -167,4 +167,30 @@ describe('computeMacroShieldAssumptionRange', () => {
         // Even with no cost shock at all, a nonzero revenue-impact lever alone should count as "an assumption is set."
         expect(result.points).toHaveLength(4);
     });
+
+    it('is unavailable (not a fabricated range) when the underlying engine has no transaction history, even with a nonzero assumption', () => {
+        const result = computeMacroShieldAssumptionRange([], [], FINANCE(2_000_000), [], 0, { inflationPct: 20, fxDevaluationPct: 0 });
+        expect(result.available).toBe(false);
+        expect(result.points).toEqual([]);
+    });
+
+    it('flags a point as capped, not silently duplicated, when the scaled revenue-impact input exceeds the 95% ceiling', () => {
+        const txs = steadyBusinessTransactions(650_000, 600_000);
+        // 80% base -> 1.5x = 120% (capped to 95), 2x = 160% (capped to 95)
+        const result = computeMacroShieldAssumptionRange(txs, [], FINANCE(300_000), [], 0, { inflationPct: 0, fxDevaluationPct: 0, revenueImpactPct: 80 });
+        const half = result.points.find(p => p.multiplier === 0.5)!;
+        const asStated = result.points.find(p => p.multiplier === 1)!;
+        const worse = result.points.find(p => p.multiplier === 1.5)!;
+        const double = result.points.find(p => p.multiplier === 2)!;
+        expect(half.revenueImpactCapped).toBe(false);   // 40% -- under the ceiling
+        expect(asStated.revenueImpactCapped).toBe(false); // 80% -- under the ceiling
+        expect(worse.revenueImpactCapped).toBe(true);    // 120% -- over the ceiling
+        expect(double.revenueImpactCapped).toBe(true);   // 160% -- over the ceiling
+    });
+
+    it('never flags a point as capped when inflation/FX alone drive the shock (revenue-impact stays 0)', () => {
+        const txs = steadyBusinessTransactions(650_000, 600_000);
+        const result = computeMacroShieldAssumptionRange(txs, [], FINANCE(300_000), [], 0, { inflationPct: 60, fxDevaluationPct: 0 });
+        expect(result.points.every(p => p.revenueImpactCapped === false)).toBe(true);
+    });
 });
