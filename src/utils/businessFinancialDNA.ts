@@ -17,7 +17,7 @@
 import { Transaction, Loan, InventoryItem, BusinessSettings, User } from '../types';
 import { FinanceData } from '../types';
 import { computeCustomerConcentration, computeSupplierConcentration, SupplierConcentration, computeSeasonalRisk, computeRiskScore, computeWorkingCapitalMetrics, RiskScore } from './finance';
-import { analyzeTrend, TrendAnalysis, computeAllTimeMonthlyBuckets } from './trendAnalysis';
+import { analyzeTrend, TrendAnalysis, computeAllTimeMonthlyBuckets, computeMarginTrendDirection } from './trendAnalysis';
 import { computeInventoryValue, computeStockVelocity } from './stockVelocity';
 import { totalMonthlyLoanBurden } from './loanMath';
 
@@ -159,12 +159,7 @@ function buildRiskBehaviour(
     const supplierConcentrationRisk: RiskBehaviour['supplierConcentrationRisk'] =
         operational.topSupplierConcentrationPct >= 40 ? 'high' : operational.topSupplierConcentrationPct >= 20 ? 'medium' : 'low';
 
-    let marginTrendDirection: RiskBehaviour['marginTrendDirection'] = 'stable';
-    const recent = trend.monthly.slice(-3);
-    if (recent.length >= 2) {
-        const delta = recent[recent.length - 1].profitMargin - recent[0].profitMargin;
-        marginTrendDirection = delta >= 3 ? 'improving' : delta <= -3 ? 'declining' : 'stable';
-    }
+    const marginTrendDirection = computeMarginTrendDirection(trend.monthly);
 
     return { riskScore, customerConcentrationRisk, supplierConcentrationRisk, marginTrendDirection };
 }

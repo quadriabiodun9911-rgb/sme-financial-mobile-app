@@ -1,5 +1,10 @@
-import { computeAllTimeMonthlyBuckets, computeQuarterlyTrend, computeYearlyTrend, computeDailyTrend, computeWeeklyTrend, analyzeTrend } from '../src/utils/trendAnalysis';
+import { computeAllTimeMonthlyBuckets, computeQuarterlyTrend, computeYearlyTrend, computeDailyTrend, computeWeeklyTrend, analyzeTrend, classifyRevenueGrowth, computeMarginTrendDirection, MonthlyTrendPoint } from '../src/utils/trendAnalysis';
 import { Transaction } from '../src/types';
+
+const makeMonth = (overrides: Partial<MonthlyTrendPoint>): MonthlyTrendPoint => ({
+    month: '2025-01', revenue: 0, expense: 0, cogs: 0, opex: 0, otherExpense: 0, profit: 0, profitMargin: 0, transactionCount: 0,
+    ...overrides,
+});
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
     id: 'tx',
@@ -223,5 +228,71 @@ describe('analyzeTrend — a genuine multi-year view, not just a current-month s
         } finally {
             jest.useRealTimers();
         }
+    });
+});
+
+describe('classifyRevenueGrowth', () => {
+    it('returns null when growth data is unavailable', () => {
+        expect(classifyRevenueGrowth(null)).toBeNull();
+    });
+
+    it('classifies at or above 5% as Growing', () => {
+        expect(classifyRevenueGrowth(5)).toBe('Growing');
+        expect(classifyRevenueGrowth(20)).toBe('Growing');
+    });
+
+    it('classifies between -5% and 5% as Stable', () => {
+        expect(classifyRevenueGrowth(0)).toBe('Stable');
+        expect(classifyRevenueGrowth(-4.9)).toBe('Stable');
+        expect(classifyRevenueGrowth(4.9)).toBe('Stable');
+    });
+
+    it('classifies below -5% as Declining', () => {
+        expect(classifyRevenueGrowth(-5.1)).toBe('Declining');
+        expect(classifyRevenueGrowth(-30)).toBe('Declining');
+    });
+});
+
+describe('computeMarginTrendDirection', () => {
+    it('defaults to stable with fewer than 2 months of data', () => {
+        expect(computeMarginTrendDirection([])).toBe('stable');
+        expect(computeMarginTrendDirection([makeMonth({ profitMargin: 20 })])).toBe('stable');
+    });
+
+    it('classifies a >=3-point rise (first vs last of the trailing 3 months) as improving', () => {
+        const months = [
+            makeMonth({ month: '2025-01', profitMargin: 15 }),
+            makeMonth({ month: '2025-02', profitMargin: 17 }),
+            makeMonth({ month: '2025-03', profitMargin: 19 }),
+        ];
+        expect(computeMarginTrendDirection(months)).toBe('improving');
+    });
+
+    it('classifies a >=3-point drop as declining', () => {
+        const months = [
+            makeMonth({ month: '2025-01', profitMargin: 22 }),
+            makeMonth({ month: '2025-02', profitMargin: 19 }),
+            makeMonth({ month: '2025-03', profitMargin: 18 }),
+        ];
+        expect(computeMarginTrendDirection(months)).toBe('declining');
+    });
+
+    it('classifies a swing under 3 points as stable', () => {
+        const months = [
+            makeMonth({ month: '2025-01', profitMargin: 20 }),
+            makeMonth({ month: '2025-02', profitMargin: 21 }),
+            makeMonth({ month: '2025-03', profitMargin: 21.5 }),
+        ];
+        expect(computeMarginTrendDirection(months)).toBe('stable');
+    });
+
+    it('only compares the trailing 3 months, ignoring older history', () => {
+        const months = [
+            makeMonth({ month: '2024-10', profitMargin: 5 }),  // outside the trailing window
+            makeMonth({ month: '2025-01', profitMargin: 15 }),
+            makeMonth({ month: '2025-02', profitMargin: 16 }),
+            makeMonth({ month: '2025-03', profitMargin: 16.5 }),
+        ];
+        expect(computeMarginTrendDirection(months)).toBe('stable');
     });
 });
