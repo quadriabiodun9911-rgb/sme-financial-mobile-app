@@ -74,7 +74,7 @@ function SectionCard({ icon, title, subtitle, children }: { icon: string; title:
 }
 
 export default function MarginWatchScreen() {
-    const { inventory, transactions, finance, settings, loans, bills, invoices } = useApp();
+    const { inventory, transactions, finance, settings, loans, bills, invoices, cashPockets } = useApp();
     const cur = settings.currency || '';
     const [sortBy, setSortBy] = useState<'efficiency' | 'revenue' | 'tiedUp'>('efficiency');
     const [fxAmount, setFxAmount] = useState('');
@@ -109,10 +109,15 @@ export default function MarginWatchScreen() {
     // spend" doesn't show a number that would immediately eat into the
     // business's own rainy-day target.
     const emergencyBufferTarget = parseFloat(settings?.minReserve || '') || 0;
+    // Cash sitting in a pocket is still real, spendable cash -- same
+    // inclusion Dashboard's own Safe to Spend figure uses (totalCash
+    // there), so tapping through from the Dashboard headline to this
+    // breakdown never lands on a different cash basis/total.
+    const pocketsTotal = useMemo(() => (cashPockets ?? []).reduce((s, p) => s + p.amount, 0), [cashPockets]);
 
     const discretionary = useMemo(
-        () => computeDiscretionaryCash(transactions, finance.cashBalance, loans, bills, invoices, fxImpact?.baseCost ?? 0, new Date(), emergencyBufferTarget),
-        [transactions, finance.cashBalance, loans, bills, invoices, fxImpact, emergencyBufferTarget]
+        () => computeDiscretionaryCash(transactions, finance.cashBalance + pocketsTotal, loans, bills, invoices, fxImpact?.baseCost ?? 0, new Date(), emergencyBufferTarget),
+        [transactions, finance.cashBalance, pocketsTotal, loans, bills, invoices, fxImpact, emergencyBufferTarget]
     );
 
     const productRows = useMemo(() => {
