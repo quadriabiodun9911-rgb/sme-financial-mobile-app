@@ -170,3 +170,94 @@ export function computeMacroShieldImpact(
 
     return { available: true, monthlyExpenseGrowthPct, monthlyRevenueDeclinePct, baseline, shocked, monthsOfRunwayLost };
 }
+
+/**
+ * Assumption stress-test -- the overconfidence corrector. The sliders above
+ * already let an owner drag to one shock magnitude and see one outcome;
+ * this answers the next question instead of leaving it to the owner's own
+ * (often overconfident) point estimate: "what if it's not as bad as I
+ * think -- or worse?" Reuses computeMacroShieldImpact verbatim at scaled
+ * multiples of whatever the owner already set, rather than a second,
+ * independently-tuned projection -- so this table can never disagree with
+ * the single-scenario result above it for the same inputs.
+ */
+export interface MacroShieldAssumptionPoint {
+    severityLabel: string;   // e.g. "Half as bad", "As you estimated", "50% worse", "Twice as bad"
+    multiplier: number;
+    runOutMonthLabel: string | null;
+    monthsOfRunwayLost: number | null;
+    endingCashAtHorizon: number;
+    // True when this point's scaled revenue-impact input exceeded the
+    // ceiling computeMacroShieldImpact itself clamps to (see
+    // REVENUE_IMPACT_CEILING) -- without this, two different severities
+    // (e.g. "50% worse" and "Twice as bad" off a high base assumption) can
+    // both collapse to the same clamped input and render identical rows
+    // with no indication why, which reads as a bug rather than the honest
+    // "both are already past the worst revenue collapse this app can
+    // model" reality it actually is.
+    revenueImpactCapped: boolean;
+}
+
+export interface MacroShieldAssumptionRange {
+    available: boolean;
+    reason?: string;
+    points: MacroShieldAssumptionPoint[];
+}
+
+const SEVERITY_MULTIPLIERS: { label: string; multiplier: number }[] = [
+    { label: 'Half as bad', multiplier: 0.5 },
+    { label: 'As you estimated', multiplier: 1 },
+    { label: '50% worse', multiplier: 1.5 },
+    { label: 'Twice as bad', multiplier: 2 },
+];
+
+// Matches the ceiling computeMacroShieldImpact itself clamps revenueImpactPct
+// to -- kept as its own named constant here (rather than re-deriving it)
+// purely to detect and flag when a scaled point has been capped, not to
+// change the clamping behavior itself.
+const REVENUE_IMPACT_CEILING = 95;
+
+export function computeMacroShieldAssumptionRange(
+    transactions: Transaction[],
+    loans: Loan[],
+    finance: FinanceData,
+    staff: StaffMember[],
+    minReserve: number,
+    baseInput: MacroShieldInput,
+): MacroShieldAssumptionRange {
+    const hasAssumption = baseInput.inflationPct > 0 || baseInput.fxDevaluationPct > 0 || (baseInput.revenueImpactPct ?? 0) > 0;
+    if (!hasAssumption) {
+        return { available: false, reason: 'Move a slider above to set an assumption to stress-test.', points: [] };
+    }
+
+    // If the underlying engine can't even compute the owner's own stated
+    // assumption (e.g. no transaction history yet), it can't honestly
+    // compute any scaled multiple of it either -- bail out here rather
+    // than returning available:true with four zero-valued, fabricated points.
+    const baseResult = computeMacroShieldImpact(transactions, loans, finance, staff, minReserve, baseInput);
+    if (!baseResult.available) {
+        return { available: false, reason: baseResult.reason, points: [] };
+    }
+
+    const points: MacroShieldAssumptionPoint[] = SEVERITY_MULTIPLIERS.map(({ label, multiplier }) => {
+        const scaledRevenueImpactPct = (baseInput.revenueImpactPct ?? 0) * multiplier;
+        const scaledInput: MacroShieldInput = {
+            inflationPct: baseInput.inflationPct * multiplier,
+            fxDevaluationPct: baseInput.fxDevaluationPct * multiplier,
+            revenueImpactPct: scaledRevenueImpactPct,
+        };
+        const result = computeMacroShieldImpact(transactions, loans, finance, staff, minReserve, scaledInput);
+        const shockedMonths = result.available ? result.shocked.cashFlowMonths : [];
+        const horizon = shockedMonths[shockedMonths.length - 1];
+        return {
+            severityLabel: label,
+            multiplier,
+            runOutMonthLabel: result.available ? result.shocked.runOutMonthLabel : null,
+            monthsOfRunwayLost: result.available ? result.monthsOfRunwayLost : null,
+            endingCashAtHorizon: horizon?.endingCash ?? 0,
+            revenueImpactCapped: scaledRevenueImpactPct > REVENUE_IMPACT_CEILING,
+        };
+    });
+
+    return { available: true, points };
+}
