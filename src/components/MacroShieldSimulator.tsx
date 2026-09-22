@@ -5,7 +5,7 @@ import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Icon from './ui/Icon';
 import { Transaction, Loan, FinanceData, StaffMember, MacroAssumption, MacroDriver } from '../types';
-import { computeMacroShieldImpact } from '../utils/macroShield';
+import { computeMacroShieldImpact, computeMacroShieldAssumptionRange } from '../utils/macroShield';
 
 interface Props {
     currency: string;
@@ -72,6 +72,14 @@ export default function MacroShieldSimulator({ currency, transactions, loans, fi
 
     const result = useMemo(
         () => computeMacroShieldImpact(transactions, loans, finance, staff, minReserve, { inflationPct, fxDevaluationPct, revenueImpactPct }),
+        [transactions, loans, finance, staff, minReserve, inflationPct, fxDevaluationPct, revenueImpactPct],
+    );
+
+    // Overconfidence corrector: what if this assumption is wrong, in either
+    // direction? Same inputs the single-scenario result above already
+    // reads, scaled to a few multiples -- see macroShield.ts.
+    const assumptionRange = useMemo(
+        () => computeMacroShieldAssumptionRange(transactions, loans, finance, staff, minReserve, { inflationPct, fxDevaluationPct, revenueImpactPct }),
         [transactions, loans, finance, staff, minReserve, inflationPct, fxDevaluationPct, revenueImpactPct],
     );
 
@@ -243,6 +251,27 @@ export default function MacroShieldSimulator({ currency, transactions, loans, fi
                         {revenueImpactPct > 0 && ' The revenue drop is your own estimate, not calculated from the sliders above.'}
                     </Text>
 
+                    {assumptionRange.available && (
+                        <View style={s.stressTable}>
+                            <Text style={s.stressTitle}>What if you're wrong about this?</Text>
+                            <Text style={s.stressSubtitle}>Same shock, tested at half what you set and up to twice what you set — in case your own estimate above is off.</Text>
+                            <View style={s.stressHeaderRow}>
+                                <Text style={[s.stressCell, s.stressHeaderCell, { flex: 1.3 }]}>If it's</Text>
+                                <Text style={[s.stressCell, s.stressHeaderCell]}>Cash runs out</Text>
+                                <Text style={[s.stressCell, s.stressHeaderCell, { textAlign: 'right' }]}>At 12mo</Text>
+                            </View>
+                            {assumptionRange.points.map(p => (
+                                <View key={p.severityLabel} style={[s.stressRow, p.multiplier === 1 && s.stressRowActive]}>
+                                    <Text style={[s.stressCell, { flex: 1.3, fontWeight: p.multiplier === 1 ? '800' : '500' }]}>{p.severityLabel}</Text>
+                                    <Text style={[s.stressCell, { color: p.runOutMonthLabel ? Colors.expense : Colors.income }]}>
+                                        {p.runOutMonthLabel ?? 'Not within 12mo'}
+                                    </Text>
+                                    <Text style={[s.stressCell, { textAlign: 'right' }]}>{fmt(currency, p.endingCashAtHorizon)}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    )}
+
                     <TouchableOpacity
                         style={s.detailLink}
                         onPress={() => onSeeFullImpact({ inflationPct, fxDevaluationPct, revenueImpactPct })}
@@ -287,6 +316,15 @@ const s = StyleSheet.create({
     reserveNote: { fontSize: 11.5, color: Colors.warning, marginTop: 6, lineHeight: 16 },
 
     caveat: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: Spacing.sm, lineHeight: 15 },
+
+    stressTable: { marginTop: Spacing.md, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border },
+    stressTitle: { fontSize: 12.5, fontWeight: '800', color: Colors.textPrimary, marginBottom: 2 },
+    stressSubtitle: { fontSize: 10.5, color: Colors.textMuted, lineHeight: 14, marginBottom: 8 },
+    stressHeaderRow: { flexDirection: 'row', paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    stressHeaderCell: { fontWeight: '700', color: Colors.textMuted, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.3 },
+    stressRow: { flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    stressRowActive: { backgroundColor: Colors.primary + '0c' },
+    stressCell: { flex: 1, fontSize: 11.5, color: Colors.textSecondary },
 
     detailLink: { marginTop: Spacing.md, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border },
     detailLinkText: { fontSize: 12, fontWeight: '700', color: Colors.primary },

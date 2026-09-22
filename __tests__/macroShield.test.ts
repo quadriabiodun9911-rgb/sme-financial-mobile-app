@@ -1,4 +1,4 @@
-import { computeMacroShieldImpact } from '../src/utils/macroShield';
+import { computeMacroShieldImpact, computeMacroShieldAssumptionRange } from '../src/utils/macroShield';
 import { Transaction, FinanceData } from '../src/types';
 
 function tx(overrides: Partial<Transaction>): Transaction {
@@ -122,5 +122,49 @@ describe('computeMacroShieldImpact', () => {
             expect(Number.isFinite(result.monthlyRevenueDeclinePct)).toBe(true);
             expect(Number.isNaN(result.monthlyRevenueDeclinePct)).toBe(false);
         });
+    });
+});
+
+describe('computeMacroShieldAssumptionRange', () => {
+    it('is unavailable when no shock has been set (all sliders at 0)', () => {
+        const txs = steadyBusinessTransactions(1_000_000, 600_000);
+        const result = computeMacroShieldAssumptionRange(txs, [], FINANCE(2_000_000), [], 0, { inflationPct: 0, fxDevaluationPct: 0 });
+        expect(result.available).toBe(false);
+        expect(result.points).toEqual([]);
+    });
+
+    it('returns four severity points scaled from the base assumption: half, as-stated, 50% worse, and double', () => {
+        const txs = steadyBusinessTransactions(1_000_000, 600_000);
+        const result = computeMacroShieldAssumptionRange(txs, [], FINANCE(2_000_000), [], 0, { inflationPct: 20, fxDevaluationPct: 0 });
+        expect(result.available).toBe(true);
+        expect(result.points.map(p => p.multiplier)).toEqual([0.5, 1, 1.5, 2]);
+        expect(result.points.map(p => p.severityLabel)).toEqual(['Half as bad', 'As you estimated', '50% worse', 'Twice as bad']);
+    });
+
+    it('the "as you estimated" point (multiplier 1) matches computeMacroShieldImpact called directly with the same input', () => {
+        const txs = steadyBusinessTransactions(650_000, 600_000);
+        const direct = computeMacroShieldImpact(txs, [], FINANCE(300_000), [], 0, { inflationPct: 40, fxDevaluationPct: 10 });
+        const range = computeMacroShieldAssumptionRange(txs, [], FINANCE(300_000), [], 0, { inflationPct: 40, fxDevaluationPct: 10 });
+        const asStated = range.points.find(p => p.multiplier === 1)!;
+        expect(asStated.runOutMonthLabel).toBe(direct.shocked.runOutMonthLabel);
+        expect(asStated.monthsOfRunwayLost).toBe(direct.monthsOfRunwayLost);
+    });
+
+    it('a milder point on the same table never runs out sooner than a more severe one', () => {
+        // Thin-margin business so the shock has real room to bite across the range.
+        const txs = steadyBusinessTransactions(650_000, 600_000);
+        const result = computeMacroShieldAssumptionRange(txs, [], FINANCE(300_000), [], 0, { inflationPct: 60, fxDevaluationPct: 0 });
+        // Half-as-bad should never run out strictly before (i.e. sooner than) double-as-bad.
+        const half = result.points.find(p => p.multiplier === 0.5)!;
+        const double = result.points.find(p => p.multiplier === 2)!;
+        expect(half.endingCashAtHorizon).toBeGreaterThanOrEqual(double.endingCashAtHorizon);
+    });
+
+    it('scales the revenue-impact lever alongside the cost shock, not just inflation/FX', () => {
+        const txs = steadyBusinessTransactions(1_000_000, 600_000);
+        const result = computeMacroShieldAssumptionRange(txs, [], FINANCE(2_000_000), [], 0, { inflationPct: 0, fxDevaluationPct: 0, revenueImpactPct: 10 });
+        expect(result.available).toBe(true);
+        // Even with no cost shock at all, a nonzero revenue-impact lever alone should count as "an assumption is set."
+        expect(result.points).toHaveLength(4);
     });
 });
