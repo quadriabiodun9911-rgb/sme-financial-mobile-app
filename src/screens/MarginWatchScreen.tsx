@@ -74,7 +74,7 @@ function SectionCard({ icon, title, subtitle, children }: { icon: string; title:
 }
 
 export default function MarginWatchScreen() {
-    const { inventory, transactions, finance, settings, loans, bills, invoices } = useApp();
+    const { inventory, transactions, finance, settings, loans, bills, invoices, cashPockets } = useApp();
     const cur = settings.currency || '';
     const [sortBy, setSortBy] = useState<'efficiency' | 'revenue' | 'tiedUp'>('efficiency');
     const [fxAmount, setFxAmount] = useState('');
@@ -104,9 +104,20 @@ export default function MarginWatchScreen() {
     // A purchase actively being sized in the FX calculator above counts as
     // a planned commitment here too -- the two cards are answering related
     // questions about the same real, specific spend, not independent ones.
+    // Same reserve target the low-cash alert (alertEngine.ts) already
+    // compares current cash against -- netting it here too so "safe to
+    // spend" doesn't show a number that would immediately eat into the
+    // business's own rainy-day target.
+    const emergencyBufferTarget = parseFloat(settings?.minReserve || '') || 0;
+    // Cash sitting in a pocket is still real, spendable cash -- same
+    // inclusion Dashboard's own Safe to Spend figure uses (totalCash
+    // there), so tapping through from the Dashboard headline to this
+    // breakdown never lands on a different cash basis/total.
+    const pocketsTotal = useMemo(() => (cashPockets ?? []).reduce((s, p) => s + p.amount, 0), [cashPockets]);
+
     const discretionary = useMemo(
-        () => computeDiscretionaryCash(transactions, finance.cashBalance, loans, bills, invoices, fxImpact?.baseCost ?? 0),
-        [transactions, finance.cashBalance, loans, bills, invoices, fxImpact]
+        () => computeDiscretionaryCash(transactions, finance.cashBalance + pocketsTotal, loans, bills, invoices, fxImpact?.baseCost ?? 0, new Date(), emergencyBufferTarget),
+        [transactions, finance.cashBalance, pocketsTotal, loans, bills, invoices, fxImpact, emergencyBufferTarget]
     );
 
     const productRows = useMemo(() => {
@@ -269,7 +280,18 @@ export default function MarginWatchScreen() {
                                     <Text style={s.commitValue}>{fmt(cur, discretionary.plannedPurchasesCommitment)}</Text>
                                 </View>
                             )}
+                            {discretionary.emergencyBufferCommitment > 0 && (
+                                <View style={s.commitRow}>
+                                    <Text style={s.commitLabel}>− Emergency buffer (your reserve target)</Text>
+                                    <Text style={s.commitValue}>{fmt(cur, discretionary.emergencyBufferCommitment)}</Text>
+                                </View>
+                            )}
                         </View>
+                        {discretionary.emergencyBufferCommitment === 0 && (
+                            <Text style={s.footnote}>
+                                No reserve target set yet — set one in Settings to have it counted as spoken-for here too, not just spendable cash.
+                            </Text>
+                        )}
                     </SectionCard>
 
                     {/* 4. FX Purchase Impact */}

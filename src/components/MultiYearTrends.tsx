@@ -4,6 +4,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow } from '../theme/tokens';
 import { analyzeTrend, computeDailyTrend, computeWeeklyTrend, computeQuarterlyTrend, computeYearlyBusinessSnapshot, classifyRevenueGrowth, computeMarginTrendDirection, MarginTrendDirection } from '../utils/trendAnalysis';
+import { computeRecencyContext } from '../utils/recencyContext';
 import GroupedBarChart from './GroupedBarChart';
 
 type Grouping = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
@@ -41,6 +42,10 @@ export default function MultiYearTrends() {
     const trend = useMemo(() => analyzeTrend(transactions), [transactions]);
     const yoyRevenueDirection = useMemo(() => classifyRevenueGrowth(trend.yoyRevenueGrowthPct), [trend.yoyRevenueGrowthPct]);
     const marginTrendDirection = useMemo(() => computeMarginTrendDirection(trend.monthly), [trend.monthly]);
+    // Recency-bias corrector: a bad month in isolation reads as a crisis --
+    // this puts it next to a longer baseline in the same sentence. See
+    // recencyContext.ts.
+    const recencyContext = useMemo(() => computeRecencyContext(trend.monthly), [trend.monthly]);
     const snapshot = useMemo(
         () => computeYearlyBusinessSnapshot(trend.yearly.map(y => y.year), transactions, invoices, assets),
         [trend.yearly, transactions, invoices, assets]
@@ -184,6 +189,9 @@ export default function MultiYearTrends() {
                                     Margin trend (last 3 months): <Text style={{ color: MARGIN_TREND_COLOR[marginTrendDirection], fontWeight: '700' }}>{MARGIN_TREND_LABEL[marginTrendDirection]}</Text>
                                 </Text>
                             )}
+                            {recencyContext.available && recencyContext.narrative !== '' && (
+                                <Text style={s.recencyNote}>{recencyContext.narrative}</Text>
+                            )}
                             <View style={s.tableHeader}>
                                 <Text style={[s.th, { flex: 1 }]}>Year</Text>
                                 <Text style={s.th}>Revenue</Text>
@@ -282,6 +290,7 @@ const s = StyleSheet.create({
     card: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
     cardSub:   { fontSize: 11, color: Colors.textMuted, marginBottom: 12 },
+    recencyNote: { fontSize: 11, color: Colors.textSecondary, marginBottom: 12, fontStyle: 'italic', lineHeight: 15 },
 
     yoyRow: { flexDirection: 'row', gap: 10 },
     yoyBox: { flex: 1, backgroundColor: Colors.bg, borderRadius: 10, padding: 12, alignItems: 'center' },

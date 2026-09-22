@@ -79,6 +79,40 @@ describe('computeDecisionSimulation', () => {
         expect(result.downsideRevenueDropPct).toBe(30);
         expect(result.downsideNarrative).toContain('30%');
     });
+
+    it('shows the runway impact of an affordable decision -- cash buffer before and after', () => {
+        const daysAgo = (n: number) => {
+            const d = new Date();
+            d.setDate(d.getDate() - n);
+            return d.toISOString().split('T')[0];
+        };
+        // Income-only history (not steadyBusinessTransactions, whose own
+        // expense legs may or may not land inside the trailing-30-day
+        // runway window depending on today's date) plus exactly one
+        // controlled expense, so dailyBurn is deterministic:
+        // 300,000 paid expense in the trailing 30 days -> dailyBurn = 10,000/day.
+        const txns: Transaction[] = [];
+        for (let m = 0; m < 3; m++) {
+            txns.push(tx({ type: 'income', amount: 1_500_000, category: 'Sales', date: `${monthKey(m)}-05` }));
+        }
+        txns.push(tx({ type: 'expense', category: 'Rent', amount: 300_000, date: daysAgo(5) }));
+        // additionalMonthlyCost 300,000/mo -> +10,000/day added burn
+        const result = computeDecisionSimulation(txns, 1_000_000, 300_000);
+        expect(result.runwayBeforeDays).toBeCloseTo(100, 0);  // 1,000,000 / 10,000
+        expect(result.runwayAfterDays).toBeCloseTo(50, 0);    // 1,000,000 / 20,000
+        expect(result.assessment).toMatch(/cash buffer would fall from 100 days → 50 days/);
+    });
+
+    it('omits runway fields when there is no measurable burn rate to divide by', () => {
+        // Income only in the trailing 30 days -- steadyBusinessTransactions'
+        // own expense legs are dated by month, which may or may not land in
+        // the trailing-30-day window depending on today's date, so isolate
+        // this case with income-only transactions.
+        const txns: Transaction[] = [tx({ type: 'income', amount: 1_500_000, category: 'Sales', date: '2020-01-05' })];
+        const result = computeDecisionSimulation(txns, 1_000_000, 0);
+        expect(result.runwayBeforeDays).toBeNull();
+        expect(result.runwayAfterDays).toBeNull();
+    });
 });
 
 describe('computeExpansionReadiness', () => {

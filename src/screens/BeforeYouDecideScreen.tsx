@@ -14,6 +14,8 @@ import LoanAffordabilityChecker from '../components/LoanAffordabilityChecker';
 import DecisionSimulator from '../components/DecisionSimulator';
 import CapitalCommitmentTracker, { CommitmentPrefill } from '../components/CapitalCommitmentTracker';
 import DecisionComparisonTable from '../components/DecisionComparisonTable';
+import DecisionEvidencePanel from '../components/DecisionEvidencePanel';
+import { computeDecisionEvidence } from '../utils/decisionEvidence';
 import { computeCashRunway } from '../utils/cashRunway';
 import { computeRiskScore, loanMonthlyPayment } from '../utils/finance';
 import { computeBreakeven } from '../utils/profitability';
@@ -54,6 +56,14 @@ export default function BeforeYouDecideScreen() {
     );
     const resilience = useMemo(() => computeBusinessResilience(exposure), [exposure]);
     const pillars = useMemo(() => computeFinancialHealthPillars(risk, transactions, resilience), [risk, transactions, resilience]);
+
+    // Confirmation-bias corrective: the case for and against committing to
+    // more spending right now, side by side, built entirely from signals
+    // already computed above/elsewhere -- see decisionEvidence.ts.
+    const decisionEvidence = useMemo(
+        () => computeDecisionEvidence(finance, transactions, loans, inventory, assets, currency),
+        [finance, transactions, loans, inventory, assets, currency]
+    );
 
     // Same trailing-30-day burn/profit derivation LoansAndDebt.tsx already
     // uses for these exact same components -- kept identical so a number
@@ -101,6 +111,8 @@ export default function BeforeYouDecideScreen() {
                     forecast of what will happen, but what your current cash flow can actually
                     absorb.
                 </Text>
+
+                <DecisionEvidencePanel evidence={decisionEvidence} />
 
                 <View style={styles.decisionCard}>
                     <Text style={styles.decisionQuestion}>Weighing more than one option?</Text>

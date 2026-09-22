@@ -24,6 +24,7 @@
 
 import { Transaction } from '../types';
 import { computeRevenueStressTest } from './revenueStressTest';
+import { computeCashRunway } from './cashRunway';
 import { FinancialHealthPillar } from './financialHealthPillars';
 
 export type DecisionAffordability = 'affordable' | 'tight' | 'not_affordable';
@@ -49,6 +50,15 @@ export interface DecisionSimulationResult {
     // actually turn cash generation negative.
     monthsUntilCashDepletedDownside: number | null;
     downsideNarrative: string;
+    // Loss-framed consequence, same runway-day reframe inventory reorders
+    // already use (inventoryDecisions.ts): what this specific added monthly
+    // cost does to how many days the current cash lasts, not just whether
+    // the monthly surplus survives it. Same dailyBurn source as Cash
+    // Runway, so it never disagrees with what that tab shows. null when
+    // there's no measurable burn rate (or the added cost alone doesn't tip
+    // burn positive) to divide by.
+    runwayBeforeDays: number | null;
+    runwayAfterDays: number | null;
 }
 
 // A decision that still leaves at least this fraction of the ORIGINAL
@@ -65,6 +75,7 @@ const UNAVAILABLE = (reason: string): DecisionSimulationResult => ({
     monthsOfReserveForAddedCost: 0,
     downsideRevenueDropPct: DEFAULT_DOWNSIDE_DROP_PCT, downsideMonthlySurplus: 0,
     downsideTurnsNegative: false, monthsUntilCashDepletedDownside: null, downsideNarrative: '',
+    runwayBeforeDays: null, runwayAfterDays: null,
 });
 
 export function computeDecisionSimulation(
@@ -108,11 +119,25 @@ export function computeDecisionSimulation(
         ? `If revenue falls ${downsideRevenueDropPct}%, projected cash generation turns negative${monthsUntilCashDepletedDownside !== null ? ` — at that rate, your current cash reserves would run out in approximately ${monthsUntilCashDepletedDownside.toFixed(1)} months` : ''}.`
         : `Even if revenue falls ${downsideRevenueDropPct}%, projected cash generation stays positive.`;
 
+    // Loss-framed runway consequence -- same dailyBurn source Cash Runway
+    // itself uses, so "before" always matches what that tab already shows.
+    // "After" adds this decision's monthly cost spread across a 30-day
+    // window onto the existing burn rate.
+    const { dailyBurn } = computeCashRunway(transactions, currentCashBalance);
+    const runwayBeforeDays = dailyBurn > 0 ? currentCashBalance / dailyBurn : null;
+    const dailyBurnAfter = dailyBurn + additionalMonthlyCost / 30;
+    const runwayAfterDays = dailyBurnAfter > 0 ? currentCashBalance / dailyBurnAfter : null;
+
+    if (runwayBeforeDays !== null && runwayAfterDays !== null) {
+        assessment += ` Your cash buffer would fall from ${Math.round(runwayBeforeDays)} days → ${Math.round(runwayAfterDays)} days.`;
+    }
+
     return {
         available: true,
         currentMonthlySurplus, additionalMonthlyCost, surplusAfterDecision, affordability, assessment,
         monthsOfReserveForAddedCost,
         downsideRevenueDropPct, downsideMonthlySurplus, downsideTurnsNegative, monthsUntilCashDepletedDownside, downsideNarrative,
+        runwayBeforeDays, runwayAfterDays,
     };
 }
 

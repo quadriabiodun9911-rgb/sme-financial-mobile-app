@@ -111,6 +111,10 @@ export class AlertEngine {
     const negativeAlert = this.detectNegativeForecastAlert();
     if (negativeAlert) alerts.push(negativeAlert);
 
+    // Projected reserve-target breach (forward-looking commitment alert)
+    const projectedReserveAlert = this.detectProjectedReserveBreachAlert();
+    if (projectedReserveAlert) alerts.push(projectedReserveAlert);
+
     // Overdue invoices
     const overdueAlerts = this.detectOverdueInvoiceAlerts();
     alerts.push(...overdueAlerts);
@@ -253,6 +257,65 @@ export class AlertEngine {
       ],
       createdAt: new Date().toISOString(),
     };
+  }
+
+  /**
+   * Forward-looking counterpart to detectLowCashAlert above: that one only
+   * fires once cash has already dropped below the owner's own reserve
+   * target (minReserveThreshold) -- a lagging warning. This fires while
+   * cash is still ABOVE the target but the automatic forecast shows it
+   * dipping below within the alert window, so the reserve target works as
+   * a real commitment device (see cashReservePlanning.ts/RainyDayFundPlanner)
+   * rather than something only noticed after it's already been broken.
+   * Deliberately distinct from detectNegativeForecastAlert, which only
+   * watches for cash going negative (₦0) -- an owner's own reserve target
+   * is almost always well above ₦0, so that alert alone would miss a real
+   * breach of the commitment the owner actually set.
+   */
+  private detectProjectedReserveBreachAlert(): ForecastAlert | null {
+    if (this.minReserveThreshold <= 0) return null; // no commitment set -- nothing to project against
+    if (this.currentCash < this.minReserveThreshold) return null; // already breached -- detectLowCashAlert owns this
+    const months = this.forecast?.baseCase?.months;
+    if (!months?.length) return null;
+
+    const now = new Date();
+    const MONTH_WINDOW_DAYS = 30;
+
+    for (const m of months) {
+      if (m.closingBalance >= this.minReserveThreshold) continue;
+
+      // Straight-line decline across the month's ~30-day window (opening
+      // balance at the window start, closing balance ~30 days later) --
+      // the same simplifying assumption the rest of this file's day-count
+      // estimates already lean on; there's no intra-month shape to work
+      // from beyond these two points.
+      const decline = m.openingBalance - m.closingBalance;
+      const daysIntoMonth = decline > 0
+        ? Math.max(0, Math.min(MONTH_WINDOW_DAYS, ((m.openingBalance - this.minReserveThreshold) / decline) * MONTH_WINDOW_DAYS))
+        : 0;
+      const breachDate = new Date(m.date.getTime() + daysIntoMonth * 86400000);
+      const daysUntilBreach = Math.max(1, Math.round((breachDate.getTime() - now.getTime()) / 86400000));
+
+      if (daysUntilBreach > this.thresholds.negativeForcastDays) return null; // too far out to act on yet
+
+      return {
+        id: 'alert-projected-reserve-breach',
+        type: 'low_cash',
+        priority: daysUntilBreach <= 14 ? 'high' : 'medium',
+        title: '⚠️ Projected Cash May Fall Below Your Reserve Target',
+        description: `Your projected cash may fall below your ${this.formatCurrency(this.minReserveThreshold)} reserve target in about ${daysUntilBreach} day${daysUntilBreach === 1 ? '' : 's'}, based on current trends.`,
+        affectedDate: localDateStr(breachDate),
+        amount: this.minReserveThreshold,
+        recommendations: [
+          'Review upcoming expenses and see what can be delayed',
+          'Accelerate customer collections',
+          'Hold off on new commitments until this is back above target',
+        ],
+        createdAt: new Date().toISOString(),
+      };
+    }
+
+    return null;
   }
 
   /**
