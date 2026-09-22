@@ -745,6 +745,8 @@ export default function ReportsScreen() {
                             accountsReceivable={allTimeWcMetrics.accountsReceivable}
                             accountsPayable={allTimeWcMetrics.accountsPayable}
                             inventoryValue={inventoryValue}
+                            assetsList={assets}
+                            defaultTaxRate={settings.defaultTaxRate}
                         />
                     )}
 

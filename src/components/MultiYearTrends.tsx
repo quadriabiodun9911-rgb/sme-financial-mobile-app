@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow } from '../theme/tokens';
-import { analyzeTrend, computeDailyTrend, computeWeeklyTrend, computeQuarterlyTrend, computeYearlyBusinessSnapshot } from '../utils/trendAnalysis';
+import { analyzeTrend, computeDailyTrend, computeWeeklyTrend, computeQuarterlyTrend, computeYearlyBusinessSnapshot, classifyRevenueGrowth, computeMarginTrendDirection, MarginTrendDirection } from '../utils/trendAnalysis';
 import GroupedBarChart from './GroupedBarChart';
 
 type Grouping = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
@@ -15,6 +15,8 @@ const GROUPINGS: { key: Grouping; label: string }[] = [
     { key: 'yearly', label: 'Yearly' },
 ];
 const PERIOD_NOUN: Record<Grouping, string> = { daily: 'day', weekly: 'week', monthly: 'month', quarterly: 'quarter', yearly: 'year' };
+const MARGIN_TREND_LABEL: Record<MarginTrendDirection, string> = { improving: 'Improving', stable: 'Stable', declining: 'Declining' };
+const MARGIN_TREND_COLOR: Record<MarginTrendDirection, string> = { improving: Colors.income, stable: Colors.textMuted, declining: Colors.expense };
 // The chart is a horizontal-scrolling column chart, not a fixed-width
 // table, so it can hold more points than a vertical list -- but "every
 // day, all recorded history" is still hundreds of columns nobody scrolls
@@ -37,6 +39,8 @@ export default function MultiYearTrends() {
     const [grouping, setGrouping] = useState<Grouping>('monthly');
 
     const trend = useMemo(() => analyzeTrend(transactions), [transactions]);
+    const yoyRevenueDirection = useMemo(() => classifyRevenueGrowth(trend.yoyRevenueGrowthPct), [trend.yoyRevenueGrowthPct]);
+    const marginTrendDirection = useMemo(() => computeMarginTrendDirection(trend.monthly), [trend.monthly]);
     const snapshot = useMemo(
         () => computeYearlyBusinessSnapshot(trend.yearly.map(y => y.year), transactions, invoices, assets),
         [trend.yearly, transactions, invoices, assets]
@@ -109,6 +113,11 @@ export default function MultiYearTrends() {
                                     <Text style={[s.yoyVal, { color: (trend.yoyRevenueGrowthPct ?? 0) >= 0 ? Colors.income : Colors.expense }]}>
                                         {fmtPct(trend.yoyRevenueGrowthPct)}
                                     </Text>
+                                    {yoyRevenueDirection && (
+                                        <Text style={[s.yoyTag, { color: yoyRevenueDirection === 'Growing' ? Colors.income : yoyRevenueDirection === 'Declining' ? Colors.expense : Colors.textMuted }]}>
+                                            {yoyRevenueDirection}
+                                        </Text>
+                                    )}
                                 </View>
                                 <View style={s.yoyBox}>
                                     <Text style={s.yoyLabel}>Profit growth</Text>
@@ -170,6 +179,11 @@ export default function MultiYearTrends() {
                     {trend.yearly.length > 0 && (
                         <View style={s.card}>
                             <Text style={s.cardTitle}>By Year</Text>
+                            {trend.monthly.length >= 2 && (
+                                <Text style={s.cardSub}>
+                                    Margin trend (last 3 months): <Text style={{ color: MARGIN_TREND_COLOR[marginTrendDirection], fontWeight: '700' }}>{MARGIN_TREND_LABEL[marginTrendDirection]}</Text>
+                                </Text>
+                            )}
                             <View style={s.tableHeader}>
                                 <Text style={[s.th, { flex: 1 }]}>Year</Text>
                                 <Text style={s.th}>Revenue</Text>
@@ -273,6 +287,7 @@ const s = StyleSheet.create({
     yoyBox: { flex: 1, backgroundColor: Colors.bg, borderRadius: 10, padding: 12, alignItems: 'center' },
     yoyLabel: { fontSize: 11, color: Colors.textMuted, marginBottom: 4 },
     yoyVal:   { fontSize: 17, fontWeight: '800' },
+    yoyTag:   { fontSize: 10.5, fontWeight: '700', marginTop: 2 },
 
     bwRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
     bwBox: { flex: 1, backgroundColor: Colors.surface, borderRadius: 12, padding: 12, borderWidth: 1 },

@@ -90,6 +90,32 @@ export interface TrendAnalysis {
     avgMonthlyProfitMargin: number;        // across all months with revenue
 }
 
+export type GrowthDirection = 'Growing' | 'Stable' | 'Declining';
+
+// Same ≥5% / -5%–5% / <-5% breakpoints financialRatiosEngine.ts's own
+// (3-month-window) Revenue Growth reading already uses -- reused here for
+// the year-over-year figure so "is revenue growing" never gets two
+// independently-invented thresholds answering the same question.
+export function classifyRevenueGrowth(growthPct: number | null): GrowthDirection | null {
+    if (growthPct === null) return null;
+    return growthPct >= 5 ? 'Growing' : growthPct >= -5 ? 'Stable' : 'Declining';
+}
+
+export type MarginTrendDirection = 'improving' | 'stable' | 'declining';
+
+// The one place "is the profit margin trending up or down" gets computed --
+// first vs. last of the trailing 3 months with data, ±3 percentage points.
+// Previously duplicated inline inside businessFinancialDNA.ts's
+// buildRiskBehaviour; extracted here so Business Passport's "Margin trend"
+// field and any other screen reading margin direction can't silently drift
+// apart on the same business.
+export function computeMarginTrendDirection(monthly: MonthlyTrendPoint[]): MarginTrendDirection {
+    const recent = monthly.slice(-3);
+    if (recent.length < 2) return 'stable';
+    const delta = recent[recent.length - 1].profitMargin - recent[0].profitMargin;
+    return delta >= 3 ? 'improving' : delta <= -3 ? 'declining' : 'stable';
+}
+
 /**
  * Group transactions into monthly revenue/expense/profit buckets — every
  * month that has any data, full history, not calendar-windowed. Named
