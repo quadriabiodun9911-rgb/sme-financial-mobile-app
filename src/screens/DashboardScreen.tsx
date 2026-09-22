@@ -78,6 +78,7 @@ import { computeExpenseIntelligence, ExpenseTier } from '../utils/expenseIntelli
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeTaxAbilityToPay } from '../utils/taxFilingReadiness';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
+import { computeDiscretionaryCash } from '../utils/discretionaryCash';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { computeQualityOfGrowth } from '../utils/qualityOfGrowth';
 import { computeDirectionVsStatus } from '../utils/directionVsStatus';
@@ -162,7 +163,7 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen 
 };
 
 export default function DashboardScreen() {
-    const { finance, settings, goals, transactions, invoices, assets, loans, staff, payrollRuns, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, demoBusinessId, cashPockets, addGoal, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory, markInvoiceStatus, userRole } = useApp();
+    const { finance, settings, goals, transactions, invoices, assets, loans, staff, payrollRuns, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, demoBusinessId, cashPockets, addGoal, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory, markInvoiceStatus, userRole, bills } = useApp();
     // 'viewer'/'external_accountant' can open the dashboard but are
     // documented (rolePermissions.ts) as never writing anywhere -- Quick
     // Add had no role check at all before this, on any of its several
@@ -1311,6 +1312,18 @@ export default function DashboardScreen() {
     // yet", not a healthy runway, so it's kept visually neutral instead of
     // sharing the same reassuring green as an actual long runway.
     const hasCashCushion = finance.cashBalance + totalCash > 0;
+    // "Safe to Spend" -- the mental-accounting reframe: a bank balance reads
+    // as "I have this much," even when near-term burn, loan repayments,
+    // vendor bills awaiting review and the business's own reserve target
+    // have already spoken for most of it. Same engine Margin Watch's
+    // Discretionary Cash card uses (discretionaryCash.ts), same reserve
+    // figure the low-cash alert already compares against, so this headline
+    // number never disagrees with either.
+    const emergencyBufferTarget = parseFloat(settings?.minReserve || '') || 0;
+    const safeToSpend = useMemo(
+        () => computeDiscretionaryCash(transactions, finance.cashBalance + totalCash, loans, bills, invoices, 0, new Date(), emergencyBufferTarget),
+        [transactions, finance.cashBalance, totalCash, loans, bills, invoices, emergencyBufferTarget]
+    );
     const runwayColor = runwayDays === null
         ? (hasCashCushion ? Colors.income : Colors.textMuted)
         : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
@@ -1695,6 +1708,18 @@ export default function DashboardScreen() {
                         <Text style={styles.cashTrendCaption}>{t(language, 'cashLast30Days')}</Text>
                       </View>
                     )}
+                    <PressScale
+                      style={[styles.safeToSpendRow, { borderColor: safeToSpend.discretionaryCash > 0 ? Colors.income + '40' : Colors.expense + '40' }]}
+                      onPress={() => navigate('margin-watch')}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.safeToSpendLabel}>🔓 Safe to Spend</Text>
+                        <Text style={styles.safeToSpendSub}>of {currency}{Math.round(finance.cashBalance + totalCash).toLocaleString()} in the bank · tap for breakdown</Text>
+                      </View>
+                      <Text style={[styles.safeToSpendValue, { color: safeToSpend.discretionaryCash > 0 ? Colors.income : Colors.expense }]}>
+                        {currency}{Math.round(safeToSpend.discretionaryCash).toLocaleString()}
+                      </Text>
+                    </PressScale>
                     <View style={styles.vitalDivider} />
                     <View style={styles.vitalCardBottom}>
                       {/* "Yesterday" replaces the old "Today's Profit" --
@@ -3154,6 +3179,32 @@ const styles = StyleSheet.create({
     vitalDivider: {
       height: 1,
       backgroundColor: Colors.border,
+    },
+    safeToSpendRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginHorizontal: 16,
+      marginBottom: 12,
+      padding: 10,
+      borderRadius: Radius.sm,
+      borderWidth: 1,
+      backgroundColor: Colors.bg,
+      gap: 8,
+    },
+    safeToSpendLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: Colors.textPrimary,
+    },
+    safeToSpendSub: {
+      fontSize: 10,
+      color: Colors.textMuted,
+      marginTop: 1,
+    },
+    safeToSpendValue: {
+      fontSize: 16,
+      fontWeight: '800',
     },
 
     personalSpendingBanner: {

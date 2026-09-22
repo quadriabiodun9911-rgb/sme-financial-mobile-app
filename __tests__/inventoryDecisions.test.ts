@@ -88,6 +88,29 @@ describe('computeInventoryDecisions', () => {
         expect(decisions[0].action).toBe('discontinue');
     });
 
+    it('shows the runway impact of an affordable reorder -- cash buffer before and after', () => {
+        const items = [makeItem({ id: 'i1', quantity: 5, lowStockThreshold: 5, costPrice: 800 })];
+        const txs = [
+            ...makeDailySales('i1', 1, 30),
+            // 300,000 paid expense in the trailing 30 days -> dailyBurn = 10,000/day
+            { id: 'exp-1', date: new Date().toISOString().split('T')[0], description: 'Rent', type: 'expense', category: 'Rent', amount: 300_000, status: 'paid' } as Transaction,
+        ];
+        const decisions = computeInventoryDecisions(items, txs, 1_000_000, '₦');
+        expect(decisions[0].affordable).toBe(true);
+        expect(decisions[0].runwayBeforeDays).toBeCloseTo(100, 0); // 1,000,000 / 10,000
+        expect(decisions[0].runwayAfterDays).toBeCloseTo(98, 0);   // (1,000,000 - 20,000) / 10,000
+        expect(decisions[0].detail).toMatch(/cash buffer would fall from 100 days → 98 days/);
+    });
+
+    it('omits the runway impact sentence when there is no measurable burn rate to divide by', () => {
+        const items = [makeItem({ id: 'i1', quantity: 5, lowStockThreshold: 5, costPrice: 800 })];
+        const txs = makeDailySales('i1', 1, 30); // income only -- no expense transactions
+        const decisions = computeInventoryDecisions(items, txs, 1_000_000, '₦');
+        expect(decisions[0].runwayBeforeDays).toBeUndefined();
+        expect(decisions[0].runwayAfterDays).toBeUndefined();
+        expect(decisions[0].detail).not.toContain('cash buffer would fall');
+    });
+
     it('sorts decisions by dollar magnitude descending', () => {
         const items = [
             makeItem({ id: 'small', name: 'Small', quantity: 5, lowStockThreshold: 5, costPrice: 100 }),

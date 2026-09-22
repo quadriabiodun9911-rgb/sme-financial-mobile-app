@@ -33,6 +33,13 @@
  *   Purchase Impact scenario's cost) for a specific upcoming spend the
  *   owner is actively weighing -- never inferred, only what's explicitly
  *   entered. Defaults to 0, the original behaviour.
+ * - Emergency buffer: an optional, caller-supplied reserve target (e.g.
+ *   Settings' minReserve, the same figure the low-cash alert already
+ *   compares current cash against). Netting it here too means "safe to
+ *   spend" already treats the reserve as spoken-for, rather than showing
+ *   a spendable-looking number that would immediately eat into the
+ *   business's own rainy-day target. Defaults to 0 (no reserve set), the
+ *   original behaviour.
  */
 import { Transaction, Loan, Bill, Invoice } from '../types';
 import { computeCashRunway } from './cashRunway';
@@ -48,6 +55,7 @@ export interface DiscretionaryCashResult {
     debtServiceCommitment: number; // one month's scheduled repayment on active loans
     pendingBillsCommitment: number; // vendor bills seen but not yet resolved
     plannedPurchasesCommitment: number; // a specific upcoming spend the owner supplied
+    emergencyBufferCommitment: number; // the owner's own reserve target, treated as spoken-for
     totalCommitted: number;
     discretionaryCash: number;     // max(0, cashBalance + expectedNearTermReceivables - totalCommitted)
 }
@@ -60,6 +68,7 @@ export function computeDiscretionaryCash(
     invoices: Invoice[] = [],
     plannedPurchases: number = 0,
     now: Date = new Date(),
+    emergencyBufferTarget: number = 0,
 ): DiscretionaryCashResult {
     const runway = computeCashRunway(transactions, cashBalance, now);
     const operatingCommitment = runway.dailyBurn * NEAR_TERM_WINDOW_DAYS;
@@ -77,7 +86,8 @@ export function computeDiscretionaryCash(
         .filter(b => b.label === 'Current (0–30 days)')
         .reduce((s, b) => s + b.total, 0);
 
-    const totalCommitted = operatingCommitment + debtServiceCommitment + pendingBillsCommitment + plannedPurchases;
+    const emergencyBufferCommitment = Math.max(0, emergencyBufferTarget);
+    const totalCommitted = operatingCommitment + debtServiceCommitment + pendingBillsCommitment + plannedPurchases + emergencyBufferCommitment;
 
     return {
         cashBalance,
@@ -86,6 +96,7 @@ export function computeDiscretionaryCash(
         debtServiceCommitment,
         pendingBillsCommitment,
         plannedPurchasesCommitment: plannedPurchases,
+        emergencyBufferCommitment,
         totalCommitted,
         discretionaryCash: Math.max(0, cashBalance + expectedNearTermReceivables - totalCommitted),
     };

@@ -85,4 +85,16 @@ describe('computeDiscretionaryCash', () => {
         expect(withoutPlan.discretionaryCash - withPlan.discretionaryCash).toBeCloseTo(150000, 0);
         expect(withPlan.plannedPurchasesCommitment).toBe(150000);
     });
+
+    it('treats a supplied emergency-buffer target as spoken-for, same as any other commitment', () => {
+        const withoutBuffer = computeDiscretionaryCash([], 500000, [], [], [], 0, NOW, 0);
+        const withBuffer = computeDiscretionaryCash([], 500000, [], [], [], 0, NOW, 200000);
+        expect(withoutBuffer.discretionaryCash - withBuffer.discretionaryCash).toBeCloseTo(200000, 0);
+        expect(withBuffer.emergencyBufferCommitment).toBe(200000);
+    });
+
+    it('defaults the emergency-buffer target to 0 -- original behaviour when no reserve is set', () => {
+        const result = computeDiscretionaryCash([], 500000, [], [], [], 0, NOW);
+        expect(result.emergencyBufferCommitment).toBe(0);
+    });
 });
