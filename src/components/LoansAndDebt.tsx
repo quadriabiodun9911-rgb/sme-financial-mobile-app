@@ -1,11 +1,12 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, StyleSheet, TextInput } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow } from '../theme/tokens';
-import { FinanceData, Loan, Transaction } from '../types';
+import { FinanceData, Loan, Transaction, Asset } from '../types';
 import { computeLeverageRatios, scoreDebtToAssets, scoreDebtToEquity, scoreEquityRatio, scoreROA, scoreROE, RatioScore } from '../utils/debtRatios';
+import { computeReturnOnInvestedCapital, scoreROICVsBenchmark } from '../utils/returnOnInvestedCapital';
 import { computeCashRunway } from '../utils/cashRunway';
-import { loanMonthlyPayment } from '../utils/finance';
+import { loanMonthlyPayment, getTaxRatePercent } from '../utils/finance';
 import RadialGauge from './RadialGauge';
 import Collapsible from './Collapsible';
 import LoanROICalculator from './LoanROICalculator';
@@ -23,6 +24,12 @@ interface Props {
     accountsReceivable?: number;
     accountsPayable?: number;
     inventoryValue?: number;
+    // Named distinctly from the `assets` this component already derives
+    // internally from computeLeverageRatios (total asset VALUE, a number)
+    // -- this is the raw Asset[] register, needed only for ROIC's quarterly
+    // balance-sheet reconstruction.
+    assetsList?: Asset[];
+    defaultTaxRate?: string;
 }
 
 function healthColor(score: RatioScore) {
@@ -73,6 +80,12 @@ const IMPACT: Record<string, Record<'strong' | 'stable' | 'concerning' | 'unscor
         concerning: 'Your capital is earning little to nothing here. Before borrowing more, fix why the business isn\'t returning enough on what\'s already invested.',
         unscored: UNSCORED_NOTE,
     },
+    roic: {
+        strong: 'The business is generating more from its invested capital than your benchmark rate — it\'s creating real value above what that capital could earn parked elsewhere.',
+        stable: 'Returns are close to your benchmark rate — the business is roughly breaking even against the opportunity cost of its capital, not clearly creating or destroying value.',
+        concerning: 'The business is earning less on its invested capital than your benchmark rate — capital tied up here is underperforming what it could earn elsewhere, even before counting the risk of running a business at all.',
+        unscored: 'Not enough loan or transaction history yet to compute this.',
+    },
 };
 
 function scoreInterestCoverage(interestCoverage: number, hasDebt: boolean): RatioScore {
@@ -94,6 +107,7 @@ function scoreInterestCoverage(interestCoverage: number, hasDebt: boolean): Rati
 export default function LoansAndDebt({
     finance, currency, loans = [], transactions = [],
     accountsReceivable = 0, accountsPayable = 0, inventoryValue = 0,
+    assetsList = [], defaultTaxRate,
 }: Props) {
     // Same trailing-30-day paid-expense burn rate CashFlowScreen's Runway
     // tab and the Weekly Dashboard use — one canonical "how much do we
@@ -136,6 +150,21 @@ export default function LoansAndDebt({
     const interestCoverageScore = scoreInterestCoverage(interestCoverage, liabilities > 0);
     const roaScore = scoreROA(returnOnAssets);
     const roeScore = scoreROE(returnOnEquity);
+
+    // Return on Invested Capital -- how the business's own return on
+    // (interest-bearing debt + equity) compares against a benchmark cost of
+    // capital the owner sets themselves (defaulting to a representative
+    // Nigerian money-market rate). This is a manual, editable comparison,
+    // not a live rates feed Quad360 has no integration for -- the owner is
+    // expected to update it as real market conditions change.
+    const [benchmarkRateStr, setBenchmarkRateStr] = useState('22');
+    const benchmarkRate = parseFloat(benchmarkRateStr) || 0;
+    const taxRatePercent = getTaxRatePercent(defaultTaxRate);
+    const roic = useMemo(
+        () => computeReturnOnInvestedCapital(transactions, assetsList, loans, equity, taxRatePercent),
+        [transactions, assetsList, loans, equity, taxRatePercent],
+    );
+    const roicScore = roic.roicPct !== null ? scoreROICVsBenchmark(roic.roicPct, benchmarkRate) : 'unscored';
 
     // Debt health score — a composite of the same three tiers scored above
     // for debt-to-assets/debt-to-equity (so a ratio scored "concerning"
@@ -219,7 +248,37 @@ export default function LoansAndDebt({
             <View style={s.card}>
                 <Text style={s.cardTitle}>Return on Capital</Text>
                 <RatioRow label="Return on Assets (ROA)" value={`${returnOnAssets.toFixed(1)}%`} score={roaScore} desc="Profit as % of assets. Above 10% is strong." impact={IMPACT.roa[roaScore]} />
-                <RatioRow label="Return on Equity (ROE)" value={`${returnOnEquity.toFixed(1)}%`} score={roeScore} desc="Profit as % of owner equity. Above 15% is strong." impact={IMPACT.roe[roeScore]} last />
+                <RatioRow label="Return on Equity (ROE)" value={`${returnOnEquity.toFixed(1)}%`} score={roeScore} desc="Profit as % of owner equity. Above 15% is strong." impact={IMPACT.roe[roeScore]} />
+                <RatioRow
+                    label="Return on Invested Capital (ROIC)"
+                    value={roic.roicPct !== null ? `${roic.roicPct.toFixed(1)}%` : 'N/A'}
+                    score={roicScore}
+                    desc="After-tax operating profit as % of debt + equity actually invested — vs. your own benchmark rate below."
+                    impact={IMPACT.roic[roicScore]}
+                    last
+                />
+                <View style={s.benchmarkRow}>
+                    <Text style={s.benchmarkLabel}>Benchmark rate (cost of capital)</Text>
+                    <View style={s.benchmarkInputWrap}>
+                        <TextInput
+                            style={s.benchmarkInput}
+                            value={benchmarkRateStr}
+                            onChangeText={setBenchmarkRateStr}
+                            keyboardType="numeric"
+                            placeholder="22"
+                            placeholderTextColor={Colors.textMuted}
+                        />
+                        <Text style={s.benchmarkPct}>%</Text>
+                    </View>
+                </View>
+                <Text style={s.benchmarkNote}>
+                    Defaults to a representative Nigerian money-market rate (T-bills / OMO) — edit it to match what your own idle cash could actually earn, or your lender's rate, and Quad360 will re-score ROIC against it.
+                </Text>
+                {roic.available && (
+                    <Text style={[s.benchmarkNote, { marginTop: 6, color: roic.trend.direction === 'improving' ? Colors.income : roic.trend.direction === 'weakening' ? Colors.expense : Colors.textMuted }]}>
+                        {roic.trend.narrative}
+                    </Text>
+                )}
             </View>
 
             {/* ── 2. WHAT THIS MEANS ───────────────────────────────────── */}
@@ -395,6 +454,13 @@ const s = StyleSheet.create({
     card: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle: { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
     disclaimer: { fontSize: 10, color: Colors.textMuted, marginTop: 2, fontStyle: 'italic', lineHeight: 15 },
+
+    benchmarkRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
+    benchmarkLabel: { fontSize: 12.5, color: Colors.textSecondary, flex: 1, marginRight: 8 },
+    benchmarkInputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+    benchmarkInput: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, minWidth: 40, textAlign: 'right' },
+    benchmarkPct: { fontSize: 14, fontWeight: '700', color: Colors.textMuted, marginLeft: 2 },
+    benchmarkNote: { fontSize: 10.5, color: Colors.textMuted, marginTop: 6, lineHeight: 15 },
 
     healthCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 2, flexDirection: 'row', alignItems: 'center', gap: 16, ...Shadow.sm },
     healthLabel: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
