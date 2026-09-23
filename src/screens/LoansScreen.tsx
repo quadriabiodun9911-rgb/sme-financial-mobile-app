@@ -23,6 +23,7 @@ import { Loan, LoanStatus, Transaction, ReadinessSnapshot } from '../types';
 import DateInput from '../components/DateInput';
 import MerchantFinancingSection from './MerchantFinancingSection';
 import { computeDebtOptimiser, computeDSCR, computeInterestRateShock, DSCRResult, computeUnlinkedLoanRepayments, computeLoanPaymentSplit } from '../utils/finance';
+import { computeCashRunway } from '../utils/cashRunway';
 import { analyzeOngoingFinancingToLease, LeaseRefinanceCheck } from '../utils/ongoingFinancingLeaseCheck';
 import { computeDSCRIntelligence } from '../utils/metricIntelligence';
 import { generateId } from '../utils/uuid';
@@ -267,9 +268,25 @@ export default function LoansScreen() {
     // refinancing what's left of it into a lease actually help. Runs for
     // every active loan, not just 2+ -- unlike avalanche/snowball there's no
     // "ordering" decision needed, so even a single loan gets a check.
+    //
+    // finance.profit is (income - expense) summed over EVERY transaction
+    // ever recorded, not a monthly figure -- passing it straight in as
+    // "monthly profit" would understate burdenPct for any business with
+    // more than a month of history, the same all-time-cumulative bug this
+    // codebase has already fixed for cash runway, burn rate, and the
+    // forecast baseline (see computeDSCR's own doc comment). Recomputed the
+    // same way Before You Decide's own calculators do: trailing 30 days of
+    // paid income minus trailing 30-day burn.
+    const monthlyBurn = computeCashRunway(transactions, finance?.cashBalance ?? 0).dailyBurn * 30;
+    const last30Str = localDateStr(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+    const income30 = transactions
+        .filter(t => t.type === 'income' && (t.status ?? 'paid') === 'paid' && t.date >= last30Str)
+        .reduce((s, t) => s + (t.amount ?? 0), 0);
+    const leaseCheckMonthlyProfit = income30 - monthlyBurn;
+
     const leaseChecks = useMemo<LeaseRefinanceCheck[]>(() => activeLoans.map(l =>
-        analyzeOngoingFinancingToLease(l, finance?.profit ?? 0, finance?.cashBalance ?? 0, parseFloat(settings?.minReserve || '0') || 0, currency)
-    ), [activeLoans, finance?.profit, finance?.cashBalance, settings?.minReserve, currency]);
+        analyzeOngoingFinancingToLease(l, leaseCheckMonthlyProfit, finance?.cashBalance ?? 0, parseFloat(settings?.minReserve || '0') || 0, currency)
+    ), [activeLoans, leaseCheckMonthlyProfit, finance?.cashBalance, settings?.minReserve, currency]);
 
     const dscr = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
     // Metric Intelligence pilot -- same Definition/Owner-confidence/Trigger
