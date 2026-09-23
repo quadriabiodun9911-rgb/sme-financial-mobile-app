@@ -721,15 +721,15 @@ export default function CFOScreen() {
                     <Text style={s.backBtn}>← Dashboard</Text>
                 </TouchableOpacity>
                 <View>
-                    <Text style={s.screenTitle}>Business Advisor</Text>
-                    <Text style={s.screenSub}>Your AI-powered business coach</Text>
+                    <Text style={s.screenTitle}>Your Fractional CFO</Text>
+                    <Text style={s.screenSub}>Forecasts, ratios, risk score, and straight answers — on demand, no hire required</Text>
                 </View>
             </View>
 
             {!hasEnoughData && (
                 <View style={s.emptyState}>
                     <Text style={s.emptyIcon}>🧠</Text>
-                    <Text style={s.emptyTitle}>Your Advisor is ready when you are</Text>
+                    <Text style={s.emptyTitle}>Your Fractional CFO is ready when you are</Text>
                     <Text style={s.emptyBody}>
                         Add at least 3 transactions to unlock forecasting, risk scoring, financial analysis, and personalised business advice.
                     </Text>

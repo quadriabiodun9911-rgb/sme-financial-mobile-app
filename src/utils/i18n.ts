@@ -232,7 +232,7 @@ const T = {
         navGeneralLedger: 'General Ledger', navGeneralLedgerDesc: 'Trial Balance & journal entries — for a bookkeeper',
         navRisk: 'Risk', navForecast: 'Forecast',
         navInsightsDesc: 'What actually needs a decision right now',
-        navAdvisor: 'Advisor', navAdvisorDesc: 'Ask about it — AI diagnosis, plain answers',
+        navAdvisor: 'Fractional CFO', navAdvisorDesc: 'Forecasts, ratios, risk score — CFO-level insight on demand',
         navAnalysisDecisions: 'Analysis & Decisions', navAnalysisDecisionsDesc: 'Why is this happening, and what if I...',
         navBeforeYouDecide: 'Before You Decide', navBeforeYouDecideDesc: 'Pressure-test a hire, purchase, discount, or loan',
         navGoalsDesc: 'Set the target this decision is aimed at',
