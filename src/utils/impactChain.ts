@@ -25,13 +25,21 @@ export interface ProfitCashImpact {
 // decision time (before it's booked as a transaction) the two move together
 // — the distinction between accrual profit and cash-in-hand only diverges
 // once something is unpaid, which these previews don't yet know about.
+//
+// cashDelta: optional override for the rare case where profit and cash
+// genuinely diverge every period, not just once something goes unpaid --
+// e.g. an asset bought on credit: monthlyDelta (profit impact) is
+// depreciation + interest, but the real monthly cash outflow is the full
+// principal-and-interest installment. Defaults to monthlyDelta, so every
+// existing caller's behavior is unchanged.
 export function computeProfitCashImpact(
     currentProfit: number,
     currentCashBalance: number,
     monthlyDelta: number,
+    cashDelta: number = monthlyDelta,
 ): ProfitCashImpact {
     const projectedProfit = currentProfit + monthlyDelta;
-    const projectedCashBalance = currentCashBalance + monthlyDelta;
+    const projectedCashBalance = currentCashBalance + cashDelta;
 
     let severity: ImpactSeverity = 'none';
     if (projectedProfit < 0 || projectedCashBalance < 0) {
@@ -47,7 +55,7 @@ export function computeProfitCashImpact(
         profitChange: monthlyDelta,
         currentCashBalance,
         projectedCashBalance,
-        cashChange: monthlyDelta,
+        cashChange: cashDelta,
         severity,
         isHarmful: severity !== 'none',
     };
