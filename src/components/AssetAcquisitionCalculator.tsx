@@ -21,6 +21,13 @@ interface Props {
 // recorded, for the "before I even go looking, which way should I acquire
 // this" question. Same engine, same recommendation logic, just without the
 // side effect of committing to a purchase.
+// Strips thousands-separator commas before parsing, so a value typed (or
+// pasted) the same way it's displayed elsewhere in the app -- "2,500,000",
+// matching this screen's own placeholder -- parses as 2,500,000, not 2.
+function parseNum(value: string): number {
+    return parseFloat(value.replace(/,/g, ''));
+}
+
 export default function AssetAcquisitionCalculator({ currency, cashBalance, monthlyProfit, minReserve, onSeeFullPicture }: Props) {
     const [cost, setCost] = useState('');
     const [usefulLife, setUsefulLife] = useState('5');
@@ -29,14 +36,20 @@ export default function AssetAcquisitionCalculator({ currency, cashBalance, mont
     const [aprPercent, setAprPercent] = useState('20');
     const [selectedMethod, setSelectedMethod] = useState<AcquisitionMethod | null>(null);
 
-    const costNum = parseFloat(cost);
+    const costNum = parseNum(cost);
+    // A zero or negative term makes monthlyPayment() return 0 -- credit and
+    // lease would otherwise look free and always "serviceable" instead of
+    // being rejected as the invalid input they are. Falls back to the
+    // default rather than passing the bad value through.
+    const parsedTermMonths = parseInt(termMonths.replace(/,/g, ''), 10);
+    const termMonthsNum = Number.isFinite(parsedTermMonths) && parsedTermMonths > 0 ? parsedTermMonths : 24;
     const analysis = !isNaN(costNum) && costNum > 0
         ? analyzeAcquisition({
             cost: costNum,
-            usefulLifeYears: parseFloat(usefulLife) || 5,
-            residualValue: parseFloat(residualValue) || 0,
-            termMonths: parseInt(termMonths, 10) || 24,
-            aprPercent: parseFloat(aprPercent) || 0,
+            usefulLifeYears: parseNum(usefulLife) || 5,
+            residualValue: parseNum(residualValue) || 0,
+            termMonths: termMonthsNum,
+            aprPercent: parseNum(aprPercent) || 0,
             cashBalance,
             monthlyProfit,
             minReserve,
@@ -45,6 +58,15 @@ export default function AssetAcquisitionCalculator({ currency, cashBalance, mont
         : null;
 
     const selected = analysis?.options.find(o => o.method === (selectedMethod ?? analysis.recommended)) ?? null;
+    // See computeProfitCashImpact's own doc comment: for this specific
+    // decision, the monthly PROFIT effect (depreciation +/- interest) and
+    // the monthly CASH effect (the real amount leaving the bank) genuinely
+    // differ, unlike most of this function's other callers -- a cash
+    // purchase has no further monthly cash outflow at all (the upfront hit
+    // is already reflected in the balance passed in below), and credit's
+    // real cash outflow is the full installment, not just its
+    // depreciation-plus-interest slice of it.
+    const selectedCashDelta = selected ? (selected.method === 'cash' ? 0 : -selected.monthly) : 0;
 
     return (
         <View style={s.card}>
@@ -138,7 +160,7 @@ export default function AssetAcquisitionCalculator({ currency, cashBalance, mont
 
                     {selected && (
                         <ProfitCashImpactCard
-                            impact={computeProfitCashImpact(monthlyProfit, cashBalance - selected.upfront, -selected.monthlyProfitImpact)}
+                            impact={computeProfitCashImpact(monthlyProfit, cashBalance - selected.upfront, -selected.monthlyProfitImpact, selectedCashDelta)}
                             source="asset"
                             currency={currency}
                             onSeeFullPicture={onSeeFullPicture}

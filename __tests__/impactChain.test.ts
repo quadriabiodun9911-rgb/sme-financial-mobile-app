@@ -35,6 +35,33 @@ describe('computeProfitCashImpact', () => {
         expect(impact.severity).toBe('none');
         expect(impact.isHarmful).toBe(false);
     });
+
+    it('defaults cashDelta to monthlyDelta when omitted, matching every pre-existing caller', () => {
+        const impact = computeProfitCashImpact(10000, 100000, -3000);
+        expect(impact.profitChange).toBe(-3000);
+        expect(impact.cashChange).toBe(-3000);
+        expect(impact.projectedCashBalance).toBe(97000);
+    });
+
+    it('applies a distinct cashDelta independently of monthlyDelta when supplied', () => {
+        // e.g. an asset bought on credit: profit only takes the
+        // depreciation+interest hit, but the real monthly cash outflow is
+        // the full principal-and-interest installment.
+        const impact = computeProfitCashImpact(50000, 200000, -8000, -25000);
+        expect(impact.profitChange).toBe(-8000);
+        expect(impact.projectedProfit).toBe(42000);
+        expect(impact.cashChange).toBe(-25000);
+        expect(impact.projectedCashBalance).toBe(175000);
+    });
+
+    it('severity still reads off the correct projected figure for each: profit uses monthlyDelta, cash uses cashDelta', () => {
+        // Cash delta alone would push cash negative, even though the
+        // profit-side delta is small and harmless on its own.
+        const impact = computeProfitCashImpact(50000, 20000, -1000, -25000);
+        expect(impact.projectedProfit).toBe(49000);
+        expect(impact.projectedCashBalance).toBe(-5000);
+        expect(impact.severity).toBe('harmful');
+    });
 });
 
 describe('suggestSolution', () => {
