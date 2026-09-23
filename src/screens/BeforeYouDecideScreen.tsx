@@ -8,6 +8,7 @@ import FooterNav from '../components/FooterNav';
 import Collapsible from '../components/Collapsible';
 import GrowthAffordabilityCalculator from '../components/GrowthAffordabilityCalculator';
 import BuyVsFinanceCalculator from '../components/BuyVsFinanceCalculator';
+import AssetAcquisitionCalculator from '../components/AssetAcquisitionCalculator';
 import ProjectDecisionSimulator from '../components/ProjectDecisionSimulator';
 import BreakevenAnalysis from '../components/BreakevenAnalysis';
 import LoanAffordabilityChecker from '../components/LoanAffordabilityChecker';
@@ -166,6 +167,20 @@ export default function BeforeYouDecideScreen() {
                 </View>
                 <Collapsible title="Buy vs. Finance">
                     <BuyVsFinanceCalculator currency={currency} currentCashBalance={finance.cashBalance} monthlyBurn={monthlyBurn} currentMonthlySurplus={monthlyProfit} goals={goals} />
+                </Collapsible>
+
+                <View style={styles.decisionCard}>
+                    <Text style={styles.decisionQuestion}>Buying a vehicle, equipment, or machinery?</Text>
+                    <Text style={styles.decisionHelp}>Cash, a loan, and a lease all come out differently on total cost, cash flow, and ownership — see all three side by side before you commit to any of them.</Text>
+                </View>
+                <Collapsible title="Buy, Finance, or Lease an Asset">
+                    <AssetAcquisitionCalculator
+                        currency={currency}
+                        cashBalance={finance.cashBalance}
+                        monthlyProfit={monthlyProfit}
+                        minReserve={parseFloat(settings?.minReserve || '0') || 0}
+                        onSeeFullPicture={() => navigate('business-passport')}
+                    />
                 </Collapsible>
 
                 <View style={styles.decisionCard}>
