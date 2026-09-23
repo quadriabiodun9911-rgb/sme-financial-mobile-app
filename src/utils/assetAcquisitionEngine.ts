@@ -13,6 +13,12 @@ import { monthlyPayment } from './loanMath';
 
 export type AcquisitionMethod = 'cash' | 'credit' | 'lease';
 
+// Leases typically carry a higher implicit rate than a straight loan for the
+// same asset -- exported so ongoingFinancingLeaseCheck.ts prices a lease the
+// same way when checking an already-existing loan, instead of a second,
+// possibly-drifting copy of this number.
+export const LEASE_RATE_PREMIUM = 6;
+
 export interface AcquisitionInputs {
   cost: number;              // sticker price of the asset
   usefulLifeYears: number;   // for depreciation
@@ -101,7 +107,7 @@ export function analyzeAcquisition(input: AcquisitionInputs): AcquisitionAnalysi
   };
 
   // ---- LEASE (you rent it; ~higher implicit rate, no ownership) ----
-  const leaseRate = aprPercent + 6; // leases typically carry a higher implicit rate
+  const leaseRate = aprPercent + LEASE_RATE_PREMIUM;
   const leaseMonthly = monthlyPayment(cost, leaseRate, termMonths);
   const leaseTotal = leaseMonthly * termMonths;
   const lease: AcquisitionOption = {

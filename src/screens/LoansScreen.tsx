@@ -23,6 +23,7 @@ import { Loan, LoanStatus, Transaction, ReadinessSnapshot } from '../types';
 import DateInput from '../components/DateInput';
 import MerchantFinancingSection from './MerchantFinancingSection';
 import { computeDebtOptimiser, computeDSCR, computeInterestRateShock, DSCRResult, computeUnlinkedLoanRepayments, computeLoanPaymentSplit } from '../utils/finance';
+import { analyzeOngoingFinancingToLease, LeaseRefinanceCheck } from '../utils/ongoingFinancingLeaseCheck';
 import { computeDSCRIntelligence } from '../utils/metricIntelligence';
 import { generateId } from '../utils/uuid';
 import { computePostFinancingMonitor, PostFinancingStatus } from '../utils/postFinancingMonitor';
@@ -47,6 +48,7 @@ import { computeRepaymentSeasonalAlignment } from '../utils/repaymentSeasonalAli
 import { computeRepaymentWeekdayAlignment } from '../utils/repaymentWeekdayAlignment';
 import { parseLoanQuickAddText } from '../utils/loanQuickAddParser';
 import { localDateStr } from '../utils/localDate';
+import Collapsible from '../components/Collapsible';
 
 function totalPaid(loan: Loan): number {
     return (loan.payments ?? []).reduce((s, p) => s + p.amount, 0);
@@ -72,6 +74,17 @@ function payoffDate(loan: Loan): string {
 }
 
 const isOverdue = isLoanPaymentOverdue;
+
+const LEASE_VERDICT_LABEL: Record<LeaseRefinanceCheck['verdict'], string> = {
+    keep_loan: 'Keep loan',
+    consider_lease_relief: 'Worth considering',
+    near_payoff: 'Almost done',
+};
+const LEASE_VERDICT_COLOR: Record<LeaseRefinanceCheck['verdict'], string> = {
+    keep_loan: Colors.textMuted,
+    consider_lease_relief: Colors.warning,
+    near_payoff: Colors.income,
+};
 
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
@@ -247,6 +260,17 @@ export default function LoansScreen() {
     // Multi-loan payoff strategy (avalanche vs snowball) — only meaningful
     // with 2+ active loans; a single loan has no ordering decision to make.
     const debtOpt = useMemo(() => computeDebtOptimiser(loans, currency), [loans, currency]);
+
+    // Ongoing Financing: Lease Check -- distinct from Debt Payoff Strategy
+    // above (which only reorders payments across existing loans at today's
+    // rates). This answers a different question per active loan: would
+    // refinancing what's left of it into a lease actually help. Runs for
+    // every active loan, not just 2+ -- unlike avalanche/snowball there's no
+    // "ordering" decision needed, so even a single loan gets a check.
+    const leaseChecks = useMemo<LeaseRefinanceCheck[]>(() => activeLoans.map(l =>
+        analyzeOngoingFinancingToLease(l, finance?.profit ?? 0, finance?.cashBalance ?? 0, parseFloat(settings?.minReserve || '0') || 0, currency)
+    ), [activeLoans, finance?.profit, finance?.cashBalance, settings?.minReserve, currency]);
+
     const dscr = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
     // Metric Intelligence pilot -- same Definition/Owner-confidence/Trigger
     // treatment as the Dashboard's Business Health Score. See
@@ -468,6 +492,34 @@ export default function LoansScreen() {
                                 </View>
                             </View>
                         </View>
+                    )}
+
+                    {/* Ongoing Financing: Lease Check -- unlike Debt Payoff
+                        Strategy above (which only reorders payments across
+                        existing loans) or the Buy/Finance/Lease calculator on
+                        Before You Decide (which only runs before a NEW
+                        purchase), this checks whether refinancing what's
+                        left of a loan you're ALREADY paying into a lease
+                        would help. Tucked behind a tap: for most loans the
+                        honest answer is "keep it," which isn't worth
+                        surfacing by default on an already-dense screen. */}
+                    {leaseChecks.length > 0 && (
+                        <Collapsible title="Refinance to Lease?">
+                            <Text style={s.leaseCheckIntro}>
+                                For loans you're already paying — not a new purchase — checks whether switching what's left of one into a lease would actually help.
+                            </Text>
+                            {leaseChecks.map(check => (
+                                <View key={check.loanId} style={s.leaseCheckRow}>
+                                    <View style={s.leaseCheckHeader}>
+                                        <Text style={s.leaseCheckLender} numberOfLines={1}>{check.lenderName || 'Unnamed lender'}</Text>
+                                        <View style={[s.leaseCheckBadge, { backgroundColor: LEASE_VERDICT_COLOR[check.verdict] + '20' }]}>
+                                            <Text style={[s.leaseCheckBadgeText, { color: LEASE_VERDICT_COLOR[check.verdict] }]}>{LEASE_VERDICT_LABEL[check.verdict]}</Text>
+                                        </View>
+                                    </View>
+                                    <Text style={s.leaseCheckRationale}>{check.rationale}</Text>
+                                </View>
+                            ))}
+                        </Collapsible>
                     )}
 
                     {/* Financing Marketplace — replaces the old Loan
@@ -1254,6 +1306,14 @@ const s = StyleSheet.create({
     strategyMethodLabel: { fontSize: 11, fontWeight: '700', color: Colors.textPrimary },
     strategyOrderItem: { fontSize: 11, color: Colors.textSecondary, marginBottom: 3 },
     strategySaved: { fontSize: 11, fontWeight: '800', marginTop: 6 },
+
+    leaseCheckIntro: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16, marginBottom: 10 },
+    leaseCheckRow: { backgroundColor: Colors.bg, borderRadius: 10, padding: 10, marginBottom: 8 },
+    leaseCheckHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 },
+    leaseCheckLender: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, flex: 1 },
+    leaseCheckBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+    leaseCheckBadgeText: { fontSize: 10.5, fontWeight: '800' },
+    leaseCheckRationale: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16 },
 
     dscrBigNum: { fontSize: 28, fontWeight: 'bold' },
     dscrStatusBadge: { fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
