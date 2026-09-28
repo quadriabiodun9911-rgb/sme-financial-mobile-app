@@ -24,6 +24,10 @@ import { auditDataIntegrity } from '../utils/dataIntegrity';
 import { canManageTeam, canManagePaymentSettings, canDeleteBusinessData } from '../utils/rolePermissions';
 import PinConfirmModal from '../components/PinConfirmModal';
 import { PaymentProvider, savePaymentSecret, deletePaymentSecret, getConnectedProviders } from '../utils/paymentSecrets';
+import {
+    AccountingProvider, AccountingConnectionInfo,
+    getAccountingConnectionStatus, connectAccountingProvider, disconnectAccountingProvider, syncAccountingTransactions,
+} from '../utils/accountingSync';
 import { setBackupPassword, deleteBackupPassword, getBackupPasswordStatus } from '../utils/backupPassword';
 import { WhatsAppLinkStatus, WHATSAPP_BOT_NUMBER, getWhatsAppLinkStatus, createWhatsAppLinkRequest, disconnectWhatsApp } from '../utils/whatsappTransactions';
 
@@ -86,7 +90,7 @@ export default function SettingsScreen() {
         changePin, exportData, importData, clearData, resetBusinessData, deleteAccount, logout,
         userRole, teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
-        transactions, user, updateProfile,
+        transactions, addTransaction, user, updateProfile,
         finance, assets, loans, isDemoMode,
         invoices, bills, inventory, goals, budgets, accounts, journalEntries,
     } = useApp() as ReturnType<typeof useApp>;
@@ -937,6 +941,25 @@ export default function SettingsScreen() {
                         </TouchableOpacity>
                     </CollapsibleSection>
 
+                    {/* Accounting Systems -- Quad360 as an intelligence layer
+                        on top of the accounting system a business's
+                        accountant already uses, rather than a replacement
+                        for it. Read-only: transactions are pulled in for
+                        Quad360's own forecasting/DSCR/CFO tools, nothing is
+                        ever written back to QuickBooks or Xero. See
+                        accountingSync.ts. */}
+                    <CollapsibleSection title="Accounting Systems" icon="link-2" defaultOpen={false}>
+                        <Text style={styles.hint}>
+                            Already keep your books in QuickBooks or Xero? Connect it here so Quad360 can read those transactions for forecasting, credit-worthiness, and the other tools on this app -- nothing is ever written back to your books.
+                        </Text>
+
+                        <AccountingProviderField provider="quickbooks" label="QuickBooks Online" canManage={canManagePaymentSettings(userRole)}
+                            transactions={transactions} addTransaction={addTransaction} />
+
+                        <AccountingProviderField provider="xero" label="Xero" canManage={canManagePaymentSettings(userRole)}
+                            transactions={transactions} addTransaction={addTransaction} />
+                    </CollapsibleSection>
+
                     {/* Bank & Mobile Money */}
                     <CollapsibleSection title="Bank & Mobile Money" icon="folder" defaultOpen={false}>
                         <Text style={styles.hint}>
@@ -1462,6 +1485,143 @@ function ProviderKeyField({ provider, label, hintUrl, placeholder, canManage, on
                         disabled={saving}
                     >
                         <Text style={styles.saveBtnText}>{saving ? 'Connecting…' : `Connect ${label}`}</Text>
+                    </TouchableOpacity>
+                </>
+            )}
+        </Section>
+    );
+}
+
+// One accounting system's connect/sync/disconnect card -- OAuth instead of
+// a pasted secret key (ProviderKeyField above), so "Connect" hands off to
+// the provider's own consent page rather than taking input here. Polls
+// status once on mount; there's no webhook telling this screen the OAuth
+// callback (which runs entirely server-side, in a browser tab this
+// component has no handle to) just finished, so the owner taps "Refresh
+// status" after connecting -- same tab-hands-off-then-comes-back shape as
+// PaymentLinkScreen's checkout redirect, just without that screen's
+// same-tab navigation (this is a background connection, not a checkout the
+// user needs to complete before continuing).
+function AccountingProviderField({ provider, label, canManage, transactions, addTransaction }: {
+    provider: AccountingProvider; label: string; canManage: boolean;
+    transactions: import('../types').Transaction[];
+    addTransaction: (tx: Omit<import('../types').Transaction, 'id'> & { id?: string }) => void;
+}) {
+    const [info, setInfo] = useState<AccountingConnectionInfo | null | 'loading'>('loading');
+    const [connecting, setConnecting] = useState(false);
+    const [syncing, setSyncing] = useState(false);
+
+    const refreshStatus = async () => {
+        const all = await getAccountingConnectionStatus();
+        setInfo(all[provider]);
+    };
+
+    useEffect(() => {
+        let cancelled = false;
+        getAccountingConnectionStatus().then(all => { if (!cancelled) setInfo(all[provider]); });
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [provider]);
+
+    const handleConnect = async () => {
+        if (!canManage) { showAlert('Permission denied', 'Only the account owner or an admin can manage accounting connections.'); return; }
+        setConnecting(true);
+        try {
+            await connectAccountingProvider(provider);
+        } catch (e: any) {
+            showAlert('Could not connect', e.message || 'Please try again.');
+        } finally {
+            setConnecting(false);
+        }
+    };
+
+    const handleDisconnect = () => {
+        if (!canManage) { showAlert('Permission denied', 'Only the account owner or an admin can manage accounting connections.'); return; }
+        confirmAction(
+            `Disconnect ${label}?`,
+            'Quad360 will stop pulling in transactions from this account. Transactions already imported stay as they are.',
+            'Disconnect',
+            async () => {
+                try {
+                    await disconnectAccountingProvider(provider);
+                    setInfo(null);
+                } catch (e: any) {
+                    showAlert('Could not disconnect', e.message || 'Please try again.');
+                }
+            },
+            true,
+        );
+    };
+
+    const handleSync = async () => {
+        if (!canManage) { showAlert('Permission denied', 'Only the account owner or an admin can manage accounting connections.'); return; }
+        setSyncing(true);
+        try {
+            const result = await syncAccountingTransactions(provider, transactions);
+            for (const c of result.candidates) {
+                addTransaction({
+                    date: c.date, description: c.description, amount: c.amount,
+                    type: c.type, category: c.category, status: 'paid',
+                    source: provider, externalId: c.externalId,
+                });
+            }
+            const unmappedCount = result.candidates.filter(c => c.isUnmappedCategory).length;
+            const parts = [`Imported ${result.candidates.length} transaction${result.candidates.length !== 1 ? 's' : ''}.`];
+            if (result.alreadyImported > 0) parts.push(`${result.alreadyImported} already imported, skipped.`);
+            if (unmappedCount > 0) parts.push(`${unmappedCount} used their ${label} category name as-is -- edit the category on those in Transactions if you'd like something else.`);
+            showAlert('Sync complete', parts.join(' '));
+            await refreshStatus();
+        } catch (e: any) {
+            showAlert('Sync failed', e.message || 'Please try again.');
+        } finally {
+            setSyncing(false);
+        }
+    };
+
+    const connected = info && info !== 'loading' && info.status !== 'disconnected';
+
+    return (
+        <Section title={label}>
+            {info === 'loading' ? (
+                <Text style={styles.hint}>Checking connection…</Text>
+            ) : connected ? (
+                <View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                            <Icon name={info!.status === 'error' ? 'alert-triangle' : 'check'} size={13} color={info!.status === 'error' ? Colors.expense : Colors.success} />
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: info!.status === 'error' ? Colors.expense : Colors.success }} numberOfLines={1}>
+                                {info!.status === 'error' ? 'Connection error' : `Connected${info!.externalAccountName ? ` — ${info!.externalAccountName}` : ''}`}
+                            </Text>
+                        </View>
+                        <TouchableOpacity onPress={handleDisconnect}>
+                            <Text style={{ fontSize: 12, color: Colors.textMuted, fontWeight: '600' }}>Disconnect</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {info!.status === 'error' && info!.errorMessage && (
+                        <Text style={[styles.hint, { color: Colors.expense, marginTop: 4 }]}>{info!.errorMessage}</Text>
+                    )}
+                    <Text style={[styles.hint, { marginTop: 4 }]}>
+                        {info!.lastSyncedAt ? `Last synced ${new Date(info!.lastSyncedAt).toLocaleString()}` : 'Never synced yet'}
+                    </Text>
+                    <TouchableOpacity
+                        style={[styles.saveBtn, { marginTop: 8 }, syncing && { opacity: 0.6 }]}
+                        onPress={handleSync}
+                        disabled={syncing}
+                    >
+                        <Text style={styles.saveBtnText}>{syncing ? 'Syncing…' : 'Sync now'}</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : (
+                <>
+                    <TouchableOpacity
+                        style={[styles.saveBtn, { marginTop: 4 }, connecting && { opacity: 0.6 }]}
+                        onPress={handleConnect}
+                        disabled={connecting}
+                    >
+                        <Text style={styles.saveBtnText}>{connecting ? 'Opening…' : `Connect ${label}`}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={refreshStatus} style={{ marginTop: 8, alignSelf: 'center' }}>
+                        <Text style={{ fontSize: 12, color: Colors.textMuted, fontWeight: '600' }}>Already connected? Refresh status</Text>
                     </TouchableOpacity>
                 </>
             )}

@@ -58,3 +58,33 @@ export function filterNewTransactions<T extends DedupableTransaction>(
   }
   return fresh;
 }
+
+export interface ExternalTransaction {
+  externalId: string;
+}
+
+/**
+ * Sync-aware de-duplication for transactions pulled from a connected
+ * accounting system (see accountingSync.ts). transactionKey() above matches
+ * on CONTENT (date + description + amount + type), which is right for a
+ * one-time statement import but wrong for anything that re-syncs
+ * periodically: if the accountant edits a description in QuickBooks/Xero
+ * after the fact, the content key changes and the same real-world
+ * transaction would be silently re-imported as a duplicate. A synced
+ * transaction instead carries a stable externalId (the provider's own
+ * record id), so identity survives any edit made in the source system.
+ */
+export function filterNewExternalTransactions<T extends ExternalTransaction>(
+  candidates: T[],
+  existing: Array<{ externalId?: string }>,
+): T[] {
+  const existingIds = new Set(existing.map(t => t.externalId).filter((id): id is string => !!id));
+  const fresh: T[] = [];
+  const seenInBatch = new Set<string>();
+  for (const c of candidates) {
+    if (existingIds.has(c.externalId) || seenInBatch.has(c.externalId)) continue;
+    seenInBatch.add(c.externalId);
+    fresh.push(c);
+  }
+  return fresh;
+}

@@ -1,4 +1,4 @@
-import { transactionKey, isDuplicateTransaction, filterNewTransactions, DedupableTransaction } from '../src/utils/transactionDedup';
+import { transactionKey, isDuplicateTransaction, filterNewTransactions, filterNewExternalTransactions, DedupableTransaction, ExternalTransaction } from '../src/utils/transactionDedup';
 
 const makeTx = (overrides: Partial<DedupableTransaction> = {}): DedupableTransaction => ({
     date: '2026-06-15',
@@ -80,5 +80,40 @@ describe('filterNewTransactions', () => {
         const candidates = [makeTx({ description: 'Sale A' }), makeTx({ description: 'Sale B', amount: 10000 })];
         const fresh = filterNewTransactions(candidates, existing);
         expect(fresh).toHaveLength(2);
+    });
+});
+
+describe('filterNewExternalTransactions', () => {
+    const makeExt = (externalId: string, extra: Partial<{ description: string }> = {}): ExternalTransaction & { description: string } => ({
+        externalId, description: `Row ${externalId}`, ...extra,
+    });
+
+    it('drops a candidate whose externalId already exists, even if every other field changed', () => {
+        // The whole point: the accountant edited the description in
+        // QuickBooks after the first sync, so a content-based key would
+        // treat this as a brand-new transaction. externalId must still
+        // catch it as the same one.
+        const existing = [{ externalId: 'qbo-101' }];
+        const candidates = [makeExt('qbo-101', { description: 'Edited description' })];
+        expect(filterNewExternalTransactions(candidates, existing)).toHaveLength(0);
+    });
+
+    it('keeps a candidate with a genuinely new externalId', () => {
+        const existing = [{ externalId: 'qbo-101' }];
+        const candidates = [makeExt('qbo-202')];
+        const fresh = filterNewExternalTransactions(candidates, existing);
+        expect(fresh).toHaveLength(1);
+        expect(fresh[0].externalId).toBe('qbo-202');
+    });
+
+    it('drops a duplicate externalId that appears twice within the same incoming batch', () => {
+        const candidates = [makeExt('qbo-101'), makeExt('qbo-101', { description: 'Same row, fetched twice' })];
+        expect(filterNewExternalTransactions(candidates, [])).toHaveLength(1);
+    });
+
+    it('ignores existing rows with no externalId (native/manual transactions) rather than matching against undefined', () => {
+        const existing = [{ externalId: undefined }, { externalId: 'qbo-101' }];
+        const candidates = [makeExt('qbo-202')];
+        expect(filterNewExternalTransactions(candidates, existing)).toHaveLength(1);
     });
 });

@@ -839,6 +839,11 @@ export default function TransactionsScreen() {
                                     {tx.isRecurring ? (
                                         <Text style={styles.recurBadge}>↻ {tx.recurringFrequency}</Text>
                                     ) : null}
+                                    {tx.source === 'quickbooks' || tx.source === 'xero' ? (
+                                        <Text style={styles.recurBadge}>
+                                            {tx.source === 'quickbooks' ? 'QuickBooks' : 'Xero'}
+                                        </Text>
+                                    ) : null}
                                     {personalFlagIds.has(tx.id) ? (
                                         <View style={[styles.personalBadge, styles.badgeRow]}>
                                             <Icon name="home" size={10} color={Colors.warning} />
