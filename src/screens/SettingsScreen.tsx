@@ -24,6 +24,12 @@ import { auditDataIntegrity } from '../utils/dataIntegrity';
 import { canManageTeam, canManagePaymentSettings, canDeleteBusinessData } from '../utils/rolePermissions';
 import PinConfirmModal from '../components/PinConfirmModal';
 import { PaymentProvider, savePaymentSecret, deletePaymentSecret, getConnectedProviders } from '../utils/paymentSecrets';
+import {
+    AccountingProvider, AccountingConnectionInfo,
+    getAccountingConnectionStatus, connectAccountingProvider, disconnectAccountingProvider,
+    fetchAndReconcileAccountingTransactions, categorizeAccountingRows, saveCategoryMapping, UnmappedExternalCategory,
+} from '../utils/accountingSync';
+import { ExistingSyncedTransaction } from '../utils/transactionDedup';
 import { setBackupPassword, deleteBackupPassword, getBackupPasswordStatus } from '../utils/backupPassword';
 import { WhatsAppLinkStatus, WHATSAPP_BOT_NUMBER, getWhatsAppLinkStatus, createWhatsAppLinkRequest, disconnectWhatsApp } from '../utils/whatsappTransactions';
 
@@ -86,7 +92,7 @@ export default function SettingsScreen() {
         changePin, exportData, importData, clearData, resetBusinessData, deleteAccount, logout,
         userRole, teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
-        transactions, user, updateProfile,
+        transactions, addTransaction, updateTransaction, user, updateProfile,
         finance, assets, loans, isDemoMode,
         invoices, bills, inventory, goals, budgets, accounts, journalEntries,
     } = useApp() as ReturnType<typeof useApp>;
@@ -937,6 +943,25 @@ export default function SettingsScreen() {
                         </TouchableOpacity>
                     </CollapsibleSection>
 
+                    {/* Accounting Systems -- Quad360 as an intelligence layer
+                        on top of the accounting system a business's
+                        accountant already uses, rather than a replacement
+                        for it. Read-only: transactions are pulled in for
+                        Quad360's own forecasting/DSCR/CFO tools, nothing is
+                        ever written back to QuickBooks or Xero. See
+                        accountingSync.ts. */}
+                    <CollapsibleSection title="Accounting Systems" icon="link-2" defaultOpen={false}>
+                        <Text style={styles.hint}>
+                            Already keep your books in QuickBooks or Xero? Connect it here so Quad360 can read those transactions for forecasting, credit-worthiness, and the other tools on this app -- nothing is ever written back to your books.
+                        </Text>
+
+                        <AccountingProviderField provider="quickbooks" label="QuickBooks Online" canManage={canManagePaymentSettings(userRole)}
+                            transactions={transactions} addTransaction={addTransaction} updateTransaction={updateTransaction} />
+
+                        <AccountingProviderField provider="xero" label="Xero" canManage={canManagePaymentSettings(userRole)}
+                            transactions={transactions} addTransaction={addTransaction} updateTransaction={updateTransaction} />
+                    </CollapsibleSection>
+
                     {/* Bank & Mobile Money */}
                     <CollapsibleSection title="Bank & Mobile Money" icon="folder" defaultOpen={false}>
                         <Text style={styles.hint}>
@@ -1466,6 +1491,299 @@ function ProviderKeyField({ provider, label, hintUrl, placeholder, canManage, on
                 </>
             )}
         </Section>
+    );
+}
+
+// One accounting system's connect/sync/disconnect card -- OAuth instead of
+// a pasted secret key (ProviderKeyField above), so "Connect" hands off to
+// the provider's own consent page rather than taking input here. Polls
+// status once on mount; there's no webhook telling this screen the OAuth
+// callback (which runs entirely server-side, in a browser tab this
+// component has no handle to) just finished, so the owner taps "Refresh
+// status" after connecting -- same tab-hands-off-then-comes-back shape as
+// PaymentLinkScreen's checkout redirect, just without that screen's
+// same-tab navigation (this is a background connection, not a checkout the
+// user needs to complete before continuing).
+function AccountingProviderField({ provider, label, canManage, transactions, addTransaction, updateTransaction }: {
+    provider: AccountingProvider; label: string; canManage: boolean;
+    transactions: import('../types').Transaction[];
+    addTransaction: (tx: Omit<import('../types').Transaction, 'id'> & { id?: string }) => void;
+    updateTransaction: (id: string, tx: Partial<import('../types').Transaction>) => void;
+}) {
+    const [info, setInfo] = useState<AccountingConnectionInfo | 'loading'>('loading');
+    const [connecting, setConnecting] = useState(false);
+    const [syncing, setSyncing] = useState(false);
+    // Set only while a category review is actually up -- see
+    // CategoryReviewModal below. Holding the raw+categorized sync results
+    // here lets "Save & Continue" re-categorize and finish the same sync
+    // instead of asking the owner to tap "Sync now" a second time.
+    const [review, setReview] = useState<{
+        fresh: Awaited<ReturnType<typeof fetchAndReconcileAccountingTransactions>>['fresh'];
+        changed: Awaited<ReturnType<typeof fetchAndReconcileAccountingTransactions>>['changed'];
+        unmapped: UnmappedExternalCategory[];
+    } | null>(null);
+
+    const refreshStatus = async () => {
+        const all = await getAccountingConnectionStatus();
+        setInfo(all[provider]);
+    };
+
+    useEffect(() => {
+        let cancelled = false;
+        getAccountingConnectionStatus().then(all => { if (!cancelled) setInfo(all[provider]); });
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [provider]);
+
+    const handleConnect = async () => {
+        if (!canManage) { showAlert('Permission denied', 'Only the account owner or an admin can manage accounting connections.'); return; }
+        setConnecting(true);
+        try {
+            await connectAccountingProvider(provider);
+        } catch (e: any) {
+            showAlert('Could not connect', e.message || 'Please try again.');
+        } finally {
+            setConnecting(false);
+        }
+    };
+
+    const handleDisconnect = () => {
+        if (!canManage) { showAlert('Permission denied', 'Only the account owner or an admin can manage accounting connections.'); return; }
+        confirmAction(
+            `Disconnect ${label}?`,
+            'Quad360 will stop pulling in transactions from this account. Transactions already imported stay as they are.',
+            'Disconnect',
+            async () => {
+                try {
+                    await disconnectAccountingProvider(provider);
+                    await refreshStatus();
+                } catch (e: any) {
+                    showAlert('Could not disconnect', e.message || 'Please try again.');
+                }
+            },
+            true,
+        );
+    };
+
+    // The part that actually writes: new rows via addTransaction, rows the
+    // source system has since edited via updateTransaction on the matching
+    // local id (never a second addTransaction, which would duplicate it).
+    const applyCategorized = async (categorized: Awaited<ReturnType<typeof categorizeAccountingRows>>) => {
+        for (const c of categorized.candidates) {
+            addTransaction({
+                date: c.date, description: c.description, amount: c.amount,
+                type: c.type, category: c.category, status: 'paid',
+                source: provider, externalId: c.externalId,
+            });
+        }
+        for (const { id, candidate: c } of categorized.changed) {
+            updateTransaction(id, { date: c.date, description: c.description, amount: c.amount, type: c.type, category: c.category });
+        }
+        const unmappedCount = categorized.candidates.filter(c => c.isUnmappedCategory).length + categorized.changed.filter(c => c.candidate.isUnmappedCategory).length;
+        const parts = [`Imported ${categorized.candidates.length} transaction${categorized.candidates.length !== 1 ? 's' : ''}.`];
+        if (categorized.changed.length > 0) parts.push(`Updated ${categorized.changed.length} that changed in ${label}.`);
+        if (unmappedCount > 0) parts.push(`${unmappedCount} used their ${label} category name as-is.`);
+        showAlert('Sync complete', parts.join(' '));
+        await refreshStatus();
+    };
+
+    const handleSync = async () => {
+        if (!canManage) { showAlert('Permission denied', 'Only the account owner or an admin can manage accounting connections.'); return; }
+        setSyncing(true);
+        try {
+            const existing: ExistingSyncedTransaction[] = transactions.map(t => ({
+                id: t.id, externalId: t.externalId, date: t.date, description: t.description,
+                amount: t.amount, type: t.type, category: t.category,
+            }));
+            const { fresh, changed } = await fetchAndReconcileAccountingTransactions(provider, existing);
+            const categorized = await categorizeAccountingRows(provider, fresh, changed);
+            if (categorized.unmappedExternalCategories.length > 0) {
+                // Hand off to the review modal -- it calls applyCategorized
+                // itself once the owner saves or skips, so this sync isn't
+                // "done" from the caller's point of view until then.
+                setReview({ fresh, changed, unmapped: categorized.unmappedExternalCategories });
+                return;
+            }
+            await applyCategorized(categorized);
+        } catch (e: any) {
+            showAlert('Sync failed', e.message || 'Please try again.');
+        } finally {
+            setSyncing(false);
+        }
+    };
+
+    const connected = info !== 'loading' && info.status === 'connected';
+    const hasError = info !== 'loading' && info.status === 'error';
+    const isUnknown = info !== 'loading' && info.status === 'unknown';
+
+    return (
+        <Section title={label}>
+            {info === 'loading' ? (
+                <Text style={styles.hint}>Checking connection…</Text>
+            ) : isUnknown ? (
+                <View>
+                    <Text style={[styles.hint, { color: Colors.expense }]}>Could not check connection status -- this doesn't mean {label} is disconnected, just that the check itself failed.</Text>
+                    <TouchableOpacity onPress={refreshStatus} style={[styles.saveBtn, { marginTop: 8 }]}>
+                        <Text style={styles.saveBtnText}>Retry</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : connected || hasError ? (
+                <View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                            <Icon name={hasError ? 'alert-triangle' : 'check'} size={13} color={hasError ? Colors.expense : Colors.success} />
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: hasError ? Colors.expense : Colors.success }} numberOfLines={1}>
+                                {hasError ? 'Connection error' : `Connected${info.externalAccountName ? ` — ${info.externalAccountName}` : ''}`}
+                            </Text>
+                        </View>
+                        <TouchableOpacity onPress={handleDisconnect}>
+                            <Text style={{ fontSize: 12, color: Colors.textMuted, fontWeight: '600' }}>Disconnect</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {hasError && info.errorMessage && (
+                        <Text style={[styles.hint, { color: Colors.expense, marginTop: 4 }]}>{info.errorMessage}</Text>
+                    )}
+                    <Text style={[styles.hint, { marginTop: 4 }]}>
+                        {info.lastSyncedAt ? `Last synced ${new Date(info.lastSyncedAt).toLocaleString()}` : 'Never synced yet'}
+                    </Text>
+                    <TouchableOpacity
+                        style={[styles.saveBtn, { marginTop: 8 }, syncing && { opacity: 0.6 }]}
+                        onPress={handleSync}
+                        disabled={syncing}
+                    >
+                        <Text style={styles.saveBtnText}>{syncing ? 'Syncing…' : 'Sync now'}</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : (
+                <>
+                    <TouchableOpacity
+                        style={[styles.saveBtn, { marginTop: 4 }, connecting && { opacity: 0.6 }]}
+                        onPress={handleConnect}
+                        disabled={connecting}
+                    >
+                        <Text style={styles.saveBtnText}>{connecting ? 'Opening…' : `Connect ${label}`}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={refreshStatus} style={{ marginTop: 8, alignSelf: 'center' }}>
+                        <Text style={{ fontSize: 12, color: Colors.textMuted, fontWeight: '600' }}>Already connected? Refresh status</Text>
+                    </TouchableOpacity>
+                </>
+            )}
+
+            {review && (
+                <CategoryReviewModal
+                    provider={provider}
+                    label={label}
+                    unmapped={review.unmapped}
+                    onDone={async (savedAny) => {
+                        const { fresh, changed } = review;
+                        setReview(null);
+                        try {
+                            // Re-categorize locally against whatever mappings
+                            // were just saved (or, on skip, unchanged) --
+                            // no second provider fetch needed.
+                            const categorized = await categorizeAccountingRows(provider, fresh, changed);
+                            await applyCategorized(categorized);
+                        } catch (e: any) {
+                            showAlert('Sync failed', e.message || 'Please try again.');
+                        } finally {
+                            setSyncing(false);
+                        }
+                    }}
+                />
+            )}
+        </Section>
+    );
+}
+
+// Lets the owner assign each of this sync's genuinely-unrecognized provider
+// category labels to a Quad360 income/expense category before the
+// transactions carrying them are saved -- see the "unmappedExternalCategories"
+// doc comment in accountingSync.ts for why this exists (without it, an
+// unmapped category has no path to ever become mapped). "Skip for now"
+// proceeds without saving any mapping, so those categories stay unmapped
+// and get offered for review again on the next sync rather than silently
+// locking in a choice nobody actually made.
+function CategoryReviewModal({ provider, label, unmapped, onDone }: {
+    provider: AccountingProvider; label: string; unmapped: UnmappedExternalCategory[];
+    onDone: (savedAny: boolean) => void;
+}) {
+    const [choices, setChoices] = useState<Record<string, { type: 'income' | 'expense'; category: string }>>(() => {
+        const initial: Record<string, { type: 'income' | 'expense'; category: string }> = {};
+        for (const u of unmapped) initial[u.externalCategory] = { type: u.fallbackType, category: u.externalCategory };
+        return initial;
+    });
+    const [saving, setSaving] = useState(false);
+
+    const handleSaveAndContinue = async () => {
+        setSaving(true);
+        try {
+            for (const u of unmapped) {
+                const choice = choices[u.externalCategory];
+                if (!choice.category.trim()) continue; // an emptied-out category name just falls back to the raw label next time, not saved as blank
+                await saveCategoryMapping(provider, u.externalCategory, choice.type, choice.category.trim());
+            }
+            onDone(true);
+        } catch (e: any) {
+            showAlert('Could not save categories', e.message || 'Please try again.');
+            setSaving(false);
+        }
+    };
+
+    return (
+        <Modal visible transparent animationType="fade">
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>
+                <View style={{ backgroundColor: Colors.card, borderRadius: 16, padding: 20, maxHeight: '80%' }}>
+                    <Text style={{ fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 }}>
+                        {unmapped.length} {label} categor{unmapped.length === 1 ? 'y needs' : 'ies need'} a quick look
+                    </Text>
+                    <Text style={[styles.hint, { marginBottom: 12 }]}>
+                        These didn't match anything Quad360 already knows. Confirm how each should be recorded -- Quad360 will remember your choice for future syncs.
+                    </Text>
+                    <ScrollView style={{ maxHeight: 360 }}>
+                        {unmapped.map(u => {
+                            const choice = choices[u.externalCategory];
+                            return (
+                                <View key={u.externalCategory} style={{ marginBottom: 14, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+                                    <Text style={{ fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 }} numberOfLines={1}>{u.externalCategory}</Text>
+                                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 6 }}>
+                                        {(['income', 'expense'] as const).map(t => (
+                                            <TouchableOpacity
+                                                key={t}
+                                                onPress={() => setChoices(c => ({ ...c, [u.externalCategory]: { ...c[u.externalCategory], type: t } }))}
+                                                style={{
+                                                    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1,
+                                                    borderColor: choice.type === t ? Colors.primary : Colors.border,
+                                                    backgroundColor: choice.type === t ? Colors.primary + '15' : 'transparent',
+                                                }}
+                                            >
+                                                <Text style={{ fontSize: 12, fontWeight: '700', color: choice.type === t ? Colors.primary : Colors.textMuted }}>
+                                                    {t === 'income' ? 'Income' : 'Expense'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={choice.category}
+                                        onChangeText={v => setChoices(c => ({ ...c, [u.externalCategory]: { ...c[u.externalCategory], category: v } }))}
+                                        placeholder="Quad360 category name"
+                                        placeholderTextColor={Colors.muted}
+                                    />
+                                </View>
+                            );
+                        })}
+                    </ScrollView>
+                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+                        <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border }]} onPress={() => onDone(false)} disabled={saving}>
+                            <Text style={[styles.saveBtnText, { color: Colors.textPrimary }]}>Skip for now</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.saveBtn, { flex: 1 }, saving && { opacity: 0.6 }]} onPress={handleSaveAndContinue} disabled={saving}>
+                            <Text style={styles.saveBtnText}>{saving ? 'Saving…' : 'Save & Continue'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
     );
 }
 

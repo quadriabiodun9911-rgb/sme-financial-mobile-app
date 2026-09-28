@@ -186,6 +186,23 @@ export interface Transaction {
     // Sales" from "Bank Sales" in its revenue breakdown instead of the
     // bank statement silently standing in for the whole business.
     paymentMethod?: 'cash' | 'bank' | 'pos' | 'transfer' | 'other';
+    // Set only on a transaction pulled from a connected accounting system
+    // (QuickBooks/Xero) -- absent (equivalent to 'manual') for everything
+    // Quad360 owns and can edit: typed entry, Quick Add, bank-statement
+    // import, receipt scan, WhatsApp capture. A synced transaction is
+    // read-only here -- it's edited in the source system, not duplicated as
+    // two independently-editable copies of the same real-world event. See
+    // accountingSync.ts.
+    source?: 'manual' | 'quickbooks' | 'xero';
+    // The provider's own transaction id -- present only when source is
+    // 'quickbooks'/'xero'. transactionKey() in transactionDedup.ts (date +
+    // description + amount + type) is fine for a one-time statement import,
+    // but wrong for anything that re-syncs periodically: if the accountant
+    // edits a description in QuickBooks after the fact, that content-based
+    // key changes and this transaction would be silently re-imported as a
+    // duplicate. externalId is stable across edits made in the source
+    // system, so a re-sync always finds this same row again.
+    externalId?: string;
     reference?: string;
     vendorCustomer?: string;
     taxRate?: number;
