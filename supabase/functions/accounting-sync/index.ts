@@ -143,17 +143,33 @@ async function qboCompanyName(realmId: string, accessToken: string): Promise<str
 // Invoice/Bill types for that), so open/unpaid Invoices and Bills are
 // deliberately out of scope here: pulling only posted cash transactions is
 // the honest scope match, not a shortcut.
+// A page size below QuickBooks' own 1000-row query cap, and a total safety
+// cap so a business with an unusually deep history can't turn one sync into
+// an unbounded loop -- generous enough that no real business ever hits it
+// in practice, but present so "no pagination at all" never silently caps a
+// smaller business's history at one page either.
+const QBO_PAGE_SIZE = 200;
+const MAX_RESULTS_PER_ENTITY = 5000;
+
 async function qboFetchTransactions(realmId: string, accessToken: string): Promise<NormalizedTransaction[]> {
   const results: NormalizedTransaction[] = [];
 
+  // QuickBooks' Query API pages via STARTPOSITION/MAXRESULTS -- a page
+  // shorter than QBO_PAGE_SIZE means there's nothing left to fetch.
   async function query(entity: 'Purchase' | 'Deposit' | 'SalesReceipt'): Promise<any[]> {
-    const q = encodeURIComponent(`SELECT * FROM ${entity} ORDERBY TxnDate DESC MAXRESULTS 200`);
-    const res = await fetch(`${QBO_API_BASE}/${realmId}/query?query=${q}&minorversion=65`, {
-      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-    });
-    if (!res.ok) throw new Error(`QuickBooks ${entity} query failed (${res.status}): ${await res.text()}`);
-    const data = await res.json();
-    return data?.QueryResponse?.[entity] ?? [];
+    const all: any[] = [];
+    for (let start = 1; all.length < MAX_RESULTS_PER_ENTITY; start += QBO_PAGE_SIZE) {
+      const q = encodeURIComponent(`SELECT * FROM ${entity} ORDERBY TxnDate DESC STARTPOSITION ${start} MAXRESULTS ${QBO_PAGE_SIZE}`);
+      const res = await fetch(`${QBO_API_BASE}/${realmId}/query?query=${q}&minorversion=65`, {
+        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+      });
+      if (!res.ok) throw new Error(`QuickBooks ${entity} query failed (${res.status}): ${await res.text()}`);
+      const data = await res.json();
+      const page: any[] = data?.QueryResponse?.[entity] ?? [];
+      all.push(...page);
+      if (page.length < QBO_PAGE_SIZE) break;
+    }
+    return all;
   }
 
   for (const p of await query('Purchase')) {
@@ -259,15 +275,25 @@ async function xeroAccountCodeToName(tenantId: string, accessToken: string): Pro
   return map;
 }
 
+// Xero's BankTransactions endpoint pages via a `page` param, 100 rows per
+// page, and signals the end with a page that comes back empty -- looped the
+// same bounded way as QuickBooks above, rather than truncating at one page.
 async function xeroFetchTransactions(tenantId: string, accessToken: string): Promise<NormalizedTransaction[]> {
   const accountNames = await xeroAccountCodeToName(tenantId, accessToken);
-  const res = await fetch(`${XERO_API_BASE}/BankTransactions?where=${encodeURIComponent('Status=="AUTHORISED"')}&order=Date DESC`, {
-    headers: { Authorization: `Bearer ${accessToken}`, 'Xero-tenant-id': tenantId, Accept: 'application/json' },
-  });
-  if (!res.ok) throw new Error(`Xero BankTransactions query failed (${res.status}): ${await res.text()}`);
-  const data = await res.json();
+  const rows: any[] = [];
+  for (let page = 1; rows.length < MAX_RESULTS_PER_ENTITY; page++) {
+    const res = await fetch(`${XERO_API_BASE}/BankTransactions?where=${encodeURIComponent('Status=="AUTHORISED"')}&order=Date DESC&page=${page}`, {
+      headers: { Authorization: `Bearer ${accessToken}`, 'Xero-tenant-id': tenantId, Accept: 'application/json' },
+    });
+    if (!res.ok) throw new Error(`Xero BankTransactions query failed (${res.status}): ${await res.text()}`);
+    const data = await res.json();
+    const batch: any[] = data?.BankTransactions ?? [];
+    if (batch.length === 0) break;
+    rows.push(...batch);
+    if (batch.length < 100) break;
+  }
   const results: NormalizedTransaction[] = [];
-  for (const t of (data?.BankTransactions ?? []).slice(0, 400)) {
+  for (const t of rows) {
     // Xero dates arrive as "/Date(1700000000000+0000)/" -- extract the
     // epoch millis and format as YYYY-MM-DD, matching every other date this
     // app stores.
@@ -321,6 +347,18 @@ const CALLBACK_PAGE = (title: string, message: string) => `<!DOCTYPE html>
 h1{font-size:18px;margin:0 0 8px}p{font-size:14px;color:#64748b;margin:0}</style></head>
 <body><div class="card"><h1>${title}</h1><p>${message}</p></div></body></html>`;
 
+// A silently-ignored upsert failure here means the callback can show
+// "Connected" while nothing was actually stored, or a refreshed token can
+// be used for the current request without being persisted for the next
+// one -- either leaves the connection in a state the client's "connected"
+// status can't be trusted against. Every upsert to these two tables goes
+// through this so a storage failure always surfaces as a thrown error
+// instead of a silently accepted no-op.
+async function upsertOrThrow(adminClient: ReturnType<typeof createClient>, table: string, row: Record<string, unknown>, onConflict: string): Promise<void> {
+  const { error } = await adminClient.from(table).upsert(row, { onConflict });
+  if (error) throw new Error(`Failed to save ${table}: ${error.message}`);
+}
+
 // ─── HTTP entry point ───────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
@@ -373,36 +411,44 @@ Deno.serve(async (req: Request) => {
         if (!qboRealmId) throw new Error('QuickBooks did not return a company id.');
         const tokens = await qboExchangeCode(code);
         const companyName = await qboCompanyName(qboRealmId, tokens.access_token);
-        await adminClient.from('accounting_connections').upsert({
+        await upsertOrThrow(adminClient, 'accounting_connections', {
           user_id: userId, provider, external_account_id: qboRealmId, external_account_name: companyName,
           status: 'connected', error_message: null, connected_at: new Date().toISOString(),
-        }, { onConflict: 'user_id,provider' });
-        await adminClient.from('accounting_connection_tokens').upsert({
+        }, 'user_id,provider');
+        await upsertOrThrow(adminClient, 'accounting_connection_tokens', {
           user_id: userId, provider, access_token: tokens.access_token, refresh_token: tokens.refresh_token,
           expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(), updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id,provider' });
+        }, 'user_id,provider');
       } else {
         const tokens = await xeroExchangeCode(code);
         const tenant = await xeroFirstTenant(tokens.access_token);
         if (!tenant) throw new Error('Xero did not return an authorized organization.');
-        await adminClient.from('accounting_connections').upsert({
+        await upsertOrThrow(adminClient, 'accounting_connections', {
           user_id: userId, provider, external_account_id: tenant.tenantId, external_account_name: tenant.tenantName,
           status: 'connected', error_message: null, connected_at: new Date().toISOString(),
-        }, { onConflict: 'user_id,provider' });
-        await adminClient.from('accounting_connection_tokens').upsert({
+        }, 'user_id,provider');
+        await upsertOrThrow(adminClient, 'accounting_connection_tokens', {
           user_id: userId, provider, access_token: tokens.access_token, refresh_token: tokens.refresh_token,
           expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(), updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id,provider' });
+        }, 'user_id,provider');
       }
       const label = provider === 'quickbooks' ? 'QuickBooks' : 'Xero';
       return html(CALLBACK_PAGE(`Connected to ${label}`, 'You can close this window and return to Quad360.'), 200);
     } catch (e) {
       console.error('[accounting-sync] oauth callback failed', e);
-      await adminClient.from('accounting_connections').upsert({
-        user_id: userId, provider, external_account_id: qboRealmId ?? 'unknown',
-        status: 'error', error_message: e instanceof Error ? e.message : 'Connection failed',
-        connected_at: new Date().toISOString(),
-      }, { onConflict: 'user_id,provider' });
+      // Best-effort only, unlike the upserts above -- we're already
+      // reporting a failure to the user; a second failure writing THAT
+      // failure down should not mask the original error or crash the
+      // response the user is waiting on.
+      try {
+        await adminClient.from('accounting_connections').upsert({
+          user_id: userId, provider, external_account_id: qboRealmId ?? 'unknown',
+          status: 'error', error_message: e instanceof Error ? e.message : 'Connection failed',
+          connected_at: new Date().toISOString(),
+        }, { onConflict: 'user_id,provider' });
+      } catch (writeErr) {
+        console.error('[accounting-sync] failed to record connection error', writeErr);
+      }
       return html(CALLBACK_PAGE('Connection failed', 'Please return to Quad360 and try connecting again.'), 502);
     }
   }
@@ -509,11 +555,18 @@ Deno.serve(async (req: Request) => {
           ? await qboRefreshToken(tokenRow.refresh_token)
           : await xeroRefreshToken(tokenRow.refresh_token);
         accessToken = refreshed.access_token;
-        await adminClient.from('accounting_connection_tokens').upsert({
+        // Must persist before proceeding, not just use accessToken for this
+        // request: both providers rotate the refresh token on every use, so
+        // if this write fails, the refresh_token still in the database is
+        // now the one the provider already invalidated -- the NEXT sync
+        // would fail outright instead of just this one. Throwing here
+        // (caught below, recorded as a connection error) is deliberately
+        // louder than silently continuing on an unpersisted token.
+        await upsertOrThrow(adminClient, 'accounting_connection_tokens', {
           user_id: ownerUserId, provider, access_token: refreshed.access_token,
-          refresh_token: refreshed.refresh_token, // both providers rotate the refresh token on every use
+          refresh_token: refreshed.refresh_token,
           expires_at: new Date(Date.now() + refreshed.expires_in * 1000).toISOString(), updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id,provider' });
+        }, 'user_id,provider');
       }
 
       const transactions = provider === 'quickbooks'
