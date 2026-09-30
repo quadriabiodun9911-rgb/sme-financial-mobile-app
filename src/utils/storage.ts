@@ -829,24 +829,42 @@ export async function saveCurrencyAccounts(accounts: CurrencyAccount[]): Promise
     await AsyncStorage.setItem(CURRENCY_ACCOUNTS_KEY, JSON.stringify(accounts));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
+    const rows = accounts.map(a => ({
+        id: a.id,
+        user_id: ownerId,
+        data: a,
+        updated_at: new Date().toISOString(),
+    }));
     try {
-        if (accounts.length > 0) {
-            const rows = accounts.map(a => ({
-                id: a.id,
-                user_id: ownerId,
-                data: a,
-                updated_at: new Date().toISOString(),
-            }));
+        if (rows.length > 0) {
             const { error } = await supabase.from('currency_accounts').upsert(rows, { onConflict: 'id' });
-            if (error) logSyncError('currency_accounts', 'upsert', error);
+            if (error) {
+                logSyncError('currency_accounts', 'upsert', error);
+                // Same reasoning as saveTransactions -- queue the full
+                // current array so an offline edit (or a write made before
+                // the table migration has been applied) is replayed by
+                // offlineSync.ts on reconnect instead of staying local-only.
+                await enqueue({ table: 'currency_accounts', op: 'upsert', rows, userId: ownerId });
+                return;
+            }
         }
-        const { data: remote } = await supabase.from('currency_accounts').select('id').eq('user_id', ownerId);
+        const { data: remote, error: fetchErr } = await supabase.from('currency_accounts').select('id').eq('user_id', ownerId);
+        if (fetchErr) { logSyncError('currency_accounts', 'select', fetchErr); return; }
         if (remote) {
             const localIds = new Set(accounts.map(a => a.id));
             const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-            if (toDelete.length > 0) await supabase.from('currency_accounts').delete().in('id', toDelete);
+            if (toDelete.length > 0) {
+                const { error: delErr } = await supabase.from('currency_accounts').delete().in('id', toDelete);
+                if (delErr) {
+                    logSyncError('currency_accounts', 'delete', delErr);
+                    await enqueue({ table: 'currency_accounts', op: 'delete', rows: toDelete, userId: ownerId });
+                }
+            }
         }
-    } catch (e) { logSyncError('currency_accounts', 'sync', e); }
+    } catch (e) {
+        logSyncError('currency_accounts', 'sync', e);
+        if (rows.length > 0) await enqueue({ table: 'currency_accounts', op: 'upsert', rows, userId: ownerId });
+    }
 }
 
 export async function loadCurrencyAccounts(): Promise<CurrencyAccount[] | null> {
@@ -854,11 +872,16 @@ export async function loadCurrencyAccounts(): Promise<CurrencyAccount[] | null> 
     if (ownerId) {
         try {
             const { data, error } = await supabase.from('currency_accounts').select('data').eq('user_id', ownerId);
-            if (!error && data && data.length > 0) {
+            // A successful query with zero rows is authoritative (the
+            // workspace genuinely has none), not "try local instead" --
+            // falling through to a stale local cache here could resurrect
+            // accounts the owner already deleted from another device.
+            if (!error && data) {
                 const accounts = data.map(r => r.data as CurrencyAccount);
                 await AsyncStorage.setItem(CURRENCY_ACCOUNTS_KEY, JSON.stringify(accounts));
                 return accounts;
             }
+            if (error) logSyncError('currency_accounts', 'load', error);
         } catch (e) { logSyncError('currency_accounts', 'load', e); }
     }
     const raw = await AsyncStorage.getItem(CURRENCY_ACCOUNTS_KEY);
