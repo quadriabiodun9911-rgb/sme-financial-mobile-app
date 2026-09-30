@@ -9,6 +9,8 @@ import { trackScreenViewed, trackAppOpened } from './src/utils/analytics';
 import { initSentry, setSentryUser } from './src/utils/sentry';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import AlertHost from './src/components/AlertHost';
+import SyncStatusBanner from './src/components/SyncStatusBanner';
+import { startOfflineSyncWatcher } from './src/utils/offlineSync';
 import LandingScreen from './src/screens/LandingScreen';
 import ContactScreen from './src/screens/ContactScreen';
 import BlogScreen from './src/screens/BlogScreen';
@@ -300,6 +302,20 @@ const styles = StyleSheet.create({
     },
 });
 
+// Starts the offline-sync connectivity watcher once a session exists --
+// flushing the queue with no signed-in user would just fail every row on
+// RLS. useAuth().user already reflects sign-in/sign-out; each transition
+// to a real user re-attempts a flush, which also covers "signed in while
+// offline writes from a previous session are still queued."
+function OfflineSyncWatcher() {
+    const { user } = useAuth();
+    useEffect(() => {
+        if (!user) return;
+        startOfflineSyncWatcher();
+    }, [user]);
+    return null;
+}
+
 function OtaUpdater() {
     useEffect(() => {
         // OTA updates only apply to native builds, not web or Expo Go dev mode
@@ -334,10 +350,12 @@ export default function App() {
                                     <InvoiceProvider>
                                         <BillProvider>
                                             <OtaUpdater />
+                                            <OfflineSyncWatcher />
                                             <ErrorBoundary>
                                                 <NavigatorContent />
                                             </ErrorBoundary>
                                             <AlertHost />
+                                            <SyncStatusBanner />
                                         </BillProvider>
                                     </InvoiceProvider>
                                 </GoalProvider>
