@@ -26,7 +26,7 @@ import { detectPersonalSpending, DISMISSED_PERSONAL_KEY } from '../utils/persona
 import CostExposureTab from '../components/CostExposureTab';
 import RevenueExposureTab from '../components/RevenueExposureTab';
 import { canDeleteTransactions, canWriteBusinessData } from '../utils/rolePermissions';
-import { convertToBaseCurrency } from '../utils/foreignCurrency';
+import { convertToBaseCurrency, FOREIGN_CURRENCY_CODES } from '../utils/foreignCurrency';
 import { categorizeTransactionAI, AICategorizationResult } from '../utils/aiCategorization';
 import { computeExpenseIntelligence, ExpenseTier } from '../utils/expenseIntelligence';
 import { filterNewTransactions } from '../utils/transactionDedup';
@@ -68,11 +68,6 @@ type FormState = {
     exchangeRate: string;
     customCategory: string;
 };
-
-// Common trading currencies an SME actually gets paid or pays suppliers in --
-// not the full ISO 4217 list, just the ones that show up across the same
-// countries CURRENCIES (SettingsScreen) already supports as a base currency.
-const FOREIGN_CURRENCY_CODES = ['USD', 'GBP', 'EUR', 'NGN', 'ZAR', 'KES', 'GHS', 'EGP', 'AED', 'INR', 'CNY', 'CAD', 'AUD'];
 
 // Same values as CostExposureTab's own TIER_META -- kept in sync by hand
 // since the two live in different component files and pulling in theme

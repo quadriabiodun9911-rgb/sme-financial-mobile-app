@@ -32,6 +32,8 @@ import {
 import { ExistingSyncedTransaction } from '../utils/transactionDedup';
 import { setBackupPassword, deleteBackupPassword, getBackupPasswordStatus } from '../utils/backupPassword';
 import { WhatsAppLinkStatus, WHATSAPP_BOT_NUMBER, getWhatsAppLinkStatus, createWhatsAppLinkRequest, disconnectWhatsApp } from '../utils/whatsappTransactions';
+import CurrencyAccountsModal from '../components/CurrencyAccountsModal';
+import { computeCurrencyAccountsTotal } from '../utils/foreignCurrency';
 
 const ROLE_BADGE_COLOR: Record<string, string> = {
     admin: Colors.expense,
@@ -95,6 +97,7 @@ export default function SettingsScreen() {
         transactions, addTransaction, updateTransaction, user, updateProfile,
         finance, assets, loans, isDemoMode,
         invoices, bills, inventory, goals, budgets, accounts, journalEntries,
+        currencyAccounts,
     } = useApp() as ReturnType<typeof useApp>;
 
     // Drives the Data & Backup card below -- it must never claim data is
@@ -113,6 +116,7 @@ export default function SettingsScreen() {
     const [phone, setPhone]     = useState(user?.phone || '');
     const [colorTheme, setColorThemeState] = useState<ColorThemeMode>(getColorThemeMode());
     const [applyingTheme, setApplyingTheme] = useState(false);
+    const [showCurrencyAccounts, setShowCurrencyAccounts] = useState(false);
     // Tracked here (not just inside each ProviderKeyField) so "Create Payment
     // Link →" below can gate on whether ANY provider is connected.
     const [connectedProviders, setConnectedProviders] = useState({ paystack: false, korapay: false, flutterwave: false });
@@ -980,6 +984,27 @@ export default function SettingsScreen() {
                         </TouchableOpacity>
                     </CollapsibleSection>
 
+                    {/* Currency Accounts -- "what do I hold, across
+                        currencies," a standalone owner-maintained tracker.
+                        Deliberately not wired into cashBalance/runway/DSCR/
+                        forecasts -- see CurrencyAccount (types/index.ts). */}
+                    <CollapsibleSection title="Currency Accounts" icon="globe" defaultOpen={false}>
+                        <Text style={styles.hint}>
+                            Hold money in a currency other than {settings.currency}? Track it here -- a USD account, a GBP escrow -- converted for reference only. Your reports and cash figures stay in {settings.currency}.
+                        </Text>
+                        {currencyAccounts.length > 0 && (
+                            <Text style={styles.hint}>
+                                {currencyAccounts.length} account{currencyAccounts.length === 1 ? '' : 's'} tracked -- {settings.currency}{computeCurrencyAccountsTotal(currencyAccounts).toLocaleString()} combined
+                            </Text>
+                        )}
+                        <TouchableOpacity style={styles.dataBtn} onPress={() => setShowCurrencyAccounts(true)}>
+                            <View style={styles.btnIconRow}>
+                                <Icon name="globe" size={14} color={Colors.primary} />
+                                <Text style={styles.dataBtnText}>Manage Currency Accounts →</Text>
+                            </View>
+                        </TouchableOpacity>
+                    </CollapsibleSection>
+
                     {/* WhatsApp -- log a sale/expense by text instead of opening
                         the app, plus a daily cash-position message. See
                         whatsappTransactions.ts / whatsapp-webhook/index.ts.
@@ -1351,6 +1376,8 @@ export default function SettingsScreen() {
                     </View>
                 </View>
             </Modal>
+
+            <CurrencyAccountsModal visible={showCurrencyAccounts} onClose={() => setShowCurrencyAccounts(false)} />
 
             <PinConfirmModal
                 visible={!!pinConfirm}

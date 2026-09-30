@@ -952,6 +952,24 @@ export interface CashPocket {
     updatedAt: string; // ISO date
 }
 
+// Currency Accounts -- "what do I actually hold, across currencies," as an
+// owner-maintained record distinct from CashPocket (which tracks cash in
+// the business's own single base currency). Deliberately NOT wired into
+// finance.cashBalance, cash runway, DSCR, forecasts, or any other engine
+// that assumes one base currency -- see computeCurrencyAccountsTotal
+// (foreignCurrency.ts) for the one place these convert to base currency,
+// purely for this feature's own combined total.
+export interface CurrencyAccount {
+    id: string;
+    label: string;              // e.g. "USD Domiciliary", "GBP Escrow"
+    currencyCode: string;       // ISO code, e.g. 'USD' -- see FOREIGN_CURRENCY_CODES (foreignCurrency.ts)
+    balance: number;            // in that currency, NOT the business's base currency
+    // Units of the business's base currency per 1 unit of this currency --
+    // same convention as Transaction.exchangeRate ("1 USD = ? ₦").
+    exchangeRateToBase: number;
+    updatedAt: string; // ISO date
+}
+
 // ─── Capital Commitments ───────────────────────────────────────────────────
 // "Is each investment delivering what we approved it for?" — a tracked
 // approval with a few KPIs and a target, checked against an actual figure
