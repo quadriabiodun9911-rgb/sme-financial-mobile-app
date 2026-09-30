@@ -1,0 +1,32 @@
+name: Test
+
+# Deliberately test-only -- no build or deploy steps. The previous
+# deploy.yml workflow was removed (see commit 57cb5641) because it
+# duplicated and actively conflicted with Vercel's own native GitHub
+# integration, which already deploys every push. This workflow only ever
+# runs `tsc` and `jest`, so it has nothing to collide with -- Vercel keeps
+# owning every build/deploy, this only owns "does the code typecheck and
+# pass its tests."
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run ts:check
+
+      - name: Test
+        run: npm test -- --ci

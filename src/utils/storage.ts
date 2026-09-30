@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CryptoJS from 'crypto-js';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, Bill, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, FxRateSnapshot, Account, JournalEntry } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, Bill, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CurrencyAccount, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, FxRateSnapshot, Account, JournalEntry } from '../types';
 import { supabase } from './supabase';
 import {
     savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData, saveAuthSecretSecurely, loadAuthSecretSecurely, clearAuthSecretSecurely,
@@ -819,6 +819,75 @@ export async function loadCashPockets(): Promise<CashPocket[] | null> {
     return safeParse<CashPocket[]>(raw);
 }
 
+// ─── Currency Accounts ──────────────────────────────────────────────────────
+// Same JSONB-blob-per-row shape and sync pattern as Cash Pockets above --
+// see supabase/migrations/039_currency_accounts.sql.
+
+const CURRENCY_ACCOUNTS_KEY = '@quad360/currencyAccounts';
+
+export async function saveCurrencyAccounts(accounts: CurrencyAccount[]): Promise<void> {
+    await AsyncStorage.setItem(CURRENCY_ACCOUNTS_KEY, JSON.stringify(accounts));
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    const rows = accounts.map(a => ({
+        id: a.id,
+        user_id: ownerId,
+        data: a,
+        updated_at: new Date().toISOString(),
+    }));
+    try {
+        if (rows.length > 0) {
+            const { error } = await supabase.from('currency_accounts').upsert(rows, { onConflict: 'id' });
+            if (error) {
+                logSyncError('currency_accounts', 'upsert', error);
+                // Same reasoning as saveTransactions -- queue the full
+                // current array so an offline edit (or a write made before
+                // the table migration has been applied) is replayed by
+                // offlineSync.ts on reconnect instead of staying local-only.
+                await enqueue({ table: 'currency_accounts', op: 'upsert', rows, userId: ownerId });
+                return;
+            }
+        }
+        const { data: remote, error: fetchErr } = await supabase.from('currency_accounts').select('id').eq('user_id', ownerId);
+        if (fetchErr) { logSyncError('currency_accounts', 'select', fetchErr); return; }
+        if (remote) {
+            const localIds = new Set(accounts.map(a => a.id));
+            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
+            if (toDelete.length > 0) {
+                const { error: delErr } = await supabase.from('currency_accounts').delete().in('id', toDelete);
+                if (delErr) {
+                    logSyncError('currency_accounts', 'delete', delErr);
+                    await enqueue({ table: 'currency_accounts', op: 'delete', rows: toDelete, userId: ownerId });
+                }
+            }
+        }
+    } catch (e) {
+        logSyncError('currency_accounts', 'sync', e);
+        if (rows.length > 0) await enqueue({ table: 'currency_accounts', op: 'upsert', rows, userId: ownerId });
+    }
+}
+
+export async function loadCurrencyAccounts(): Promise<CurrencyAccount[] | null> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (ownerId) {
+        try {
+            const { data, error } = await supabase.from('currency_accounts').select('data').eq('user_id', ownerId);
+            // A successful query with zero rows is authoritative (the
+            // workspace genuinely has none), not "try local instead" --
+            // falling through to a stale local cache here could resurrect
+            // accounts the owner already deleted from another device.
+            if (!error && data) {
+                const accounts = data.map(r => r.data as CurrencyAccount);
+                await AsyncStorage.setItem(CURRENCY_ACCOUNTS_KEY, JSON.stringify(accounts));
+                return accounts;
+            }
+            if (error) logSyncError('currency_accounts', 'load', error);
+        } catch (e) { logSyncError('currency_accounts', 'load', e); }
+    }
+    const raw = await AsyncStorage.getItem(CURRENCY_ACCOUNTS_KEY);
+    return safeParse<CurrencyAccount[]>(raw);
+}
+
 // ─── Team Members ─────────────────────────────────────────────────────────────
 export async function loadTeamMembers(): Promise<TeamMember[]> {
     // getWorkspaceOwnerId() -- same fix as inviteTeamMember: an admin
@@ -1550,6 +1619,7 @@ export interface AppBackup {
     budgets?: Budget[];
     inventory?: InventoryItem[];
     cashPockets?: CashPocket[];
+    currencyAccounts?: CurrencyAccount[];
     staff?: StaffMember[];
     payrollRuns?: PayrollRun[];
     capitalCommitments?: CapitalCommitment[];
@@ -1570,6 +1640,7 @@ export interface ExportInput {
     budgets: Budget[];
     inventory: InventoryItem[];
     cashPockets: CashPocket[];
+    currencyAccounts: CurrencyAccount[];
     staff: StaffMember[];
     payrollRuns: PayrollRun[];
     capitalCommitments: CapitalCommitment[];
@@ -1625,6 +1696,7 @@ export async function importAllData(json: string): Promise<AppBackup> {
     if (parsed.budgets) restores.push(saveBudgets(parsed.budgets));
     if (parsed.inventory) restores.push(saveInventory(parsed.inventory));
     if (parsed.cashPockets) restores.push(saveCashPockets(parsed.cashPockets));
+    if (parsed.currencyAccounts) restores.push(saveCurrencyAccounts(parsed.currencyAccounts));
     if (parsed.staff) restores.push(saveStaff(parsed.staff));
     if (parsed.payrollRuns) restores.push(savePayrollRuns(parsed.payrollRuns));
     if (parsed.capitalCommitments) restores.push(saveCapitalCommitments(parsed.capitalCommitments));
@@ -1654,7 +1726,7 @@ export async function importAllData(json: string): Promise<AppBackup> {
 const FINANCIAL_CACHE_KEYS = [
     KEYS.transactions, KEYS.settings, KEYS.goals, KEYS.invoices,
     KEYS.assets, KEYS.loans, KEYS.staff, KEYS.payrollRuns,
-    '@quad360/inventory', '@quad360/budgets', CASH_POCKETS_KEY, CAPITAL_COMMITMENTS_KEY,
+    '@quad360/inventory', '@quad360/budgets', CASH_POCKETS_KEY, CURRENCY_ACCOUNTS_KEY, CAPITAL_COMMITMENTS_KEY,
     'quad360_tactic_executions_v1', 'quad360_tactic_outcomes_v1', '@quad360/financing',
     ...SNAPSHOT_HISTORY_KEYS,
     // transactionCategorization.ts's learned category-correction rules --

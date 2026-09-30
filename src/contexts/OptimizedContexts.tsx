@@ -10,7 +10,7 @@
 
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Platform } from 'react-native';
-import { User, Invoice, InvoiceStatus, Bill, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, UserRole, Screen, Account, JournalEntry, JournalLine } from '../types';
+import { User, Invoice, InvoiceStatus, Bill, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CurrencyAccount, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, UserRole, Screen, Account, JournalEntry, JournalLine } from '../types';
 import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore, computeLoanPaymentSplit } from '../utils/finance';
 import { buildDefaultChartOfAccounts } from '../utils/chartOfAccounts';
 import {
@@ -43,6 +43,7 @@ import {
   loadStaff, saveStaff,
   loadPayrollRuns, savePayrollRuns,
   loadCashPockets, saveCashPockets,
+  loadCurrencyAccounts, saveCurrencyAccounts,
   loadCapitalCommitments, saveCapitalCommitments,
   loadReadinessHistory, saveReadinessHistory,
   loadForecastHistory, saveForecastHistory,
@@ -174,6 +175,7 @@ interface FinanceContextValue {
   staff: StaffMember[];
   payrollRuns: PayrollRun[];
   cashPockets: CashPocket[];
+  currencyAccounts: CurrencyAccount[];
   addStaff: (s: Omit<StaffMember, 'id' | 'createdAt'>) => void;
   updateStaff: (id: string, patch: Partial<StaffMember>) => void;
   deleteStaff: (id: string) => void;
@@ -182,6 +184,9 @@ interface FinanceContextValue {
   addCashPocket: (name: string, amount: number) => void;
   updateCashPocket: (id: string, amount: number) => void;
   deleteCashPocket: (id: string) => void;
+  addCurrencyAccount: (label: string, currencyCode: string, balance: number, exchangeRateToBase: number) => void;
+  updateCurrencyAccount: (id: string, patch: { balance?: number; exchangeRateToBase?: number }) => void;
+  deleteCurrencyAccount: (id: string) => void;
 
   financing: FinancingContextData;
   applyForMerchantFinancing: (amount: number, purpose: LoanPurpose) => Promise<void>;
@@ -241,6 +246,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>([]);
   const [cashPockets, setCashPockets] = useState<CashPocket[]>([]);
+  const [currencyAccounts, setCurrencyAccounts] = useState<CurrencyAccount[]>([]);
   const [capitalCommitments, setCapitalCommitments] = useState<CapitalCommitment[]>([]);
   const [readinessHistory, setReadinessHistory] = useState<ReadinessSnapshot[]>([]);
   const [forecastHistory, setForecastHistory] = useState<ForecastSnapshot[]>([]);
@@ -333,7 +339,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     // otherwise be re-saved into the newly-signed-in user's cloud account.
     setHydrated(false);
     setTransactions([]); setAssets([]); setLoans([]); setBudgets([]); setInventory([]);
-    setStaff([]); setPayrollRuns([]); setCashPockets([]); setCapitalCommitments([]); setReadinessHistory([]);
+    setStaff([]); setPayrollRuns([]); setCashPockets([]); setCurrencyAccounts([]); setCapitalCommitments([]); setReadinessHistory([]);
     setForecastHistory([]); setDataConfidenceHistory([]); setAccounts([]); setJournalEntries([]);
     setFinancing({
       isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
@@ -381,16 +387,18 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (l) setLoans(l.map((x) => ({ ...x, payments: x.payments ?? [] })));
         if (b) setBudgets(b);
         if (inv) setInventory(inv);
-        const [st, pr, cp, cc, rh, fh, dch] = await Promise.all([
+        const [st, pr, cp, ca, cc, rh, fh, dch] = await Promise.all([
           isStaffRole ? Promise.resolve(null) : loadStaff(),
           isStaffRole ? Promise.resolve(null) : loadPayrollRuns(),
           isStaffRole ? Promise.resolve(null) : loadCashPockets(),
+          isStaffRole ? Promise.resolve(null) : loadCurrencyAccounts(),
           isStaffRole ? Promise.resolve(null) : loadCapitalCommitments(),
           loadReadinessHistory(), loadForecastHistory(), loadDataConfidenceHistory(),
         ]);
         if (st) setStaff(st);
         if (pr) setPayrollRuns(pr);
         if (cp) setCashPockets(cp);
+        if (ca) setCurrencyAccounts(ca);
         if (cc) setCapitalCommitments(cc);
         if (rh) setReadinessHistory(rh);
         if (fh) setForecastHistory(fh);
@@ -464,6 +472,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveStaff(staff).catch(() => {}); }, [staff, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) savePayrollRuns(payrollRuns).catch(() => {}); }, [payrollRuns, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveCashPockets(cashPockets).catch(() => {}); }, [cashPockets, hydrated, isDemoMode, isStaffRole]);
+  useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveCurrencyAccounts(currencyAccounts).catch(() => {}); }, [currencyAccounts, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveCapitalCommitments(capitalCommitments).catch(() => {}); }, [capitalCommitments, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => { if (hydrated && !isDemoMode) saveReadinessHistory(readinessHistory).catch(() => {}); }, [readinessHistory, hydrated, isDemoMode]);
   useEffect(() => { if (hydrated && !isDemoMode) saveForecastHistory(forecastHistory).catch(() => {}); }, [forecastHistory, hydrated, isDemoMode]);
@@ -878,6 +887,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       staff,
       payrollRuns,
       cashPockets,
+      currencyAccounts,
       addStaff: (s) => setStaff((prev) => [...prev, { ...s, id: genId(), createdAt: new Date().toISOString() } as StaffMember]),
       updateStaff: (id, patch) => setStaff((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x))),
       deleteStaff: (id) => setStaff((prev) => prev.filter((x) => x.id !== id)),
@@ -907,6 +917,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       addCashPocket: (name, amount) => setCashPockets((prev) => [...prev, { id: genId(), name, amount, updatedAt: new Date().toISOString() }]),
       updateCashPocket: (id, amount) => setCashPockets((prev) => prev.map((p) => (p.id === id ? { ...p, amount, updatedAt: new Date().toISOString() } : p))),
       deleteCashPocket: (id) => setCashPockets((prev) => prev.filter((p) => p.id !== id)),
+      addCurrencyAccount: (label, currencyCode, balance, exchangeRateToBase) => setCurrencyAccounts((prev) => [...prev, { id: genId(), label, currencyCode, balance, exchangeRateToBase, updatedAt: new Date().toISOString() }]),
+      updateCurrencyAccount: (id, patch) => setCurrencyAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch, updatedAt: new Date().toISOString() } : a))),
+      deleteCurrencyAccount: (id) => setCurrencyAccounts((prev) => prev.filter((a) => a.id !== id)),
 
       capitalCommitments,
       addCommitment: (c) => {
@@ -1025,7 +1038,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         });
       },
     }),
-    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, capitalCommitments, readinessHistory, forecastHistory, dataConfidenceHistory, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency, hydrated, accounts, journalEntries]
+    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, currencyAccounts, capitalCommitments, readinessHistory, forecastHistory, dataConfidenceHistory, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency, hydrated, accounts, journalEntries]
   );
 
   return (
@@ -2895,6 +2908,7 @@ export function useApp() {
     demoBusinessId: auth.demoBusinessId ?? null,
     exitDemo: auth.exitDemo || (() => {}),
     cashPockets: finance?.cashPockets ?? [],
+    currencyAccounts: finance?.currencyAccounts ?? [],
     financing: finance?.financing ?? {
       isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
       maxQualifiedAmount: undefined, application: undefined,
@@ -2950,6 +2964,9 @@ export function useApp() {
     updateCashPocket: finance?.updateCashPocket || (() => {}),
     addCashPocket: finance?.addCashPocket || (() => {}),
     deleteCashPocket: finance?.deleteCashPocket || (() => {}),
+    addCurrencyAccount: finance?.addCurrencyAccount || (() => {}),
+    updateCurrencyAccount: finance?.updateCurrencyAccount || (() => {}),
+    deleteCurrencyAccount: finance?.deleteCurrencyAccount || (() => {}),
     capitalCommitments: finance?.capitalCommitments ?? [],
     addCommitment: finance?.addCommitment || (() => {}),
     updateCommitment: finance?.updateCommitment || (() => {}),
@@ -2977,7 +2994,7 @@ export function useApp() {
     exportData: () => exportAllData({
       transactions, settings: (settings?.settings as any), goals: goalsArray,
       invoices: invoicesArray, assets, loans, budgets, inventory,
-      cashPockets: finance?.cashPockets ?? [], staff: finance?.staff ?? [], payrollRuns: finance?.payrollRuns ?? [],
+      cashPockets: finance?.cashPockets ?? [], currencyAccounts: finance?.currencyAccounts ?? [], staff: finance?.staff ?? [], payrollRuns: finance?.payrollRuns ?? [],
       capitalCommitments: finance?.capitalCommitments ?? [], readinessHistory: finance?.readinessHistory ?? [],
       forecastHistory: finance?.forecastHistory ?? [],
       dataConfidenceHistory: finance?.dataConfidenceHistory ?? [],

@@ -470,7 +470,36 @@ function CustomersTab({ currency }: { currency: string }) {
                         <Text style={gs.momVal}>{m.avgCac === null ? 'N/A' : fmt(m.avgCac, currency)}</Text>
                     </View>
                 </View>
+                <View style={[gs.momRow, { marginTop: Spacing.md }]}>
+                    <View style={gs.momBox}>
+                        <Text style={gs.momLabel}>Gross Profit / Order ({latest!.month})</Text>
+                        <Text style={gs.momVal}>{fmt(latest!.estGrossProfitPerOrder, currency)}</Text>
+                    </View>
+                    <View style={gs.momBox}>
+                        <Text style={gs.momLabel}>Payback ({latest!.month})</Text>
+                        <Text style={gs.momVal}>{latest!.paybackMonths === null ? 'N/A' : `${latest!.paybackMonths.toFixed(1)}mo`}</Text>
+                    </View>
+                    <View style={gs.momBox}>
+                        <Text style={gs.momLabel}>Avg LTV (12mo)</Text>
+                        <Text style={gs.momVal}>{m.avgLtv === null ? 'N/A' : fmt(m.avgLtv, currency)}</Text>
+                    </View>
+                </View>
             </View>
+
+            {/* The one alert this whole chain exists to raise: a marketing
+                campaign can look successful on a "customers acquired" chart
+                while actually losing money on every new customer's very
+                first purchase -- CAC alone never shows this, only CAC
+                compared against what that purchase actually returned in
+                gross profit does. */}
+            {latest!.cacExceedsFirstPurchaseProfit && (
+                <View style={[gs.focusCard, { borderColor: Colors.expense + '55' }]}>
+                    <Icon name="alert-triangle" size={20} color={Colors.expense} />
+                    <Text style={gs.focusText}>
+                        This month's CAC ({fmt(latest!.cac!, currency)}) is higher than the estimated gross profit from a customer's first order ({fmt(latest!.estGrossProfitPerOrder, currency)}). This campaign may be generating customers while losing money on each one up front — it can still pay off if enough of them come back (payback: {latest!.paybackMonths === null ? 'not yet recoverable' : `${latest!.paybackMonths.toFixed(1)} months of repeat purchases`}), but it's worth confirming repeat-purchase rates before scaling this spend.
+                    </Text>
+                </View>
+            )}
 
             <View style={gs.tableCard}>
                 <Text style={gs.sectionTitle}>MONTH-BY-MONTH CUSTOMERS</Text>
@@ -497,7 +526,7 @@ function CustomersTab({ currency }: { currency: string }) {
             <View style={gs.focusCard}>
                 <Icon name="zap" size={20} color={Colors.primary} />
                 <Text style={gs.focusText}>
-                    CAC = Marketing-category spend ÷ new customers that month. Churn = customers who bought last month but not this one, as a share of last month's active customers. Add a customer name to sales transactions and tag spend "Marketing" to keep these accurate.
+                    CAC = Marketing-category spend ÷ new customers that month. Churn = customers who bought last month but not this one, as a share of last month's active customers. Gross Profit / Order = average order value × that month's realized gross margin — an estimate, since cost isn't tracked per individual sale. Payback = CAC ÷ average monthly gross profit per customer. LTV = average monthly gross profit per customer ÷ churn rate, shown once there's real churn history to estimate an expected customer lifespan from. Add a customer name to sales transactions and tag spend "Marketing" to keep these accurate.
                 </Text>
             </View>
         </ScrollView>
