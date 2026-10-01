@@ -1227,6 +1227,22 @@ export default function LoginScreen() {
                         <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('recover')}>
                             <Text style={styles.switchText}>← Sign in with PIN instead</Text>
                         </TouchableOpacity>
+                        {/* There's no standalone "reset my backup password while
+                            signed out" flow -- setBackupPassword (Settings) needs
+                            an active session to call. The real way back in is the
+                            same email-verified PIN recovery every other login path
+                            offers; once that's done, a new backup password can be
+                            set from Settings. Routing here explicitly (rather than
+                            leaving only the generic "Sign in with PIN instead"
+                            link above) is what was missing -- someone who's
+                            forgotten this password specifically wouldn't think to
+                            read that as "this is also how you reset it." */}
+                        <TouchableOpacity style={styles.resetBtn} onPress={() => {
+                            setResetEmail(pwLoginEmail); setResetNewPin(''); setResetConfirmPin(''); setResetOtp(''); setResetStep('request');
+                            setResetIntent('forgot-pin'); setMode('reset-pin');
+                        }}>
+                            <Text style={styles.resetText}>Forgot your password? Reset your PIN instead →</Text>
+                        </TouchableOpacity>
                     </View>
                 </ScrollView>
             </SafeAreaView>
@@ -1836,6 +1852,21 @@ export default function LoginScreen() {
     // ── Owner return login ────────────────────────────────────────────────────
     const loginFormFields = (
         <>
+            {/* The PIN tab below asks for a 6-digit PIN with no indication of
+                WHICH account it unlocks -- on a device that already knows an
+                account (activeAccountEmail, loaded from the locally-cached
+                profile), someone who's simply forgotten which email they
+                signed up with had no way to tell. Surfacing it here answers
+                that without requiring them to remember anything. */}
+            {!!activeAccountEmail && loginMethod === 'pin' && (
+                <View style={styles.activeAccountBanner}>
+                    <Icon name="user" size={13} color={Colors.textMuted} />
+                    <Text style={styles.activeAccountBannerText}>
+                        Signing in as <Text style={styles.activeAccountBannerEmail}>{activeAccountEmail}</Text>
+                    </Text>
+                </View>
+            )}
+
             {isLockedOut && timeRemaining !== null && timeRemaining > 0 && (
                 <View style={styles.lockoutBanner}>
                     <Icon name="lock" size={14} color={Colors.danger} />
@@ -2232,6 +2263,14 @@ const styles = StyleSheet.create({
         borderRadius: Radius.md, padding: 12, marginBottom: 16,
     },
     lockoutText: { flex: 1, color: Colors.danger, fontSize: 13, fontWeight: '600' },
+
+    activeAccountBanner: {
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        backgroundColor: Colors.primary + '14', borderWidth: 1, borderColor: Colors.primary + '40',
+        borderRadius: Radius.md, padding: 12, marginBottom: 16,
+    },
+    activeAccountBannerText: { flex: 1, color: Colors.textSecondary, fontSize: 13 },
+    activeAccountBannerEmail: { color: Colors.textPrimary, fontWeight: '700' },
 
     switchAccountBox: {
         backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border,
