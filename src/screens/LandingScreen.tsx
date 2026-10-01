@@ -337,7 +337,7 @@ export default function LandingScreen() {
                 </View>
 
                 <View style={s.footer}>
-                    <Text style={[s.footerText, body('regular')]}>Quad360 — financial intelligence for SMEs and their lenders.</Text>
+                    <Text style={[s.footerText, body('regular')]}>Quad360 is built to help business owners and their teams understand their business, navigate its challenges, and enjoy the milestones along the way — from managing daily finance and solving problems, to improving performance, accessing opportunities, and growing with confidence.</Text>
                     <View style={s.footerLinks}>
                         <TouchableOpacity onPress={goBlog} style={s.footerContactLink}>
                             <Icon name="file-text" size={13} color={Colors.primary} />
@@ -502,7 +502,7 @@ const s = StyleSheet.create({
         paddingHorizontal: Spacing.xl, paddingVertical: Spacing.xxl, alignItems: 'center',
         borderTopWidth: 1, borderTopColor: Colors.border, gap: 10,
     },
-    footerText: { fontSize: 12, color: Colors.textMuted, textAlign: 'center' },
+    footerText: { fontSize: 12, color: Colors.textMuted, textAlign: 'center', maxWidth: 640, lineHeight: 18 },
     footerLinks: { flexDirection: 'row', alignItems: 'center', gap: 20 },
     footerContactLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     footerContactLinkText: { fontSize: 13, color: Colors.primary, fontWeight: '700' },
