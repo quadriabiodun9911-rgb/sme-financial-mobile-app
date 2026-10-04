@@ -10,13 +10,17 @@
 //
 // Same security shape as supabase/functions/advisor: verify the caller's
 // JWT against the anon client, then do the privileged work (calling
-// Anthropic with a secret key) with a secret only this function's
+// OpenAI with a secret key) with a secret only this function's
 // environment has -- the API key never reaches the client.
+//
+// Originally called Anthropic's Claude via forced tool use; switched to
+// OpenAI's Chat Completions API with forced function calling so the whole
+// app runs on one AI provider.
 //
 // DEPLOYMENT (not done from this environment -- no Supabase CLI credentials
 // here): from a machine with the project linked,
 //   supabase functions deploy categorize-transaction
-// ANTHROPIC_API_KEY is already set as a secret for the advisor/statement-scan
+// OPENAI_API_KEY is already set as a secret for the advisor/transcribe-voice
 // functions and is shared across all edge functions in the same project, so
 // no new secret is needed.
 
@@ -27,9 +31,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
-const ANTHROPIC_VERSION = '2023-06-01';
-const MODEL = Deno.env.get('ANTHROPIC_MODEL') || 'claude-sonnet-4-5';
+const OPENAI_API = 'https://api.openai.com/v1/chat/completions';
+const MODEL = Deno.env.get('OPENAI_MODEL') || 'gpt-4o';
 const MAX_DESCRIPTION_LEN = 300;
 const MAX_RECENT_CATEGORIES = 20;
 const MAX_CATEGORY_LEN = 60;
@@ -42,29 +45,33 @@ function json(body: unknown, status: number) {
 }
 
 // Forces a structured reply via tool_choice rather than parsing free text
-// out of Claude's response -- the category name, confidence, and reasoning
-// all need to land in predictable fields the client can render directly.
+// out of the model's response -- the category name, confidence, and
+// reasoning all need to land in predictable fields the client can render
+// directly.
 const CATEGORIZE_TOOL = {
-  name: 'categorize_transaction',
-  description: 'Return the best category for this business transaction.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      category: {
-        type: 'string',
-        description: 'A short, human-readable category name (2-4 words). Reuse one of recentCategories verbatim if it genuinely fits this transaction, rather than inventing a near-duplicate ("Sales" vs "Sale Revenue") -- consistency with the business\'s own existing categories matters more than a "better" new name.',
+  type: 'function',
+  function: {
+    name: 'categorize_transaction',
+    description: 'Return the best category for this business transaction.',
+    parameters: {
+      type: 'object',
+      properties: {
+        category: {
+          type: 'string',
+          description: 'A short, human-readable category name (2-4 words). Reuse one of recentCategories verbatim if it genuinely fits this transaction, rather than inventing a near-duplicate ("Sales" vs "Sale Revenue") -- consistency with the business\'s own existing categories matters more than a "better" new name.',
+        },
+        confidence: {
+          type: 'string',
+          enum: ['high', 'medium', 'low'],
+          description: '"low" when the description is too generic/ambiguous ("Transfer", "Payment", "Misc") to categorize with real confidence.',
+        },
+        reasoning: {
+          type: 'string',
+          description: 'One short sentence (under 20 words) explaining the category choice, written for the business owner, not a developer.',
+        },
       },
-      confidence: {
-        type: 'string',
-        enum: ['high', 'medium', 'low'],
-        description: '"low" when the description is too generic/ambiguous ("Transfer", "Payment", "Misc") to categorize with real confidence.',
-      },
-      reasoning: {
-        type: 'string',
-        description: 'One short sentence (under 20 words) explaining the category choice, written for the business owner, not a developer.',
-      },
+      required: ['category', 'confidence', 'reasoning'],
     },
-    required: ['category', 'confidence', 'reasoning'],
   },
 };
 
@@ -98,7 +105,7 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: authError } = await callerClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, ''));
     if (authError || !user) return json({ error: 'Not authenticated' }, 401);
 
-    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    const apiKey = Deno.env.get('OPENAI_API_KEY');
     if (!apiKey) return json({ error: 'AI categorization is not configured yet.' }, 503);
 
     const body = await req.json().catch(() => null);
@@ -117,32 +124,38 @@ Deno.serve(async (req: Request) => {
       .filter((c: unknown): c is string => typeof c === 'string' && c.trim().length > 0 && c.length <= MAX_CATEGORY_LEN)
       .slice(0, MAX_RECENT_CATEGORIES);
 
-    const anthropicRes = await fetch(ANTHROPIC_API, {
+    const openaiRes = await fetch(OPENAI_API, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': ANTHROPIC_VERSION,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 300,
-        system: buildSystemPrompt(direction, industry, recentCategories),
-        messages: [{ role: 'user', content: `Transaction description: "${description.trim()}"` }],
+        messages: [
+          { role: 'system', content: buildSystemPrompt(direction, industry, recentCategories) },
+          { role: 'user', content: `Transaction description: "${description.trim()}"` },
+        ],
         tools: [CATEGORIZE_TOOL],
-        tool_choice: { type: 'tool', name: 'categorize_transaction' },
+        tool_choice: { type: 'function', function: { name: 'categorize_transaction' } },
       }),
     });
 
-    if (!anthropicRes.ok) {
-      const errBody = await anthropicRes.text();
-      console.error('[categorize-transaction]', anthropicRes.status, errBody);
+    if (!openaiRes.ok) {
+      const errBody = await openaiRes.text();
+      console.error('[categorize-transaction]', openaiRes.status, errBody);
       return json({ error: 'AI categorization could not run right now — try again shortly.' }, 502);
     }
 
-    const data = await anthropicRes.json();
-    const toolUse = (data.content ?? []).find((block: { type: string }) => block.type === 'tool_use');
-    const result = toolUse?.input;
+    const data = await openaiRes.json();
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    let result: any = null;
+    try {
+      result = toolCall?.function?.arguments ? JSON.parse(toolCall.function.arguments) : null;
+    } catch {
+      result = null;
+    }
 
     if (!result || typeof result.category !== 'string' || !result.category.trim()) {
       return json({ error: 'AI categorization could not answer right now — try again shortly.' }, 502);

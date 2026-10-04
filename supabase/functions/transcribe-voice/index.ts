@@ -14,10 +14,10 @@
 // DEPLOYMENT (not done from this environment -- no Supabase CLI credentials
 // here): from a machine with the project linked,
 //   supabase functions deploy transcribe-voice
-// Requires a new secret, OPENAI_API_KEY, set separately from the
-// ANTHROPIC_API_KEY the other AI-backed functions (advisor, statement-scan,
-// categorize-transaction) already use -- Whisper is OpenAI-only, Anthropic
-// has no equivalent speech-to-text endpoint.
+// Requires OPENAI_API_KEY, shared with advisor/statement-scan/
+// categorize-transaction/whatsapp-webhook -- those originally called
+// Anthropic's Claude, switched to OpenAI so the whole app runs on one AI
+// provider. Whisper itself is OpenAI-only regardless.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 

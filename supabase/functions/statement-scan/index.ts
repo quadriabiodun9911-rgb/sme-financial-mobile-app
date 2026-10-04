@@ -6,18 +6,30 @@
 // (see ImportTransactionsScreen.tsx, which has no path for an image or a
 // scanned/flattened PDF with no text layer). Same shape as the advisor
 // function: verify the caller's JWT against the anon client, then do the
-// privileged work (calling Anthropic with vision) with a secret only this
+// privileged work (calling OpenAI with vision) with a secret only this
 // function's environment has.
 //
-// Claude reads the image/PDF directly (no separate OCR provider) and
-// returns transactions via forced tool use, which is far more reliable
-// than asking it to emit raw JSON in a text reply.
+// Originally called Anthropic's Claude, which reads a PDF directly via its
+// own "document" content block; switched to OpenAI's Chat Completions
+// vision API, which only accepts images (JPEG/PNG/WEBP/GIF) inline, not a
+// PDF -- OpenAI's PDF support lives in a separate Assistants/Files
+// pipeline with a very different request shape, out of scope for this
+// provider swap. A PDF upload now returns a clear "use a photo instead"
+// error rather than silently failing or mis-reading the file -- a real,
+// intentional feature reduction from the Claude version, not a bug. The
+// client (statementScan.ts) already surfaces whatever error message this
+// function returns, so no client change is required for this to be
+// handled gracefully, though the scan-specific file pickers could still be
+// tightened to stop offering PDF as an option.
+//
+// Forced tool use (not free-text JSON) is still used for the same
+// reliability reason as before.
 //
 // DEPLOYMENT (not done from this environment -- no Supabase CLI credentials
 // here): from a machine with the project linked,
 //   supabase functions deploy statement-scan
-// Reuses the same ANTHROPIC_API_KEY secret already set for the advisor
-// function -- nothing new to configure if that's already deployed.
+// Reuses the same OPENAI_API_KEY secret already set for advisor/
+// transcribe-voice -- nothing new to configure if that's already deployed.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -26,19 +38,19 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
-const ANTHROPIC_VERSION = '2023-06-01';
-const MODEL = Deno.env.get('ANTHROPIC_MODEL') || 'claude-sonnet-4-5';
+const OPENAI_API = 'https://api.openai.com/v1/chat/completions';
+const MODEL = Deno.env.get('OPENAI_MODEL') || 'gpt-4o';
 
-// Anthropic's own per-image limit is 5MB binary; PDFs can go larger, but a
-// single scanned statement has no business exceeding this either -- keep
-// one ceiling for both so a huge upload fails fast with a clear message
-// instead of timing out or getting silently rejected upstream.
+// OpenAI's own image-input limit is well above this; a single scanned
+// statement has no business exceeding this anyway -- keep a lower ceiling
+// so a huge upload fails fast with a clear message instead of timing out
+// upstream.
 const MAX_BASE64_LEN = 8_000_000; // ~6MB binary
 const MAX_TRANSACTIONS = 300;
 
+// No application/pdf here -- see header comment. Images only.
 const ALLOWED_MEDIA_TYPES = new Set([
-  'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf',
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif',
 ]);
 
 function json(body: unknown, status: number) {
@@ -48,7 +60,7 @@ function json(body: unknown, status: number) {
   });
 }
 
-const SYSTEM_PROMPT = `You extract transaction line items from an image or PDF of a bank statement, till receipt, or invoice for a small business's bookkeeping app.
+const SYSTEM_PROMPT = `You extract transaction line items from an image of a bank statement, till receipt, or invoice for a small business's bookkeeping app.
 
 Rules:
 - Only report rows you can actually read in the document. Never invent a transaction, date, or amount that isn't visibly present.
@@ -65,64 +77,69 @@ customers), also fill in "billDetails" with whatever of vendorName,
 invoiceNumber, invoiceDate, dueDate, subtotal, taxTotal, total, currency and
 lineItems you can actually read. Same discipline as everything else here:
 omit a field entirely rather than guess it, and leave "billDetails" out
-altogether if you can't tell which direction the invoice runs.`;
+altogether if you can't tell which direction the invoice runs.
+
+Call the extract_transactions tool with your answer -- never reply in plain text.`;
 
 const EXTRACT_TOOL = {
-  name: 'extract_transactions',
-  description: 'Report every distinct transaction line item found in the document.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      documentType: {
-        type: 'string',
-        enum: ['bank_statement', 'receipt', 'invoice', 'unknown'],
-      },
-      transactions: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            date: { type: 'string', description: 'YYYY-MM-DD' },
-            description: { type: 'string' },
-            amount: { type: 'number', description: 'Always positive' },
-            direction: { type: 'string', enum: ['income', 'expense'] },
-          },
-          required: ['date', 'description', 'amount', 'direction'],
+  type: 'function',
+  function: {
+    name: 'extract_transactions',
+    description: 'Report every distinct transaction line item found in the document.',
+    parameters: {
+      type: 'object',
+      properties: {
+        documentType: {
+          type: 'string',
+          enum: ['bank_statement', 'receipt', 'invoice', 'unknown'],
         },
-      },
-      warning: {
-        type: 'string',
-        description: 'Any caveat about image quality, illegible rows, or uncertain dates. Omit if none.',
-      },
-      billDetails: {
-        type: 'object',
-        description: 'Only when documentType is "invoice" and it is a vendor bill reaching this business (not one this business issued). Omit any field you cannot actually read; omit the whole object if the direction is unclear.',
-        properties: {
-          vendorName: { type: 'string' },
-          invoiceNumber: { type: 'string' },
-          invoiceDate: { type: 'string', description: 'YYYY-MM-DD' },
-          dueDate: { type: 'string', description: 'YYYY-MM-DD' },
-          subtotal: { type: 'number' },
-          taxTotal: { type: 'number' },
-          total: { type: 'number' },
-          currency: { type: 'string', description: 'The currency symbol or code as printed on the document' },
-          lineItems: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                description: { type: 'string' },
-                quantity: { type: 'number' },
-                unitPrice: { type: 'number' },
-                taxRate: { type: 'number' },
+        transactions: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              date: { type: 'string', description: 'YYYY-MM-DD' },
+              description: { type: 'string' },
+              amount: { type: 'number', description: 'Always positive' },
+              direction: { type: 'string', enum: ['income', 'expense'] },
+            },
+            required: ['date', 'description', 'amount', 'direction'],
+          },
+        },
+        warning: {
+          type: 'string',
+          description: 'Any caveat about image quality, illegible rows, or uncertain dates. Omit if none.',
+        },
+        billDetails: {
+          type: 'object',
+          description: 'Only when documentType is "invoice" and it is a vendor bill reaching this business (not one this business issued). Omit any field you cannot actually read; omit the whole object if the direction is unclear.',
+          properties: {
+            vendorName: { type: 'string' },
+            invoiceNumber: { type: 'string' },
+            invoiceDate: { type: 'string', description: 'YYYY-MM-DD' },
+            dueDate: { type: 'string', description: 'YYYY-MM-DD' },
+            subtotal: { type: 'number' },
+            taxTotal: { type: 'number' },
+            total: { type: 'number' },
+            currency: { type: 'string', description: 'The currency symbol or code as printed on the document' },
+            lineItems: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  description: { type: 'string' },
+                  quantity: { type: 'number' },
+                  unitPrice: { type: 'number' },
+                  taxRate: { type: 'number' },
+                },
+                required: ['description'],
               },
-              required: ['description'],
             },
           },
         },
       },
+      required: ['documentType', 'transactions'],
     },
-    required: ['documentType', 'transactions'],
   },
 };
 
@@ -151,7 +168,7 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: authError } = await callerClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, ''));
     if (authError || !user) return json({ error: 'Not authenticated' }, 401);
 
-    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    const apiKey = Deno.env.get('OPENAI_API_KEY');
     if (!apiKey) return json({ error: 'Statement scanning is not configured yet.' }, 503);
 
     const body = await req.json().catch(() => null);
@@ -159,53 +176,58 @@ Deno.serve(async (req: Request) => {
     const mediaType = body?.mediaType;
 
     if (typeof base64 !== 'string' || !base64) {
-      return json({ error: 'Missing image/PDF data.' }, 400);
+      return json({ error: 'Missing image data.' }, 400);
     }
     if (base64.length > MAX_BASE64_LEN) {
       return json({ error: 'File is too large. Try a smaller photo or a lower-resolution scan.' }, 400);
     }
+    if (mediaType === 'application/pdf') {
+      return json({ error: 'PDF scanning is not supported right now — take a photo of the document instead, or import a text-based PDF from Import Transactions.' }, 400);
+    }
     if (typeof mediaType !== 'string' || !ALLOWED_MEDIA_TYPES.has(mediaType)) {
-      return json({ error: 'Unsupported file type. Use a JPG, PNG, or PDF.' }, 400);
+      return json({ error: 'Unsupported file type. Use a JPG, PNG, WEBP, or GIF photo.' }, 400);
     }
 
-    const contentBlock = mediaType === 'application/pdf'
-      ? { type: 'document', source: { type: 'base64', media_type: mediaType, data: base64 } }
-      : { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } };
-
-    const anthropicRes = await fetch(ANTHROPIC_API, {
+    const openaiRes = await fetch(OPENAI_API, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': ANTHROPIC_VERSION,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 4096,
-        system: SYSTEM_PROMPT,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          {
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: `data:${mediaType};base64,${base64}` } },
+              { type: 'text', text: 'Extract every transaction line item from this document.' },
+            ],
+          },
+        ],
         tools: [EXTRACT_TOOL],
-        tool_choice: { type: 'tool', name: 'extract_transactions' },
-        messages: [{
-          role: 'user',
-          content: [
-            contentBlock,
-            { type: 'text', text: 'Extract every transaction line item from this document.' },
-          ],
-        }],
+        tool_choice: { type: 'function', function: { name: 'extract_transactions' } },
       }),
     });
 
-    if (!anthropicRes.ok) {
-      const errBody = await anthropicRes.text();
-      console.error('[statement-scan]', anthropicRes.status, errBody);
+    if (!openaiRes.ok) {
+      const errBody = await openaiRes.text();
+      console.error('[statement-scan]', openaiRes.status, errBody);
       return json({ error: 'Could not read this document right now — try again shortly.' }, 502);
     }
 
-    const data = await anthropicRes.json();
-    const toolUse = (data.content ?? []).find((block: { type: string }) => block.type === 'tool_use');
-    if (!toolUse) return json({ error: 'Could not read this document — try a clearer photo.' }, 502);
+    const data = await openaiRes.json();
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    let input: any = null;
+    try {
+      input = toolCall?.function?.arguments ? JSON.parse(toolCall.function.arguments) : null;
+    } catch {
+      input = null;
+    }
+    if (!input) return json({ error: 'Could not read this document — try a clearer photo.' }, 502);
 
-    const input = toolUse.input ?? {};
     const transactions = Array.isArray(input.transactions) ? input.transactions.slice(0, MAX_TRANSACTIONS) : [];
     const billDetails = input.billDetails && typeof input.billDetails === 'object' ? input.billDetails : undefined;
 

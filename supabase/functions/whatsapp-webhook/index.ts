@@ -34,9 +34,11 @@
 //     this number's "when a message comes in" webhook in the Twilio
 //     console, e.g. https://<project-ref>.supabase.co/functions/v1/whatsapp-webhook>
 // then point the WhatsApp sender's incoming-message webhook at that same
-// URL. ANTHROPIC_API_KEY is already set as a shared secret (see
-// categorize-transaction). SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are
-// injected automatically.
+// URL. OPENAI_API_KEY is already set as a shared secret (see advisor/
+// transcribe-voice/statement-scan/categorize-transaction -- this function
+// originally called Anthropic's Claude, switched to OpenAI so the whole
+// app runs on one AI provider). SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
+// are injected automatically.
 //
 // TWILIO_WEBHOOK_URL exists (rather than trusting the request's own URL)
 // because signature verification must be computed against the exact URL
@@ -50,9 +52,8 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
-const ANTHROPIC_VERSION = '2023-06-01';
-const MODEL = Deno.env.get('ANTHROPIC_MODEL') || 'claude-sonnet-4-5';
+const OPENAI_API = 'https://api.openai.com/v1/chat/completions';
+const MODEL = Deno.env.get('OPENAI_MODEL') || 'gpt-4o';
 const LINK_CODE_TTL_MS = 15 * 60 * 1000;
 const MAX_BODY_LEN = 500;
 
@@ -119,37 +120,40 @@ interface ParsedTransaction {
 // not -- the model is instructed to say so rather than pick one, which is
 // the whole point of the clarification flow below.
 const LOG_TRANSACTION_TOOL = {
-  name: 'log_transaction',
-  description: 'Extract a single financial transaction from a WhatsApp message sent by an SME owner to their bookkeeping bot, or flag that no transaction is present.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      is_transaction: {
-        type: 'boolean',
-        description: 'false if this message is not describing a sale, expense, or payment at all (a greeting, a question, something unrelated) -- true otherwise.',
+  type: 'function',
+  function: {
+    name: 'log_transaction',
+    description: 'Extract a single financial transaction from a WhatsApp message sent by an SME owner to their bookkeeping bot, or flag that no transaction is present.',
+    parameters: {
+      type: 'object',
+      properties: {
+        is_transaction: {
+          type: 'boolean',
+          description: 'false if this message is not describing a sale, expense, or payment at all (a greeting, a question, something unrelated) -- true otherwise.',
+        },
+        amount: { type: 'number', description: 'The amount as a plain number, e.g. 15000 for "15k" or "₦15,000".' },
+        direction: {
+          type: 'string',
+          enum: ['income', 'expense'],
+          description: '"income" for money received (a sale, a customer payment); "expense" for money paid out.',
+        },
+        description: {
+          type: 'string',
+          description: 'A short, clean description for the transaction (e.g. "Rice sales", "Transport", "Payment to John") -- rewritten for readability, not copied verbatim.',
+        },
+        confident_category: {
+          type: 'boolean',
+          description: 'true ONLY when the category is genuinely unambiguous from the message itself (e.g. "sold rice" -> clearly a sales category, "paid transport" -> clearly transport). false whenever the category would have to be guessed -- e.g. "Paid John 20k" gives no real signal whether that was inventory, transport, salary, or something else. Never guess just to avoid asking.',
+        },
+        category: { type: 'string', description: 'The category, only when confident_category is true.' },
+        clarification_options: {
+          type: 'array',
+          items: { type: 'string' },
+          description: '2-5 short, plausible category options to offer the owner when confident_category is false, most likely first (e.g. ["Inventory", "Transport", "Salary", "Other"] for a vague payment to a named person).',
+        },
       },
-      amount: { type: 'number', description: 'The amount as a plain number, e.g. 15000 for "15k" or "₦15,000".' },
-      direction: {
-        type: 'string',
-        enum: ['income', 'expense'],
-        description: '"income" for money received (a sale, a customer payment); "expense" for money paid out.',
-      },
-      description: {
-        type: 'string',
-        description: 'A short, clean description for the transaction (e.g. "Rice sales", "Transport", "Payment to John") -- rewritten for readability, not copied verbatim.',
-      },
-      confident_category: {
-        type: 'boolean',
-        description: 'true ONLY when the category is genuinely unambiguous from the message itself (e.g. "sold rice" -> clearly a sales category, "paid transport" -> clearly transport). false whenever the category would have to be guessed -- e.g. "Paid John 20k" gives no real signal whether that was inventory, transport, salary, or something else. Never guess just to avoid asking.',
-      },
-      category: { type: 'string', description: 'The category, only when confident_category is true.' },
-      clarification_options: {
-        type: 'array',
-        items: { type: 'string' },
-        description: '2-5 short, plausible category options to offer the owner when confident_category is false, most likely first (e.g. ["Inventory", "Transport", "Salary", "Other"] for a vague payment to a named person).',
-      },
+      required: ['is_transaction'],
     },
-    required: ['is_transaction'],
   },
 };
 
@@ -162,25 +166,32 @@ Examples where the category must NOT be guessed: "Paid John 20k" -- an expense o
 If the message isn't describing a transaction at all, set is_transaction to false and leave the other fields empty.`;
 
 async function parseTransactionMessage(text: string, apiKey: string): Promise<ParsedTransaction | null> {
-  const res = await fetch(ANTHROPIC_API, {
+  const res = await fetch(OPENAI_API, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': ANTHROPIC_VERSION },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 400,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: text }],
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: text },
+      ],
       tools: [LOG_TRANSACTION_TOOL],
-      tool_choice: { type: 'tool', name: 'log_transaction' },
+      tool_choice: { type: 'function', function: { name: 'log_transaction' } },
     }),
   });
   if (!res.ok) {
-    console.error('[whatsapp-webhook] Anthropic error', res.status, await res.text());
+    console.error('[whatsapp-webhook] OpenAI error', res.status, await res.text());
     return null;
   }
   const data = await res.json();
-  const toolUse = (data.content ?? []).find((b: { type: string }) => b.type === 'tool_use');
-  const r = toolUse?.input;
+  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+  let r: any = null;
+  try {
+    r = toolCall?.function?.arguments ? JSON.parse(toolCall.function.arguments) : null;
+  } catch {
+    r = null;
+  }
   if (!r || typeof r.is_transaction !== 'boolean') return null;
 
   return {
@@ -304,7 +315,7 @@ Deno.serve(async (req: Request) => {
     // ── Fresh message: parse it.
     if (!rawBody) return twiml('Send me a sale or expense, e.g. "Sold 3 bags of rice for 15000".');
 
-    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    const apiKey = Deno.env.get('OPENAI_API_KEY');
     if (!apiKey) return twiml("Transaction logging isn't set up yet — log it in the app directly for now.");
 
     const parsed = await parseTransactionMessage(rawBody, apiKey);
