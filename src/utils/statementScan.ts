@@ -1,15 +1,20 @@
 /**
  * Statement/receipt scanning -- lets a business owner photograph or upload
- * an image (or an image-only/scanned PDF with no text layer) and get back
- * structured transaction rows, filling the gap ImportTransactionsScreen
- * otherwise has: its PDF path (parsePdfStatement) only works on statements
- * with a real text layer, and there was no path at all for a phone photo of
- * a paper receipt or till slip.
+ * an image and get back structured transaction rows, filling the gap
+ * ImportTransactionsScreen otherwise has: its PDF path (parsePdfStatement)
+ * only works on statements with a real text layer, and there was no path
+ * at all for a phone photo of a paper receipt or till slip.
  *
  * Calls supabase.functions.invoke('statement-scan'), matching the exact
- * pattern aiAdvisor.ts uses for 'advisor' -- Claude reads the image/PDF
- * directly server-side (see supabase/functions/statement-scan) so no
- * separate OCR provider or API key reaches the client.
+ * pattern aiAdvisor.ts uses for 'advisor' -- OpenAI reads the image
+ * directly server-side via vision (see supabase/functions/statement-scan)
+ * so no separate OCR provider or API key reaches the client. Images only --
+ * unlike Anthropic's Claude (the original provider here), OpenAI's Chat
+ * Completions API has no inline PDF support, so a PDF is rejected server-
+ * side with a clear error rather than attempted. Every "Scan" entry point
+ * (Dashboard, Bills, Import Transactions) already restricts its own file
+ * picker to images for this reason -- a PDF never actually reaches this
+ * function through the UI.
  */
 
 import { supabase } from './supabase';
@@ -50,7 +55,7 @@ export interface ScanResult {
     billDetails?:  ScannedBillDetails;
 }
 
-export type ScanMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' | 'application/pdf';
+export type ScanMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
 
 function isScannedTransaction(v: unknown): v is ScannedTransaction {
     if (!v || typeof v !== 'object') return false;
