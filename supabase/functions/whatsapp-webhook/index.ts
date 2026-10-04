@@ -34,11 +34,12 @@
 //     this number's "when a message comes in" webhook in the Twilio
 //     console, e.g. https://<project-ref>.supabase.co/functions/v1/whatsapp-webhook>
 // then point the WhatsApp sender's incoming-message webhook at that same
-// URL. OPENAI_API_KEY is already set as a shared secret (see advisor/
-// transcribe-voice/statement-scan/categorize-transaction -- this function
-// originally called Anthropic's Claude, switched to OpenAI so the whole
-// app runs on one AI provider). SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
-// are injected automatically.
+// URL. GITHUB_MODELS_TOKEN is already set as a shared secret (see
+// advisor/statement-scan/categorize-transaction -- this function
+// originally called Anthropic's Claude, then OpenAI, now GitHub Models'
+// free GPT-4o catalog -- see advisor/index.ts's header comment for the
+// full reasoning). SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are injected
+// automatically.
 //
 // TWILIO_WEBHOOK_URL exists (rather than trusting the request's own URL)
 // because signature verification must be computed against the exact URL
@@ -52,8 +53,8 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const OPENAI_API = 'https://api.openai.com/v1/chat/completions';
-const MODEL = Deno.env.get('OPENAI_MODEL') || 'gpt-4o';
+const GITHUB_MODELS_API = 'https://models.github.ai/inference/chat/completions';
+const MODEL = Deno.env.get('GITHUB_MODEL') || 'openai/gpt-4o';
 const LINK_CODE_TTL_MS = 15 * 60 * 1000;
 const MAX_BODY_LEN = 500;
 
@@ -166,7 +167,7 @@ Examples where the category must NOT be guessed: "Paid John 20k" -- an expense o
 If the message isn't describing a transaction at all, set is_transaction to false and leave the other fields empty.`;
 
 async function parseTransactionMessage(text: string, apiKey: string): Promise<ParsedTransaction | null> {
-  const res = await fetch(OPENAI_API, {
+  const res = await fetch(GITHUB_MODELS_API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
@@ -181,7 +182,7 @@ async function parseTransactionMessage(text: string, apiKey: string): Promise<Pa
     }),
   });
   if (!res.ok) {
-    console.error('[whatsapp-webhook] OpenAI error', res.status, await res.text());
+    console.error('[whatsapp-webhook] GitHub Models error', res.status, await res.text());
     return null;
   }
   const data = await res.json();
@@ -315,7 +316,7 @@ Deno.serve(async (req: Request) => {
     // ── Fresh message: parse it.
     if (!rawBody) return twiml('Send me a sale or expense, e.g. "Sold 3 bags of rice for 15000".');
 
-    const apiKey = Deno.env.get('OPENAI_API_KEY');
+    const apiKey = Deno.env.get('GITHUB_MODELS_TOKEN');
     if (!apiKey) return twiml("Transaction logging isn't set up yet — log it in the app directly for now.");
 
     const parsed = await parseTransactionMessage(rawBody, apiKey);
