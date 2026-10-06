@@ -13,13 +13,13 @@ import { computeForecastRiskAlert } from '../utils/forecastRiskAlert';
 import { ForecastAlert } from '../types/forecast';
 import { sendCashFlowAlert, sendOverdueInvoiceAlert } from '../utils/whatsappIntegration';
 import { ROLE_DISPLAY_LABEL } from '../utils/rolePermissions';
-import { accountDisplayName, createBusiness } from '../utils/storage';
+import { accountDisplayName, createBusiness, getAuthUserId, getWorkspaceOwnerId, getBusinessNameForOwner } from '../utils/storage';
 import { t } from '../utils/i18n';
 
 const DISMISSED_ALERTS_KEY = '@quad360/dismissed_alerts';
 
 export default function Header() {
-    const { user, logout, setCurrentScreen, goBack, currentScreen, finance, transactions, invoices, loans, staff, payrollRuns, settings, goals, budgets, assets, inventory, localAccounts, switchAccountDirect, teamMemberships, refreshTeamMemberships, switchBusiness, userRole, canViewFinancials, language } = useApp();
+    const { user, logout, setCurrentScreen, goBack, currentScreen, finance, transactions, invoices, loans, staff, payrollRuns, settings, goals, budgets, assets, inventory, localAccounts, switchAccountDirect, teamMemberships, refreshTeamMemberships, switchBusiness, workspaceVersion, userRole, canViewFinancials, language } = useApp();
     const showBack = currentScreen !== 'dashboard' && currentScreen !== 'login';
     const { width } = useWindowDimensions();
     const isNarrow = width < 480;
@@ -65,14 +65,50 @@ export default function Header() {
         }
     }, [switchBusiness]);
 
+    // teamMemberships never includes this login's OWN primary business --
+    // it's not a team_members row at all, it's the real auth identity (see
+    // resolveWorkspaceRole's own-business shortcut in storage.ts). So once
+    // switched into a second/shadow business, there was previously no
+    // entry anywhere in this sheet that could switch back: the hardcoded
+    // "Current" row below always showed whichever business is active (now
+    // correctly, since switchBusiness no longer races on a stale
+    // teamMemberships lookup) but had no onPress, and the primary business
+    // appeared in no list. myAuthId/activeOwnerId read the real signed-in
+    // identity and the live workspace pointer directly, independent of
+    // user.businessName, so "is the primary business active right now" can
+    // be answered reliably; when it's not, primaryBusinessName lets the
+    // switch-back row show the right label without waiting on a
+    // teamMemberships entry that will never exist for it.
+    const [myAuthId, setMyAuthId] = useState<string | null>(null);
+    const [activeOwnerId, setActiveOwnerId] = useState<string | null>(null);
+    const [primaryBusinessName, setPrimaryBusinessName] = useState<string>('');
+    useEffect(() => {
+        (async () => {
+            const [myId, ownerId] = await Promise.all([getAuthUserId(), getWorkspaceOwnerId()]);
+            setMyAuthId(myId);
+            setActiveOwnerId(ownerId);
+            if (myId) setPrimaryBusinessName(await getBusinessNameForOwner(myId));
+        })();
+    }, [workspaceVersion]);
+    const isPrimaryActive = !!myAuthId && activeOwnerId === myAuthId;
+
     // Businesses this same login OWNS outright (a second/third business,
     // not one someone else invited them into) -- see createBusiness() in
     // storage.ts and migration 040. These are team_members rows just like
     // any other membership, distinguished only by role === 'owner', so the
     // switch action itself (handleSwitchBusiness above) is identical;
     // they're just split into their own section here for clearer labeling.
-    const ownedBusinesses = useMemo(() => teamMemberships.filter(m => m.role === 'owner'), [teamMemberships]);
-    const invitedBusinesses = useMemo(() => teamMemberships.filter(m => m.role !== 'owner'), [teamMemberships]);
+    // Both lists exclude whichever business is currently active so it
+    // isn't offered twice -- once as the live "Current" row and again as
+    // a tappable entry that would just switch into itself.
+    const ownedBusinesses = useMemo(
+        () => teamMemberships.filter(m => m.role === 'owner' && m.ownerUserId !== activeOwnerId),
+        [teamMemberships, activeOwnerId]
+    );
+    const invitedBusinesses = useMemo(
+        () => teamMemberships.filter(m => m.role !== 'owner' && m.ownerUserId !== activeOwnerId),
+        [teamMemberships, activeOwnerId]
+    );
 
     const [addBusinessOpen, setAddBusinessOpen] = useState(false);
     const [newBusinessName, setNewBusinessName] = useState('');
@@ -247,6 +283,26 @@ export default function Header() {
                             </View>
                             <Icon name="check" size={16} color={Colors.primary} />
                         </View>
+                        {!isPrimaryActive && myAuthId && (
+                            <TouchableOpacity
+                                style={styles.switcherRow}
+                                onPress={() => handleSwitchBusiness(myAuthId)}
+                                disabled={switchingToBusiness !== null}
+                                activeOpacity={0.7}
+                            >
+                                <View style={styles.switcherAvatar}>
+                                    <Text style={styles.switcherAvatarText}>{(primaryBusinessName || '?').trim().charAt(0).toUpperCase()}</Text>
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.switcherName} numberOfLines={1}>{primaryBusinessName}</Text>
+                                    <Text style={styles.switcherEmail} numberOfLines={1}>{accountDisplayName(user?.email)}</Text>
+                                </View>
+                                {switchingToBusiness === myAuthId
+                                    ? <ActivityIndicator size="small" color={Colors.primary} />
+                                    : <Icon name="chevron-right" size={16} color={Colors.textMuted} />
+                                }
+                            </TouchableOpacity>
+                        )}
                         {ownedBusinesses.length > 0 && (
                             <>
                                 <Text style={styles.switcherSectionLabel}>{t(language, 'myBusinesses')}</Text>

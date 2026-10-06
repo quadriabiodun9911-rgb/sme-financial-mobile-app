@@ -54,7 +54,7 @@ import {
   generateAuthSecret, saveAuthSecret, loadAuthSecret, syncFieldEncryptionKey,
   clearAllData, deleteAllBusinessRecords, exportAllData, importAllData, deleteAccountData, recordConsent,
   inviteTeamMember, removeTeamMember, loadTeamMembers, joinTeamWithCode,
-  loadMyTeamMemberships, MyTeamMembership,
+  loadMyTeamMemberships, MyTeamMembership, getBusinessNameForOwner,
   setWorkspaceOwner, clearWorkspaceOwner, resolveWorkspaceRole,
   registerLocalAccount, listLocalAccounts, switchLocalAccount, switchLocalAccountDirect, ensureActiveAccountRegistered, clearLocalAccountsRegistry, LocalAccountSummary,
 } from '../utils/storage';
@@ -2454,13 +2454,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // to depend on the reload -- resolveWorkspaceRole() looks up the
         // real, currently-active team_members role for this specific
         // ownerUserId rather than carrying over whatever role this session
-        // had before the switch. businessName is patched from the already-
-        // loaded teamMemberships list (refreshTeamMemberships() is always
-        // called before this by every caller) so the header shows the
-        // NEWLY active business, not whatever was last loaded.
-        const role = await resolveWorkspaceRole();
-        const membership = teamMemberships.find(m => m.ownerUserId === ownerUserId);
-        setUser((prev) => (prev ? { ...prev, role, ...(membership ? { businessName: membership.ownerBusinessName } : {}) } : prev));
+        // had before the switch. businessName comes from a direct,
+        // race-free settings lookup (getBusinessNameForOwner) rather than
+        // the in-memory teamMemberships array -- that array can be stale
+        // the instant this runs right after a call that just refreshed it
+        // in the same async flow (e.g. createBusiness ->
+        // refreshTeamMemberships -> switchBusiness), and it never contains
+        // an entry for ownerUserId at all when switching BACK to the
+        // caller's own primary business (that business is never a
+        // team_members row -- see resolveWorkspaceRole's own-business
+        // shortcut above). getBusinessNameForOwner works identically for
+        // both cases since every business, including your own, has a
+        // settings row keyed by its owner's user_id.
+        const [role, businessName] = await Promise.all([
+          resolveWorkspaceRole(),
+          getBusinessNameForOwner(ownerUserId),
+        ]);
+        setUser((prev) => (prev ? { ...prev, role, businessName } : prev));
         // Bumps every workspace-scoped provider's hydration effect on both
         // web AND native -- reloadApp() below is still called for web
         // (a full reload is simpler/more thorough there), but this is what
@@ -2970,6 +2980,7 @@ export function useApp() {
     teamMemberships: auth.teamMemberships ?? [],
     refreshTeamMemberships: auth.refreshTeamMemberships || (() => Promise.resolve()),
     switchBusiness: auth.switchBusiness || (() => Promise.resolve()),
+    workspaceVersion: auth.workspaceVersion ?? 0,
 
     // Other missing properties
     navParams: auth.navParams ?? EMPTY_NAV_PARAMS,
