@@ -6,21 +6,16 @@
 // (see ImportTransactionsScreen.tsx, which has no path for an image or a
 // scanned/flattened PDF with no text layer). Same shape as the advisor
 // function: verify the caller's JWT against the anon client, then do the
-// privileged work (calling OpenAI with vision) with a secret only this
+// privileged work (calling a vision-capable LLM) with a secret only this
 // function's environment has.
 //
-// Originally called Anthropic's Claude, which reads a PDF directly via its
-// own "document" content block; switched to OpenAI's Chat Completions
-// vision API, which only accepts images (JPEG/PNG/WEBP/GIF) inline, not a
-// PDF -- OpenAI's PDF support lives in a separate Assistants/Files
-// pipeline with a very different request shape, out of scope for this
-// provider swap. A PDF upload now returns a clear "use a photo instead"
-// error rather than silently failing or mis-reading the file -- a real,
-// intentional feature reduction from the Claude version, not a bug. The
-// client (statementScan.ts) already surfaces whatever error message this
-// function returns, so no client change is required for this to be
-// handled gracefully, though the scan-specific file pickers could still be
-// tightened to stop offering PDF as an option.
+// Originally called Anthropic's Claude (native PDF support), then OpenAI's
+// Chat Completions vision API (images only); switched again to GitHub
+// Models serving GPT-4o (free, see advisor/index.ts's header comment) --
+// same OpenAI-compatible vision request shape (image_url content parts),
+// so the images-only limitation carries over unchanged. A PDF upload still
+// returns a clear "use a photo instead" error rather than silently failing
+// or mis-reading the file.
 //
 // Forced tool use (not free-text JSON) is still used for the same
 // reliability reason as before.
@@ -28,8 +23,8 @@
 // DEPLOYMENT (not done from this environment -- no Supabase CLI credentials
 // here): from a machine with the project linked,
 //   supabase functions deploy statement-scan
-// Reuses the same OPENAI_API_KEY secret already set for advisor/
-// transcribe-voice -- nothing new to configure if that's already deployed.
+// Reuses the same GITHUB_MODELS_TOKEN secret already set for advisor --
+// nothing new to configure if that's already deployed.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -38,8 +33,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const OPENAI_API = 'https://api.openai.com/v1/chat/completions';
-const MODEL = Deno.env.get('OPENAI_MODEL') || 'gpt-4o';
+const GITHUB_MODELS_API = 'https://models.github.ai/inference/chat/completions';
+const MODEL = Deno.env.get('GITHUB_MODEL') || 'openai/gpt-4o';
 
 // OpenAI's own image-input limit is well above this; a single scanned
 // statement has no business exceeding this anyway -- keep a lower ceiling
@@ -168,7 +163,7 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: authError } = await callerClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, ''));
     if (authError || !user) return json({ error: 'Not authenticated' }, 401);
 
-    const apiKey = Deno.env.get('OPENAI_API_KEY');
+    const apiKey = Deno.env.get('GITHUB_MODELS_TOKEN');
     if (!apiKey) return json({ error: 'Statement scanning is not configured yet.' }, 503);
 
     const body = await req.json().catch(() => null);
@@ -188,7 +183,7 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Unsupported file type. Use a JPG, PNG, WEBP, or GIF photo.' }, 400);
     }
 
-    const openaiRes = await fetch(OPENAI_API, {
+    const modelRes = await fetch(GITHUB_MODELS_API, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -212,13 +207,13 @@ Deno.serve(async (req: Request) => {
       }),
     });
 
-    if (!openaiRes.ok) {
-      const errBody = await openaiRes.text();
-      console.error('[statement-scan]', openaiRes.status, errBody);
+    if (!modelRes.ok) {
+      const errBody = await modelRes.text();
+      console.error('[statement-scan]', modelRes.status, errBody);
       return json({ error: 'Could not read this document right now — try again shortly.' }, 502);
     }
 
-    const data = await openaiRes.json();
+    const data = await modelRes.json();
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     let input: any = null;
     try {

@@ -6,20 +6,29 @@
 // piece of backend infrastructure that's real, so this lives here instead,
 // following the exact same shape as supabase/functions/delete-account:
 // verify the caller's JWT against the anon client, do the privileged work
-// (here: calling OpenAI with a secret key) with a secret only this
+// (here: calling an LLM with a secret key) with a secret only this
 // function's environment has, never the client.
 //
-// Originally called Anthropic's Claude; switched to OpenAI's Chat
-// Completions API so the whole app runs on one AI provider -- same
-// system-prompt discipline and request shape otherwise.
+// Originally called Anthropic's Claude, then OpenAI's Chat Completions API;
+// switched again to GitHub Models (models.github.ai) -- a free catalog of
+// hosted models (GPT-4o among them) authenticated with a GitHub token
+// instead of a paid API key, since OpenAI's API itself has no free tier and
+// requires billing credits. GitHub Models speaks the same Chat Completions
+// request/response shape OpenAI does, so this is otherwise an unchanged
+// request. Microsoft's own docs note the free tier is rate-limited and
+// meant for light/experimental use, not high-volume production traffic --
+// acceptable for Quad360's current scale, worth revisiting if usage grows.
 //
 // DEPLOYMENT (not done from this environment -- no Supabase CLI credentials
 // here): from a machine with the project linked,
 //   supabase functions deploy advisor
-//   supabase secrets set OPENAI_API_KEY=sk-...
-// SUPABASE_URL / SUPABASE_ANON_KEY are injected automatically; only the
-// OpenAI key needs to be set by hand -- shared with transcribe-voice,
-// statement-scan, and categorize-transaction.
+//   supabase secrets set GITHUB_MODELS_TOKEN=ghp_...
+// The token is a GitHub personal access token with "Models" read
+// permission (fine-grained PAT, or a classic PAT with no extra scopes
+// needed for public models) -- create one at
+// github.com/settings/personal-access-tokens. SUPABASE_URL /
+// SUPABASE_ANON_KEY are injected automatically; the token is shared with
+// categorize-transaction, statement-scan, and whatsapp-webhook.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -28,8 +37,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const OPENAI_API = 'https://api.openai.com/v1/chat/completions';
-const MODEL = Deno.env.get('OPENAI_MODEL') || 'gpt-4o';
+const GITHUB_MODELS_API = 'https://models.github.ai/inference/chat/completions';
+const MODEL = Deno.env.get('GITHUB_MODEL') || 'openai/gpt-4o';
 const MAX_QUESTION_LEN = 500;
 const MAX_CONTEXT_JSON_LEN = 20000;
 
@@ -84,7 +93,7 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: authError } = await callerClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, ''));
     if (authError || !user) return json({ error: 'Not authenticated' }, 401);
 
-    const apiKey = Deno.env.get('OPENAI_API_KEY');
+    const apiKey = Deno.env.get('GITHUB_MODELS_TOKEN');
     if (!apiKey) return json({ error: 'AI Advisor is not configured yet.' }, 503);
 
     const body = await req.json().catch(() => null);
@@ -101,7 +110,7 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Financial context is too large.' }, 400);
     }
 
-    const openaiRes = await fetch(OPENAI_API, {
+    const modelRes = await fetch(GITHUB_MODELS_API, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -117,13 +126,13 @@ Deno.serve(async (req: Request) => {
       }),
     });
 
-    if (!openaiRes.ok) {
-      const errBody = await openaiRes.text();
-      console.error('[advisor]', openaiRes.status, errBody);
+    if (!modelRes.ok) {
+      const errBody = await modelRes.text();
+      console.error('[advisor]', modelRes.status, errBody);
       return json({ error: 'AI Advisor could not answer right now — try again shortly.' }, 502);
     }
 
-    const data = await openaiRes.json();
+    const data = await modelRes.json();
     const answer = (data.choices?.[0]?.message?.content ?? '').trim();
 
     if (!answer) return json({ error: 'AI Advisor could not answer right now — try again shortly.' }, 502);

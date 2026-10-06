@@ -10,19 +10,20 @@
 //
 // Same security shape as supabase/functions/advisor: verify the caller's
 // JWT against the anon client, then do the privileged work (calling
-// OpenAI with a secret key) with a secret only this function's
+// an LLM with a secret key) with a secret only this function's
 // environment has -- the API key never reaches the client.
 //
-// Originally called Anthropic's Claude via forced tool use; switched to
-// OpenAI's Chat Completions API with forced function calling so the whole
-// app runs on one AI provider.
+// Originally called Anthropic's Claude, then OpenAI's Chat Completions API
+// with forced function calling; switched to GitHub Models (free, see
+// advisor/index.ts's header comment for the full reasoning) -- same
+// request shape, forced tool use still works identically.
 //
 // DEPLOYMENT (not done from this environment -- no Supabase CLI credentials
 // here): from a machine with the project linked,
 //   supabase functions deploy categorize-transaction
-// OPENAI_API_KEY is already set as a secret for the advisor/transcribe-voice
-// functions and is shared across all edge functions in the same project, so
-// no new secret is needed.
+// GITHUB_MODELS_TOKEN is already set as a secret for the advisor function
+// and is shared across all edge functions in the same project, so no new
+// secret is needed.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -31,8 +32,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const OPENAI_API = 'https://api.openai.com/v1/chat/completions';
-const MODEL = Deno.env.get('OPENAI_MODEL') || 'gpt-4o';
+const GITHUB_MODELS_API = 'https://models.github.ai/inference/chat/completions';
+const MODEL = Deno.env.get('GITHUB_MODEL') || 'openai/gpt-4o';
 const MAX_DESCRIPTION_LEN = 300;
 const MAX_RECENT_CATEGORIES = 20;
 const MAX_CATEGORY_LEN = 60;
@@ -105,7 +106,7 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: authError } = await callerClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, ''));
     if (authError || !user) return json({ error: 'Not authenticated' }, 401);
 
-    const apiKey = Deno.env.get('OPENAI_API_KEY');
+    const apiKey = Deno.env.get('GITHUB_MODELS_TOKEN');
     if (!apiKey) return json({ error: 'AI categorization is not configured yet.' }, 503);
 
     const body = await req.json().catch(() => null);
@@ -124,7 +125,7 @@ Deno.serve(async (req: Request) => {
       .filter((c: unknown): c is string => typeof c === 'string' && c.trim().length > 0 && c.length <= MAX_CATEGORY_LEN)
       .slice(0, MAX_RECENT_CATEGORIES);
 
-    const openaiRes = await fetch(OPENAI_API, {
+    const modelRes = await fetch(GITHUB_MODELS_API, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -142,13 +143,13 @@ Deno.serve(async (req: Request) => {
       }),
     });
 
-    if (!openaiRes.ok) {
-      const errBody = await openaiRes.text();
-      console.error('[categorize-transaction]', openaiRes.status, errBody);
+    if (!modelRes.ok) {
+      const errBody = await modelRes.text();
+      console.error('[categorize-transaction]', modelRes.status, errBody);
       return json({ error: 'AI categorization could not run right now — try again shortly.' }, 502);
     }
 
-    const data = await openaiRes.json();
+    const data = await modelRes.json();
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     let result: any = null;
     try {

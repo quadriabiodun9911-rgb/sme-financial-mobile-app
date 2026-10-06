@@ -2,22 +2,30 @@
 //
 // Lets a business owner record a short voice note ("Sold 3 bags of rice
 // for 15000") instead of typing it into Quick Add. Turns the recording into
-// plain text via OpenAI's Whisper API and hands that text back to the
+// plain text via a hosted Whisper model and hands that text back to the
 // client, which feeds it into the exact same parseQuickAddText function a
 // typed sentence goes through (see quickAddParser.ts's own doc comment,
 // which named this as the eventual landing point for voice input).
 //
 // Same shape as statement-scan: verify the caller's JWT against the anon
-// client, then do the privileged work (calling OpenAI with a secret only
-// this function's environment has) -- no API key ever reaches the client.
+// client, then do the privileged work (calling a transcription API with a
+// secret only this function's environment has) -- no API key ever reaches
+// the client.
+//
+// Uses Groq's free-tier hosted Whisper (whisper-large-v3), not GitHub
+// Models (the provider advisor/categorize-transaction/statement-scan/
+// whatsapp-webhook switched to -- see advisor/index.ts's header comment):
+// GitHub Models' free catalog doesn't include a speech-to-text model.
+// Groq's /audio/transcriptions endpoint mirrors OpenAI's Whisper API
+// request/response shape exactly (same multipart form, same {text} JSON
+// reply), so this function's logic is otherwise unchanged from the OpenAI
+// version -- only the endpoint, API key, and model name differ.
 //
 // DEPLOYMENT (not done from this environment -- no Supabase CLI credentials
 // here): from a machine with the project linked,
 //   supabase functions deploy transcribe-voice
-// Requires OPENAI_API_KEY, shared with advisor/statement-scan/
-// categorize-transaction/whatsapp-webhook -- those originally called
-// Anthropic's Claude, switched to OpenAI so the whole app runs on one AI
-// provider. Whisper itself is OpenAI-only regardless.
+//   supabase secrets set GROQ_API_KEY=gsk_...
+// Create a free key at console.groq.com/keys -- no credit card required.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -26,7 +34,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const WHISPER_API = 'https://api.openai.com/v1/audio/transcriptions';
+const WHISPER_API = 'https://api.groq.com/openai/v1/audio/transcriptions';
 
 // A Quick Add voice note is a single spoken sentence, not a meeting
 // recording -- this is generous for that (a couple of minutes of audio)
@@ -82,7 +90,7 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: authError } = await callerClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, ''));
     if (authError || !user) return json({ error: 'Not authenticated' }, 401);
 
-    const apiKey = Deno.env.get('OPENAI_API_KEY');
+    const apiKey = Deno.env.get('GROQ_API_KEY');
     if (!apiKey) return json({ error: 'Voice capture is not configured yet.' }, 503);
 
     const body = await req.json().catch(() => null);
@@ -103,7 +111,7 @@ Deno.serve(async (req: Request) => {
     const extension = EXTENSION_BY_MIME[mimeType] || 'm4a';
     const form = new FormData();
     form.append('file', new Blob([bytes], { type: mimeType }), `voice-note.${extension}`);
-    form.append('model', 'whisper-1');
+    form.append('model', 'whisper-large-v3');
     // Not pinned to a language -- Quad360's own userbase spans English,
     // Hausa, Yoruba, and Igbo speakers (see i18n.ts); Whisper auto-detects
     // reasonably well from audio alone, and forcing 'en' would make every
