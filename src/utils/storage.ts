@@ -1021,6 +1021,29 @@ export async function resolveWorkspaceRole(): Promise<'owner' | 'accountant' | '
     return role;
 }
 
+// A direct, race-free "what is this owner's business called" lookup --
+// unlike patching a name off an in-memory teamMemberships array (which can
+// be stale right after a call that just refreshed it in the same async
+// flow, e.g. createBusiness -> refreshTeamMemberships -> switchBusiness),
+// this always reads the current row straight from `settings`. Works
+// identically whether ownerUserId is someone else's business or the
+// caller's own -- every business, including your own primary one, has a
+// settings row keyed by its owner's user_id.
+export async function getBusinessNameForOwner(ownerUserId: string): Promise<string> {
+    try {
+        const { data, error } = await supabase
+            .from('settings')
+            .select('data')
+            .eq('user_id', ownerUserId)
+            .maybeSingle();
+        if (error || !data) { if (error) logSyncError('settings', 'get_business_name_for_owner', error); return 'Business'; }
+        return (data.data as Record<string, any>)?.businessName || 'Business';
+    } catch (e) {
+        logSyncError('settings', 'get_business_name_for_owner', e);
+        return 'Business';
+    }
+}
+
 export async function inviteTeamMember(
     memberEmail: string,
     role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant' | 'viewer',
