@@ -170,12 +170,20 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Could not set up the new business right now. Please try again.' }, 502);
     }
 
+    // invite_code is NOT NULL on this table (every other writer --
+    // inviteTeamMember in storage.ts -- always supplies one, even though
+    // this row is activated immediately and never actually needs the code
+    // for a claim flow). Reusing that same two-segment random pattern here
+    // rather than leaving it unset, which fails this insert outright.
+    const inviteCode = (Math.random().toString(36).substring(2, 5) + Math.random().toString(36).substring(2, 5)).substring(0, 6).toUpperCase();
+
     const { error: membershipError } = await admin.from('team_members').insert({
       owner_user_id: shadowUserId,
       member_user_id: user.id,
       member_email: user.email,
       role: 'owner',
       status: 'active',
+      invite_code: inviteCode,
     });
     if (membershipError) {
       console.error('[create-business] team_members insert failed', membershipError);

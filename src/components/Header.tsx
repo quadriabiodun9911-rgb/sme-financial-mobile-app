@@ -55,7 +55,6 @@ export default function Header() {
     // switching business keeps the current login, just re-points which
     // owner's data is active.
     const [switchingToBusiness, setSwitchingToBusiness] = useState<string | null>(null);
-    const canSwitch = otherAccounts.length > 0 || teamMemberships.length > 0;
     const handleSwitchBusiness = useCallback(async (ownerUserId: string) => {
         setSwitchingToBusiness(ownerUserId);
         try {
@@ -200,7 +199,7 @@ export default function Header() {
                         onNotify={handleNotify}
                     />
                 )}
-                {canSwitch && isNarrow && (
+                {isNarrow && (
                     <TouchableOpacity style={styles.iconBtn} onPress={() => setSwitcherOpen(true)} activeOpacity={0.7}>
                         <Icon name="repeat" size={16} color={Colors.textSecondary} />
                     </TouchableOpacity>
@@ -214,12 +213,12 @@ export default function Header() {
                 {!isNarrow && (
                     <TouchableOpacity
                         style={styles.userBlock}
-                        onPress={() => canSwitch && setSwitcherOpen(true)}
-                        activeOpacity={canSwitch ? 0.7 : 1}
+                        onPress={() => setSwitcherOpen(true)}
+                        activeOpacity={0.7}
                     >
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                             <Text style={styles.userText}>{(user?.email && accountDisplayName(user.email)) || t(language, 'adminFallback')}</Text>
-                            {canSwitch && <Icon name="chevron-down" size={12} color={Colors.textMuted} />}
+                            <Icon name="chevron-down" size={12} color={Colors.textMuted} />
                         </View>
                         <Text style={styles.userRole}>{ROLE_DISPLAY_LABEL[userRole]}</Text>
                     </TouchableOpacity>
