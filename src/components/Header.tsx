@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, Modal, ActivityIndicator, TextInput, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useApp } from '../contexts/AppContext';
@@ -13,7 +13,7 @@ import { computeForecastRiskAlert } from '../utils/forecastRiskAlert';
 import { ForecastAlert } from '../types/forecast';
 import { sendCashFlowAlert, sendOverdueInvoiceAlert } from '../utils/whatsappIntegration';
 import { ROLE_DISPLAY_LABEL } from '../utils/rolePermissions';
-import { accountDisplayName } from '../utils/storage';
+import { accountDisplayName, createBusiness } from '../utils/storage';
 import { t } from '../utils/i18n';
 
 const DISMISSED_ALERTS_KEY = '@quad360/dismissed_alerts';
@@ -65,6 +65,43 @@ export default function Header() {
             setSwitchingToBusiness(null);
         }
     }, [switchBusiness]);
+
+    // Businesses this same login OWNS outright (a second/third business,
+    // not one someone else invited them into) -- see createBusiness() in
+    // storage.ts and migration 040. These are team_members rows just like
+    // any other membership, distinguished only by role === 'owner', so the
+    // switch action itself (handleSwitchBusiness above) is identical;
+    // they're just split into their own section here for clearer labeling.
+    const ownedBusinesses = useMemo(() => teamMemberships.filter(m => m.role === 'owner'), [teamMemberships]);
+    const invitedBusinesses = useMemo(() => teamMemberships.filter(m => m.role !== 'owner'), [teamMemberships]);
+
+    const [addBusinessOpen, setAddBusinessOpen] = useState(false);
+    const [newBusinessName, setNewBusinessName] = useState('');
+    const [creatingBusiness, setCreatingBusiness] = useState(false);
+    const handleCreateBusiness = useCallback(async () => {
+        const name = newBusinessName.trim();
+        if (!name) return;
+        setCreatingBusiness(true);
+        try {
+            // New business defaults to the same currency as whichever
+            // business is currently active -- the common case for an owner
+            // opening a second branch/shop in the same country. There's no
+            // currency picker in this first-cut form; a business created
+            // with the wrong currency can still have it corrected later from
+            // its own Settings screen once switched into, same as any
+            // business's currency can be changed today.
+            const { ownerId } = await createBusiness(name, settings?.currency ?? '₦', settings?.currencyCode ?? 'NGN');
+            await refreshTeamMemberships();
+            setNewBusinessName('');
+            setAddBusinessOpen(false);
+            await switchBusiness(ownerId);
+            setSwitcherOpen(false);
+        } catch (e) {
+            Alert.alert('Could not create business', e instanceof Error ? e.message : String(e));
+        } finally {
+            setCreatingBusiness(false);
+        }
+    }, [newBusinessName, settings?.currency, settings?.currencyCode, refreshTeamMemberships, switchBusiness]);
 
     useEffect(() => {
         AsyncStorage.getItem(DISMISSED_ALERTS_KEY).then(raw => {
@@ -211,10 +248,65 @@ export default function Header() {
                             </View>
                             <Icon name="check" size={16} color={Colors.primary} />
                         </View>
-                        {teamMemberships.length > 0 && (
+                        {ownedBusinesses.length > 0 && (
+                            <>
+                                <Text style={styles.switcherSectionLabel}>{t(language, 'myBusinesses')}</Text>
+                                {ownedBusinesses.map(m => (
+                                    <TouchableOpacity
+                                        key={m.membershipId}
+                                        style={styles.switcherRow}
+                                        onPress={() => handleSwitchBusiness(m.ownerUserId)}
+                                        disabled={switchingToBusiness !== null}
+                                        activeOpacity={0.7}
+                                    >
+                                        <View style={styles.switcherAvatar}>
+                                            <Text style={styles.switcherAvatarText}>{m.ownerBusinessName.trim().charAt(0).toUpperCase() || '?'}</Text>
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.switcherName} numberOfLines={1}>{m.ownerBusinessName}</Text>
+                                        </View>
+                                        {switchingToBusiness === m.ownerUserId
+                                            ? <ActivityIndicator size="small" color={Colors.primary} />
+                                            : <Icon name="chevron-right" size={16} color={Colors.textMuted} />
+                                        }
+                                    </TouchableOpacity>
+                                ))}
+                            </>
+                        )}
+                        {addBusinessOpen ? (
+                            <View style={styles.addBusinessForm}>
+                                <TextInput
+                                    style={styles.addBusinessInput}
+                                    placeholder={t(language, 'newBusinessNamePlaceholder')}
+                                    placeholderTextColor={Colors.textMuted}
+                                    value={newBusinessName}
+                                    onChangeText={setNewBusinessName}
+                                    editable={!creatingBusiness}
+                                    autoFocus
+                                />
+                                <TouchableOpacity
+                                    style={[styles.addBusinessConfirmBtn, (!newBusinessName.trim() || creatingBusiness) && { opacity: 0.5 }]}
+                                    onPress={handleCreateBusiness}
+                                    disabled={!newBusinessName.trim() || creatingBusiness}
+                                >
+                                    {creatingBusiness
+                                        ? <ActivityIndicator size="small" color="#fff" />
+                                        : <Text style={styles.addBusinessConfirmText}>{t(language, 'addBusiness')}</Text>
+                                    }
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <TouchableOpacity style={styles.switcherRow} onPress={() => setAddBusinessOpen(true)} activeOpacity={0.7}>
+                                <View style={[styles.switcherAvatar, styles.addBusinessAvatar]}>
+                                    <Icon name="plus" size={16} color={Colors.primary} />
+                                </View>
+                                <Text style={[styles.switcherName, { color: Colors.primary }]}>{t(language, 'addBusiness')}</Text>
+                            </TouchableOpacity>
+                        )}
+                        {invitedBusinesses.length > 0 && (
                             <>
                                 <Text style={styles.switcherSectionLabel}>{t(language, 'businessesYoureOn')}</Text>
-                                {teamMemberships.map(m => (
+                                {invitedBusinesses.map(m => (
                                     <TouchableOpacity
                                         key={m.membershipId}
                                         style={styles.switcherRow}
@@ -237,7 +329,7 @@ export default function Header() {
                                 ))}
                             </>
                         )}
-                        {otherAccounts.length > 0 && teamMemberships.length > 0 && (
+                        {otherAccounts.length > 0 && (
                             <Text style={styles.switcherSectionLabel}>{t(language, 'otherAccounts')}</Text>
                         )}
                         {otherAccounts.map(acct => (
@@ -350,4 +442,15 @@ const styles = StyleSheet.create({
     switcherEmail: { fontSize: 11.5, color: Colors.textMuted, marginTop: 1 },
     switcherCancelBtn: { paddingVertical: 12, alignItems: 'center', marginTop: 4 },
     switcherCancelText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+    addBusinessAvatar: { backgroundColor: Colors.primary + '15', borderWidth: 1, borderColor: Colors.primary + '33', borderStyle: 'dashed' },
+    addBusinessForm: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 4 },
+    addBusinessInput: {
+        flex: 1, height: 38, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
+        paddingHorizontal: 10, fontSize: 13.5, color: Colors.textPrimary, backgroundColor: Colors.bg,
+    },
+    addBusinessConfirmBtn: {
+        height: 38, paddingHorizontal: 12, borderRadius: Radius.md, backgroundColor: Colors.primary,
+        alignItems: 'center', justifyContent: 'center',
+    },
+    addBusinessConfirmText: { fontSize: 12.5, fontWeight: '700', color: '#fff' },
 });
