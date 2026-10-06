@@ -89,7 +89,14 @@ export default function Header() {
             setActiveOwnerId(ownerId);
             if (myId) setPrimaryBusinessName(await getBusinessNameForOwner(myId));
         })();
-    }, [workspaceVersion]);
+        // workspaceVersion covers a business switch; user?.email covers
+        // switching to a DIFFERENT local login on this device (the "Other
+        // Accounts" section below) -- finishAccountSwitch never bumps
+        // workspaceVersion (it's a different identity, not a different
+        // business for the same one), so without this this block would
+        // keep showing the previous account's active-business comparison
+        // after switching accounts.
+    }, [workspaceVersion, user?.email]);
     const isPrimaryActive = !!myAuthId && activeOwnerId === myAuthId;
 
     // Businesses this same login OWNS outright (a second/third business,
@@ -144,9 +151,20 @@ export default function Header() {
                 try { setDismissedIds(JSON.parse(raw)); } catch { /* corrupt value, start fresh */ }
             }
         });
+    }, []);
+
+    // Separate from the dismissed-alerts effect above (that one is truly
+    // mount-only) -- this has to re-run whenever the signed-in identity
+    // changes, not just on mount, or teamMemberships keeps showing
+    // whichever account was active when Header first mounted. Header
+    // persists across the switchAccountDirect flow (no remount, no
+    // reloadApp() call there), so without user?.email as a dependency, the
+    // switcher would list the PREVIOUS account's owned/invited businesses
+    // after switching to a different local login on this device.
+    useEffect(() => {
         refreshTeamMemberships().catch(() => {});
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [user?.email]);
 
     const alerts = useMemo(() => {
         // Cash balance, loans, budgets, assets, and goals -- exactly the

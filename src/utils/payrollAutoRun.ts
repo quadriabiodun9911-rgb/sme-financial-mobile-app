@@ -26,7 +26,14 @@ export function computeAutoPayrollRun(
     const period = status.kind === 'overdue' ? status.missedPeriod : status.kind === 'due_soon' ? status.period : null;
     if (!period) return null;
 
-    const rate = Math.max(0, deductionRatePct) / 100;
+    // A rate above 100% (a typo, e.g. 150 meant as 15.0) would make
+    // netSalary negative -- that negative figure becomes the amount of a
+    // stored expense Transaction (commitPayrollRun, OptimizedContexts.tsx),
+    // which every downstream cash-balance/profit/runway calculation then
+    // reads as a NEGATIVE expense, silently inflating reported profit and
+    // cash balance. This runs unattended (no confirmation dialog), so the
+    // ceiling matters here even more than on the manual Run Payroll path.
+    const rate = Math.min(100, Math.max(0, deductionRatePct)) / 100;
     const items: PayrollItem[] = activeStaff.map(m => {
         const gross = m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22;
         const deductions = gross * rate;

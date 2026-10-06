@@ -23,6 +23,15 @@ import { localDateStr } from '../utils/localDate';
 
 type Tab = 'staff' | 'run' | 'history';
 
+// A deduction rate above 100% (a typo -- 150 meant as 15.0, say) makes
+// netSalary negative; that negative figure becomes the amount of a stored
+// expense Transaction in runPayroll (OptimizedContexts.tsx), which every
+// downstream cash-balance/profit/runway calculation then silently reads as
+// a NEGATIVE expense -- inflating reported profit and cash balance instead
+// of erroring. Only a floor was ever enforced; this adds the missing
+// ceiling everywhere a typed rate becomes a fraction.
+const clampDeductionRate = (pct: number): number => Math.min(100, Math.max(0, pct));
+
 const EMPTY_STAFF: Omit<StaffMember, 'id' | 'createdAt'> = {
     name: '', role: '', salary: 0, salaryType: 'monthly',
     startDate: localDateStr(),
@@ -71,13 +80,14 @@ export default function PayrollScreen() {
     const applyPayrollTransaction = (transactionId: string, period: string) => {
         if (activeStaff.length === 0) { showAlert('No active staff', 'Add staff before linking this payment to a payroll run.'); return; }
         if (payrollRuns.some(r => r.period === period)) { showAlert('Already run', `Payroll for ${period} already exists.`); return; }
-        const rate = Math.max(0, parseFloat(deductRate) || 0) / 100;
+        const clampedRate = clampDeductionRate(parseFloat(deductRate) || 0);
+        const rate = clampedRate / 100;
         const items: PayrollItem[] = activeStaff.map(m => {
             const gross = m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22;
             const deductions = gross * rate;
             return { staffId: m.id, staffName: m.name, grossSalary: gross, deductions, netSalary: gross - deductions };
         });
-        runPayroll(period, items, parseFloat(deductRate), transactionId);
+        runPayroll(period, items, clampedRate, transactionId);
     };
     const totalMonthlyPayroll = useMemo(() =>
         activeStaff.reduce((s, m) => s + (m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22), 0),
@@ -97,7 +107,7 @@ export default function PayrollScreen() {
     // recalculates whenever staff, salaries, or the typed deduction rate change.
     const totalNetPreview = useMemo(() => activeStaff.reduce((s, m) => {
         const g = m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22;
-        return s + g * (1 - (Math.max(0, parseFloat(deductRate) || 0) / 100));
+        return s + g * (1 - (clampDeductionRate(parseFloat(deductRate) || 0) / 100));
     }, 0), [activeStaff, deductRate]);
 
     const netPreviewAnim = useRef(new Animated.Value(0)).current;
@@ -128,8 +138,8 @@ export default function PayrollScreen() {
         if (activeStaff.length === 0) { showAlert('No active staff'); return; }
         const existing = payrollRuns.find(r => r.period === runPeriod);
         if (existing) { showAlert('Already run', `Payroll for ${runPeriod} already exists.`); return; }
-        const parsedRate = parseFloat(deductRate);
-        const rate = (isNaN(parsedRate) || parsedRate < 0) ? 0 : parsedRate / 100;
+        const clampedRate = clampDeductionRate(parseFloat(deductRate) || 0);
+        const rate = clampedRate / 100;
         const items: PayrollItem[] = activeStaff.map(m => {
             const gross = m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22;
             const deductions = gross * rate;
@@ -139,7 +149,7 @@ export default function PayrollScreen() {
             'Run Payroll',
             `Pay ${activeStaff.length} staff for ${runPeriod}?\nTotal Net: ${fmt(items.reduce((s, i) => s + i.netSalary, 0))}`,
             'Run & Record',
-            () => { runPayroll(runPeriod, items, parseFloat(deductRate)); setTab('history'); },
+            () => { runPayroll(runPeriod, items, clampedRate); setTab('history'); },
         );
     };
 
@@ -164,7 +174,7 @@ export default function PayrollScreen() {
                 autoRunEnabled={!!settings.payrollAutoRunEnabled}
                 autoRunRate={settings.payrollAutoRunDeductionRate != null ? String(settings.payrollAutoRunDeductionRate) : ''}
                 onChangeAutoRunEnabled={v => updateSettings({ payrollAutoRunEnabled: v })}
-                onChangeAutoRunRate={v => updateSettings({ payrollAutoRunDeductionRate: parseFloat(v) || 0 })}
+                onChangeAutoRunRate={v => updateSettings({ payrollAutoRunDeductionRate: clampDeductionRate(parseFloat(v) || 0) })}
             />
 
             {payrollStatus.kind !== 'none' && (
@@ -285,7 +295,7 @@ export default function PayrollScreen() {
                                 <Text style={styles.cardTitle}>Preview</Text>
                                 {activeStaff.map(s => {
                                     const gross = s.salaryType === 'monthly' ? s.salary : s.salaryType === 'weekly' ? s.salary * 4.33 : s.salary * 22;
-                                    const deductions = gross * (Math.max(0, parseFloat(deductRate) || 0) / 100);
+                                    const deductions = gross * (clampDeductionRate(parseFloat(deductRate) || 0) / 100);
                                     const net = gross - deductions;
                                     return (
                                         <View key={s.id} style={styles.previewRow}>
