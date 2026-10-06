@@ -927,11 +927,18 @@ export async function loadTeamMembers(): Promise<TeamMember[]> {
 // This is the "which businesses am I in" read: everything the in-app
 // Switch Business control needs to list, without the caller having to know
 // each owner's id up front.
+//
+// 'owner' here (unlike everywhere else this role union appears, e.g.
+// inviteTeamMember/joinTeamWithCode below) covers a SECOND business this
+// same login owns outright rather than one it was invited into -- see
+// createBusiness() and migration 040. It's never assigned through the
+// normal invite/join flow, only ever created alongside the team_members
+// row itself.
 export interface MyTeamMembership {
     membershipId: string;
     ownerUserId: string;
     ownerBusinessName: string;
-    role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant' | 'viewer';
+    role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant' | 'viewer' | 'owner';
 }
 
 export async function loadMyTeamMemberships(): Promise<MyTeamMembership[]> {
@@ -1062,6 +1069,32 @@ export async function joinTeamWithCode(
         .single();
     if (error || !data || !(data as any).owner_user_id) throw new Error('Invalid or already used invite code.');
     return { ownerId: (data as any).owner_user_id, role: (data as any).role };
+}
+
+// Creates a SECOND (or third, ...) business this same login owns outright,
+// via the create-business edge function -- see that function's header
+// comment for why it's a shadow Supabase Auth identity rather than a new
+// column on every workspace table. The caller is responsible for calling
+// refreshTeamMemberships() and switchBusiness(ownerId) afterward (see
+// OptimizedContexts.tsx) to actually move into the new business; this
+// function only creates it.
+export async function createBusiness(businessName: string, currency: string, currencyCode: string): Promise<{ ownerId: string }> {
+    const { data, error } = await supabase.functions.invoke('create-business', {
+        body: { businessName, currency, currencyCode },
+    });
+    if (error) {
+        // Same FunctionsHttpError unwrap every other edge-function caller in
+        // this file uses (see aiAdvisor.ts for the canonical version) -- the
+        // edge function always replies with a JSON { error } body on failure.
+        const errResponse = (error as { context?: Response }).context;
+        if (errResponse && typeof errResponse.json === 'function') {
+            const body = await errResponse.json().catch(() => null);
+            if (body?.error) throw new Error(body.error);
+        }
+        throw new Error(error.message || 'Could not create the new business.');
+    }
+    if (!data?.ownerUserId) throw new Error('Could not create the new business.');
+    return { ownerId: data.ownerUserId };
 }
 
 // ─── Inventory (now synced with Supabase for backup) ──────────────────────────

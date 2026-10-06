@@ -263,6 +263,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // workspace owner yet (loads local), then after login we re-pull from Supabase.
   const authForSync = useContext(AuthContext);
   const syncUserId = authForSync?.user?.email;
+  const workspaceVersion = authForSync?.workspaceVersion ?? 0;
   const isDemoMode = authForSync?.isDemoMode ?? false;
   const demoBusinessId = authForSync?.demoBusinessId ?? null;
   // 'staff' has no visibility into P&L/cash-balance/loan/payroll detail
@@ -437,7 +438,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [syncUserId, isDemoMode, demoBusinessId, isStaffRole]);
+  }, [syncUserId, isDemoMode, demoBusinessId, isStaffRole, workspaceVersion]);
 
   // Persist on change (only after the initial load, and never in demo mode
   // — "Nothing will be saved" is a promise made on the demo picker screen).
@@ -1083,6 +1084,7 @@ export function GoalProvider({ children }: { children: ReactNode }) {
   // saveGoals's remote-diff-and-delete would wipe the real owner's goals
   // if this ever saved an empty array a staff session never actually loaded.
   const isStaffRole = authCtx?.user?.role === 'staff';
+  const workspaceVersion = authCtx?.workspaceVersion ?? 0;
 
   useEffect(() => {
     setHydrated(false);
@@ -1100,7 +1102,7 @@ export function GoalProvider({ children }: { children: ReactNode }) {
       finally { setHydrated(true); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [syncUserId, isDemoMode, isStaffRole]);
+  }, [syncUserId, isDemoMode, isStaffRole, workspaceVersion]);
   // Not debounced -- see FinanceProvider's save-effect comment for why.
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveGoals(goals).catch(() => {}); }, [goals, hydrated, isDemoMode, isStaffRole]);
 
@@ -1159,6 +1161,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
   const syncUserId = authCtx?.user?.email;
   const isDemoMode = authCtx?.isDemoMode ?? false;
   const demoBusinessId = authCtx?.demoBusinessId ?? null;
+  const workspaceVersion = authCtx?.workspaceVersion ?? 0;
 
   useEffect(() => {
     setHydrated(false);
@@ -1177,7 +1180,7 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       finally { setHydrated(true); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [syncUserId, isDemoMode, demoBusinessId]);
+  }, [syncUserId, isDemoMode, demoBusinessId, workspaceVersion]);
   // Not debounced -- see FinanceProvider's save-effect comment for why.
   useEffect(() => { if (hydrated && !isDemoMode) saveInvoices(invoices).catch(() => {}); }, [invoices, hydrated, isDemoMode]);
 
@@ -1250,6 +1253,7 @@ export function BillProvider({ children }: { children: ReactNode }) {
   const authCtx = useContext(AuthContext);
   const syncUserId = authCtx?.user?.email;
   const isDemoMode = authCtx?.isDemoMode ?? false;
+  const workspaceVersion = authCtx?.workspaceVersion ?? 0;
 
   useEffect(() => {
     setHydrated(false);
@@ -1269,7 +1273,7 @@ export function BillProvider({ children }: { children: ReactNode }) {
       finally { setHydrated(true); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [syncUserId, isDemoMode]);
+  }, [syncUserId, isDemoMode, workspaceVersion]);
   useEffect(() => { if (hydrated && !isDemoMode) saveBills(bills).catch(() => {}); }, [bills, hydrated, isDemoMode]);
 
   const value: BillContextValue = useMemo(
@@ -1336,6 +1340,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const syncUserId = authCtx?.user?.email;
   const isDemoMode = authCtx?.isDemoMode ?? false;
   const demoBusinessId = authCtx?.demoBusinessId ?? null;
+  const workspaceVersion = authCtx?.workspaceVersion ?? 0;
 
   useEffect(() => {
     setHydrated(false);
@@ -1368,7 +1373,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       finally { setHydrated(true); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [syncUserId, isDemoMode, demoBusinessId]);
+  }, [syncUserId, isDemoMode, demoBusinessId, workspaceVersion]);
   // Not debounced -- see FinanceProvider's save-effect comment for why.
   useEffect(() => { if (hydrated && !isDemoMode) saveSettings(settings).catch(() => {}); }, [settings, hydrated, isDemoMode]);
 
@@ -1470,6 +1475,10 @@ interface AuthContextValue {
   teamMemberships: MyTeamMembership[];
   refreshTeamMemberships: () => Promise<void>;
   switchBusiness: (ownerUserId: string) => Promise<void>;
+  // See its useState declaration's comment -- workspace-scoped providers
+  // depend on this to re-hydrate after switchBusiness, since it's the only
+  // thing that reliably changes on every switch (unlike user.email).
+  workspaceVersion: number;
   isFirstLaunch: boolean;
   isLockedOut: boolean;
   lockoutUntil: number | null;
@@ -1570,6 +1579,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [demoBusinessId, setDemoBusinessId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [teamMemberships, setTeamMemberships] = useState<MyTeamMembership[]>([]);
+  // Bumped by switchBusiness -- every workspace-scoped provider's hydration
+  // effect below depends on this alongside the login's own email, since
+  // email alone never changes when switching to a DIFFERENT business owned
+  // by the same login. Without it, those effects only ever re-ran via
+  // reloadApp()'s full page reload, which is a true no-op on native (window
+  // is undefined there) -- so switching business on a phone left every
+  // provider showing the PREVIOUS business's data in memory, with no
+  // reload to recover from it.
+  const [workspaceVersion, setWorkspaceVersion] = useState(0);
   const [isFirstLaunch, setIsFirstLaunch] = useState(false);
   const [isLockedOut, setIsLockedOut] = useState(false);
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
@@ -2422,10 +2440,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshTeamMemberships: async () => {
         setTeamMemberships(await loadMyTeamMemberships());
       },
+      workspaceVersion,
       // Stays signed in as the same auth user, just re-points which
-      // owner's data this device treats as the active workspace -- same
-      // reload-based re-hydration resetBusinessData/clearData already use
-      // rather than trying to reset every in-memory slice by hand.
+      // owner's data this device treats as the active workspace.
       // clearLocalFinancialCache() also clears the workspace-owner pointer
       // (see its own comment), so it must run BEFORE setWorkspaceOwner,
       // exactly like joinTeam above.
@@ -2437,9 +2454,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // to depend on the reload -- resolveWorkspaceRole() looks up the
         // real, currently-active team_members role for this specific
         // ownerUserId rather than carrying over whatever role this session
-        // had before the switch.
+        // had before the switch. businessName is patched from the already-
+        // loaded teamMemberships list (refreshTeamMemberships() is always
+        // called before this by every caller) so the header shows the
+        // NEWLY active business, not whatever was last loaded.
         const role = await resolveWorkspaceRole();
-        setUser((prev) => (prev ? { ...prev, role } : prev));
+        const membership = teamMemberships.find(m => m.ownerUserId === ownerUserId);
+        setUser((prev) => (prev ? { ...prev, role, ...(membership ? { businessName: membership.ownerBusinessName } : {}) } : prev));
+        // Bumps every workspace-scoped provider's hydration effect on both
+        // web AND native -- reloadApp() below is still called for web
+        // (a full reload is simpler/more thorough there), but this is what
+        // actually fixes native, where that call does nothing.
+        setWorkspaceVersion(v => v + 1);
         reloadApp();
       },
     }),

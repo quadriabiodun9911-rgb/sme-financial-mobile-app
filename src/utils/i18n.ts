@@ -201,6 +201,7 @@ const T = {
         businessSuiteFallback: 'Business Suite', adminFallback: 'Admin',
         signOut: 'Sign Out', signOutShort: 'Out', switchAccountTitle: 'Switch Account',
         businessesYoureOn: "Businesses You're On", yourRolePrefix: 'Your role:', otherAccounts: 'Other Accounts',
+        myBusinesses: 'My Businesses', addBusiness: '+ Add a Business', newBusinessNamePlaceholder: 'Business name', creatingBusiness: 'Creating...',
 
         // Footer nav — tab bar & More menu
         tabHome: 'Home', tabPassport: 'Passport', tabTransactions: 'Transactions', moreLabel: 'More',
@@ -427,6 +428,7 @@ const T = {
         businessSuiteFallback: '商业套件', adminFallback: '管理员',
         signOut: '退出登录', signOutShort: '退出', switchAccountTitle: '切换账户',
         businessesYoureOn: '您所在的企业', yourRolePrefix: '您的角色：', otherAccounts: '其他账户',
+        myBusinesses: '我的企业', addBusiness: '+ 添加企业', newBusinessNamePlaceholder: '企业名称', creatingBusiness: '创建中...',
 
         // Footer nav — tab bar & More menu
         tabHome: '首页', tabPassport: '护照', tabTransactions: '交易', moreLabel: '更多',
@@ -654,6 +656,7 @@ const T = {
         businessSuiteFallback: 'Kayan Kasuwanci', adminFallback: 'Admin',
         signOut: 'Fita', signOutShort: 'Fita', switchAccountTitle: 'Canja Asusu',
         businessesYoureOn: 'Kasuwancin da Kake a Kai', yourRolePrefix: 'Matsayinka:', otherAccounts: 'Sauran Asusu',
+        myBusinesses: 'Kasuwancina', addBusiness: '+ Ƙara Kasuwanci', newBusinessNamePlaceholder: 'Sunan kasuwanci', creatingBusiness: 'Ana ƙirƙira...',
 
         // Footer nav — tab bar & More menu
         tabHome: 'Gida', tabPassport: 'Fasfo', tabTransactions: 'Ciniki', moreLabel: 'Ƙari',
@@ -881,6 +884,7 @@ const T = {
         businessSuiteFallback: 'Ẹ̀rọ Iṣẹ́ Òwò', adminFallback: 'Alábòójútó',
         signOut: 'Jáde', signOutShort: 'Jáde', switchAccountTitle: 'Yí Àkántì Padà',
         businessesYoureOn: 'Àwọn Iṣẹ́ tí O wà Nínú', yourRolePrefix: 'Ipò rẹ:', otherAccounts: 'Àwọn Àkántì Mìíràn',
+        myBusinesses: 'Àwọn Iṣẹ́ Mi', addBusiness: '+ Fi Iṣẹ́ Kún', newBusinessNamePlaceholder: 'Orúkọ iṣẹ́', creatingBusiness: 'Ń dá...',
 
         // Footer nav — tab bar & More menu
         tabHome: 'Ilé', tabPassport: 'Páàsípọ̀tù', tabTransactions: 'Àwọn Ìṣòwò', moreLabel: 'Sí i',
@@ -1108,6 +1112,7 @@ const T = {
         businessSuiteFallback: 'Ngwá Azụmahịa', adminFallback: 'Onye Nchịkwa',
         signOut: 'Pụọ', signOutShort: 'Pụọ', switchAccountTitle: 'Gbanwee Akaụntụ',
         businessesYoureOn: 'Azụmahịa Ị Nọ Na Ya', yourRolePrefix: 'Ọrụ gị:', otherAccounts: 'Akaụntụ Ndị Ọzọ',
+        myBusinesses: 'Azụmahịa M', addBusiness: '+ Tinye Azụmahịa', newBusinessNamePlaceholder: 'Aha azụmahịa', creatingBusiness: 'Na-eke...',
 
         // Footer nav — tab bar & More menu
         tabHome: 'Ụlọ', tabPassport: 'Paspọtu', tabTransactions: 'Azụmahịa', moreLabel: 'Ọzọ',
