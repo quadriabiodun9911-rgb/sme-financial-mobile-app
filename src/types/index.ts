@@ -51,6 +51,7 @@ export type Screen =
     | 'before-you-decide'
     | 'macroshield-detail'
     | 'upgrade'
+    | 'portfolio'
     // Set on a lender session (see routeAfterAuth in OptimizedContexts.tsx)
     // but never matched in App.tsx's currentScreen switch -- isLenderSession
     // intercepts and renders LenderPipelineScreen before that switch is ever

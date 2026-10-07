@@ -222,6 +222,38 @@ export async function loadTransactions(): Promise<Transaction[] | null> {
     return safeParse<Transaction[]>(raw);
 }
 
+// A direct read for one SPECIFIC owner's transactions, bypassing the
+// active-workspace pointer entirely -- for the Portfolio view (see
+// portfolio.ts), which needs every owned business's data at once, not just
+// whichever one is currently active. No AsyncStorage read/write here
+// (unlike loadTransactions above): caching under the single shared
+// KEYS.transactions key would corrupt whichever business IS the active
+// workspace's own local cache. Safe to call for any ownerId the caller
+// already owns -- decryption uses the signed-in identity's own derived
+// key, which is the same key every business that identity owns was
+// encrypted with (see getBusinessNameForOwner's comment in this file and
+// create-business's header for why: switching business never changes
+// which real auth identity is signed in, only which user_id is queried).
+export async function loadTransactionsForOwner(ownerId: string): Promise<Transaction[]> {
+    try {
+        const { data, error } = await supabase
+            .from('transactions')
+            .select('data')
+            .eq('user_id', ownerId)
+            .order('updated_at', { ascending: false });
+        if (error) { logSyncError('transactions', 'load_for_owner', error); return []; }
+        if (!data || data.length === 0) return [];
+        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+        return data.map(r => {
+            const raw = r.data as Record<string, any>;
+            return (encKey && raw?.encrypted ? decryptTransaction(raw as any, encKey) : raw) as Transaction;
+        });
+    } catch (e) {
+        logSyncError('transactions', 'load_for_owner', e);
+        return [];
+    }
+}
+
 // ─── Settings ─────────────────────────────────────────────────────────────────
 export async function saveSettings(s: BusinessSettings): Promise<void> {
     await AsyncStorage.setItem(KEYS.settings, JSON.stringify(s));
@@ -260,6 +292,26 @@ export async function loadSettings(): Promise<BusinessSettings | null> {
     }
     const raw = await AsyncStorage.getItem(KEYS.settings);
     return safeParse<BusinessSettings>(raw);
+}
+
+// Direct read for one specific owner's settings -- see
+// loadTransactionsForOwner's comment just above loadTransactions for why
+// this bypasses the active-workspace pointer and skips the AsyncStorage
+// cache. Settings rows are never field-encrypted (see ENCRYPTED_FIELDS in
+// encryption.ts), so there's no decrypt step here.
+export async function loadSettingsForOwner(ownerId: string): Promise<BusinessSettings | null> {
+    try {
+        const { data, error } = await supabase
+            .from('settings')
+            .select('data')
+            .eq('user_id', ownerId)
+            .maybeSingle();
+        if (error || !data) { if (error) logSyncError('settings', 'load_for_owner', error); return null; }
+        return data.data as BusinessSettings;
+    } catch (e) {
+        logSyncError('settings', 'load_for_owner', e);
+        return null;
+    }
 }
 
 // ─── Goals ────────────────────────────────────────────────────────────────────
@@ -677,6 +729,29 @@ export async function loadAssets(): Promise<Asset[] | null> {
     }
     const raw = await AsyncStorage.getItem(KEYS.assets);
     return safeParse<Asset[]>(raw);
+}
+
+// Direct read for one specific owner's assets -- see
+// loadTransactionsForOwner's comment for why this bypasses the
+// active-workspace pointer and the AsyncStorage cache.
+export async function loadAssetsForOwner(ownerId: string): Promise<Asset[]> {
+    try {
+        const { data, error } = await supabase
+            .from('assets')
+            .select('data')
+            .eq('user_id', ownerId)
+            .order('updated_at', { ascending: false });
+        if (error) { logSyncError('assets', 'load_for_owner', error); return []; }
+        if (!data || data.length === 0) return [];
+        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+        return data.map(r => {
+            const raw = r.data as Record<string, any>;
+            return (encKey && raw?.encrypted ? decryptAsset(raw as any, encKey) : raw) as Asset;
+        });
+    } catch (e) {
+        logSyncError('assets', 'load_for_owner', e);
+        return [];
+    }
 }
 
 // ─── Loans ────────────────────────────────────────────────────────────────────

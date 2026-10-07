@@ -88,6 +88,7 @@ const UNDERSTAND_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen;
     { label: 'navPayroll',        icon: 'users',         screen: 'payroll',        color: '#10b981', desc: 'navPayrollDesc' },
     { label: 'navReconciliation', icon: 'link-2',        screen: 'reconciliation', color: '#8b5cf6', desc: 'navReconciliationDesc' },
     { label: 'navGeneralLedger',  icon: 'book-open',     screen: 'general-ledger', color: '#64748b', desc: 'navGeneralLedgerDesc' },
+    { label: 'navPortfolio',      icon: 'layers',        screen: 'portfolio',      color: '#6366f1', desc: 'navPortfolioDesc' },
 ];
 
 const ANTICIPATE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string }[] = [
@@ -133,7 +134,7 @@ const TABS: { label: TranslationKey; screen: Screen; icon: IconName }[] = [
 ];
 
 export default function FooterNav() {
-    const { currentScreen, setCurrentScreen, navigate, user, pendingSyncCount, transactions, goals, invoices, finance, userRole, canViewFinancials, settings, language } = useApp();
+    const { currentScreen, setCurrentScreen, navigate, user, pendingSyncCount, transactions, goals, invoices, finance, userRole, canViewFinancials, settings, language, teamMemberships } = useApp();
     const [moreOpen, setMoreOpen] = useState(false);
     // Modal renders via a portal on web (react-native-web), completely
     // outside App.tsx's centeredAppColumn wrapper -- so unlike every
@@ -197,10 +198,19 @@ export default function FooterNav() {
     // business that hasn't logged any items yet doesn't lose the entry
     // point it would actually need the first time it does.
     const isServiceOnly = settings?.businessType === 'service';
+    // Any 'owner' membership means this login owns a second (or third, ...)
+    // business beyond its own primary one (see createBusiness() in
+    // storage.ts and migration 040) -- Portfolio has nothing to combine
+    // with just one business, so it's hidden rather than shown empty.
+    const ownsMultipleBusinesses = teamMemberships.some(m => m.role === 'owner');
     const visibleDiagnosis = useMemo(() => DIAGNOSIS_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
     const visibleUnderstand = useMemo(
-        () => UNDERSTAND_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole) && !(isServiceOnly && i.screen === 'inventory')),
-        [userRole, isServiceOnly],
+        () => UNDERSTAND_ITEMS.filter(i =>
+            isScreenAllowedForRole(i.screen, userRole)
+            && !(isServiceOnly && i.screen === 'inventory')
+            && !(i.screen === 'portfolio' && !ownsMultipleBusinesses)
+        ),
+        [userRole, isServiceOnly, ownsMultipleBusinesses],
     );
     const visibleAnticipate = useMemo(() => ANTICIPATE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
     const visibleDecide = useMemo(() => DECIDE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
