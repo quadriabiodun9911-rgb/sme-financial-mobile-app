@@ -230,10 +230,14 @@ export async function loadTransactions(): Promise<Transaction[] | null> {
 // KEYS.transactions key would corrupt whichever business IS the active
 // workspace's own local cache. Safe to call for any ownerId the caller
 // already owns -- decryption uses the signed-in identity's own derived
-// key, which is the same key every business that identity owns was
-// encrypted with (see getBusinessNameForOwner's comment in this file and
-// create-business's header for why: switching business never changes
-// which real auth identity is signed in, only which user_id is queried).
+// key (getFieldEncryptionKey/loadAuthSecret below, neither of which takes
+// an ownerId), and that's the same key every business the identity owns
+// was encrypted with: switchBusiness() (OptimizedContexts.tsx) only ever
+// re-points which user_id is queried, it never re-authenticates as a
+// different Supabase Auth identity (see create-business/index.ts's header
+// for the shadow-identity design this relies on), so the real signed-in
+// identity -- and therefore its derived key -- never changes across a
+// business switch.
 export async function loadTransactionsForOwner(ownerId: string): Promise<Transaction[]> {
     try {
         const { data, error } = await supabase
