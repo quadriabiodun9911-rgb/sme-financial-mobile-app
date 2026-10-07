@@ -70,6 +70,22 @@ export async function dequeue(opId: string): Promise<void> {
     await saveQueue(q.filter(e => e.id !== opId));
 }
 
+// Every table's real upsert call in storage.ts uses `onConflict: 'id'`
+// EXCEPT settings (keyed by user_id, not id -- see saveSettings) and
+// merchant_financing (a compound 'id,user_id' key -- see
+// syncFinancingToSupabase). flushQueue below replays a queued upsert
+// against whichever table it was queued for, so it has to match each
+// table's real unique constraint or Postgres rejects every single
+// replay attempt -- not a transient failure, a deterministic one that
+// retries forever (up to the 10-attempt cap) and then silently drops
+// the change. Found via a stuck "1 change will retry when back online"
+// banner that persisted across reloads: the queued settings upsert had
+// no `id` field at all, so `onConflict: 'id'` could never match.
+const TABLE_ONCONFLICT: Record<string, string> = {
+    settings: 'user_id',
+    merchant_financing: 'id,user_id',
+};
+
 // ─── Flush queue — call when internet is restored ─────────────────────────────
 
 export async function flushQueue(
@@ -118,7 +134,7 @@ export async function flushQueue(
                 }
                 const { error } = await supabase
                     .from(op.table)
-                    .upsert(rowsToUpsert, { onConflict: 'id' });
+                    .upsert(rowsToUpsert, { onConflict: TABLE_ONCONFLICT[op.table] ?? 'id' });
                 if (error) throw new Error(error.message);
             } else if (op.op === 'delete') {
                 const { error } = await supabase
