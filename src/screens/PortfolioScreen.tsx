@@ -12,7 +12,7 @@
  * one reporting currency is a deliberate later phase, not bundled here.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { SafeAreaView, ScrollView, View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { SafeAreaView, ScrollView, View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
@@ -49,9 +49,16 @@ export default function PortfolioScreen() {
     const { workspaceVersion } = useApp();
     const [loading, setLoading] = useState(true);
     const [summary, setSummary] = useState<PortfolioSummary | null>(null);
+    // Distinct from "no data yet" -- a business whose settings genuinely
+    // failed to load (network blip, not a missing row) must NOT silently
+    // fall through to currencyCode: '', which would never equal another
+    // business's real code and get misreported as "these businesses use
+    // different currencies" when the real problem is just a failed fetch.
+    const [loadError, setLoadError] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
+        setLoadError(false);
         try {
             // Fetched directly rather than via the shared teamMemberships
             // context state -- reading that state right after calling its
@@ -73,26 +80,30 @@ export default function PortfolioScreen() {
             // (see portfolio.ts's header comment).
             const ownedIds = [myId, ...memberships.filter(m => m.role === 'owner').map(m => m.ownerUserId)];
 
-            const inputs = await Promise.all(ownedIds.map(async (ownerId) => {
+            const results = await Promise.all(ownedIds.map(async (ownerId) => {
                 const [settings, transactions, assets] = await Promise.all([
                     loadSettingsForOwner(ownerId),
                     loadTransactionsForOwner(ownerId),
                     loadAssetsForOwner(ownerId),
                 ]);
-                return {
-                    ownerId,
-                    businessName: settings?.businessName || 'Business',
-                    currency: settings?.currency || '',
-                    currencyCode: settings?.currencyCode || '',
-                    transactions,
-                    assets,
-                    settings: {
-                        openingAssets: settings?.openingAssets ?? '0',
-                        openingLiabilities: settings?.openingLiabilities ?? '0',
-                        openingLoans: settings?.openingLoans ?? '0',
-                        openingOtherAssets: settings?.openingOtherAssets ?? '0',
-                    },
-                };
+                return { ownerId, settings, transactions, assets };
+            }));
+
+            if (results.some(r => !r.settings)) { setLoadError(true); setSummary(null); return; }
+
+            const inputs = results.map(({ ownerId, settings, transactions, assets }) => ({
+                ownerId,
+                businessName: settings!.businessName || 'Business',
+                currency: settings!.currency || '',
+                currencyCode: settings!.currencyCode || '',
+                transactions,
+                assets,
+                settings: {
+                    openingAssets: settings!.openingAssets ?? '0',
+                    openingLiabilities: settings!.openingLiabilities ?? '0',
+                    openingLoans: settings!.openingLoans ?? '0',
+                    openingOtherAssets: settings!.openingOtherAssets ?? '0',
+                },
             }));
 
             setSummary(computePortfolioSummary(inputs));
@@ -120,6 +131,16 @@ export default function PortfolioScreen() {
                     {loading ? (
                         <View style={s.loadingBox}>
                             <ActivityIndicator size="small" color={Colors.primary} />
+                        </View>
+                    ) : loadError ? (
+                        <View style={s.warnBox}>
+                            <Icon name="alert-triangle" size={16} color={Colors.warning} />
+                            <View style={{ flex: 1 }}>
+                                <Text style={s.warnText}>Couldn't load one of your businesses just now — try again.</Text>
+                                <TouchableOpacity onPress={load} style={s.retryBtn}>
+                                    <Text style={s.retryBtnText}>Retry</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
                     ) : !hasMultiple ? (
                         <View style={s.emptyBox}>
@@ -216,6 +237,8 @@ const s = StyleSheet.create({
     emptyText: { flex: 1, fontSize: 12.5, color: Colors.textMuted, lineHeight: 17 },
     warnBox: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start', backgroundColor: Colors.warning + '15', borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.warning + '33', padding: Spacing.md, marginBottom: Spacing.md },
     warnText: { flex: 1, fontSize: 12.5, color: Colors.textPrimary, lineHeight: 17 },
+    retryBtn: { marginTop: 8, alignSelf: 'flex-start' },
+    retryBtnText: { fontSize: 12.5, fontWeight: '700', color: Colors.primary },
     tileRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm },
     tile: { flex: 1, backgroundColor: Colors.bg, borderRadius: Radius.md, padding: Spacing.md },
     tileLabel: { fontSize: 11, color: Colors.textMuted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.3 },
