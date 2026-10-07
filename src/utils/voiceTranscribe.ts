@@ -14,10 +14,23 @@
 
 import { supabase } from './supabase';
 
+// Neither supabase.functions.invoke() nor the edge function's own call to
+// Groq (see transcribe-voice/index.ts) has a built-in timeout -- if Groq's
+// endpoint stalls (rate limit, outage, a slow network path), the request
+// just hangs, and the caller's "Transcribing…" spinner in Quick Add never
+// resolves or shows an error, with no way out except abandoning the whole
+// form. This races the real call against a timeout so the UI always gets
+// an answer -- a clear, actionable error instead of an indefinite spinner.
+const TRANSCRIBE_TIMEOUT_MS = 45_000;
+
 export async function transcribeVoiceNote(base64: string, mimeType: string): Promise<string> {
-    const { data, error } = await supabase.functions.invoke('transcribe-voice', {
+    const invokePromise = supabase.functions.invoke('transcribe-voice', {
         body: { audioBase64: base64, mimeType },
     });
+    const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Transcription timed out — try again, or type it instead.')), TRANSCRIBE_TIMEOUT_MS);
+    });
+    const { data, error } = await Promise.race([invokePromise, timeoutPromise]);
     if (error) {
         // Same FunctionsHttpError unwrap statementScan.ts uses -- the edge
         // function always replies with a JSON { error } body on failure.
