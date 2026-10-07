@@ -117,11 +117,30 @@ Deno.serve(async (req: Request) => {
     // reasonably well from audio alone, and forcing 'en' would make every
     // non-English note transcribe as garbled English phonemes instead.
 
-    const whisperRes = await fetch(WHISPER_API, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: form,
-    });
+    // No timeout here previously -- a stalled Groq endpoint (rate limit,
+    // outage, slow network path) left this fetch hanging indefinitely,
+    // which the client has no way to distinguish from "still working" (see
+    // voiceTranscribe.ts's matching client-side timeout). Failing fast
+    // here means the client gets a real error well before its own timeout
+    // would otherwise have to fire blind.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+    let whisperRes: Response;
+    try {
+      whisperRes = await fetch(WHISPER_API, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: form,
+        signal: controller.signal,
+      });
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') {
+        return json({ error: 'Transcription is taking too long right now — try again shortly.' }, 504);
+      }
+      throw e;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!whisperRes.ok) {
       const errBody = await whisperRes.text();
