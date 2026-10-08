@@ -112,7 +112,14 @@ export default function SettingsScreen() {
     // Feature flags
     const enableTeam = process.env.EXPO_PUBLIC_ENABLE_TEAM !== 'false';
 
-    const [form, setForm]       = useState({ ...settings });
+    // businessName falls back to the signed-in identity's own profile name
+    // (user.businessName) when settings.businessName is missing -- a real
+    // gap for any account that signed up before setupAccount started
+    // writing businessName into the settings row (see its own comment in
+    // OptimizedContexts.tsx): settings.businessName was simply absent,
+    // which showed this form a blank, Save-blocking field even though the
+    // business's real name was right there in the header the whole time.
+    const [form, setForm]       = useState({ ...settings, businessName: settings.businessName || user?.businessName || '' });
     const [phone, setPhone]     = useState(user?.phone || '');
     const [colorTheme, setColorThemeState] = useState<ColorThemeMode>(getColorThemeMode());
     const [applyingTheme, setApplyingTheme] = useState(false);
@@ -138,8 +145,8 @@ export default function SettingsScreen() {
     // calls, so re-syncing the full object on every change is safe — it's
     // a no-op after a self-triggered save, since form already matches.
     useEffect(() => {
-        setForm({ ...settings });
-    }, [settings]);
+        setForm({ ...settings, businessName: settings.businessName || user?.businessName || '' });
+    }, [settings, user?.businessName]);
 
     // Same bug, same fix, for the one field that lives on `user` instead of
     // `settings`: phone's useState(user?.phone || '') above only reads
