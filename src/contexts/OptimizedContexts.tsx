@@ -2071,9 +2071,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // storage, so if the caller's own updateSettings() call after setupAccount()
         // loses that timing race, the correct values are still picked up on load
         // instead of silently reverting to defaults.
-        if (initialSettings) {
-            await saveSettings({ ...DEFAULT_SETTINGS, ...initialSettings }).catch(() => {});
-        }
+        //
+        // businessName is included here even though DEFAULT_SETTINGS/
+        // initialSettings never carry it (it arrives as this function's own
+        // separate parameter, from the signup form's business-name field,
+        // and was previously only ever written into the local profile/
+        // 'profiles' row via saveProfile above -- never into 'settings').
+        // That left every normal signup's settings row with NO businessName
+        // field at all: invisible everywhere that reads a business's name
+        // off the signed-in identity's own profile (the header, the
+        // switcher's Current row), but a real, user-facing gap anywhere
+        // that reads it off the settings row directly instead -- Settings'
+        // own form (`{ ...settings }`, no fallback) showed a blank,
+        // save-blocking business-name field, and Portfolio/
+        // getBusinessNameForOwner showed a generic "Business" placeholder
+        // for a PRIMARY business for the exact same reason. Shadow
+        // businesses never had this gap -- create-business's own
+        // defaultSettingsData always included businessName from the start.
+        await saveSettings({ ...DEFAULT_SETTINGS, businessName, ...initialSettings }).catch(() => {});
         // Guest Mode -> real account conversion: write whatever the guest
         // already had (transactions/assets/loans/inventory/invoices, still
         // sitting in the OTHER providers' in-memory state at this point --
