@@ -912,7 +912,7 @@ export default function InventoryScreen() {
                                 <Text style={styles.analyticsVal}>{currency}{workingCapital.accountsReceivable.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                             </View>
                             <View style={[styles.analyticsRow, styles.analyticsBorderTop]}>
-                                <Text style={[styles.analyticsLabel, { fontWeight: '700', color: Colors.textPrimary }]}>Total Working Capital Tied Up</Text>
+                                <Text style={[styles.analyticsLabel, { fontWeight: '700', color: Colors.textPrimary }]}>Total Tied Up (Working Capital)</Text>
                                 <Text style={[styles.analyticsVal, { fontWeight: 'bold' }]}>{currency}{totalWorkingCapitalTiedUp.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                             </View>
 

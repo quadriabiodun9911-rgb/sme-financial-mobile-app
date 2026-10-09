@@ -20,6 +20,7 @@ import { showAlert, confirmAction } from '../utils/webAlert';
 import { getPayrollReminderStatus } from '../utils/payrollReminders';
 import { computePayrollActivitySummary, describePayrollActivity, computeUnlinkedPayrollTransactions } from '../utils/payrollActivity';
 import { localDateStr } from '../utils/localDate';
+import { monthlySalaryCost } from '../utils/structuralSnapshot';
 
 type Tab = 'staff' | 'run' | 'history';
 
@@ -83,14 +84,14 @@ export default function PayrollScreen() {
         const clampedRate = clampDeductionRate(parseFloat(deductRate) || 0);
         const rate = clampedRate / 100;
         const items: PayrollItem[] = activeStaff.map(m => {
-            const gross = m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22;
+            const gross = monthlySalaryCost(m);
             const deductions = gross * rate;
             return { staffId: m.id, staffName: m.name, grossSalary: gross, deductions, netSalary: gross - deductions };
         });
         runPayroll(period, items, clampedRate, transactionId);
     };
     const totalMonthlyPayroll = useMemo(() =>
-        activeStaff.reduce((s, m) => s + (m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22), 0),
+        activeStaff.reduce((s, m) => s + monthlySalaryCost(m), 0),
         [activeStaff]
     );
 
@@ -106,7 +107,7 @@ export default function PayrollScreen() {
     // its own count-up animation (below) can react to it via useEffect;
     // recalculates whenever staff, salaries, or the typed deduction rate change.
     const totalNetPreview = useMemo(() => activeStaff.reduce((s, m) => {
-        const g = m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22;
+        const g = monthlySalaryCost(m);
         return s + g * (1 - (clampDeductionRate(parseFloat(deductRate) || 0) / 100));
     }, 0), [activeStaff, deductRate]);
 
@@ -141,7 +142,7 @@ export default function PayrollScreen() {
         const clampedRate = clampDeductionRate(parseFloat(deductRate) || 0);
         const rate = clampedRate / 100;
         const items: PayrollItem[] = activeStaff.map(m => {
-            const gross = m.salaryType === 'monthly' ? m.salary : m.salaryType === 'weekly' ? m.salary * 4.33 : m.salary * 22;
+            const gross = monthlySalaryCost(m);
             const deductions = gross * rate;
             return { staffId: m.id, staffName: m.name, grossSalary: gross, deductions, netSalary: gross - deductions };
         });
@@ -228,7 +229,7 @@ export default function PayrollScreen() {
                         )}
 
                         {staff.map(s => {
-                            const monthly = s.salaryType === 'monthly' ? s.salary : s.salaryType === 'weekly' ? s.salary * 4.33 : s.salary * 22;
+                            const monthly = monthlySalaryCost(s);
                             return (
                                 <View key={s.id} style={styles.staffCard}>
                                     <View style={styles.staffAvatar}>
@@ -294,7 +295,7 @@ export default function PayrollScreen() {
                             <View style={styles.card}>
                                 <Text style={styles.cardTitle}>Preview</Text>
                                 {activeStaff.map(s => {
-                                    const gross = s.salaryType === 'monthly' ? s.salary : s.salaryType === 'weekly' ? s.salary * 4.33 : s.salary * 22;
+                                    const gross = monthlySalaryCost(s);
                                     const deductions = gross * (clampDeductionRate(parseFloat(deductRate) || 0) / 100);
                                     const net = gross - deductions;
                                     return (

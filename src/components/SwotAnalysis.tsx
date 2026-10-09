@@ -58,11 +58,14 @@ export default function SwotAnalysis() {
 
     return (
         <View>
-            {/* Header */}
+            {/* Header -- leads with plain language (what the four
+                quadrants below actually are), names the technical term
+                "SWOT" second for anyone who's heard it elsewhere, rather
+                than opening with an unexplained acronym. */}
             <View style={styles.headerCard}>
-                <Text style={styles.headerTitle}>SWOT Analysis</Text>
+                <Text style={styles.headerTitle}>Strengths, Weaknesses, Opportunities & Threats</Text>
                 <Text style={styles.headerSub}>
-                    Automatically generated from your live P&L, cash flow, and balance sheet data.
+                    Your SWOT analysis — automatically generated from your income, expenses, and what you own vs. owe.
                 </Text>
                 <Text style={styles.timestamp}>Last updated: {generatedDate} at {generatedTime}</Text>
             </View>
@@ -107,10 +110,10 @@ export default function SwotAnalysis() {
             {/* Interpretation guide */}
             <View style={styles.guideCard}>
                 <Text style={styles.guideTitle}>How to use this analysis</Text>
-                <GuideRow icon="💪→🚀" text="Leverage strengths to pursue opportunities (SO strategy)" />
-                <GuideRow icon="⚠️→🚀" text="Address weaknesses to capture opportunities (WO strategy)" />
-                <GuideRow icon="💪→🔴" text="Use strengths to defend against threats (ST strategy)" />
-                <GuideRow icon="⚠️→🔴" text="Minimise weaknesses to avoid threats (WT strategy)" />
+                <GuideRow icon="💪→🚀" text="Use what you're good at to go after new opportunities" />
+                <GuideRow icon="⚠️→🚀" text="Fix a weakness so you can capture an opportunity" />
+                <GuideRow icon="💪→🔴" text="Use what you're good at to protect against a threat" />
+                <GuideRow icon="⚠️→🔴" text="Shore up a weakness before it turns into a bigger problem" />
                 <Text style={styles.guideDisclaimer}>
                     This analysis is generated from transaction data recorded in Quad360. Results are only as accurate as the data entered.
                 </Text>

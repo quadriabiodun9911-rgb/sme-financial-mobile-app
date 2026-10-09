@@ -305,12 +305,11 @@ export default function FinancialAssessmentScreen() {
         {/* SWOT — same underlying data as Reports > Business Health, shown
             here so a full picture (health, SWOT, root causes, actions)
             comes together in one flow right after a statement import
-            instead of being scattered across separate screens. */}
+            instead of being scattered across separate screens. No section
+            title here -- SwotAnalysis already renders its own plain
+            -language header card; a second "SWOT Analysis" label right
+            above it would just repeat the same words twice in a row. */}
         <View style={styles.section}>
-          <View style={styles.titleIconRow}>
-            <Icon name="compass" size={14} color={Colors.textPrimary} />
-            <Text style={styles.sectionTitle}>SWOT Analysis</Text>
-          </View>
           <SwotAnalysis />
         </View>
 
