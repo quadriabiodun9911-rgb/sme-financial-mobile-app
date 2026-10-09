@@ -20,6 +20,8 @@ import TaxPlanningTab from '../components/TaxPlanningTab';
 import CashFlowSafety from '../components/CashFlowSafety';
 import LoansAndDebt from '../components/LoansAndDebt';
 import { computeAssetHealthScore } from '../components/AssetProductivityAnalysis';
+import { computeFinancialRatiosDashboard } from '../utils/financialRatiosEngine';
+import RatioReadingRow from '../components/RatioReadingRow';
 import CustomerProfitability from '../components/CustomerProfitability';
 import ProductPerformance from '../components/ProductPerformance';
 import GrowthOutlook from '../components/GrowthOutlook';
@@ -171,6 +173,21 @@ export default function ReportsScreen() {
         [filteredTx, settings, registeredAssetsValue, activeAssets]
     );
     const trend      = useMemo(() => computeMonthlyTrend(transactions, 6), [transactions]);
+    // Operating Margin / Cash Ratio / Debt-to-Cash-Flow -- the three
+    // genuinely new readings financialRatiosEngine.ts adds beyond what
+    // already existed elsewhere (see that file's own doc comment). Used to
+    // live bundled together on Fractional CFO's Finance tab; split across
+    // the three Reports tabs each one is actually about, instead of a
+    // dedicated "ratios" tab of its own. All-time figures (allFinance/
+    // transactions/loansList), not the period-filtered ones above, matching
+    // how this engine was always called from CFOScreen.
+    const ratiosDashboard = useMemo(
+        () => computeFinancialRatiosDashboard(allFinance, loansList, transactions, inventory),
+        [allFinance, loansList, transactions, inventory]
+    );
+    const operatingMarginReading = ratiosDashboard.categories.find(c => c.key === 'profitability')?.readings.find(r => r.key === 'operatingMargin');
+    const cashRatioReading = ratiosDashboard.categories.find(c => c.key === 'liquidity')?.readings.find(r => r.key === 'cashRatio');
+    const debtToCashFlowReading = ratiosDashboard.categories.find(c => c.key === 'debt')?.readings.find(r => r.key === 'debtToCashFlow');
     const enhPnL     = useMemo(() => computeEnhancedPnL(filteredTx, assets), [filteredTx, assets]);
     // Exactly the transactions enhPnL.revenue was summed from -- see
     // computeEnhancedPnL's own revenue line -- so the P&L's drill-down
@@ -592,6 +609,21 @@ export default function ReportsScreen() {
                                 revenueTransactions={revenueTransactions}
                             />
 
+                            {/* Operating Margin, in plain language -- the one
+                                genuinely new reading Fractional CFO's old
+                                Finance tab added on top of the Operating
+                                Margin % the statement above already shows
+                                (Gross/Net margin get the same plain-language
+                                tier treatment from the statement's own notes;
+                                Operating Margin didn't, until now). All-time,
+                                not scoped to the period filter above. */}
+                            {operatingMarginReading && (
+                                <View style={styles.card}>
+                                    <Text style={styles.cardTitle}>Operating Margin — In Plain Language</Text>
+                                    <RatioReadingRow reading={operatingMarginReading} />
+                                </View>
+                            )}
+
                             {revenueByPaymentMethod.anyTagged && (
                                 <View style={styles.card}>
                                     <Text style={styles.cardTitle}>Revenue by Payment Method</Text>
@@ -714,12 +746,27 @@ export default function ReportsScreen() {
 
                     {/* ── WORKING CAPITAL HEALTH ───────────────────────── */}
                     {activeTab === 'workingcapitalhealth' && (
-                        <WorkingCapitalHealthTab
-                            transactions={transactions}
-                            inventory={inventory}
-                            currency={currency}
-                            cashBalance={allFinance.cashBalance}
-                        />
+                        <View>
+                            {/* Cash Ratio, in plain language -- the strictest
+                                liquidity test (cash alone against total
+                                liabilities, no credit for receivables or
+                                stock). Formerly on Fractional CFO's Finance
+                                tab; moved here since this tab is already
+                                "how much cash is tied up / how liquid is the
+                                business." All-time, not period-filtered. */}
+                            {cashRatioReading && (
+                                <View style={styles.card}>
+                                    <Text style={styles.cardTitle}>Cash Ratio — In Plain Language</Text>
+                                    <RatioReadingRow reading={cashRatioReading} />
+                                </View>
+                            )}
+                            <WorkingCapitalHealthTab
+                                transactions={transactions}
+                                inventory={inventory}
+                                currency={currency}
+                                cashBalance={allFinance.cashBalance}
+                            />
+                        </View>
                     )}
 
                     {/* ── CASH FLOW & SAFETY ───────────────────────────── */}
@@ -737,17 +784,36 @@ export default function ReportsScreen() {
 
                     {/* ── LOANS & DEBT ─────────────────────────────────── */}
                     {activeTab === 'debt' && (
-                        <LoansAndDebt
-                            finance={allFinance}
-                            currency={currency}
-                            loans={loansList}
-                            transactions={transactions}
-                            accountsReceivable={allTimeWcMetrics.accountsReceivable}
-                            accountsPayable={allTimeWcMetrics.accountsPayable}
-                            inventoryValue={inventoryValue}
-                            assetsList={assets}
-                            defaultTaxRate={settings.defaultTaxRate}
-                        />
+                        <View>
+                            {/* Debt-to-Cash-Flow, in plain language -- total
+                                outstanding debt against annualized operating
+                                cash flow (2x/4x mirror the conventional
+                                debt-to-EBITDA caution lines lenders use).
+                                Formerly on Fractional CFO's Finance tab;
+                                moved here since this is literally the "can
+                                the business carry its debt" tab. DSCR below
+                                (inside LoansAndDebt) already answers the
+                                same question a different way -- can monthly
+                                income cover monthly payments -- this is the
+                                total-balance-vs-annual-cash-flow view. */}
+                            {debtToCashFlowReading && (
+                                <View style={styles.card}>
+                                    <Text style={styles.cardTitle}>Debt-to-Cash-Flow — In Plain Language</Text>
+                                    <RatioReadingRow reading={debtToCashFlowReading} />
+                                </View>
+                            )}
+                            <LoansAndDebt
+                                finance={allFinance}
+                                currency={currency}
+                                loans={loansList}
+                                transactions={transactions}
+                                accountsReceivable={allTimeWcMetrics.accountsReceivable}
+                                accountsPayable={allTimeWcMetrics.accountsPayable}
+                                inventoryValue={inventoryValue}
+                                assetsList={assets}
+                                defaultTaxRate={settings.defaultTaxRate}
+                            />
+                        </View>
                     )}
 
                     {/* ── ASSET PRODUCTIVITY ───────────────────────────── — the

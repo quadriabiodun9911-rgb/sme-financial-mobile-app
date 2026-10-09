@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
@@ -18,6 +18,7 @@ import { computeDecisionEvidence } from '../utils/decisionEvidence';
 import { computeCashRunway } from '../utils/cashRunway';
 import { computeRiskScore, loanMonthlyPayment } from '../utils/finance';
 import { computeBreakeven } from '../utils/profitability';
+import { computeBreakEven as computeHypotheticalBreakEven } from '../utils/finance';
 import { computeInventoryDecisions, summarizeInventoryDecisions } from '../utils/inventoryDecisions';
 import { computeBusinessExposure, computeBusinessResilience } from '../utils/businessExposure';
 import { computeFinancialHealthPillars } from '../utils/financialHealthPillars';
@@ -58,6 +59,17 @@ export default function BeforeYouDecideContent() {
     const { finance, transactions, loans, inventory, assets, settings, navigate, goals } = useApp();
     const { currency } = settings;
     const [affordabilityMode, setAffordabilityMode] = useState<'quick' | 'detailed'>('quick');
+    // Hypothetical break-even -- "if I priced a NEW product/service at X,
+    // with Y variable cost and Z fixed cost, how many units to break even?"
+    // Distinct from `breakeven` below (computeBreakeven), which reads the
+    // business's OWN real cost structure to answer "how much more do I need
+    // to sell to absorb a discount on what I already sell." Formerly its
+    // own tab on Fractional CFO ("Finance"); moved here since planning a
+    // new price/product is exactly the kind of real decision this screen
+    // exists to pressure-test, not a ratio to monitor.
+    const [hypFixedCosts, setHypFixedCosts] = useState('');
+    const [hypVarCost, setHypVarCost]       = useState('');
+    const [hypPrice, setHypPrice]           = useState('');
     // Compare Decisions' "Track this decision" hands its scenario here,
     // which reveals and pre-fills Investment Decision Tracker below --
     // see CapitalCommitmentTracker's own prefill prop for why.
@@ -104,6 +116,13 @@ export default function BeforeYouDecideContent() {
         .reduce((s, l) => s + loanMonthlyPayment(l.principal, l.interestRate, l.termMonths), 0);
 
     const breakeven = computeBreakeven(transactions, settings);
+    const hypBreakEven = useMemo(() => {
+        const fc = parseFloat(hypFixedCosts) || 0;
+        const vc = parseFloat(hypVarCost) || 0;
+        const pp = parseFloat(hypPrice) || 0;
+        if (fc > 0 && pp > 0) return computeHypotheticalBreakEven(fc, vc, pp);
+        return null;
+    }, [hypFixedCosts, hypVarCost, hypPrice]);
 
     // Reuses the exact same reorder-affordability signal already shown on
     // Inventory & Stock's Pricing tab (InventoryPricingTab.tsx) -- this is
@@ -224,6 +243,35 @@ export default function BeforeYouDecideContent() {
                 <NextStepLink text="Open the interactive Breakeven & Discount Calculator on Cash Flow" onPress={() => navigate('cashflow', { tab: 'breakeven' })} />
             </Collapsible>
 
+            <View style={styles.decisionCard}>
+                <Text style={styles.decisionQuestion}>Planning a new product or price?</Text>
+                <Text style={styles.decisionHelp}>Not your existing business -- a hypothetical: enter a cost and price to see how many units you'd need to sell to break even.</Text>
+            </View>
+            {/* Formerly Fractional CFO's "Finance" tab -- a what-if tool,
+                unrelated to the business's actual recorded costs (that's
+                the card above). Kept distinct from it rather than merged
+                into one card, since "what if I priced a new thing" and
+                "how does a discount affect what I already sell" are
+                different questions with different inputs. */}
+            <Collapsible title="Break-Even Calculator (New Product or Price)">
+                <TextInput style={styles.input} placeholder={`Monthly Fixed Costs (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={hypFixedCosts} onChangeText={setHypFixedCosts} />
+                <TextInput style={styles.input} placeholder={`Variable Cost per Unit (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={hypVarCost} onChangeText={setHypVarCost} />
+                <TextInput style={styles.input} placeholder={`Selling Price per Unit (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={hypPrice} onChangeText={setHypPrice} />
+                {hypBreakEven && (
+                    <View>
+                        <Text style={styles.decisionHelp}>
+                            Units needed to break even: <Text style={{ fontWeight: '800', color: Colors.textPrimary }}>{isFinite(hypBreakEven.breakEvenUnits) ? Math.ceil(hypBreakEven.breakEvenUnits).toLocaleString() : '∞'}</Text>
+                        </Text>
+                        <Text style={styles.decisionHelp}>
+                            Revenue needed: <Text style={{ fontWeight: '800', color: Colors.textPrimary }}>{isFinite(hypBreakEven.breakEvenRevenue) ? `${currency}${Math.ceil(hypBreakEven.breakEvenRevenue).toLocaleString()}` : '∞'}</Text>
+                        </Text>
+                        <Text style={styles.decisionHelp}>
+                            Safety buffer: <Text style={{ fontWeight: '800', color: hypBreakEven.marginOfSafety > 20 ? Colors.income : Colors.warning }}>{hypBreakEven.marginOfSafety.toFixed(1)}%</Text> — how far sales can fall before you lose money. Higher is safer.
+                        </Text>
+                    </View>
+                )}
+            </Collapsible>
+
             {reorderDecisions.length > 0 && (
                 <>
                     <View style={styles.decisionCard}>
@@ -288,6 +336,7 @@ const styles = StyleSheet.create({
     },
     decisionQuestion: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
     decisionHelp: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+    input: { backgroundColor: Colors.bg, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, padding: 12, color: Colors.textPrimary, marginBottom: 10, fontSize: 14 },
 
     modeToggleRow: { flexDirection: 'row', gap: 8, marginBottom: Spacing.sm },
     modeToggleBtn: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg },

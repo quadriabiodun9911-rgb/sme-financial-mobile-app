@@ -15,15 +15,12 @@ import {
     computeRevenueForecast,
     computeCashFlowForecast,
     computeFinancialRatios,
-    computeDSCR,
-    computeBreakEven,
     computeDebtOptimiser,
     computePaymentOptimiser,
     RISK_BAND_STYLE,
     latestTransactionDate,
 } from '../utils/finance';
 import { computeInventoryValue } from '../utils/stockVelocity';
-import { computeFinancialRatiosDashboard, RatioTier } from '../utils/financialRatiosEngine';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { computeForecastSummary } from '../utils/forecastSummary';
@@ -31,7 +28,7 @@ import { NO_ADJUSTMENTS } from '../utils/futureFinancialStatements';
 import { generateForecastRiskActions } from '../utils/forecastRiskRecommendations';
 import { ImpactLevel } from '../utils/externalFactorsPanel';
 
-type Tab = 'pulse' | 'forecast' | 'finance' | 'growth' | 'questions';
+type Tab = 'pulse' | 'forecast' | 'growth' | 'questions';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtRunway(days: number): string {
@@ -52,16 +49,6 @@ function riskLabel(score: number): { label: string; color: string; icon: IconNam
     if (score >= 40) return { label: 'Elevated Risk',  color: Colors.warning,  icon: 'alert-triangle' };
     return               { label: 'High Risk',      color: Colors.expense,  icon: 'alert-circle' };
 }
-
-function statusColor(status: string) {
-    if (status === 'good' || status === 'healthy') return Colors.income;
-    if (status === 'warning') return Colors.warning;
-    return Colors.expense;
-}
-
-const RATIO_TIER_COLOR: Record<RatioTier, string> = {
-    strong: Colors.income, moderate: Colors.warning, weak: Colors.expense, unavailable: Colors.textMuted,
-};
 
 // Mini horizontal bar
 function MiniBar({ pct, color }: { pct: number; color: string }) {
@@ -422,158 +409,6 @@ function ForecastTab() {
     );
 }
 
-// ── Tab: Finance (was Ratios) ─────────────────────────────────────────────────
-function FinanceTab() {
-    const { finance, loans, transactions, settings, navigate, inventory } = useApp();
-    const { currency } = settings;
-    const inventoryValue = useMemo(() => computeInventoryValue(inventory), [inventory]);
-    const ratios = useMemo(() => computeFinancialRatios(finance, loans, transactions, inventoryValue), [finance, loans, transactions, inventoryValue]);
-    const dscr   = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
-    // "Don't ask SMEs to calculate ratios -- Quad360 should calculate them
-    // automatically... and translate them into plain business language."
-    // See financialRatiosEngine.ts's own doc comment for why every figure
-    // here is sourced from an existing engine (computeFinancialRatios,
-    // computeCashConversionCycle, computeDSCR, computeMonthlyTrend) rather
-    // than a second, independently-tuned computation.
-    const ratiosDashboard = useMemo(
-        () => computeFinancialRatiosDashboard(finance, loans, transactions, inventory),
-        [finance, loans, transactions, inventory],
-    );
-
-    const [fixedCosts, setFixedCosts]     = useState('');
-    const [varRate, setVarRate]           = useState('');
-    const [pricePerUnit, setPricePerUnit] = useState('');
-
-    const breakEven = useMemo(() => {
-        const fc = parseFloat(fixedCosts) || 0;
-        const vr = parseFloat(varRate) || 0;
-        const pp = parseFloat(pricePerUnit) || 0;
-        if (fc > 0 && pp > 0) return computeBreakEven(fc, vr, pp);
-        return null;
-    }, [fixedCosts, varRate, pricePerUnit]);
-
-    // Current Ratio and Profit Margin used to be repeated here -- the exact
-    // same Current Ratio value already appears above under Liquidity (both
-    // read ratios.currentRatio), and Profit Margin was a second, differently
-    // -windowed take on the same concept Net Margin already covers there,
-    // just confusing to see twice under two names with two numbers. Only
-    // what the Plain Language section above genuinely doesn't cover stays
-    // here.
-    const ratioCards: { label: string; value: string; good: boolean; explain: string }[] = [
-        {
-            // Sourced from the same canonical computeLeverageRatios the Loans &
-            // Debt tab uses, so this figure can never disagree with it.
-            // Infinity (equity <= 0 with real debt) is its own "N/A", same
-            // convention that tab already uses.
-            label: 'Debt to Equity',
-            value: ratios.debtToEquity === Infinity ? 'N/A' : ratios.debtToEquity.toFixed(2) + 'x',
-            good: ratios.debtToEquity !== Infinity && ratios.debtToEquity <= 0.8,
-            explain: ratios.debtToEquity === Infinity
-                ? 'No equity recorded yet'
-                : ratios.debtToEquity <= 0.8 ? 'Low reliance on debt' : 'High debt relative to equity',
-        },
-        {
-            label: 'Return on Assets',
-            value: ratios.hasAssetData ? ratios.returnOnAssets.toFixed(1) + '%' : 'N/A',
-            good: ratios.hasAssetData && ratios.returnOnAssets >= 10,
-            explain: !ratios.hasAssetData
-                ? 'No assets recorded yet'
-                : ratios.returnOnAssets >= 10 ? 'Good asset productivity' : 'Assets could be working harder',
-        },
-        {
-            label: 'Monthly Burn',
-            value: `${currency}${Math.round(ratios.burnRate).toLocaleString()}`,
-            good: true,
-            explain: 'Average monthly spending',
-        },
-    ];
-
-    return (
-        <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
-            <Text style={s.sectionHdr}>Financial Ratios — In Plain Language</Text>
-            <Text style={s.cardSub}>Every ratio below is calculated automatically from your own transactions -- no formulas to know, just what each one means for your business.</Text>
-            {ratiosDashboard.categories.map(category => (
-                <View key={category.key} style={s.card}>
-                    <Text style={s.cardTitle}>{category.label}</Text>
-                    {category.readings.map(reading => (
-                        <View key={reading.key} style={[s.ratioRow, { borderLeftColor: RATIO_TIER_COLOR[reading.tier] }]}>
-                            <View style={{ flex: 1 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
-                                    <Text style={s.ratioLabel}>{reading.label}</Text>
-                                    <Text style={{ fontSize: 10, fontWeight: '700', color: RATIO_TIER_COLOR[reading.tier], marginLeft: 8, textTransform: 'uppercase' }}>
-                                        {reading.tierLabel}
-                                    </Text>
-                                </View>
-                                <Text style={s.ratioExplain}>{reading.plainLanguage}</Text>
-                            </View>
-                            <Text style={[s.ratioVal, { color: RATIO_TIER_COLOR[reading.tier], fontSize: 15 }]}>{reading.displayValue}</Text>
-                        </View>
-                    ))}
-                </View>
-            ))}
-
-            {/* Not a more-detailed version of the ratios above -- "(Detailed)"
-                implied a depth toggle that never actually existed. This is
-                the small set of ratios (leverage, asset productivity, burn)
-                the Plain Language dashboard above doesn't cover at all. */}
-            <Text style={s.sectionHdr}>Additional Ratios</Text>
-            {ratioCards.map((r, i) => (
-                <View key={i} style={[s.ratioRow, { borderLeftColor: r.good ? Colors.income : Colors.expense }]}>
-                    <View style={{ flex: 1 }}>
-                        <Text style={s.ratioLabel}>{r.label}</Text>
-                        <Text style={s.ratioExplain}>{r.explain}</Text>
-                    </View>
-                    <Text style={[s.ratioVal, { color: r.good ? Colors.income : Colors.expense }]}>{r.value}</Text>
-                </View>
-            ))}
-
-            {/* Loan Coverage -- DSCR, Interest Rate Shock, and the debt
-                payoff strategy all moved to Loans (their canonical home,
-                alongside the loans they're about) instead of living here
-                as a second copy. */}
-            {dscr.totalDebtService > 0 && (
-                <View style={[s.card, { borderLeftWidth: 3, borderLeftColor: statusColor(dscr.status) }]}>
-                    <Text style={s.cardTitle}>Loan Coverage</Text>
-                    <Text style={s.cardSub}>
-                        {dscr.status === 'healthy' ? '✓' : dscr.status === 'warning' ? '⚠' : '✗'} DSCR {dscr.dscr > 100 ? '∞' : dscr.dscr.toFixed(2)}x — {dscr.status === 'healthy' ? 'comfortably covers loan repayments' : dscr.status === 'warning' ? 'barely covers loan repayments' : 'may not cover loan repayments'}.
-                    </Text>
-                    <NextStepLink text="Full DSCR detail, Interest Rate Shock & repayment strategy → Loans" onPress={() => navigate('loans')} />
-                </View>
-            )}
-
-            {/* Break-even calculator */}
-            <Text style={[s.sectionHdr, { marginTop: 8 }]}>Break-Even Calculator — Plan a Price or Product</Text>
-            <View style={s.card}>
-                <Text style={s.cardSub}>
-                    A what-if tool: enter hypothetical cost and pricing to find out how many units you'd need to sell to cover costs. For how your actual whole business is doing against breakeven this period, see Breakeven Analysis under Cash Flow.
-                </Text>
-                <TextInput style={s.input} placeholder={`Monthly Fixed Costs (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={fixedCosts} onChangeText={setFixedCosts} />
-                <TextInput style={s.input} placeholder={`Variable Cost per Unit (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={varRate} onChangeText={setVarRate} />
-                <TextInput style={s.input} placeholder={`Selling Price per Unit (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={pricePerUnit} onChangeText={setPricePerUnit} />
-                {breakEven && (
-                    <View style={{ marginTop: 8 }}>
-                        <View style={s.dscrRow}>
-                            <Text style={s.dscrLabel}>Units Needed to Break Even</Text>
-                            <Text style={[s.dscrVal, { color: Colors.primary }]}>{isFinite(breakEven.breakEvenUnits) ? Math.ceil(breakEven.breakEvenUnits).toLocaleString() : '∞'}</Text>
-                        </View>
-                        <View style={s.dscrRow}>
-                            <Text style={s.dscrLabel}>Revenue Needed</Text>
-                            <Text style={s.dscrVal}>{isFinite(breakEven.breakEvenRevenue) ? `${currency}${Math.ceil(breakEven.breakEvenRevenue).toLocaleString()}` : '∞'}</Text>
-                        </View>
-                        <View style={s.dscrRow}>
-                            <Text style={s.dscrLabel}>Safety Buffer</Text>
-                            <Text style={[s.dscrVal, { color: breakEven.marginOfSafety > 20 ? Colors.income : Colors.warning }]}>{breakEven.marginOfSafety.toFixed(1)}%</Text>
-                        </View>
-                        <Text style={s.dscrHint}>Safety buffer = how far sales can fall before you lose money. Higher is safer.</Text>
-                    </View>
-                )}
-                <NextStepLink text="See how your actual business is doing against breakeven this period" onPress={() => navigate('cashflow', { tab: 'breakeven' })} />
-                <NextStepLink text="Compare month, quarter and year performance" onPress={() => navigate('reports', { reportSection: 'statements', reportTab: 'pnl' })} />
-            </View>
-        </ScrollView>
-    );
-}
-
 // ── Tab: Growth (was Debt) ────────────────────────────────────────────────────
 function GrowthTab() {
     const { loans, transactions, invoices, finance, settings, navigate } = useApp();
@@ -696,17 +531,28 @@ function GrowthTab() {
 export default function CFOScreen() {
     const { navigate, transactions, setCurrentScreen, navParams } = useApp();
     const [activeTab, setActiveTab] = useState<Tab>(
-        (['pulse', 'forecast', 'finance', 'growth', 'questions'] as Tab[]).includes(navParams?.tab) ? navParams.tab : 'pulse'
+        (['pulse', 'forecast', 'growth', 'questions'] as Tab[]).includes(navParams?.tab) ? navParams.tab : 'pulse'
     );
 
     // 'growth' here is pricing/cost/debt levers, not the same thing as the
     // standalone Growth Intelligence screen (score/momentum/customers) --
     // labeling it "Growth" too made two unrelated screens look like the
     // same destination. "Quick Wins" names what the tab actually contains.
+    //
+    // Finance (ratios) used to be a fifth tab here. Dropped after a
+    // business owner questioned why Fractional CFO existed at all --
+    // investigating found it was almost entirely a re-presentation of
+    // numbers already shown elsewhere (Scoreboard's pillars, Loans & Debt,
+    // this screen's own Q&A tab's Cash Conversion Cycle visual, Reports'
+    // P&L). The three readings that WERE genuinely new (Operating Margin,
+    // Cash Ratio, Debt-to-Cash-Flow) moved to the Reports tabs they're
+    // actually about; the one standalone tool in there (the hypothetical
+    // Break-Even Calculator) moved to Analysis & Decisions' Decide tab,
+    // alongside the other real-decision calculators. Everything else was a
+    // pure duplicate, safe to delete rather than move anywhere.
     const TABS: { key: Tab; label: string; icon: IconName }[] = [
         { key: 'pulse',     label: 'Pulse',      icon: 'activity' },
         { key: 'forecast',  label: 'Forecast',   icon: 'calendar' },
-        { key: 'finance',   label: 'Finance',    icon: 'bar-chart-2' },
         { key: 'growth',    label: 'Quick Wins', icon: 'trending-up' },
         { key: 'questions', label: 'CFO Q&A',    icon: 'help-circle' },
     ];
@@ -722,7 +568,7 @@ export default function CFOScreen() {
                 </TouchableOpacity>
                 <View>
                     <Text style={s.screenTitle}>Your Fractional CFO</Text>
-                    <Text style={s.screenSub}>Forecasts, ratios, risk score, and straight answers — on demand, no hire required</Text>
+                    <Text style={s.screenSub}>Forecasts, quick wins, and straight answers — on demand, no hire required</Text>
                 </View>
             </View>
 
@@ -759,7 +605,6 @@ export default function CFOScreen() {
                     </ScrollView>
                     {activeTab === 'pulse'    && <PulseTab onOpenRisk={() => setCurrentScreen('risk-management')} />}
                     {activeTab === 'forecast' && <ForecastTab />}
-                    {activeTab === 'finance'  && <FinanceTab />}
                     {activeTab === 'growth'   && <GrowthTab />}
                     {activeTab === 'questions' && <CFOQuestionsTab />}
                 </>
