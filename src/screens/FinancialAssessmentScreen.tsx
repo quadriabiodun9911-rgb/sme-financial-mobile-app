@@ -24,9 +24,20 @@ import {
   describeDiagnosisFollowUp,
   findResolvedDiagnoses,
 } from '../utils/diagnosisHistory';
+import { computeQualityOfGrowth } from '../utils/qualityOfGrowth';
+import { computeDirectionVsStatus } from '../utils/directionVsStatus';
+import { computeRiskRadar } from '../utils/riskRadar';
+import { computeBusinessExposure, computeBusinessResilience } from '../utils/businessExposure';
+import { computeFinancialResilience } from '../utils/cashReservePlanning';
+import { computeFinancingReadinessScore } from '../utils/finance';
+import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
+import { computeDataQuality } from '../utils/dataQuality';
+import { buildFinancingFitInput } from '../utils/financingFit';
+import { computeInventoryValue } from '../utils/stockVelocity';
+import { buildDiagnosticDimensions } from '../utils/diagnosticDimensions';
 
 export default function FinancialAssessmentScreen() {
-  const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory, assets, dataConfidenceHistory } = useApp();
+  const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory, assets, dataConfidenceHistory, user } = useApp();
   const [selectedDiagnosis, setSelectedDiagnosis] = useState<number>(0);
   const dataConfidenceTrend = useMemo(() => describeDataConfidenceTrend(dataConfidenceHistory), [dataConfidenceHistory]);
 
@@ -108,6 +119,55 @@ export default function FinancialAssessmentScreen() {
   const riskFactor = (name: string) => risk.factors.find(f => f.name === name);
   const performanceFactor = riskFactor('Profitability');
   const cashFactor = riskFactor('Liquidity');
+
+  // The 8-Dimension Diagnosis -- each of these is the exact same call the
+  // screen that canonically owns it already makes (Scoreboard, Risk
+  // Management, Credit-Worthiness), reused here rather than recomputed, so
+  // this screen's own dimension cards can never disagree with the full
+  // detail one tap away. See diagnosticDimensions.ts for why 4 of the 8 are
+  // owned here directly and 4 are a grounded summary + link.
+  const growthQuality = useMemo(() => computeQualityOfGrowth(transactions, assets, loans), [transactions, assets, loans]);
+  const directionVsStatus = useMemo(() => computeDirectionVsStatus(risk, growthQuality), [risk, growthQuality]);
+  const exposure = useMemo(
+    () => computeBusinessExposure(transactions, loans, inventory, settings?.macroAssumptions ?? [], finance, settings?.nextTaxDeadline, settings.currency),
+    [transactions, loans, inventory, settings?.macroAssumptions, finance, settings?.nextTaxDeadline, settings.currency]
+  );
+  const resilience = useMemo(() => computeBusinessResilience(exposure), [exposure]);
+  const riskRadar = useMemo(
+    () => computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? [], new Date(), assets),
+    [transactions, loans, settings?.macroAssumptions, assets]
+  );
+  const financialResilience = useMemo(() => computeFinancialResilience(transactions, finance.cashBalance), [transactions, finance.cashBalance]);
+  const financingReadinessScore = useMemo(() => computeFinancingReadinessScore(risk.factors).score, [risk.factors]);
+  const lendingCapacity = useMemo(() => {
+    if (transactions.length < 5) return null;
+    const fitInput = buildFinancingFitInput(transactions, loans, settings, user);
+    const dataQuality = computeDataQuality(transactions, settings.industry);
+    const inventoryValue = computeInventoryValue(inventory);
+    return computeLendingCapacityEstimate({
+      overallCreditScore: financingReadinessScore,
+      avgMonthlyRevenue: fitInput.avgMonthlyRevenue,
+      dscr: diagnosis.metrics.dscr,
+      hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',
+      inventoryValue,
+    });
+  }, [transactions, loans, settings, user, financingReadinessScore, diagnosis.metrics.dscr, inventory]);
+
+  const diagnosticDimensions = useMemo(
+    () => buildDiagnosticDimensions({
+      diagnosis,
+      risk,
+      currency: settings.currency,
+      directionVsStatus,
+      riskRadar,
+      resilience,
+      reserveCoverageMonths: financialResilience.available ? financialResilience.reserveCoverageMonths : null,
+      financingReadinessScore,
+      lendingCapacity,
+    }),
+    [diagnosis, risk, settings.currency, directionVsStatus, riskRadar, resilience, financialResilience, financingReadinessScore, lendingCapacity]
+  );
+  const [expandedDimension, setExpandedDimension] = useState<string | null>(null);
 
   // Total identified financial impact across every issue the diagnosis
   // found — the honest answer to "where could money be leaking?" instead
@@ -262,22 +322,78 @@ export default function FinancialAssessmentScreen() {
             </Text>
           </View>
 
-          {/* Per-pillar breakdown — Profitability, Liquidity, Working
-              Capital, Debt, Efficiency, Inventory, Concentration, each
-              scored the same way this overall number is, so a single glance
-              shows which pillar is actually dragging the score down instead
-              of just the one aggregate number. */}
-          <View style={styles.categoryList}>
-            {diagnosis.categories.map(cat => (
-              <View key={cat.key} style={styles.categoryRow}>
-                <View style={[styles.categoryDot, { backgroundColor: categoryStatusColor(cat.status) }]} />
-                <Text style={styles.categoryLabel}>{cat.label}</Text>
-                <Text style={[styles.categoryStatus, { color: categoryStatusColor(cat.status) }]}>
-                  {categoryStatusLabel(cat.status)}
-                </Text>
-              </View>
-            ))}
+          {/* The per-pillar dot list that used to live here is now the
+              8-Dimension Diagnosis below -- same underlying categories
+              (Profitability, Liquidity, Working Capital, Debt...) plus the
+              four this score alone never covered (trend, risk, decision
+              and financing readiness), with a real Output per dimension
+              instead of just a status dot. Kept to one structure instead
+              of two overlapping ones. */}
+          <Text style={styles.healthSeeMoreText}>See what's driving this score in the 8-Dimension Diagnosis below ↓</Text>
+        </View>
+
+        {/* The 8-Dimension Diagnosis -- Quad360's Diagnostic Engine
+            connecting the numbers to what they mean, dimension by
+            dimension, instead of a wall of ratios. See
+            diagnosticDimensions.ts for exactly what each one reuses. */}
+        <View style={styles.section}>
+          <View style={styles.titleIconRow}>
+            <Icon name="layers" size={14} color={Colors.textPrimary} />
+            <Text style={styles.sectionTitle}>The 8-Dimension Diagnosis</Text>
           </View>
+          <Text style={styles.dimensionsIntro}>
+            Not just numbers — what they mean for the business, why it matters, and what to do next. Tap a dimension for the full picture.
+          </Text>
+          {diagnosticDimensions.map(dim => {
+            const isOpen = expandedDimension === dim.key;
+            const color = dim.status === 'info' ? Colors.textMuted : categoryStatusColor(dim.status);
+            return (
+              <TouchableOpacity
+                key={dim.key}
+                style={[styles.dimensionCard, { borderLeftColor: color }]}
+                onPress={() => setExpandedDimension(isOpen ? null : dim.key)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.dimensionHeaderRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.dimensionTitle}>{dim.title}</Text>
+                    <Text style={styles.dimensionQuestion}>{dim.question}</Text>
+                  </View>
+                  <View style={[styles.dimensionStatusBadge, { backgroundColor: color + '22' }]}>
+                    <Text style={[styles.dimensionStatusText, { color }]} numberOfLines={1}>{dim.statusLabel}</Text>
+                  </View>
+                  <Icon name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
+                </View>
+
+                {isOpen && (
+                  <View style={styles.dimensionBody}>
+                    {dim.outputs.map((o, i) => (
+                      <View key={i} style={styles.dimensionOutputRow}>
+                        <Text style={styles.dimensionOutputLabel}>{o.label}</Text>
+                        <Text style={styles.dimensionOutputValue}>{o.value}</Text>
+                      </View>
+                    ))}
+
+                    {dim.relatedProblems.length > 0 && (
+                      <View style={styles.dimensionRelatedBox}>
+                        <Text style={styles.dimensionRelatedTitle}>Flagged in Early Warning Signals below:</Text>
+                        {dim.relatedProblems.map((p, i) => (
+                          <Text key={i} style={styles.dimensionRelatedItem}>• {p}</Text>
+                        ))}
+                      </View>
+                    )}
+
+                    {dim.seeFullDetail && (
+                      <NextStepLink
+                        text={dim.seeFullDetail.text}
+                        onPress={() => navigate(dim.seeFullDetail!.screen, dim.seeFullDetail!.params)}
+                      />
+                    )}
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* How much to trust the score above -- how the diagnosis
@@ -654,6 +770,25 @@ const styles = StyleSheet.create({
   categoryDot: { width: 8, height: 8, borderRadius: 4 },
   categoryLabel: { flex: 1, fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
   categoryStatus: { fontSize: 12, fontWeight: '700' },
+  healthSeeMoreText: { fontSize: 11.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: Spacing.sm },
+
+  dimensionsIntro: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginBottom: Spacing.md },
+  dimensionCard: {
+    backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
+    borderLeftWidth: 3, padding: Spacing.md, marginBottom: Spacing.sm, ...Shadow.sm,
+  },
+  dimensionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  dimensionTitle: { fontSize: 13.5, fontWeight: '800', color: Colors.textPrimary },
+  dimensionQuestion: { fontSize: 11.5, color: Colors.textMuted, marginTop: 1 },
+  dimensionStatusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.pill, maxWidth: 110 },
+  dimensionStatusText: { fontSize: 10.5, fontWeight: '800' },
+  dimensionBody: { marginTop: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border, gap: 8 },
+  dimensionOutputRow: { marginBottom: 2 },
+  dimensionOutputLabel: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
+  dimensionOutputValue: { fontSize: 12.5, color: Colors.textPrimary, lineHeight: 17, marginTop: 1 },
+  dimensionRelatedBox: { backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: Spacing.sm, marginTop: 4 },
+  dimensionRelatedTitle: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, marginBottom: 3 },
+  dimensionRelatedItem: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
   fixFirstCard: {
     backgroundColor: Colors.surface,
