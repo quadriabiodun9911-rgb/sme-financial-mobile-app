@@ -189,6 +189,25 @@ export default function LandingScreen() {
                     </View>
                 </View>
 
+                {/* POSITIONING CARD — a single, self-contained "what is this"
+                    statement distilling the hero and the journey loop below
+                    into one sentence pair. Deliberately a dark card breaking
+                    from the page's light theme (same dark palette
+                    theme/colors.ts already defines) so it reads as a pull
+                    quote, not another content section competing with the
+                    hero's own headline. */}
+                <View style={[s.positioningCard, isWide && s.positioningCardWide]}>
+                    <Text style={[s.positioningEyebrow, body('extrabold')]}>QUAD360</Text>
+                    <Text style={[s.positioningHeadline, isWide && s.positioningHeadlineWide, display('bold')]}>
+                        Understand your business. Know what to do next.
+                    </Text>
+                    <Text style={[s.positioningBody, body('regular')]}>
+                        Quad360 diagnoses your business's financial health, explains risks and opportunities, and
+                        helps you make better management decisions. When financing is appropriate, it helps you
+                        understand your readiness and explore suitable funding options.
+                    </Text>
+                </View>
+
                 <View style={s.bridgeSection}>
                     <View style={[s.bridgeInner, isWide && s.bridgeInnerWide]}>
                         <Text style={[s.bridgeProblem, display('semibold')]}>
@@ -378,6 +397,18 @@ const s = StyleSheet.create({
     // less professional), the headline/subhead themselves now stretch
     // further across so the copy occupies the space on its own.
     heroWide: { paddingHorizontal: 64, maxWidth: 1180 },
+
+    positioningCard: {
+        marginHorizontal: Spacing.xl, marginBottom: Spacing.huge,
+        backgroundColor: '#0a0e18', borderRadius: Radius.lg, padding: Spacing.xl,
+        gap: Spacing.sm,
+    },
+    positioningCardWide: { marginHorizontal: 64, maxWidth: 1180, padding: Spacing.xxl },
+    positioningEyebrow: { fontSize: 13, color: '#5b9bf5', letterSpacing: 1 },
+    positioningHeadline: { fontSize: 26, fontWeight: '700', color: '#f8fafc', lineHeight: 33 },
+    positioningHeadlineWide: { fontSize: 34, lineHeight: 42 },
+    positioningBody: { fontSize: 15, color: '#c3cadb', lineHeight: 23, maxWidth: 640 },
+
     eyebrow: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.6, marginBottom: 14 },
     headline: { fontSize: 34, fontWeight: '700', color: Colors.textPrimary, lineHeight: 42, marginBottom: 18 },
     headlineWide: { fontSize: 48, lineHeight: 56 },
