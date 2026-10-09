@@ -82,7 +82,7 @@ export default function CFOQuestionsTab() {
     const advisorContext = useMemo(
         () => {
             if (transactions.length < 5) return null;
-            const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets);
+            const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets, settings.industry);
             return buildAdvisorContext(
                 finance,
                 settings,

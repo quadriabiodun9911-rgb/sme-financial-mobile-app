@@ -3,7 +3,7 @@
  * Audits financial statements and identifies root causes
  */
 
-import { Transaction, Invoice, Loan, InventoryItem, Asset, GoalType } from '../types';
+import { Transaction, Invoice, Loan, InventoryItem, Asset, GoalType, Industry } from '../types';
 import { computeDSCR, computeWorkingCapitalMetrics, computeCustomerConcentration, computeSupplierConcentration, computeRiskScore, computeImprovementProjection, computeProperCashFlow, RiskScore, DSCRResult } from './finance';
 import { computeStockVelocity } from './stockVelocity';
 import { computeBalanceSheetTrend } from './balanceSheetTrend';
@@ -204,6 +204,60 @@ export const INDUSTRY_BENCHMARKS = {
   runwayDaysCritical: 30,
   runwayDaysSafe: 60,
 };
+
+// Per-industry overrides for the two benchmarks that genuinely differ by
+// sector -- profit margin and how long customers typically take to pay.
+// Everything else (runway buffers, quick ratio) stays the same real-cash-
+// safety-margin number regardless of industry: a 30-day critical runway is
+// just as true for a restaurant as a consultancy. These are illustrative,
+// commonly-cited SME ranges, not figures from a specific cited study --
+// the same discipline computeLendingCapacityEstimate already applies to its
+// own illustrative ranges (see lendingCapacity.ts). Only the fields listed
+// per industry are overridden; everything else falls back to
+// INDUSTRY_BENCHMARKS above via getIndustryBenchmarks.
+const INDUSTRY_BENCHMARK_OVERRIDES: Partial<Record<Industry, Partial<typeof INDUSTRY_BENCHMARKS>>> = {
+  retail: {
+    // Thin net margins, high cost of goods, and customers who mostly pay
+    // on the spot rather than on invoice terms.
+    profitMargin: 12,
+    cogsPercentOfRevenue: 60,
+    daysOutstandingTarget: 15,
+  },
+  'food-service': {
+    // Food cost and labor both run high as a share of revenue; customers
+    // pay immediately, so even a short collection lag is a real signal.
+    profitMargin: 10,
+    salaryPercentOfRevenue: 32,
+    cogsPercentOfRevenue: 32,
+    daysOutstandingTarget: 7,
+  },
+  manufacturing: {
+    // Moderate margins, real cost of goods, and genuinely longer customer
+    // payment terms (B2B, often net-45) than a retail or food business.
+    profitMargin: 15,
+    cogsPercentOfRevenue: 55,
+    daysOutstandingTarget: 45,
+  },
+  'professional-services': {
+    // Little to no cost of goods -- the team IS the cost -- so salary
+    // share runs high while margin, net of that, runs higher than a
+    // goods-based business.
+    profitMargin: 28,
+    salaryPercentOfRevenue: 45,
+    cogsPercentOfRevenue: 10,
+  },
+};
+
+/**
+ * The benchmark set a diagnosis should actually be checked against --
+ * INDUSTRY_BENCHMARKS's flat defaults, with the per-sector overrides above
+ * applied where this business's industry has one. 'general' and undefined
+ * both fall straight through to the defaults, unchanged.
+ */
+export function getIndustryBenchmarks(industry?: Industry): typeof INDUSTRY_BENCHMARKS {
+  const overrides = industry ? INDUSTRY_BENCHMARK_OVERRIDES[industry] : undefined;
+  return overrides ? { ...INDUSTRY_BENCHMARKS, ...overrides } : INDUSTRY_BENCHMARKS;
+}
 
 // Recurring revenue percentage, standalone — recurring income THIS MONTH
 // (the latest month the business has data for, not the real calendar
@@ -451,17 +505,19 @@ export function calculateFinancialMetrics(
 
 export function diagnoseProfitability(
   metrics: FinancialMetrics,
-  currency: string = '₦'
+  currency: string = '₦',
+  industry?: Industry
 ): RootCauseAnalysis[] {
   const diagnoses: RootCauseAnalysis[] = [];
+  const benchmarks = getIndustryBenchmarks(industry);
 
   // Low profit margin diagnosis
-  if (metrics.profitMargin < INDUSTRY_BENCHMARKS.profitMargin) {
-    const gapPercentage = INDUSTRY_BENCHMARKS.profitMargin - metrics.profitMargin;
+  if (metrics.profitMargin < benchmarks.profitMargin) {
+    const gapPercentage = benchmarks.profitMargin - metrics.profitMargin;
     const potentialGain = (metrics.totalRevenue * gapPercentage) / 100;
 
     diagnoses.push({
-      problem: `Low profit margin (${metrics.profitMargin.toFixed(1)}% vs target ${INDUSTRY_BENCHMARKS.profitMargin}%)`,
+      problem: `Low profit margin (${metrics.profitMargin.toFixed(1)}% vs target ${benchmarks.profitMargin}%)`,
       severity: metrics.profitMargin < 10 ? 'critical' : 'warning',
       rootCause: 'Expenses too high relative to revenue',
       impact: `Losing ${currency}${Math.round(potentialGain).toLocaleString()} potential profit monthly`,
@@ -470,7 +526,7 @@ export function diagnoseProfitability(
       suggestedGoalType: 'margin_improvement',
       dimension: 'profitability',
       trigger: metrics.profitMargin < 10
-        ? `Resolves once margin recovers above the ${INDUSTRY_BENCHMARKS.profitMargin}% target.`
+        ? `Resolves once margin recovers above the ${benchmarks.profitMargin}% target.`
         : 'Becomes critical if margin falls below 10%.',
     });
   }
@@ -507,9 +563,11 @@ export function diagnoseProfitability(
 
 export function diagnoseLiquidity(
   metrics: FinancialMetrics,
-  currency: string = '₦'
+  currency: string = '₦',
+  industry?: Industry
 ): RootCauseAnalysis[] {
   const diagnoses: RootCauseAnalysis[] = [];
+  const benchmarks = getIndustryBenchmarks(industry);
 
   // Critical runway diagnosis
   if (metrics.runwayDays === null || metrics.runwayDays < INDUSTRY_BENCHMARKS.runwayDaysCritical) {
@@ -546,10 +604,10 @@ export function diagnoseLiquidity(
   // longer a business had been invoicing without archiving old invoices.
   // DSO is scale-independent and was already computed but never actually
   // used here.
-  if (metrics.accountsReceivable > 0 && metrics.daysOutstanding > INDUSTRY_BENCHMARKS.daysOutstandingTarget) {
-    const severity = metrics.daysOutstanding > INDUSTRY_BENCHMARKS.daysOutstandingTarget * 2 ? 'critical' : 'warning';
+  if (metrics.accountsReceivable > 0 && metrics.daysOutstanding > benchmarks.daysOutstandingTarget) {
+    const severity = metrics.daysOutstanding > benchmarks.daysOutstandingTarget * 2 ? 'critical' : 'warning';
     diagnoses.push({
-      problem: `Slow-paying customers (${metrics.daysOutstanding}-day average vs ${INDUSTRY_BENCHMARKS.daysOutstandingTarget}-day target)`,
+      problem: `Slow-paying customers (${metrics.daysOutstanding}-day average vs ${benchmarks.daysOutstandingTarget}-day target)`,
       severity,
       rootCause: 'Customers paying slowly (high DSO)',
       impact: `${currency}${Math.round(metrics.accountsReceivable).toLocaleString()} tied up in outstanding customer receivables`,
@@ -558,8 +616,8 @@ export function diagnoseLiquidity(
       suggestedGoalType: 'reduce_overdue_ar',
       dimension: 'liquidity',
       trigger: severity === 'critical'
-        ? `Resolves once average collection time returns under ${INDUSTRY_BENCHMARKS.daysOutstandingTarget} days.`
-        : `Becomes critical if average collection time exceeds ${INDUSTRY_BENCHMARKS.daysOutstandingTarget * 2} days.`,
+        ? `Resolves once average collection time returns under ${benchmarks.daysOutstandingTarget} days.`
+        : `Becomes critical if average collection time exceeds ${benchmarks.daysOutstandingTarget * 2} days.`,
     });
   }
 
@@ -859,11 +917,12 @@ export function generateNarrativeSummary(
   diagnoses: RootCauseAnalysis[],
   topOpportunities: string[],
   solutionImpact: { currentScore: number; projectedScore: number; projectedBand: RiskScore['band'] } | null = null,
+  industry?: Industry,
 ): string {
   const parts: string[] = [];
   const growth = metrics.monthOverMonthGrowth;
   const growthGap = metrics.expenseGrowthPct - growth;
-  const marginWeak = metrics.profitMargin < INDUSTRY_BENCHMARKS.profitMargin;
+  const marginWeak = metrics.profitMargin < getIndustryBenchmarks(industry).profitMargin;
 
   let headline: string;
   if (Math.abs(growth) < 3) {
@@ -1045,6 +1104,77 @@ export function buildFinancialHealthInsightCards(diagnosis: DiagnosisResult): Fi
   return cards;
 }
 
+/**
+ * Under-recording detection -- every other diagnosis in this file assumes
+ * the recorded transactions are a complete picture of the business, and has
+ * no way to tell "the business is genuinely healthy" apart from "the
+ * business under-recorded its expenses." That gap matters most for exactly
+ * the businesses this app targets: cash-heavy, informal record-keeping,
+ * where income (sales, bank deposits) tends to get logged far more
+ * faithfully than small or informal outgoings. Two independent signals,
+ * each gated to avoid firing on a brand-new or simply sparse account:
+ *
+ * 1. Months with recorded income but zero recorded expenses at all -- not
+ *    "low expenses," literally none -- in at least half of the months that
+ *    have income. A single such month is normal (a fresh account, a slow
+ *    week); a recurring pattern across several months is a record-keeping
+ *    gap, not a reflection of the business actually having no costs.
+ * 2. A profit margin far above what's realistic even for a strong business
+ *    in this industry (industry-aware via getIndustryBenchmarks, so a
+ *    naturally higher-margin business like professional services isn't
+ *    flagged for numbers that would be implausible for a retailer). This
+ *    one is deliberately 'info' severity, not 'warning' -- a margin this
+ *    high is ambiguous (it could be real outperformance), where the
+ *    no-expenses-logged pattern above is a much more direct signal.
+ */
+export function diagnoseRecordKeeping(
+  transactions: Transaction[],
+  metrics: FinancialMetrics,
+  industry?: Industry,
+): RootCauseAnalysis[] {
+  const diagnoses: RootCauseAnalysis[] = [];
+
+  const byMonth = new Map<string, { income: number; expense: number }>();
+  for (const t of transactions) {
+    if (!t.date) continue;
+    const key = t.date.slice(0, 7);
+    const entry = byMonth.get(key) ?? { income: 0, expense: 0 };
+    if (t.type === 'income') entry.income += t.amount ?? 0;
+    else if (t.type === 'expense') entry.expense += t.amount ?? 0;
+    byMonth.set(key, entry);
+  }
+
+  const monthsWithIncome = Array.from(byMonth.values()).filter(m => m.income > 0);
+  const monthsWithIncomeNoExpense = monthsWithIncome.filter(m => m.expense === 0);
+
+  if (monthsWithIncome.length >= 3 && monthsWithIncomeNoExpense.length >= Math.ceil(monthsWithIncome.length / 2)) {
+    diagnoses.push({
+      problem: `${monthsWithIncomeNoExpense.length} of ${monthsWithIncome.length} months with recorded income have no expenses logged at all`,
+      severity: 'warning',
+      rootCause: 'Income is likely being recorded more consistently than expenses -- cash purchases, informal payments, or small supplier costs may not be entered',
+      impact: 'Every figure built on this data -- margin, runway, financing readiness -- is likely overstated until expense recording catches up',
+      financialImpact: 0,
+      opportunity: 'Log at least the recurring expenses (rent, supplies, salaries) for a typical month to make the diagnosis trustworthy',
+      dimension: 'cashFlow',
+    });
+  }
+
+  const benchmarks = getIndustryBenchmarks(industry);
+  if (metrics.totalRevenue > 0 && metrics.profitMargin > benchmarks.profitMargin * 2.5) {
+    diagnoses.push({
+      problem: `Profit margin of ${metrics.profitMargin.toFixed(1)}% is unusually high for this industry (typical target: ${benchmarks.profitMargin}%)`,
+      severity: 'info',
+      rootCause: 'A margin this far above typical is more often a sign of incomplete expense recording than genuine outperformance',
+      impact: 'Financing readiness and financial health scores may be overstated until this is confirmed',
+      financialImpact: 0,
+      opportunity: 'Double-check that all recurring costs -- rent, supplies, transport, informal payments -- are being logged',
+      dimension: 'cashFlow',
+    });
+  }
+
+  return diagnoses;
+}
+
 export function performFinancialDiagnosis(
   transactions: Transaction[],
   invoices: Invoice[],
@@ -1053,7 +1183,8 @@ export function performFinancialDiagnosis(
   currency: string = '₦',
   loans: Loan[] = [],
   inventory: InventoryItem[] = [],
-  assets: Asset[] = []
+  assets: Asset[] = [],
+  industry?: Industry
 ): DiagnosisResult {
   // Calculate metrics
   const metrics = calculateFinancialMetrics(
@@ -1071,14 +1202,15 @@ export function performFinancialDiagnosis(
   // chance to surface instead of only ever hearing about profitability,
   // liquidity, or expense categories.
   const allDiagnoses = [
-    ...diagnoseProfitability(metrics, currency),
-    ...diagnoseLiquidity(metrics, currency),
+    ...diagnoseProfitability(metrics, currency, industry),
+    ...diagnoseLiquidity(metrics, currency, industry),
     ...diagnoseWorkingCapital(metrics),
     ...diagnoseDebt(metrics, currency),
     ...diagnoseCashFlow(metrics, currency),
     ...diagnoseEfficiency(metrics, currency),
     ...diagnoseInventory(metrics, currency),
     ...diagnoseConcentration(metrics),
+    ...diagnoseRecordKeeping(transactions, metrics, industry),
   ].sort((a, b) => {
     const severityOrder = { critical: 0, warning: 1, info: 2 };
     if (severityOrder[a.severity] !== severityOrder[b.severity]) {
@@ -1141,7 +1273,7 @@ export function performFinancialDiagnosis(
     topOpportunities,
     topActionImpacts,
     improvementProjection,
-    narrativeSummary: generateNarrativeSummary(metrics, allDiagnoses, topOpportunities, improvementProjection),
+    narrativeSummary: generateNarrativeSummary(metrics, allDiagnoses, topOpportunities, improvementProjection, industry),
     healthSummary: computeFinancialHealthSummary(riskScore.band, categories, allDiagnoses),
   };
 }

@@ -28,7 +28,8 @@ export default function FinancialAssessmentScreen() {
       settings.currency,
       loans,
       inventory,
-      assets
+      assets,
+      settings.industry
     );
   }, [transactions, invoices, finance, settings, loans, inventory, assets]);
 

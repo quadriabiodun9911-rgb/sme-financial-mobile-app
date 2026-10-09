@@ -2730,9 +2730,9 @@ export function useApp() {
   const currencyForHealth = settings?.settings?.currency ?? '₦';
   const financialHealthScore = useMemo(
     () => (transactions.length >= 5 && financeData
-      ? performFinancialDiagnosis(transactions, invoicesArray, financeData.cashBalance, expenseAvg, currencyForHealth, loans, inventory).overallHealth
+      ? performFinancialDiagnosis(transactions, invoicesArray, financeData.cashBalance, expenseAvg, currencyForHealth, loans, inventory, assets, settings?.settings?.industry).overallHealth
       : 0),
-    [transactions, invoicesArray, financeData, expenseAvg, currencyForHealth, loans, inventory]
+    [transactions, invoicesArray, financeData, expenseAvg, currencyForHealth, loans, inventory, assets, settings?.settings?.industry]
   );
 
   // Memoized so `user` is referentially stable across renders where nothing

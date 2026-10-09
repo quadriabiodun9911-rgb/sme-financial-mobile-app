@@ -355,6 +355,44 @@ export default function LandingScreen() {
                     </View>
                 </View>
 
+                {/* JOIN THE PILOT — a real call to action, not a waitlist
+                    form: "joining the pilot" for an SME owner today means
+                    signing up and using the diagnostic engine on their own
+                    numbers, which is exactly what goSignup() already does.
+                    No separate interest-capture flow to build or maintain
+                    for this -- the honest version of "join the pilot" with
+                    this app's current stage is just "sign up now, you're in
+                    the first cohort." */}
+                <View style={s.pilotSection}>
+                    <View style={[s.pilotInner, isWide && s.pilotInnerWide]}>
+                        <Text style={[s.pilotEyebrow, body('bold')]}>EARLY ACCESS</Text>
+                        <Text style={[s.pilotHeadline, isWide && s.pilotHeadlineWide, display('semibold')]}>
+                            We're onboarding a small pilot of business owners right now.
+                        </Text>
+                        <Text style={[s.pilotSubhead, body('regular')]}>
+                            Join now and you're using the same diagnostic engine every other business on Quad360
+                            will — free, while we're in pilot, with your own numbers from day one.
+                        </Text>
+
+                        <View style={s.pilotPointsCol}>
+                            {[
+                                'Full access to the diagnosis, action plan, and readiness tracking — no waitlist',
+                                'Your feedback directly shapes what gets built next',
+                                'No cost and no obligation during the pilot period',
+                            ].map(line => (
+                                <View key={line} style={s.pilotPointRow}>
+                                    <Icon name="check-circle" size={14} color={Colors.primary} />
+                                    <Text style={[s.pilotPointText, body('regular')]}>{line}</Text>
+                                </View>
+                            ))}
+                        </View>
+
+                        <TouchableOpacity onPress={() => goSignup()} style={s.pilotCtaBtn}>
+                            <Text style={[s.pilotCtaText, body('extrabold')]}>Join the Pilot →</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
                 <View style={s.footer}>
                     <Text style={[s.footerText, body('regular')]}>Quad360 is built to help business owners and their teams understand their business, navigate its challenges, and enjoy the milestones along the way — from managing daily finance and solving problems, to improving performance, accessing opportunities, and growing with confidence.</Text>
                     <View style={s.footerLinks}>
@@ -528,6 +566,19 @@ const s = StyleSheet.create({
     lenderCtaText: { color: '#fff', fontWeight: '800', fontSize: 15 },
     lenderDemoLink: { color: Colors.secondary, fontWeight: '700', fontSize: 13, marginBottom: 14 },
     lenderDisclaimer: { fontSize: 11.5, color: Colors.textMuted, textAlign: 'center', maxWidth: 420 },
+
+    pilotSection: { paddingVertical: Spacing.huge, marginBottom: 32 },
+    pilotInner: { paddingHorizontal: Spacing.xl, alignItems: 'flex-start' },
+    pilotInnerWide: { paddingHorizontal: 64, maxWidth: 820, alignSelf: 'center', alignItems: 'center' },
+    pilotEyebrow: { fontSize: 11.5, fontWeight: '700', color: Colors.primary, letterSpacing: 0.6, marginBottom: 14 },
+    pilotHeadline: { fontSize: 25, fontWeight: '700', color: Colors.textPrimary, lineHeight: 32, marginBottom: 14, maxWidth: 640 },
+    pilotHeadlineWide: { fontSize: 30, lineHeight: 38, textAlign: 'center' },
+    pilotSubhead: { fontSize: 14, color: Colors.textSecondary, lineHeight: 21, marginBottom: 22, maxWidth: 560 },
+    pilotPointsCol: { gap: 10, marginBottom: 26, alignSelf: 'stretch' },
+    pilotPointRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
+    pilotPointText: { flex: 1, fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
+    pilotCtaBtn: { backgroundColor: Colors.primary, borderRadius: Radius.pill, paddingHorizontal: 28, paddingVertical: 15, ...Shadow.sm },
+    pilotCtaText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 
     footer: {
         paddingHorizontal: Spacing.xl, paddingVertical: Spacing.xxl, alignItems: 'center',

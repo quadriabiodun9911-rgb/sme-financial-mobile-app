@@ -277,7 +277,7 @@ export default function BudgetScreen() {
     // a generic "you're over budget" flag.
     const expenseTactics = useMemo(() => {
         if (transactions.length < 5) return [];
-        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory, assets);
+        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory, assets, settings.industry);
         return generateExpenseReductionActions(diagnosis, diagnosis.metrics, settings.currency).slice(0, 3);
     }, [transactions, invoices, finance.cashBalance, finance.expense, settings.currency, loans, inventory, assets]);
 

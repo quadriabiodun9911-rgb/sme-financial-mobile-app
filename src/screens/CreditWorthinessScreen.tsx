@@ -344,7 +344,7 @@ export default function CreditWorthinessScreen() {
     const activeGoals = useMemo(() => goals.filter(g => g.status !== 'achieved'), [goals]);
     const goalRiskByGoalId = useMemo(() => {
         if (transactions.length < 5 || activeGoals.length === 0) return {};
-        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets);
+        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets, settings?.industry);
         const riskRadar = computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? [], new Date(), assets);
         const tactics = generateActionPlan(diagnosis, diagnosis.metrics, currency);
         const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
@@ -421,9 +421,9 @@ export default function CreditWorthinessScreen() {
     // whether the business has set any goals. See dynamicFinancingReadiness.ts.
     const growthQuality = useMemo(() => computeQualityOfGrowth(transactions, assets, loans), [transactions, assets, loans]);
     const topDiagnosis = useMemo(() => {
-        const d = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets);
+        const d = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets, settings?.industry);
         return d.diagnoses[0] ?? null;
-    }, [transactions, invoices, finance, currency, loans, inventory, assets]);
+    }, [transactions, invoices, finance, currency, loans, inventory, assets, settings?.industry]);
     // Temporary vs Structural -- when Cash is improving while Debt is
     // deteriorating below, names the real, provable reason if one exists
     // (supplier-payment deferral, a fresh loan draw) instead of leaving

@@ -454,9 +454,10 @@ export default function ImportTransactionsScreen() {
             currency,
             loans,
             inventory,
-            assets
+            assets,
+            settings.industry
         );
-    }, [step, transactions, invoices, finance, currency, loans, inventory, assets]);
+    }, [step, transactions, invoices, finance, currency, loans, inventory, assets, settings.industry]);
 
     const processFile = useCallback(async (uri: string, name: string) => {
         setLoading(true);
