@@ -369,7 +369,10 @@ export default function FinancialAssessmentScreen() {
 
           <Text style={styles.reportSectionLabel}>What you should do next</Text>
           {businessHealthReport.nextSteps.map((step, i) => (
-            <Text key={i} style={styles.reportStep}>{i + 1}. {step}</Text>
+            <View key={i} style={styles.stepRow}>
+              <Icon name="check-circle" size={14} color={Colors.income} />
+              <Text style={styles.reportStep}>{step}</Text>
+            </View>
           ))}
 
           <View style={styles.reportDecisionBox}>
@@ -379,6 +382,21 @@ export default function FinancialAssessmentScreen() {
               text="Explore this decision"
               onPress={() => navigate(businessHealthReport.nextDecision.screen, businessHealthReport.nextDecision.params)}
             />
+          </View>
+
+          {/* Where a diagnosis actually goes once you act on it -- the same
+              findings above are already what Insights' Decision Centre is
+              built from (decisionCentre.ts reads diagnosis.diagnoses
+              directly), which is where "Set a goal" turns a finding into a
+              tracked FinancialGoal, and a cost-reduction goal's own "Turn
+              into a budget" carries it into Budget. Named explicitly here
+              since that chain isn't otherwise visible from this screen. */}
+          <View style={styles.reportDecisionBox}>
+            <Text style={styles.reportSectionLabel}>Turn this into a tracked plan</Text>
+            <Text style={styles.reportText}>
+              Every finding above also lives in your Decision Centre, where you can set it as a goal and -- for a cost-cutting goal -- turn that goal straight into a budget.
+            </Text>
+            <NextStepLink text="Open your Decision Centre" onPress={() => navigate('insights')} />
           </View>
         </View>
 
@@ -436,13 +454,22 @@ export default function FinancialAssessmentScreen() {
                         <Text style={styles.narrativeText}>{dim.narrative.whyItMatters}</Text>
                         <Text style={styles.narrativeSectionLabel}>Recommended next steps</Text>
                         {dim.narrative.recommendedSteps.map((step, i) => (
-                          <Text key={i} style={styles.narrativeStep}>{i + 1}. {step}</Text>
+                          <View key={i} style={styles.stepRow}>
+                            <Icon name="check-circle" size={14} color={Colors.income} />
+                            <Text style={styles.narrativeStep}>{step}</Text>
+                          </View>
                         ))}
-                        <Text style={styles.narrativeSectionLabel}>The numbers</Text>
                       </View>
                     )}
 
-                    {dim.outputs.map((o, i) => (
+                    {/* Outputs already restated as one of the two narrative
+                        metric tiles above (same value, e.g. Cash on hand ==
+                        Bank balance) are skipped here rather than printed
+                        twice in one card. */}
+                    {dim.outputs.filter(o => !dim.narrative?.metrics.some(mt => mt.value === o.value)).length > 0 && (
+                      <Text style={styles.narrativeSectionLabel}>{dim.narrative ? 'More detail' : 'The numbers'}</Text>
+                    )}
+                    {dim.outputs.filter(o => !dim.narrative?.metrics.some(mt => mt.value === o.value)).map((o, i) => (
                       <View key={i} style={styles.dimensionOutputRow}>
                         <Text style={styles.dimensionOutputLabel}>{o.label}</Text>
                         <Text style={styles.dimensionOutputValue}>{o.value}</Text>
@@ -792,8 +819,9 @@ const styles = StyleSheet.create({
   reportStatusText: { fontSize: 12, fontWeight: '800' },
   reportSectionLabel: { fontSize: 10.5, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 8 },
   reportText: { fontSize: 13, color: Colors.textPrimary, lineHeight: 19, marginTop: 2 },
-  reportStep: { fontSize: 13, color: Colors.textPrimary, lineHeight: 19, marginTop: 1 },
+  reportStep: { flex: 1, fontSize: 13, color: Colors.textPrimary, lineHeight: 19 },
   reportDecisionBox: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
+  stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 6 },
 
   pillarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: Spacing.xl },
   pillarCard: {
@@ -839,7 +867,7 @@ const styles = StyleSheet.create({
   narrativeMetricValue: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginTop: 2 },
   narrativeSectionLabel: { fontSize: 10.5, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 6 },
   narrativeText: { fontSize: 12.5, color: Colors.textPrimary, lineHeight: 18, marginTop: 1 },
-  narrativeStep: { fontSize: 12.5, color: Colors.textPrimary, lineHeight: 18, marginTop: 1 },
+  narrativeStep: { flex: 1, fontSize: 12.5, color: Colors.textPrimary, lineHeight: 18 },
   dimensionOutputRow: { marginBottom: 2 },
   dimensionOutputLabel: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
   dimensionOutputValue: { fontSize: 12.5, color: Colors.textPrimary, lineHeight: 17, marginTop: 1 },
