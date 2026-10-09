@@ -486,6 +486,19 @@ function CustomersTab({ currency }: { currency: string }) {
                 </View>
             </View>
 
+            {/* Glossary moved up to sit right under the stat row it
+                explains -- it used to render at the very bottom of this
+                tab, past the alert and the full month-by-month table, so a
+                reader hit six unexplained acronyms (Churn Rate, CAC, Avg
+                CAC, Payback, Avg LTV) before ever reaching what any of them
+                meant. */}
+            <View style={gs.focusCard}>
+                <Icon name="zap" size={20} color={Colors.primary} />
+                <Text style={gs.focusText}>
+                    CAC = Marketing-category spend ÷ new customers that month. Churn = customers who bought last month but not this one, as a share of last month's active customers. Gross Profit / Order = average order value × that month's realized gross margin — an estimate, since cost isn't tracked per individual sale. Payback = CAC ÷ average monthly gross profit per customer. LTV = average monthly gross profit per customer ÷ churn rate, shown once there's real churn history to estimate an expected customer lifespan from. Add a customer name to sales transactions and tag spend "Marketing" to keep these accurate.
+                </Text>
+            </View>
+
             {/* The one alert this whole chain exists to raise: a marketing
                 campaign can look successful on a "customers acquired" chart
                 while actually losing money on every new customer's very
@@ -522,13 +535,6 @@ function CustomersTab({ currency }: { currency: string }) {
             </View>
 
             {winbackSection}
-
-            <View style={gs.focusCard}>
-                <Icon name="zap" size={20} color={Colors.primary} />
-                <Text style={gs.focusText}>
-                    CAC = Marketing-category spend ÷ new customers that month. Churn = customers who bought last month but not this one, as a share of last month's active customers. Gross Profit / Order = average order value × that month's realized gross margin — an estimate, since cost isn't tracked per individual sale. Payback = CAC ÷ average monthly gross profit per customer. LTV = average monthly gross profit per customer ÷ churn rate, shown once there's real churn history to estimate an expected customer lifespan from. Add a customer name to sales transactions and tag spend "Marketing" to keep these accurate.
-                </Text>
-            </View>
         </ScrollView>
     );
 }
