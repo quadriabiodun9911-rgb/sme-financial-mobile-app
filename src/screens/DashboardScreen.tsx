@@ -2102,6 +2102,31 @@ export default function DashboardScreen() {
                   </TouchableOpacity>
                 )}
 
+                {/* BEFORE YOU BORROW — the other side of "If You Need
+                    Capital". financingCapacity.reason already carries the
+                    plain-language "why not yet" (too little history, DSCR
+                    below 1, or a score that's currently too low) that
+                    computeLendingCapacityEstimate always returns for a
+                    'not-yet-bankable' tier -- previously computed here and
+                    then thrown away, since the capacity card above hides
+                    itself in exactly this case. Surfacing it instead means
+                    the home page gives a financing conclusion either way,
+                    not just when the answer is encouraging. */}
+                {canViewFinancials && financingCapacity && financingCapacity.tier === 'not-yet-bankable' && (
+                  <TouchableOpacity
+                    style={styles.beforeYouBorrowCard}
+                    onPress={() => setCurrentScreen('financial-assessment')}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.sectionTitleRow}>
+                      <Icon name="alert-circle" size={13} color={Colors.warning} />
+                      <Text style={styles.operationsSectionTitle}>Before You Borrow</Text>
+                    </View>
+                    <Text style={styles.beforeYouBorrowText}>{financingCapacity.reason}</Text>
+                    <Text style={styles.healthLinkText}>See what to fix first →</Text>
+                  </TouchableOpacity>
+                )}
+
                 {/* Risk Radar -- what could stop growth, not what needs
                     action today. This used to render the full category-chip
                     breakdown here AND on the Scoreboard, with two different
@@ -2807,6 +2832,14 @@ const styles = StyleSheet.create({
     },
     capacityAmount: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary, marginTop: 2, marginBottom: 4 },
     capacitySubtext: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+
+    beforeYouBorrowCard: {
+        backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1,
+        borderColor: Colors.border, borderLeftWidth: 3, borderLeftColor: Colors.warning,
+        padding: Spacing.md, marginBottom: Spacing.lg,
+        ...Shadow.sm,
+    },
+    beforeYouBorrowText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginTop: 4, marginBottom: 6 },
 
     celebrationCard: {
         backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1.5,
