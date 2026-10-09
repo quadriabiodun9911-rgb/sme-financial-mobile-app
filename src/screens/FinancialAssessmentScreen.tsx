@@ -14,6 +14,16 @@ import DataConfidenceBadge from '../components/DataConfidenceBadge';
 import { describeDataConfidenceTrend } from '../utils/dataConfidenceHistory';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { loadDismissedDiagnosisIds, dismissDiagnosis, undismissDiagnosis } from '../utils/diagnosisDismissal';
+import {
+  DiagnosisSnapshot,
+  loadDiagnosisHistory,
+  saveDiagnosisHistory,
+  buildDiagnosisSnapshot,
+  shouldRecordDiagnosisSnapshot,
+  appendDiagnosisSnapshot,
+  describeDiagnosisFollowUp,
+  findResolvedDiagnoses,
+} from '../utils/diagnosisHistory';
 
 export default function FinancialAssessmentScreen() {
   const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory, assets, dataConfidenceHistory } = useApp();
@@ -45,6 +55,34 @@ export default function FinancialAssessmentScreen() {
       dismissedIds
     );
   }, [transactions, invoices, finance, settings, loans, inventory, assets, dismissedIds]);
+
+  // Follow-up: "how will Quad360 determine whether this improved" made
+  // concrete, not just a static `trigger` sentence. Weekly snapshots of
+  // this diagnosis run (same cadence/storage pattern as readinessHistory.ts)
+  // let a later visit compare "then" against "now" per diagnosis, and
+  // notice when one stops appearing at all.
+  const [diagnosisHistory, setDiagnosisHistory] = useState<DiagnosisSnapshot[]>([]);
+  useEffect(() => {
+    loadDiagnosisHistory().then(setDiagnosisHistory);
+  }, []);
+  useEffect(() => {
+    if (diagnosis.diagnoses.length === 0) return;
+    if (!shouldRecordDiagnosisSnapshot(diagnosisHistory)) return;
+    const next = appendDiagnosisSnapshot(diagnosisHistory, buildDiagnosisSnapshot(diagnosis.diagnoses));
+    setDiagnosisHistory(next);
+    saveDiagnosisHistory(next);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [diagnosis.diagnoses]);
+
+  // Resolved since last check -- diagnoses history has seen but the
+  // current run (the FULL list, dismissed included -- see
+  // performFinancialDiagnosis's own doc comment on why `diagnoses` stays
+  // the full list -- so a dismissed-not-fixed issue is never misreported
+  // as resolved) no longer produces at all.
+  const resolvedDiagnoses = useMemo(
+    () => findResolvedDiagnoses(diagnosisHistory, new Set(diagnosis.diagnoses.map(d => d.id))),
+    [diagnosisHistory, diagnosis.diagnoses]
+  );
 
   const toggleDismissSelected = async () => {
     const current = diagnosis.diagnoses[selectedDiagnosis];
@@ -313,6 +351,23 @@ export default function FinancialAssessmentScreen() {
           <SwotAnalysis />
         </View>
 
+        {/* Resolved Since Last Check -- the positive half of follow-up:
+            not just "is this getting better" but "did this go away
+            entirely." Only ever diagnoses this device has actually tracked
+            (diagnosisHistory.ts), never a claim about issues from before
+            this feature existed. */}
+        {resolvedDiagnoses.length > 0 && (
+          <View style={styles.resolvedCard}>
+            <View style={styles.titleIconRow}>
+              <Icon name="check-circle" size={15} color={Colors.income} />
+              <Text style={styles.resolvedTitle}>Resolved Since Last Check</Text>
+            </View>
+            {resolvedDiagnoses.map((r, i) => (
+              <Text key={i} style={styles.resolvedItemText}>✓ {r.problem}</Text>
+            ))}
+          </View>
+        )}
+
         {/* Diagnoses */}
         <View style={styles.section}>
           <View style={styles.diagnosisHeader}>
@@ -376,6 +431,24 @@ export default function FinancialAssessmentScreen() {
               <Text style={[styles.diagnosisText, { color: Colors.income, fontWeight: '600' }]}>
                 → {diagnosis.diagnoses[selectedDiagnosis].opportunity}
               </Text>
+
+              {/* Follow-up -- "how will Quad360 determine whether this
+                  improved," made concrete with an actual before/after
+                  comparison instead of left as a one-time finding. See
+                  diagnosisHistory.ts. */}
+              {(() => {
+                const followUp = describeDiagnosisFollowUp(diagnosis.diagnoses[selectedDiagnosis], diagnosisHistory, settings.currency);
+                if (!followUp) return null;
+                const followUpColor = followUp.kind === 'improving' ? Colors.income : followUp.kind === 'worsening' ? Colors.expense : Colors.textMuted;
+                return (
+                  <>
+                    <Text style={styles.diagnosisLabel}>Follow-up</Text>
+                    <Text style={[styles.diagnosisText, { color: followUpColor }]}>
+                      {followUp.kind === 'improving' ? '↓ ' : followUp.kind === 'worsening' ? '↑ ' : followUp.kind === 'new' ? '🆕 ' : '→ '}{followUp.text}
+                    </Text>
+                  </>
+                );
+              })()}
 
               {/* "Mark as intentional" -- for when this diagnosis is a
                   deliberate business choice (e.g. long payment terms offered
@@ -602,6 +675,21 @@ const styles = StyleSheet.create({
     width: 20, height: 20, textAlign: 'center', lineHeight: 20,
   },
   fixFirstText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+
+  resolvedCard: {
+    backgroundColor: Colors.income + '10',
+    borderRadius: 14,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.income,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.sm,
+  },
+  resolvedTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary },
+  resolvedItemText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginTop: 4 },
 
   section: { marginBottom: Spacing.xxl },
   sectionTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: Spacing.md },
