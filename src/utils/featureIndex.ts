@@ -121,7 +121,7 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         id: 'break-even', label: 'Break-Even Calculator (Plan a Price or Product)', icon: '⚖️',
         description: 'What-if: units and revenue needed to cover a hypothetical cost/price, and your margin of safety',
         keywords: ['breakeven', 'break even', 'margin of safety', 'unit economics'],
-        screen: 'cfo', navParams: { tab: 'finance' },
+        screen: 'analysis', navParams: { tab: 'decide' },
     },
     {
         id: 'breakeven-analysis', label: 'Breakeven Analysis (Your Actual Business)', icon: '⚖️',

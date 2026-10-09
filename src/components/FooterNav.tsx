@@ -102,11 +102,12 @@ const ANTICIPATE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen;
 
 const DECIDE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey; params?: { tab: string } }[] = [
     { label: 'insights', icon: 'zap',             screen: 'insights', color: '#f59e0b', desc: 'navInsightsDesc' },
-    // Advisor's own screen defaults to its 'pulse' tab when opened with no
-    // params (a health-overview digest, not the Q&A) -- landing there would
-    // contradict this item's own promise of "ask about it." Deep-link
-    // straight to the Q&A tab so tapping Advisor does what it says.
-    { label: 'navAdvisor',  icon: 'message-circle',  screen: 'cfo',      color: '#8b5cf6', desc: 'navAdvisorDesc', params: { tab: 'questions' } },
+    // Was a 5-tab "Fractional CFO" screen (Pulse/Forecast/Finance/Quick
+    // Wins/Q&A); all but Q&A turned out to duplicate content already shown
+    // elsewhere (see CFOScreen.tsx's own doc comment for the full
+    // breakdown) and were dropped or redistributed. No tab param needed
+    // any more -- Q&A is the only thing this screen shows now.
+    { label: 'navAdvisor',  icon: 'message-circle',  screen: 'cfo',      color: '#8b5cf6', desc: 'navAdvisorDesc' },
     { label: 'navAnalysisDecisions', icon: 'pie-chart', screen: 'analysis', color: '#14b8a6', desc: 'navAnalysisDecisionsDesc' },
     { label: 'goals',    icon: 'target',          screen: 'goals',    color: '#ef4444', desc: 'navGoalsDesc' },
     { label: 'navBudget',   icon: 'dollar-sign',     screen: 'budget',   color: '#10b981', desc: 'navBudgetDesc' },

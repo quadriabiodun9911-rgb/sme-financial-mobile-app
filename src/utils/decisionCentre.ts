@@ -23,6 +23,7 @@
 
 import { RootCauseAnalysis, DiagnosisResult } from './financialDiagnosisEngine';
 import { DirectionVsStatusResult } from './directionVsStatus';
+import { GoalType } from '../types';
 
 export type DecisionBucket = 'act-now' | 'watch' | 'improving';
 
@@ -42,6 +43,11 @@ export interface DecisionCentreItem {
     trigger?: string;
     // Act Now/Watch only -- the recommended action.
     recommendedAction?: string;
+    // Passed straight through from the underlying diagnosis's own
+    // suggestedGoalType (financialDiagnosisEngine.ts) -- lets "Set this as
+    // a goal" on wherever this item routes to prefill the right goal type
+    // instead of guessing one from `title`/`why` text.
+    suggestedGoalType?: GoalType;
 }
 
 export interface DecisionCentreResult {
@@ -63,6 +69,7 @@ function diagnosisToItem(d: RootCauseAnalysis, bucket: DecisionBucket): Decision
         evidence: d.impact,
         trigger: d.trigger,
         recommendedAction: d.opportunity,
+        suggestedGoalType: d.suggestedGoalType,
     };
 }
 

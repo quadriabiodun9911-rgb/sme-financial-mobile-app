@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, TextInput, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
-import { Transaction, FinancialGoal } from '../types';
+import { Transaction, FinancialGoal, Screen } from '../types';
 import { computeDecisionSimulation, computeExpansionReadiness, DecisionAffordability, ExpansionReadinessBand } from '../utils/financialDecisionSimulator';
 import { FinancialHealthPillar } from '../utils/financialHealthPillars';
 import { pickCashGoal, estimateGoalDelay, formatGoalDelay } from '../utils/goalImpact';
+import { localDateStr } from '../utils/localDate';
 
 interface Props {
     currency: string;
@@ -18,6 +19,9 @@ interface Props {
     // still answers "can I afford this" without that line, for callers that
     // don't already have the goals list at hand.
     goals?: FinancialGoal[];
+    // Only used for the "Set this as a goal" button -- omit it and this
+    // component still answers "can I afford this," just without that CTA.
+    navigate?: (screen: Screen, params?: any) => void;
 }
 
 function fmt(currency: string, n: number): string {
@@ -43,7 +47,7 @@ const READINESS_META: Record<ExpansionReadinessBand, { color: string }> = {
 // the Growth Affordability Calculator (no upfront cost or ramp-up
 // modeled) and why the downside check reuses Revenue Stress Test's own
 // -20% convention rather than inventing a new one.
-export default function DecisionSimulator({ currency, transactions, currentCashBalance, pillars, goals }: Props) {
+export default function DecisionSimulator({ currency, transactions, currentCashBalance, pillars, goals, navigate }: Props) {
     const [addedCost, setAddedCost] = useState('');
 
     const result = useMemo(() => {
@@ -107,6 +111,24 @@ export default function DecisionSimulator({ currency, transactions, currentCashB
                             {AFFORDABILITY_META[result.affordability].label}
                         </Text>
                         <Text style={s.verdictReason}>{result.assessment}</Text>
+                        {/* Only offered for a clean "affordable" verdict --
+                            "tight" and "not_affordable" shouldn't be
+                            encouraged into a goal this same card just
+                            flagged as risky. */}
+                        {navigate && result.affordability === 'affordable' && (
+                            <TouchableOpacity
+                                style={s.setGoalBtn}
+                                onPress={() => navigate('goals', {
+                                    goalType: 'custom',
+                                    goalTitle: `Carry ${currency}${Math.round(result.additionalMonthlyCost).toLocaleString()}/mo New Cost`,
+                                    goalDescription: result.assessment,
+                                    goalTarget: Math.round(result.surplusAfterDecision),
+                                    goalDeadline: localDateStr(new Date(Date.now() + 90 * 86400000)),
+                                })}
+                            >
+                                <Text style={[s.setGoalBtnText, { color: AFFORDABILITY_META[result.affordability].color }]}>Set this as a goal →</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
 
                     <View style={s.downsideBox}>
@@ -170,6 +192,8 @@ const s = StyleSheet.create({
     verdictBox: { borderRadius: 10, borderWidth: 1.5, padding: 12, marginTop: 12 },
     verdictLabel: { fontSize: 13, fontWeight: '800', marginBottom: 4 },
     verdictReason: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+    setGoalBtn: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.border },
+    setGoalBtnText: { fontSize: 12, fontWeight: '700' },
 
     downsideBox: { backgroundColor: Colors.bg, borderRadius: 10, padding: 12, marginTop: 10 },
     downsideLabel: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },

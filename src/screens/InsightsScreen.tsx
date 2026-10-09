@@ -8,7 +8,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
-import { getTopCategories, computeRiskScore, getMonthlyExpenseAverage } from '../utils/finance';
+import { getTopCategories, computeRiskScore, getMonthlyExpenseAverage, computePaymentOptimiser } from '../utils/finance';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { computeQualityOfGrowth } from '../utils/qualityOfGrowth';
 import { computeDirectionVsStatus } from '../utils/directionVsStatus';
@@ -48,6 +48,16 @@ export default function InsightsScreen() {
 
     const topExpenses = useMemo(() => getTopCategories(transactions, 'expense', 5), [transactions]);
     const topIncome   = useMemo(() => getTopCategories(transactions, 'income', 5), [transactions]);
+
+    // Formerly Fractional CFO's "Quick Wins" tab. Its other two cards were
+    // confirmed duplicates (Pricing Opportunity vs. Analysis & Decisions'
+    // own What If? "Raise Prices" scenario, which does the same thing with
+    // any percentage plus real profit/margin/runway impact; Where Your
+    // Money Goes vs. this screen's own Top Expense Categories card below)
+    // and were dropped rather than moved. This is the one card with no
+    // existing duplicate anywhere -- urgent/soon pay-or-collect items,
+    // which belongs on the "what needs a decision" screen.
+    const paymentActions = useMemo(() => computePaymentOptimiser(transactions, invoices, finance.cashBalance), [transactions, invoices, finance.cashBalance]);
 
     const marginDiff = (isNaN(finance.margin) ? 0 : finance.margin) - (parseFloat(targetMargin) || 0);
     const reserveOk = finance.cashBalance >= parseFloat(minReserve);
@@ -188,10 +198,33 @@ export default function InsightsScreen() {
                                                 {item.trigger && (
                                                     <Text style={styles.triggerText}>⚠️ {item.trigger}</Text>
                                                 )}
+                                                {/* Act Now/Watch items come straight from the diagnosis engine's
+                                                    root-cause analysis (see decisionCentre.ts) -- Analysis &
+                                                    Decisions' Why? tab is that same engine's full write-up, so
+                                                    "dig into this" always lands somewhere real, never a dead end.
+                                                    Improving-bucket rows are a trend judgment, not a root-cause
+                                                    finding, so they skip this link. */}
+                                                {item.bucket !== 'improving' && (
+                                                    <TouchableOpacity onPress={() => navigate('analysis', { tab: 'diagnosis' })}>
+                                                        <Text style={styles.goalLink}>Dig into why & what to do →</Text>
+                                                    </TouchableOpacity>
+                                                )}
                                                 {item.recommendedAction && (
                                                     <View style={styles.sourceRow}>
                                                         <Text style={styles.recommendedAction}>→ {item.recommendedAction}</Text>
-                                                        <TouchableOpacity onPress={() => navigate('goals', { goalType: 'custom' })}>
+                                                        {/* Prefills the right goal TYPE from this finding's own
+                                                            suggestedGoalType (financialDiagnosisEngine.ts) instead of
+                                                            always opening the generic "Custom Goal" template -- a
+                                                            revenue/margin/cost/cash finding gets that type's own
+                                                            well-formed title+target, not a blank form the owner has
+                                                            to fill in by hand. Only truly type-less findings (no
+                                                            suggestedGoalType -- mainly Improving-bucket rows) fall
+                                                            back to 'custom', carrying this finding's own title/action
+                                                            text forward instead of a blank placeholder. */}
+                                                        <TouchableOpacity onPress={() => navigate('goals', {
+                                                            goalType: item.suggestedGoalType ?? 'custom',
+                                                            ...(item.suggestedGoalType ? {} : { goalTitle: item.title, goalDescription: item.recommendedAction }),
+                                                        })}>
                                                             <Text style={styles.goalLink}>Set a goal →</Text>
                                                         </TouchableOpacity>
                                                     </View>
@@ -212,6 +245,31 @@ export default function InsightsScreen() {
                             >
                                 <Text style={styles.fullSwotText}>See full Early Warning Signals & diagnosis →</Text>
                             </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {/* Payments & Collections Due -- see paymentActions above
+                        for why this moved here from Fractional CFO. */}
+                    {paymentActions.length > 0 && (
+                        <View style={styles.card}>
+                            <Text style={styles.cardTitle}>Payments & Collections Due</Text>
+                            {paymentActions.map((a, i) => (
+                                <View key={i} style={[styles.payRow, { borderLeftColor: a.urgency === 'urgent' ? Colors.expense : a.urgency === 'soon' ? Colors.warning : Colors.income }]}>
+                                    <View style={styles.payTop}>
+                                        <Text style={[styles.payAction, { color: a.action === 'collect' ? Colors.income : Colors.expense }]}>
+                                            {a.action === 'collect' ? '↓ COLLECT' : '↑ PAY'}
+                                        </Text>
+                                        <View style={[styles.urgencyBadge, { backgroundColor: a.urgency === 'urgent' ? Colors.expense + '20' : a.urgency === 'soon' ? Colors.warning + '20' : Colors.income + '20' }]}>
+                                            <Text style={[styles.urgencyText, { color: a.urgency === 'urgent' ? Colors.expense : a.urgency === 'soon' ? Colors.warning : Colors.income }]}>
+                                                {a.urgency.toUpperCase()}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                    <Text style={styles.payDesc}>{a.description}</Text>
+                                    <Text style={styles.payAmount}>{currency}{a.amount.toLocaleString()} · Due {a.dueDate}</Text>
+                                    <Text style={styles.payImpact}>{a.impact}</Text>
+                                </View>
+                            ))}
                         </View>
                     )}
 
@@ -417,6 +475,14 @@ const styles = StyleSheet.create({
     // own `gap` handles spacing in both directions once wrapped.
     insightsGridItem: { width: '48%', minWidth: 280, marginBottom: 0 },
     cardTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: Spacing.md },
+    payRow:       { borderLeftWidth: 3, paddingLeft: 12, marginBottom: 12, paddingVertical: 4 },
+    payTop:       { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+    payAction:    { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
+    payDesc:      { fontSize: 14, color: Colors.textPrimary, fontWeight: '600', marginBottom: 2 },
+    payAmount:    { fontSize: 12, color: Colors.textSecondary, marginBottom: 2 },
+    payImpact:    { fontSize: 11, color: Colors.textMuted },
+    urgencyBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: Radius.pill },
+    urgencyText:  { fontSize: 9, fontWeight: '700' },
     green: { color: Colors.income },
     red: { color: Colors.expense },
     blue: { color: Colors.asset },
