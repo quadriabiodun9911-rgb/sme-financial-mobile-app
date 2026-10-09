@@ -69,7 +69,7 @@ export default function FinancialHealthScreen() {
 
     const fetchHealth = useCallback(async () => {
         if (!phone) {
-            showAlert('Phone Number Required', 'Please add your phone number in Settings to use Financial Health scoring.');
+            showAlert('Phone Number Required', 'Please add your phone number in Settings to use income verification.');
             return;
         }
 
@@ -95,7 +95,7 @@ export default function FinancialHealthScreen() {
                 console.warn('Pngme partial errors:', result.errors);
             }
         } catch (err: any) {
-            showAlert('Could Not Load Data', err?.message || 'We couldn\'t reach the Financial Health scoring service right now. Please try again shortly.');
+            showAlert('Could Not Load Data', err?.message || 'We couldn\'t reach the income verification service right now. Please try again shortly.');
             console.error('[FinancialHealthScreen] fetch failed:', err);
         } finally {
             setLoading(false);
@@ -128,7 +128,7 @@ export default function FinancialHealthScreen() {
                 <View>
                     <View style={styles.titleRow}>
                         <Icon name="bar-chart-2" size={16} color={Colors.textPrimary} />
-                        <Text style={styles.title}>Financial Health</Text>
+                        <Text style={styles.title}>Income Verification</Text>
                     </View>
                     <Text style={styles.subtitle}>Powered by Pngme · {currencyCode}</Text>
                 </View>
@@ -140,7 +140,7 @@ export default function FinancialHealthScreen() {
                     <View style={styles.warnTextRow}>
                         <Icon name="alert-triangle" size={14} color="#f59e0b" />
                         <Text style={styles.warnText}>
-                            No phone number on your account. Go to Settings → My Business to add one and unlock your financial health score.
+                            No phone number on your account. Go to Settings → My Business to add one and unlock income verification.
                         </Text>
                     </View>
                     <TouchableOpacity onPress={() => navigate('settings')}>
@@ -155,7 +155,7 @@ export default function FinancialHealthScreen() {
                     <View style={styles.heroIcon}>
                         <Icon name="home" size={48} color={Colors.primary} />
                     </View>
-                    <Text style={styles.heroTitle}>Get Your Financial Health Score</Text>
+                    <Text style={styles.heroTitle}>Verify Your Income</Text>
                     <Text style={styles.heroBody}>
                         Pngme analyses your mobile money and bank SMS data to generate an income estimate and financial profile — useful for loan applications and business planning.
                     </Text>
@@ -169,7 +169,7 @@ export default function FinancialHealthScreen() {
                             : (
                                 <View style={styles.badgeRow}>
                                     <Icon name="search" size={15} color="#fff" />
-                                    <Text style={styles.primaryBtnText}>Fetch My Financial Score</Text>
+                                    <Text style={styles.primaryBtnText}>Verify My Income</Text>
                                 </View>
                             )
                         }
@@ -293,7 +293,7 @@ export default function FinancialHealthScreen() {
                     <Text style={styles.tipTitle}>How to use this</Text>
                 </View>
                 <Text style={styles.tipBody}>
-                    Your financial health score is based on Pngme's analysis of your bank and mobile money SMS history. Use it to:
+                    This income verification is based on Pngme's analysis of your bank and mobile money SMS history. Use it to:
                     {'\n'}• Support loan applications with income evidence
                     {'\n'}• Monitor your business cash flow health
                     {'\n'}• Track financial activity over time
@@ -316,8 +316,8 @@ export default function FinancialHealthScreen() {
                 <View style={styles.featureCard}>
                     <Icon name="target" size={28} color={Colors.primary} />
                     <View style={styles.featureContent}>
-                        <Text style={styles.featureTitle}>Financial Health Coach</Text>
-                        <Text style={styles.featureDesc}>Full diagnosis, SWOT & personalized recommendations</Text>
+                        <Text style={styles.featureTitle}>Financial Assessment</Text>
+                        <Text style={styles.featureDesc}>Quad360's own diagnosis of your business, built from your real records — not this phone-based income check</Text>
                     </View>
                     <Text style={styles.featureArrow}>→</Text>
                 </View>
