@@ -10,8 +10,8 @@ import GrowthAffordabilityCalculator from '../components/GrowthAffordabilityCalc
 import BuyVsFinanceCalculator from '../components/BuyVsFinanceCalculator';
 import AssetAcquisitionCalculator from '../components/AssetAcquisitionCalculator';
 import ProjectDecisionSimulator from '../components/ProjectDecisionSimulator';
-import BreakevenAnalysis from '../components/BreakevenAnalysis';
 import LoanAffordabilityChecker from '../components/LoanAffordabilityChecker';
+import NextStepLink from '../components/NextStepLink';
 import DecisionSimulator from '../components/DecisionSimulator';
 import CapitalCommitmentTracker, { CommitmentPrefill } from '../components/CapitalCommitmentTracker';
 import DecisionComparisonTable from '../components/DecisionComparisonTable';
@@ -26,16 +26,19 @@ import { computeFinancialHealthPillars } from '../utils/financialHealthPillars';
 import { localDateStr } from '../utils/localDate';
 
 /**
- * These four checks already existed — GrowthAffordabilityCalculator and
+ * These checks already existed — GrowthAffordabilityCalculator and
  * BuyVsFinanceCalculator were only reachable inside Loans & Debt's "Manual
  * Tools" accordion, LoanAffordabilityChecker sat next to them, and the
- * discount-impact view lives inside BreakevenAnalysis on the Analysis
- * screen. None of that is wrong on its own, but a business owner deciding
- * whether to hire, buy, discount, or borrow shouldn't have to already know
- * which deep-dive screen the relevant tool is filed under. This screen adds
- * no new financial logic -- it just gives the decision itself top billing,
- * grouped by the question a business owner is actually asking, with the
- * same components (and therefore the same numbers) reused as-is.
+ * interactive discount-impact calculator (BreakevenAnalysis) lives on Cash
+ * Flow's "Break-Even" tab. None of that is wrong on its own, but a business
+ * owner deciding whether to hire, buy, discount, or borrow shouldn't have to
+ * already know which deep-dive screen the relevant tool is filed under. This
+ * screen adds no new financial logic -- it just gives the decision itself
+ * top billing, grouped by the question a business owner is actually asking,
+ * with the same components (and therefore the same numbers) reused as-is --
+ * except for the breakeven/discount tool itself, which stays canonically on
+ * Cash Flow and is linked to here rather than re-rendered, since that one
+ * genuinely was the same full component duplicated in two places.
  */
 export default function BeforeYouDecideScreen() {
     const { finance, transactions, loans, inventory, assets, settings, navigate, goals } = useApp();
@@ -195,8 +198,23 @@ export default function BeforeYouDecideScreen() {
                     <Text style={styles.decisionQuestion}>Giving customers a discount?</Text>
                     <Text style={styles.decisionHelp}>A discount doesn't change what a sale costs you — see how much more you'd need to sell to keep the same profit.</Text>
                 </View>
+                {/* The full interactive breakeven/discount calculator lives on
+                    Cash Flow's own "Break-Even" tab -- this used to fully
+                    re-render it here too (same component, same numbers),
+                    which is exactly the kind of duplicate-destination
+                    confusion a business owner shouldn't have to untangle.
+                    A grounded one-line answer plus a direct link keeps this
+                    screen's own promise (the decision gets top billing)
+                    without maintaining a second copy of the same tool. */}
                 <Collapsible title="Discount & Breakeven Impact">
-                    <BreakevenAnalysis result={breakeven} currency={currency} />
+                    <Text style={styles.decisionHelp}>
+                        {breakeven.costStructureUpsideDown
+                            ? 'Variable costs alone exceed revenue right now — no sales volume reaches breakeven until the cost structure changes, so a discount would only make this worse.'
+                            : breakeven.surplusOrGap >= 0
+                            ? `You're ${currency}${Math.round(breakeven.surplusOrGap).toLocaleString()}/mo above breakeven. Use the interactive calculator to see exactly how much more you'd need to sell at a given discount to keep that cushion.`
+                            : `You're ${currency}${Math.round(Math.abs(breakeven.surplusOrGap)).toLocaleString()}/mo short of breakeven before any discount is even considered.`}
+                    </Text>
+                    <NextStepLink text="Open the interactive Breakeven & Discount Calculator on Cash Flow" onPress={() => navigate('cashflow', { tab: 'breakeven' })} />
                 </Collapsible>
 
                 {reorderDecisions.length > 0 && (
