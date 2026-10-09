@@ -153,6 +153,7 @@ describe('computeDynamicFinancingReadiness', () => {
         const growthQuality = computeQualityOfGrowth([], NO_ASSETS, []);
 
         const withTrigger: RootCauseAnalysis = {
+            id: 'low-profit-margin',
             problem: 'Low profit margin', severity: 'critical', rootCause: 'x', impact: 'y',
             financialImpact: 1000, opportunity: 'Cut costs', dimension: 'profitability',
             trigger: 'Resolves once margin recovers above the 20% target.',

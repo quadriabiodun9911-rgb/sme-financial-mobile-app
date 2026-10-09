@@ -86,3 +86,44 @@ describe('computeLendingCapacityEstimate', () => {
         expect(computeLendingCapacityEstimate({ ...base, inventoryValue: -100 }).inventoryBacked).toBeNull();
     });
 });
+
+describe('computeLendingCapacityEstimate — threshold cliff edges', () => {
+    it('gives a near-miss DSCR a distinct, softer reason than a deep shortfall', () => {
+        const nearMiss = computeLendingCapacityEstimate({ ...base, dscr: 0.95 });
+        const deepShortfall = computeLendingCapacityEstimate({ ...base, dscr: 0.3 });
+        expect(nearMiss.conclusion).toBe('risk');
+        expect(nearMiss.reason).toMatch(/close to covering/i);
+        expect(deepShortfall.conclusion).toBe('risk');
+        expect(deepShortfall.reason).not.toMatch(/close to covering/i);
+        expect(deepShortfall.reason).toMatch(/doesn't fully cover/i);
+    });
+
+    it('treats a DSCR right at the near-miss floor as a near miss, not a deep shortfall', () => {
+        const r = computeLendingCapacityEstimate({ ...base, dscr: 0.85 });
+        expect(r.reason).toMatch(/close to covering/i);
+    });
+
+    it('names the point gap to the next tier when a score is close to crossing it', () => {
+        const almostStandard = computeLendingCapacityEstimate({ ...base, overallCreditScore: 68 });
+        expect(almostStandard.tier).toBe('emerging');
+        expect(almostStandard.reason).toMatch(/2 points from the Standard tier/);
+
+        const almostStrong = computeLendingCapacityEstimate({ ...base, overallCreditScore: 78 });
+        expect(almostStrong.tier).toBe('standard');
+        expect(almostStrong.reason).toMatch(/2 points from the Strong tier/);
+
+        const almostEmerging = computeLendingCapacityEstimate({ ...base, overallCreditScore: 58 });
+        expect(almostEmerging.tier).toBe('not-yet-bankable');
+        expect(almostEmerging.reason).toMatch(/2 points from the Emerging tier/);
+    });
+
+    it('does not name a gap when a score is well below the next tier', () => {
+        const r = computeLendingCapacityEstimate({ ...base, overallCreditScore: 45 });
+        expect(r.reason).not.toMatch(/points from the/);
+    });
+
+    it('does not name a gap for a score already in the top tier', () => {
+        const r = computeLendingCapacityEstimate({ ...base, overallCreditScore: 95 });
+        expect(r.reason).not.toMatch(/points from the/);
+    });
+});

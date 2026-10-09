@@ -61,7 +61,13 @@ export interface FinancialMetrics {
 
   // Trends
   monthOverMonthGrowth: number;
-  profitTrend: 'improving' | 'declining' | 'stable';
+  // 'insufficient-history' is distinct from 'stable' -- there's a real
+  // difference between "revenue genuinely held flat" and "there's no prior
+  // month to compare against yet," and monthOverMonthGrowth defaulting to 0
+  // in the latter case used to make the two indistinguishable, so a
+  // brand-new account read as confidently "stable" with no comparison ever
+  // having been made.
+  profitTrend: 'improving' | 'declining' | 'stable' | 'insufficient-history';
 }
 
 export interface HealthCategory {
@@ -77,6 +83,14 @@ export interface HealthCategory {
 }
 
 export interface RootCauseAnalysis {
+  // A stable id per diagnosis RULE, not per generated instance -- e.g.
+  // 'low-profit-margin', the same id every time that rule fires for this or
+  // any business, regardless of the dynamic numbers in `problem` this time
+  // around. This is what "mark as intentional" (diagnosisDismissal.ts)
+  // keys its dismissals on; without a stable id there'd be nothing to
+  // persist a dismissal against, since `problem`'s own text changes every
+  // time the underlying numbers do.
+  id: string;
   problem: string;
   severity: 'critical' | 'warning' | 'info';
   rootCause: string;
@@ -453,10 +467,16 @@ export function calculateFinancialMetrics(
   // pillar can't independently drift apart.
   const revenueRecurringPct = computeRevenueRecurringPct(transactions);
 
-  // Profit trend
-  let profitTrend: 'improving' | 'declining' | 'stable' = 'stable';
-  if (monthOverMonthGrowth > 5) profitTrend = 'improving';
-  else if (monthOverMonthGrowth < -5) profitTrend = 'declining';
+  // Profit trend -- 'insufficient-history' when there's no real prior month
+  // to compare against (lastMonthRevenueComparable === 0 is the same gate
+  // monthOverMonthGrowth itself uses), not 'stable': a 0% change computed
+  // from an actual comparison and a 0% default from having no comparison
+  // at all are different claims, and only one of them is true.
+  let profitTrend: FinancialMetrics['profitTrend'] = lastMonthRevenueComparable > 0 ? 'stable' : 'insufficient-history';
+  if (lastMonthRevenueComparable > 0) {
+    if (monthOverMonthGrowth > 5) profitTrend = 'improving';
+    else if (monthOverMonthGrowth < -5) profitTrend = 'declining';
+  }
 
   // Debt — trailing-12-month DSCR against active loans.
   const dscrResult = computeDSCR(transactions, loans);
@@ -517,6 +537,7 @@ export function diagnoseProfitability(
     const potentialGain = (metrics.totalRevenue * gapPercentage) / 100;
 
     diagnoses.push({
+      id: 'low-profit-margin',
       problem: `Low profit margin (${metrics.profitMargin.toFixed(1)}% vs target ${benchmarks.profitMargin}%)`,
       severity: metrics.profitMargin < 10 ? 'critical' : 'warning',
       rootCause: 'Expenses too high relative to revenue',
@@ -534,6 +555,7 @@ export function diagnoseProfitability(
   // Declining revenue diagnosis
   if (metrics.monthOverMonthGrowth < -10) {
     diagnoses.push({
+      id: 'declining-revenue',
       problem: 'Revenue declining rapidly',
       severity: 'critical',
       rootCause: 'Customer acquisition slowing or churn increasing',
@@ -548,6 +570,7 @@ export function diagnoseProfitability(
   // Low recurring revenue diagnosis
   if (metrics.revenueRecurringPct < 40) {
     diagnoses.push({
+      id: 'low-recurring-revenue',
       problem: 'Revenue is mostly one-off deals (unstable)',
       severity: 'warning',
       rootCause: 'Business model lacks recurring revenue stream',
@@ -572,6 +595,7 @@ export function diagnoseLiquidity(
   // Critical runway diagnosis
   if (metrics.runwayDays === null || metrics.runwayDays < INDUSTRY_BENCHMARKS.runwayDaysCritical) {
     diagnoses.push({
+      id: 'critical-runway',
       problem: `Critical cash position (${metrics.runwayDays || 0}-day runway)`,
       severity: 'critical',
       rootCause: 'Expenses exceed cash reserves; cash conversion cycle too long',
@@ -584,6 +608,7 @@ export function diagnoseLiquidity(
     });
   } else if (metrics.runwayDays < INDUSTRY_BENCHMARKS.runwayDaysSafe) {
     diagnoses.push({
+      id: 'low-cash-buffer',
       problem: `Low cash buffer (${metrics.runwayDays}-day runway)`,
       severity: 'warning',
       rootCause: 'Insufficient cash reserves for business variability',
@@ -607,6 +632,7 @@ export function diagnoseLiquidity(
   if (metrics.accountsReceivable > 0 && metrics.daysOutstanding > benchmarks.daysOutstandingTarget) {
     const severity = metrics.daysOutstanding > benchmarks.daysOutstandingTarget * 2 ? 'critical' : 'warning';
     diagnoses.push({
+      id: 'slow-paying-customers',
       problem: `Slow-paying customers (${metrics.daysOutstanding}-day average vs ${benchmarks.daysOutstandingTarget}-day target)`,
       severity,
       rootCause: 'Customers paying slowly (high DSO)',
@@ -631,6 +657,7 @@ export function diagnoseWorkingCapital(
 
   if (metrics.cashConversionCycleDays > 45) {
     diagnoses.push({
+      id: 'long-cash-conversion-cycle',
       problem: `Cash conversion cycle is ${metrics.cashConversionCycleDays} days`,
       severity: metrics.cashConversionCycleDays > 75 ? 'critical' : 'warning',
       rootCause: 'Cash spends too long tied up between paying suppliers and collecting from customers',
@@ -655,6 +682,7 @@ export function diagnoseDebt(
 
   if (metrics.dscrStatus !== 'healthy' && metrics.monthlyDebtService > 0) {
     diagnoses.push({
+      id: 'weak-dscr',
       problem: `Debt Service Coverage Ratio is ${metrics.dscr.toFixed(2)} (target ≥1.25)`,
       severity: metrics.dscrStatus === 'danger' ? 'critical' : 'warning',
       rootCause: metrics.dscr < 1.0
@@ -710,6 +738,7 @@ export function diagnoseCashFlow(
 
   if (metrics.operatingCashFlow < 0) {
     diagnoses.push({
+      id: 'negative-operating-cash-flow',
       problem: `Operating cash flow is negative (${currency}${Math.round(metrics.operatingCashFlow).toLocaleString()} this month)`,
       severity: 'critical',
       rootCause: 'Normal business operations are consuming cash rather than generating it',
@@ -722,6 +751,7 @@ export function diagnoseCashFlow(
   } else if (metrics.cashFlowConversionPct !== null && metrics.cashFlowConversionPct < 90) {
     const uncertainCash = metrics.netProfit - metrics.operatingCashFlow;
     diagnoses.push({
+      id: 'low-cash-flow-conversion',
       problem: `Only ${metrics.cashFlowConversionPct.toFixed(0)}% of profit converted into real cash this month`,
       severity: 'warning',
       keyDriver: cashFlowKeyDriver(metrics),
@@ -750,6 +780,7 @@ export function diagnoseInventory(
   if (metrics.inventoryValue > 0 && metrics.slowMovingValuePct > 25) {
     const trappedValue = metrics.inventoryValue * (metrics.slowMovingValuePct / 100);
     diagnoses.push({
+      id: 'slow-moving-inventory',
       problem: `${metrics.slowMovingValuePct.toFixed(0)}% of stock value is slow-moving`,
       severity: metrics.slowMovingValuePct > 50 ? 'critical' : 'warning',
       rootCause: 'Cash is tied up in inventory that isn\'t selling at a healthy pace',
@@ -773,6 +804,7 @@ export function diagnoseConcentration(
 
   if (metrics.topCustomerConcentrationPct >= 40) {
     diagnoses.push({
+      id: 'customer-concentration',
       problem: `Single customer is ${metrics.topCustomerConcentrationPct.toFixed(0)}% of revenue`,
       severity: metrics.topCustomerConcentrationPct >= 60 ? 'critical' : 'warning',
       rootCause: 'Revenue depends heavily on one customer',
@@ -788,6 +820,7 @@ export function diagnoseConcentration(
 
   if (metrics.topSupplierConcentrationPct >= 40) {
     diagnoses.push({
+      id: 'supplier-concentration',
       problem: `Single supplier is ${metrics.topSupplierConcentrationPct.toFixed(0)}% of spend`,
       severity: metrics.topSupplierConcentrationPct >= 60 ? 'critical' : 'warning',
       rootCause: 'Supply chain depends heavily on one vendor',
@@ -816,6 +849,7 @@ export function diagnoseEfficiency(
   const growthGap = metrics.expenseGrowthPct - metrics.monthOverMonthGrowth;
   if (growthGap > 10) {
     diagnoses.push({
+      id: 'expenses-outgrowing-revenue',
       problem: `Expenses growing faster than revenue (${metrics.expenseGrowthPct >= 0 ? '+' : ''}${metrics.expenseGrowthPct.toFixed(1)}% vs ${metrics.monthOverMonthGrowth >= 0 ? '+' : ''}${metrics.monthOverMonthGrowth.toFixed(1)}%)`,
       severity: growthGap > 25 ? 'critical' : 'warning',
       rootCause: 'Cost growth is outrunning revenue growth',
@@ -841,6 +875,7 @@ export function diagnoseEfficiency(
 
     if (categoryPercentage > 40) {
       diagnoses.push({
+        id: 'expense-category-concentration',
         problem: `${topCategory[0]} is ${categoryPercentage.toFixed(0)}% of expenses`,
         severity: 'warning',
         rootCause: 'Spending concentrated in single category',
@@ -925,7 +960,9 @@ export function generateNarrativeSummary(
   const marginWeak = metrics.profitMargin < getIndustryBenchmarks(industry).profitMargin;
 
   let headline: string;
-  if (Math.abs(growth) < 3) {
+  if (metrics.profitTrend === 'insufficient-history') {
+    headline = 'Not enough history yet to compare this month against the last one';
+  } else if (Math.abs(growth) < 3) {
     headline = 'Your revenue has held steady this month';
   } else if (growth > 0) {
     headline = `Your revenue is up ${growth.toFixed(0)}% this month`;
@@ -961,6 +998,7 @@ export function generateNarrativeSummary(
         : 'This is the one issue Quad360 found in your numbers this month';
     const trendClause = metrics.profitTrend === 'improving' ? 'while your overall trend is improving'
         : metrics.profitTrend === 'declining' ? 'and your overall trend is declining too'
+        : metrics.profitTrend === 'insufficient-history' ? 'though there\'s not yet enough history to call a trend'
         : 'while your overall trend is holding steady';
     parts.push(`${scopeClause}, ${trendClause}.`);
 
@@ -1096,8 +1134,10 @@ export function buildFinancialHealthInsightCards(diagnosis: DiagnosisResult): Fi
     outlook = `Revenue is trending up (${growth.toFixed(0)}% month over month). Keep doing what's working.`;
   } else if (metrics.profitTrend === 'declining') {
     outlook = `Revenue is trending down (${Math.abs(growth).toFixed(0)}% month over month) — addressing this early keeps it from compounding.`;
+  } else if (metrics.profitTrend === 'insufficient-history') {
+    outlook = 'Not enough history yet to call a trend — one more month of data will let Quad360 compare and forecast where this is headed.';
   } else {
-    outlook = 'Revenue has held steady. A few more months of data will let Quad360 forecast where this is headed.';
+    outlook = 'Revenue has held steady month over month.';
   }
   cards.push({ icon: '📈', label: 'Outlook', text: outlook });
 
@@ -1149,6 +1189,7 @@ export function diagnoseRecordKeeping(
 
   if (monthsWithIncome.length >= 3 && monthsWithIncomeNoExpense.length >= Math.ceil(monthsWithIncome.length / 2)) {
     diagnoses.push({
+      id: 'under-recorded-expenses',
       problem: `${monthsWithIncomeNoExpense.length} of ${monthsWithIncome.length} months with recorded income have no expenses logged at all`,
       severity: 'warning',
       rootCause: 'Income is likely being recorded more consistently than expenses -- cash purchases, informal payments, or small supplier costs may not be entered',
@@ -1162,6 +1203,7 @@ export function diagnoseRecordKeeping(
   const benchmarks = getIndustryBenchmarks(industry);
   if (metrics.totalRevenue > 0 && metrics.profitMargin > benchmarks.profitMargin * 2.5) {
     diagnoses.push({
+      id: 'implausible-margin',
       problem: `Profit margin of ${metrics.profitMargin.toFixed(1)}% is unusually high for this industry (typical target: ${benchmarks.profitMargin}%)`,
       severity: 'info',
       rootCause: 'A margin this far above typical is more often a sign of incomplete expense recording than genuine outperformance',
@@ -1175,6 +1217,17 @@ export function diagnoseRecordKeeping(
   return diagnoses;
 }
 
+// Pure filter, kept separate from any storage access -- see
+// diagnosisDismissal.ts for where dismissed ids actually get loaded
+// (AsyncStorage) and persisted. This function only ever sees plain data:
+// the full diagnosis list and a list of ids the owner has already said are
+// intentional, nothing more.
+export function filterDismissedDiagnoses(diagnoses: RootCauseAnalysis[], dismissedIds: string[]): RootCauseAnalysis[] {
+  if (dismissedIds.length === 0) return diagnoses;
+  const dismissed = new Set(dismissedIds);
+  return diagnoses.filter(d => !dismissed.has(d.id));
+}
+
 export function performFinancialDiagnosis(
   transactions: Transaction[],
   invoices: Invoice[],
@@ -1184,7 +1237,8 @@ export function performFinancialDiagnosis(
   loans: Loan[] = [],
   inventory: InventoryItem[] = [],
   assets: Asset[] = [],
-  industry?: Industry
+  industry?: Industry,
+  dismissedDiagnosisIds: string[] = []
 ): DiagnosisResult {
   // Calculate metrics
   const metrics = calculateFinancialMetrics(
@@ -1211,13 +1265,15 @@ export function performFinancialDiagnosis(
     ...diagnoseInventory(metrics, currency),
     ...diagnoseConcentration(metrics),
     ...diagnoseRecordKeeping(transactions, metrics, industry),
-  ].sort((a, b) => {
-    const severityOrder = { critical: 0, warning: 1, info: 2 };
-    if (severityOrder[a.severity] !== severityOrder[b.severity]) {
-      return severityOrder[a.severity] - severityOrder[b.severity];
-    }
-    return b.financialImpact - a.financialImpact;
-  });
+  ]
+    .sort((a, b) => {
+      const severityOrder = { critical: 0, warning: 1, info: 2 };
+      if (severityOrder[a.severity] !== severityOrder[b.severity]) {
+        return severityOrder[a.severity] - severityOrder[b.severity];
+      }
+      return b.financialImpact - a.financialImpact;
+    });
+  const activeDiagnoses = filterDismissedDiagnoses(allDiagnoses, dismissedDiagnosisIds);
 
   // Overall health score — delegates to computeRiskScore, the single
   // canonical 8-factor scorer also used by the CFO screen and Business
@@ -1248,14 +1304,19 @@ export function performFinancialDiagnosis(
   // (critical before warning before info, then by financial impact within
   // the same severity), instead of only pulling from critical-severity
   // items in 3 pre-selected categories and sometimes returning 0-1 results.
-  const topOpportunities = allDiagnoses.slice(0, 3).map(d => d.opportunity);
-  const topActionImpacts = deriveTopActionImpacts(allDiagnoses, 3);
+  // Drawn from activeDiagnoses (dismissed ones excluded) -- something the
+  // owner already marked intentional shouldn't keep dominating the "fix
+  // first" list, the health-score projection, or the narrative text, even
+  // though it still appears in the full diagnoses list below so there's
+  // something to undismiss if it was marked by mistake.
+  const topOpportunities = activeDiagnoses.slice(0, 3).map(d => d.opportunity);
+  const topActionImpacts = deriveTopActionImpacts(activeDiagnoses, 3);
 
   // "If these are fixed, here's roughly where the score would land" -- same
   // real factor scores computeRiskScore just produced, bumped only for the
   // dimensions the top 3 actions above already target. See
   // computeImprovementProjection in finance.ts for the exact method.
-  const targetFactorNames = factorNamesForDimensions(allDiagnoses.slice(0, 3).map(d => d.dimension));
+  const targetFactorNames = factorNamesForDimensions(activeDiagnoses.slice(0, 3).map(d => d.dimension));
   const improvementProjection = targetFactorNames.length > 0
     ? (() => {
         const projected = computeImprovementProjection(riskScore.factors, targetFactorNames);
@@ -1269,11 +1330,14 @@ export function performFinancialDiagnosis(
     band: riskScore.band,
     categories,
     metrics,
+    // The FULL list, dismissed diagnoses included -- a screen that lets the
+    // owner browse and dismiss (FinancialAssessmentScreen) needs to still
+    // show what was dismissed, with an undo, not just make it disappear.
     diagnoses: allDiagnoses,
     topOpportunities,
     topActionImpacts,
     improvementProjection,
-    narrativeSummary: generateNarrativeSummary(metrics, allDiagnoses, topOpportunities, improvementProjection, industry),
-    healthSummary: computeFinancialHealthSummary(riskScore.band, categories, allDiagnoses),
+    narrativeSummary: generateNarrativeSummary(metrics, activeDiagnoses, topOpportunities, improvementProjection, industry),
+    healthSummary: computeFinancialHealthSummary(riskScore.band, categories, activeDiagnoses),
   };
 }
