@@ -476,60 +476,12 @@ export default function FinancialAssessmentScreen() {
             first import, take this as a starting point." */}
         <DataConfidenceBadge transactions={transactions} trend={dataConfidenceTrend} />
 
-        {/* "3 things to fix first" — the whole point of running a diagnosis
-            instead of just showing numbers: a short, ranked list of what to
-            actually do about it. */}
-        {diagnosis.topOpportunities.length > 0 && (
-          <View style={styles.fixFirstCard}>
-            <View style={styles.titleIconRow}>
-              <Icon name="target" size={15} color={Colors.textPrimary} />
-              <Text style={styles.fixFirstTitle}>Here are the {diagnosis.topOpportunities.length} things you should fix first</Text>
-            </View>
-            {diagnosis.topOpportunities.map((opportunity, idx) => (
-              <View key={idx} style={styles.fixFirstRow}>
-                <Text style={styles.fixFirstNumber}>{idx + 1}</Text>
-                <Text style={styles.fixFirstText}>{opportunity}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Key Metrics — reframed as evidence for the diagnosis below rather
-            than a standalone headline restating Dashboard's Profit/Cash
-            numbers. Profit Margin and Runway used to repeat here too, but
-            those are the exact same diagnosis.metrics.profitMargin /
-            .runwayDays values the PERFORMANCE and CASH pillar cards above
-            already show — Revenue, Cash on Hand, and Growth are the
-            figures this screen doesn't show anywhere else. */}
-        <View style={styles.section}>
-          <View style={styles.titleIconRow}>
-            <Icon name="bar-chart-2" size={14} color={Colors.textPrimary} />
-            <Text style={styles.sectionTitle}>What's Driving This Diagnosis</Text>
-          </View>
-          <View style={styles.metricsGrid}>
-            <View style={styles.metricBox}>
-              <Text style={styles.metricLabel}>Revenue</Text>
-              <Text style={styles.metricValue}>
-                {settings.currency}{Math.round(diagnosis.metrics.totalRevenue).toLocaleString()}
-              </Text>
-              <Text style={styles.metricSubtext}>This month</Text>
-            </View>
-            <View style={styles.metricBox}>
-              <Text style={styles.metricLabel}>Cash on Hand</Text>
-              <Text style={[styles.metricValue, { color: diagnosis.metrics.cashBalance >= 0 ? Colors.textPrimary : Colors.expense }]}>
-                {settings.currency}{Math.round(diagnosis.metrics.cashBalance).toLocaleString()}
-              </Text>
-              <Text style={styles.metricSubtext}>Right now</Text>
-            </View>
-            <View style={styles.metricBox}>
-              <Text style={styles.metricLabel}>Growth</Text>
-              <Text style={[styles.metricValue, { color: diagnosis.metrics.monthOverMonthGrowth > 0 ? Colors.income : Colors.expense }]}>
-                {diagnosis.metrics.monthOverMonthGrowth > 0 ? '+' : ''}{diagnosis.metrics.monthOverMonthGrowth.toFixed(1)}%
-              </Text>
-              <Text style={styles.metricSubtext}>MoM change</Text>
-            </View>
-          </View>
-        </View>
+        {/* "3 things to fix first" and the Revenue/Cash on Hand/Growth
+            metrics grid used to live here, but both are now superseded by
+            "Your Business Health Report" above (its own "What you should
+            do next" steps) and the 8-Dimension Diagnosis (Cash Health and
+            Profitability already show these exact figures) — removed
+            rather than left as a third, overlapping summary. */}
 
         {/* SWOT — same underlying data as Reports > Business Health, shown
             here so a full picture (health, SWOT, root causes, actions)
@@ -895,27 +847,6 @@ const styles = StyleSheet.create({
   dimensionRelatedTitle: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, marginBottom: 3 },
   dimensionRelatedItem: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
-  fixFirstCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.primary,
-    padding: Spacing.lg,
-    marginBottom: Spacing.xl,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    ...Shadow.sm,
-  },
-  fixFirstTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary },
-  fixFirstRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  fixFirstNumber: {
-    fontSize: 12, fontWeight: '800', color: Colors.primary,
-    backgroundColor: Colors.primary + '22', borderRadius: 10,
-    width: 20, height: 20, textAlign: 'center', lineHeight: 20,
-  },
-  fixFirstText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
-
   resolvedCard: {
     backgroundColor: Colors.income + '10',
     borderRadius: 14,
@@ -933,21 +864,6 @@ const styles = StyleSheet.create({
 
   section: { marginBottom: Spacing.xxl },
   sectionTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: Spacing.md },
-
-  metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  metricBox: {
-    width: '48%',
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    ...Shadow.sm,
-  },
-  metricLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '600', marginBottom: 6 },
-  metricValue: { fontSize: 18, fontWeight: '800', color: Colors.textPrimary, marginBottom: Spacing.xs },
-  metricSubtext: { fontSize: 9, color: Colors.textMuted },
 
   diagnosisHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md },
   diagnosisCount: { fontSize: 11, color: Colors.primary, fontWeight: '700' },
