@@ -1,7 +1,7 @@
 /**
  * Ties a decision's cash effect to how far it moves an active cash-reserve
  * goal's timeline -- "this would delay your goal by ~2 months" -- instead
- * of leaving BeforeYouDecideScreen's calculators to speak only in runway
+ * of leaving BeforeYouDecideContent's calculators to speak only in runway
  * and surplus, which says nothing about whether a goal the business
  * actually set for itself gets closer or further away.
  *

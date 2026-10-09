@@ -55,7 +55,6 @@ import FinancialAssessmentScreen from './src/screens/FinancialAssessmentScreen';
 import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
 import FinancingMarketplaceScreen from './src/screens/FinancingMarketplaceScreen';
 import FinancingAdminScreen from './src/screens/FinancingAdminScreen';
-import BeforeYouDecideScreen from './src/screens/BeforeYouDecideScreen';
 import UpgradeScreen from './src/screens/UpgradeScreen';
 import ProGate from './src/components/ProGate';
 import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
@@ -268,7 +267,6 @@ function NavigatorContent() {
             {currentScreen === 'security-center' && <SecurityCenterScreen />}
             {currentScreen === 'business-timeline' && <BusinessTimelineScreen />}
             {currentScreen === 'data-permission-centre' && <DataPermissionCentreScreen />}
-            {currentScreen === 'before-you-decide' && <BeforeYouDecideScreen />}
             {currentScreen === 'upgrade' && <UpgradeScreen />}
         </View>
     );

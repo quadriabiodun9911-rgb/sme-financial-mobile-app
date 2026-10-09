@@ -55,8 +55,11 @@ import { t, TranslationKey } from '../utils/i18n';
 //    it builds on both.
 //  - Decide: Insights surfaces what actually needs a decision; Advisor
 //    is the fastest way to ask about it; Analysis & Decisions is where
-//    you dig into why and model what-if scenarios; Before You Decide
-//    pressure-tests one specific real decision against your numbers;
+//    you dig into why, model open-ended what-if scenarios, and (its own
+//    Decide tab, formerly a separate "Before You Decide" nav item --
+//    folded in after a business owner reported that two adjacent nav
+//    entries for "analysis" and "decide" read as the same thing split in
+//    two) pressure-test one specific real decision against your numbers;
 //    Goals sets the target that decision is aimed at; Budget turns that
 //    target into a spending plan.
 //  - Act & Results: one screen, two halves in a fixed order -- Action
@@ -105,7 +108,6 @@ const DECIDE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; col
     // straight to the Q&A tab so tapping Advisor does what it says.
     { label: 'navAdvisor',  icon: 'message-circle',  screen: 'cfo',      color: '#8b5cf6', desc: 'navAdvisorDesc', params: { tab: 'questions' } },
     { label: 'navAnalysisDecisions', icon: 'pie-chart', screen: 'analysis', color: '#14b8a6', desc: 'navAnalysisDecisionsDesc' },
-    { label: 'navBeforeYouDecide', icon: 'help-circle', screen: 'before-you-decide', color: '#06b6d4', desc: 'navBeforeYouDecideDesc' },
     { label: 'goals',    icon: 'target',          screen: 'goals',    color: '#ef4444', desc: 'navGoalsDesc' },
     { label: 'navBudget',   icon: 'dollar-sign',     screen: 'budget',   color: '#10b981', desc: 'navBudgetDesc' },
 ];

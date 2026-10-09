@@ -8,6 +8,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import Icon, { IconName } from '../components/ui/Icon';
+import BeforeYouDecideContent from '../components/BeforeYouDecideContent';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import {
     analyseRootCause,
@@ -32,7 +33,7 @@ import {
     ScenarioRiskFlag,
 } from '../utils/scenarioProjection';
 
-type Tab = 'diagnosis' | 'scenarios';
+type Tab = 'diagnosis' | 'scenarios' | 'decide';
 type ScenarioType = 'hire' | 'revenue' | 'loan' | 'price' | 'cost' | 'product' | 'combine';
 
 // Scenario results used to live only in component state -- close the tab
@@ -485,9 +486,10 @@ export default function AnalysisScreen() {
     const { transactions, finance, settings, navigate, navParams } = useApp();
     const { currency } = settings;
 
-    // Lets a deep link (e.g. "I want to grow" → What if?) land directly on
-    // the right tab instead of always defaulting to Why?.
-    const initialTab: Tab = (navParams?.tab === 'scenarios' || navParams?.tab === 'diagnosis') ? navParams.tab : 'diagnosis';
+    // Lets a deep link (e.g. "I want to grow" → What if?, or "Test an idea"
+    // → Decide) land directly on the right tab instead of always defaulting
+    // to Why?.
+    const initialTab: Tab = (navParams?.tab === 'scenarios' || navParams?.tab === 'diagnosis' || navParams?.tab === 'decide') ? navParams.tab : 'diagnosis';
     const [tab, setTab]             = useState<Tab>(initialTab);
     const [period, setPeriod]       = useState<ReportPeriod>('month');
     const [scenarioType, setScenarioType] = useState<ScenarioType>('combine');
@@ -518,6 +520,7 @@ export default function AnalysisScreen() {
     const TABS: { key: Tab; label: string; icon: IconName }[] = [
         { key: 'diagnosis', label: 'Why?', icon: 'search' },
         { key: 'scenarios', label: 'What if?', icon: 'help-circle' },
+        { key: 'decide', label: 'Decide', icon: 'check-circle' },
     ];
 
     const SCENARIOS: { key: ScenarioType; label: string; icon: IconName }[] = [
@@ -686,12 +689,15 @@ export default function AnalysisScreen() {
                         {/* These levers are deliberately generic (a hypothetical
                             loan/hire/price change), not tied to a specific product
                             or existing loan. For scenarios grounded in real data,
-                            these three are the better tool. Before You Decide in
-                            particular overlaps most with the Hire/Loan levers here
-                            -- this stays the open sandbox for exploring and saving
-                            any combination of levers, that screen is the guided,
-                            decision-specific stress test once you know which real
-                            decision you're actually facing. */}
+                            these two are the better tool. The Decide tab alongside
+                            this one overlaps most with the Hire/Loan levers here --
+                            this stays the open sandbox for exploring and saving any
+                            combination of levers, Decide is the guided, decision
+                            -specific stress test once you know which real decision
+                            you're actually facing (it used to be a separate "Before
+                            You Decide" nav item with a cross-link chip here; folded
+                            into a tab on this same screen instead once two adjacent
+                            top-level nav entries read as duplicates of each other). */}
                         <View style={s.crossLinkRow}>
                             <TouchableOpacity style={s.crossLinkChip} onPress={() => navigate('inventory', { tab: 'pricing' })}>
                                 <Icon name="tag" size={12} color={Colors.primary} />
@@ -700,10 +706,6 @@ export default function AnalysisScreen() {
                             <TouchableOpacity style={s.crossLinkChip} onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'growth' })}>
                                 <Icon name="trending-up" size={12} color={Colors.primary} />
                                 <Text style={s.crossLinkText}>Multi-month trajectory → Growth Trends & Scenarios</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={s.crossLinkChip} onPress={() => navigate('before-you-decide')}>
-                                <Icon name="check-circle" size={12} color={Colors.primary} />
-                                <Text style={s.crossLinkText}>Facing a real hire, loan, or purchase? → Before You Decide</Text>
                             </TouchableOpacity>
                         </View>
 
@@ -808,6 +810,13 @@ export default function AnalysisScreen() {
                         )}
                     </>
                 )}
+
+                {/* ── DECIDE TAB ────────────────────────────────────────────── —
+                    formerly its own "Before You Decide" nav item; see
+                    BeforeYouDecideContent's own doc comment for why it moved
+                    here instead of staying a separate screen with a
+                    cross-link. */}
+                {tab === 'decide' && <BeforeYouDecideContent />}
 
             </ScrollView>
             <FooterNav />
