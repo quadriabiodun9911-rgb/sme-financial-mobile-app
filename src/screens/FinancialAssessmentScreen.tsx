@@ -37,7 +37,7 @@ import { computeInventoryValue } from '../utils/stockVelocity';
 import { buildDiagnosticDimensions } from '../utils/diagnosticDimensions';
 
 export default function FinancialAssessmentScreen() {
-  const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory, assets, dataConfidenceHistory, user } = useApp();
+  const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory, assets, budgets, dataConfidenceHistory, user } = useApp();
   const [selectedDiagnosis, setSelectedDiagnosis] = useState<number>(0);
   const dataConfidenceTrend = useMemo(() => describeDataConfidenceTrend(dataConfidenceHistory), [dataConfidenceHistory]);
 
@@ -164,8 +164,12 @@ export default function FinancialAssessmentScreen() {
       reserveCoverageMonths: financialResilience.available ? financialResilience.reserveCoverageMonths : null,
       financingReadinessScore,
       lendingCapacity,
+      transactions,
+      loans,
+      invoices,
+      budgets,
     }),
-    [diagnosis, risk, settings.currency, directionVsStatus, riskRadar, resilience, financialResilience, financingReadinessScore, lendingCapacity]
+    [diagnosis, risk, settings.currency, directionVsStatus, riskRadar, resilience, financialResilience, financingReadinessScore, lendingCapacity, transactions, loans, invoices, budgets]
   );
   const [expandedDimension, setExpandedDimension] = useState<string | null>(null);
 
@@ -347,6 +351,7 @@ export default function FinancialAssessmentScreen() {
           {diagnosticDimensions.map(dim => {
             const isOpen = expandedDimension === dim.key;
             const color = dim.status === 'info' ? Colors.textMuted : categoryStatusColor(dim.status);
+            const badgeWord = dim.status === 'info' ? 'Info' : categoryStatusLabel(dim.status);
             return (
               <TouchableOpacity
                 key={dim.key}
@@ -358,15 +363,39 @@ export default function FinancialAssessmentScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.dimensionTitle}>{dim.title}</Text>
                     <Text style={styles.dimensionQuestion}>{dim.question}</Text>
+                    <Text style={styles.dimensionDetailText}>{dim.statusLabel}</Text>
                   </View>
                   <View style={[styles.dimensionStatusBadge, { backgroundColor: color + '22' }]}>
-                    <Text style={[styles.dimensionStatusText, { color }]} numberOfLines={1}>{dim.statusLabel}</Text>
+                    <Text style={[styles.dimensionStatusText, { color }]} numberOfLines={1}>{badgeWord}</Text>
                   </View>
                   <Icon name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
                 </View>
 
                 {isOpen && (
                   <View style={styles.dimensionBody}>
+                    {dim.narrative && (
+                      <View style={styles.narrativeBox}>
+                        <Text style={[styles.narrativeHeadline, { color }]}>{dim.narrative.headline}</Text>
+                        <View style={styles.narrativeMetricsRow}>
+                          {dim.narrative.metrics.map((mt, i) => (
+                            <View key={i} style={styles.narrativeMetricTile}>
+                              <Text style={styles.narrativeMetricLabel}>{mt.label}</Text>
+                              <Text style={styles.narrativeMetricValue}>{mt.value}</Text>
+                            </View>
+                          ))}
+                        </View>
+                        <Text style={styles.narrativeSectionLabel}>What this means</Text>
+                        <Text style={styles.narrativeText}>{dim.narrative.whatThisMeans}</Text>
+                        <Text style={styles.narrativeSectionLabel}>Why it matters</Text>
+                        <Text style={styles.narrativeText}>{dim.narrative.whyItMatters}</Text>
+                        <Text style={styles.narrativeSectionLabel}>Recommended next steps</Text>
+                        {dim.narrative.recommendedSteps.map((step, i) => (
+                          <Text key={i} style={styles.narrativeStep}>{i + 1}. {step}</Text>
+                        ))}
+                        <Text style={styles.narrativeSectionLabel}>The numbers</Text>
+                      </View>
+                    )}
+
                     {dim.outputs.map((o, i) => (
                       <View key={i} style={styles.dimensionOutputRow}>
                         <Text style={styles.dimensionOutputLabel}>{o.label}</Text>
@@ -780,9 +809,19 @@ const styles = StyleSheet.create({
   dimensionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   dimensionTitle: { fontSize: 13.5, fontWeight: '800', color: Colors.textPrimary },
   dimensionQuestion: { fontSize: 11.5, color: Colors.textMuted, marginTop: 1 },
+  dimensionDetailText: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary, marginTop: 3 },
   dimensionStatusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.pill, maxWidth: 110 },
   dimensionStatusText: { fontSize: 10.5, fontWeight: '800' },
   dimensionBody: { marginTop: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border, gap: 8 },
+  narrativeBox: { marginBottom: 4, gap: 4 },
+  narrativeHeadline: { fontSize: 14, fontWeight: '800', marginBottom: 2 },
+  narrativeMetricsRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
+  narrativeMetricTile: { flex: 1, backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: Spacing.sm },
+  narrativeMetricLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
+  narrativeMetricValue: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginTop: 2 },
+  narrativeSectionLabel: { fontSize: 10.5, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 6 },
+  narrativeText: { fontSize: 12.5, color: Colors.textPrimary, lineHeight: 18, marginTop: 1 },
+  narrativeStep: { fontSize: 12.5, color: Colors.textPrimary, lineHeight: 18, marginTop: 1 },
   dimensionOutputRow: { marginBottom: 2 },
   dimensionOutputLabel: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
   dimensionOutputValue: { fontSize: 12.5, color: Colors.textPrimary, lineHeight: 17, marginTop: 1 },
