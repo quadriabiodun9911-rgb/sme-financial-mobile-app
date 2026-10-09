@@ -432,7 +432,7 @@ export default function BudgetScreen() {
                         </View>
                         <View style={s.summaryDivider} />
                         <View style={s.summaryBox}>
-                            <Text style={s.summaryLabel}>Variance</Text>
+                            <Text style={s.summaryLabel}>Over/Under</Text>
                             <Text style={[s.summaryVal, { color: displayTotalVariance >= 0 ? Colors.income : Colors.expense }]}>
                                 {displayTotalVariance >= 0 ? '+' : ''}{currency}{displayTotalVariance.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                             </Text>

@@ -97,8 +97,8 @@ export default function InsightsScreen() {
 
                     {/* Quick stat cards */}
                     <View style={styles.statRow}>
-                        <StatCard label="Outstanding AR" value={totalAR} format={n => `${currency}${Math.round(n).toLocaleString()}`} sub={`${pendingAR.length} invoices`} color={Colors.income} />
-                        <StatCard label="Outstanding AP" value={totalAP} format={n => `${currency}${Math.round(n).toLocaleString()}`} sub={`${pendingAP.length} bills`} color={Colors.expense} />
+                        <StatCard label="Money Owed to You" value={totalAR} format={n => `${currency}${Math.round(n).toLocaleString()}`} sub={`${pendingAR.length} invoices`} color={Colors.income} />
+                        <StatCard label="Money You Owe" value={totalAP} format={n => `${currency}${Math.round(n).toLocaleString()}`} sub={`${pendingAP.length} bills`} color={Colors.expense} />
                     </View>
                     <View style={styles.statRow}>
                         <StatCard label="Recurring Entries" value={recurringCount} format={n => `${Math.round(n)}`} sub="auto-tracked" color={Colors.primary} />
@@ -112,7 +112,7 @@ export default function InsightsScreen() {
                         >
                             <Icon name="alert-triangle" size={14} color={Colors.expense} />
                             <Text style={styles.alertText}>
-                                {overdueCount} overdue transaction{overdueCount > 1 ? 's' : ''} — tap to view AR/AP Aging
+                                {overdueCount} overdue transaction{overdueCount > 1 ? 's' : ''} — tap to see who owes what, and for how long
                             </Text>
                         </TouchableOpacity>
                     )}
