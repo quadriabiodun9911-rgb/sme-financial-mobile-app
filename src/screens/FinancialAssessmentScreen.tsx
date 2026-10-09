@@ -14,9 +14,30 @@ import DataConfidenceBadge from '../components/DataConfidenceBadge';
 import { describeDataConfidenceTrend } from '../utils/dataConfidenceHistory';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { loadDismissedDiagnosisIds, dismissDiagnosis, undismissDiagnosis } from '../utils/diagnosisDismissal';
+import {
+  DiagnosisSnapshot,
+  loadDiagnosisHistory,
+  saveDiagnosisHistory,
+  buildDiagnosisSnapshot,
+  shouldRecordDiagnosisSnapshot,
+  appendDiagnosisSnapshot,
+  describeDiagnosisFollowUp,
+  findResolvedDiagnoses,
+} from '../utils/diagnosisHistory';
+import { computeQualityOfGrowth } from '../utils/qualityOfGrowth';
+import { computeDirectionVsStatus } from '../utils/directionVsStatus';
+import { computeRiskRadar } from '../utils/riskRadar';
+import { computeBusinessExposure, computeBusinessResilience } from '../utils/businessExposure';
+import { computeFinancialResilience } from '../utils/cashReservePlanning';
+import { computeFinancingReadinessScore } from '../utils/finance';
+import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
+import { computeDataQuality } from '../utils/dataQuality';
+import { buildFinancingFitInput } from '../utils/financingFit';
+import { computeInventoryValue } from '../utils/stockVelocity';
+import { buildDiagnosticDimensions } from '../utils/diagnosticDimensions';
 
 export default function FinancialAssessmentScreen() {
-  const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory, assets, dataConfidenceHistory } = useApp();
+  const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory, assets, budgets, dataConfidenceHistory, user } = useApp();
   const [selectedDiagnosis, setSelectedDiagnosis] = useState<number>(0);
   const dataConfidenceTrend = useMemo(() => describeDataConfidenceTrend(dataConfidenceHistory), [dataConfidenceHistory]);
 
@@ -46,6 +67,34 @@ export default function FinancialAssessmentScreen() {
     );
   }, [transactions, invoices, finance, settings, loans, inventory, assets, dismissedIds]);
 
+  // Follow-up: "how will Quad360 determine whether this improved" made
+  // concrete, not just a static `trigger` sentence. Weekly snapshots of
+  // this diagnosis run (same cadence/storage pattern as readinessHistory.ts)
+  // let a later visit compare "then" against "now" per diagnosis, and
+  // notice when one stops appearing at all.
+  const [diagnosisHistory, setDiagnosisHistory] = useState<DiagnosisSnapshot[]>([]);
+  useEffect(() => {
+    loadDiagnosisHistory().then(setDiagnosisHistory);
+  }, []);
+  useEffect(() => {
+    if (diagnosis.diagnoses.length === 0) return;
+    if (!shouldRecordDiagnosisSnapshot(diagnosisHistory)) return;
+    const next = appendDiagnosisSnapshot(diagnosisHistory, buildDiagnosisSnapshot(diagnosis.diagnoses));
+    setDiagnosisHistory(next);
+    saveDiagnosisHistory(next);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [diagnosis.diagnoses]);
+
+  // Resolved since last check -- diagnoses history has seen but the
+  // current run (the FULL list, dismissed included -- see
+  // performFinancialDiagnosis's own doc comment on why `diagnoses` stays
+  // the full list -- so a dismissed-not-fixed issue is never misreported
+  // as resolved) no longer produces at all.
+  const resolvedDiagnoses = useMemo(
+    () => findResolvedDiagnoses(diagnosisHistory, new Set(diagnosis.diagnoses.map(d => d.id))),
+    [diagnosisHistory, diagnosis.diagnoses]
+  );
+
   const toggleDismissSelected = async () => {
     const current = diagnosis.diagnoses[selectedDiagnosis];
     if (!current) return;
@@ -70,6 +119,59 @@ export default function FinancialAssessmentScreen() {
   const riskFactor = (name: string) => risk.factors.find(f => f.name === name);
   const performanceFactor = riskFactor('Profitability');
   const cashFactor = riskFactor('Liquidity');
+
+  // The 8-Dimension Diagnosis -- each of these is the exact same call the
+  // screen that canonically owns it already makes (Scoreboard, Risk
+  // Management, Credit-Worthiness), reused here rather than recomputed, so
+  // this screen's own dimension cards can never disagree with the full
+  // detail one tap away. See diagnosticDimensions.ts for why 4 of the 8 are
+  // owned here directly and 4 are a grounded summary + link.
+  const growthQuality = useMemo(() => computeQualityOfGrowth(transactions, assets, loans), [transactions, assets, loans]);
+  const directionVsStatus = useMemo(() => computeDirectionVsStatus(risk, growthQuality), [risk, growthQuality]);
+  const exposure = useMemo(
+    () => computeBusinessExposure(transactions, loans, inventory, settings?.macroAssumptions ?? [], finance, settings?.nextTaxDeadline, settings.currency),
+    [transactions, loans, inventory, settings?.macroAssumptions, finance, settings?.nextTaxDeadline, settings.currency]
+  );
+  const resilience = useMemo(() => computeBusinessResilience(exposure), [exposure]);
+  const riskRadar = useMemo(
+    () => computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? [], new Date(), assets),
+    [transactions, loans, settings?.macroAssumptions, assets]
+  );
+  const financialResilience = useMemo(() => computeFinancialResilience(transactions, finance.cashBalance), [transactions, finance.cashBalance]);
+  const financingReadinessScore = useMemo(() => computeFinancingReadinessScore(risk.factors).score, [risk.factors]);
+  const lendingCapacity = useMemo(() => {
+    if (transactions.length < 5) return null;
+    const fitInput = buildFinancingFitInput(transactions, loans, settings, user);
+    const dataQuality = computeDataQuality(transactions, settings.industry);
+    const inventoryValue = computeInventoryValue(inventory);
+    return computeLendingCapacityEstimate({
+      overallCreditScore: financingReadinessScore,
+      avgMonthlyRevenue: fitInput.avgMonthlyRevenue,
+      dscr: diagnosis.metrics.dscr,
+      hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',
+      inventoryValue,
+    });
+  }, [transactions, loans, settings, user, financingReadinessScore, diagnosis.metrics.dscr, inventory]);
+
+  const diagnosticDimensions = useMemo(
+    () => buildDiagnosticDimensions({
+      diagnosis,
+      risk,
+      currency: settings.currency,
+      directionVsStatus,
+      riskRadar,
+      resilience,
+      reserveCoverageMonths: financialResilience.available ? financialResilience.reserveCoverageMonths : null,
+      financingReadinessScore,
+      lendingCapacity,
+      transactions,
+      loans,
+      invoices,
+      budgets,
+    }),
+    [diagnosis, risk, settings.currency, directionVsStatus, riskRadar, resilience, financialResilience, financingReadinessScore, lendingCapacity, transactions, loans, invoices, budgets]
+  );
+  const [expandedDimension, setExpandedDimension] = useState<string | null>(null);
 
   // Total identified financial impact across every issue the diagnosis
   // found — the honest answer to "where could money be leaking?" instead
@@ -224,22 +326,103 @@ export default function FinancialAssessmentScreen() {
             </Text>
           </View>
 
-          {/* Per-pillar breakdown — Profitability, Liquidity, Working
-              Capital, Debt, Efficiency, Inventory, Concentration, each
-              scored the same way this overall number is, so a single glance
-              shows which pillar is actually dragging the score down instead
-              of just the one aggregate number. */}
-          <View style={styles.categoryList}>
-            {diagnosis.categories.map(cat => (
-              <View key={cat.key} style={styles.categoryRow}>
-                <View style={[styles.categoryDot, { backgroundColor: categoryStatusColor(cat.status) }]} />
-                <Text style={styles.categoryLabel}>{cat.label}</Text>
-                <Text style={[styles.categoryStatus, { color: categoryStatusColor(cat.status) }]}>
-                  {categoryStatusLabel(cat.status)}
-                </Text>
-              </View>
-            ))}
+          {/* The per-pillar dot list that used to live here is now the
+              8-Dimension Diagnosis below -- same underlying categories
+              (Profitability, Liquidity, Working Capital, Debt...) plus the
+              four this score alone never covered (trend, risk, decision
+              and financing readiness), with a real Output per dimension
+              instead of just a status dot. Kept to one structure instead
+              of two overlapping ones. */}
+          <Text style={styles.healthSeeMoreText}>See what's driving this score in the 8-Dimension Diagnosis below ↓</Text>
+        </View>
+
+        {/* The 8-Dimension Diagnosis -- Quad360's Diagnostic Engine
+            connecting the numbers to what they mean, dimension by
+            dimension, instead of a wall of ratios. See
+            diagnosticDimensions.ts for exactly what each one reuses. */}
+        <View style={styles.section}>
+          <View style={styles.titleIconRow}>
+            <Icon name="layers" size={14} color={Colors.textPrimary} />
+            <Text style={styles.sectionTitle}>The 8-Dimension Diagnosis</Text>
           </View>
+          <Text style={styles.dimensionsIntro}>
+            Not just numbers — what they mean for the business, why it matters, and what to do next. Tap a dimension for the full picture.
+          </Text>
+          {diagnosticDimensions.map(dim => {
+            const isOpen = expandedDimension === dim.key;
+            const color = dim.status === 'info' ? Colors.textMuted : categoryStatusColor(dim.status);
+            const badgeWord = dim.status === 'info' ? 'Info' : categoryStatusLabel(dim.status);
+            return (
+              <TouchableOpacity
+                key={dim.key}
+                style={[styles.dimensionCard, { borderLeftColor: color }]}
+                onPress={() => setExpandedDimension(isOpen ? null : dim.key)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.dimensionHeaderRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.dimensionTitle}>{dim.title}</Text>
+                    <Text style={styles.dimensionQuestion}>{dim.question}</Text>
+                    <Text style={styles.dimensionDetailText}>{dim.statusLabel}</Text>
+                  </View>
+                  <View style={[styles.dimensionStatusBadge, { backgroundColor: color + '22' }]}>
+                    <Text style={[styles.dimensionStatusText, { color }]} numberOfLines={1}>{badgeWord}</Text>
+                  </View>
+                  <Icon name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
+                </View>
+
+                {isOpen && (
+                  <View style={styles.dimensionBody}>
+                    {dim.narrative && (
+                      <View style={styles.narrativeBox}>
+                        <Text style={[styles.narrativeHeadline, { color }]}>{dim.narrative.headline}</Text>
+                        <View style={styles.narrativeMetricsRow}>
+                          {dim.narrative.metrics.map((mt, i) => (
+                            <View key={i} style={styles.narrativeMetricTile}>
+                              <Text style={styles.narrativeMetricLabel}>{mt.label}</Text>
+                              <Text style={styles.narrativeMetricValue}>{mt.value}</Text>
+                            </View>
+                          ))}
+                        </View>
+                        <Text style={styles.narrativeSectionLabel}>What this means</Text>
+                        <Text style={styles.narrativeText}>{dim.narrative.whatThisMeans}</Text>
+                        <Text style={styles.narrativeSectionLabel}>Why it matters</Text>
+                        <Text style={styles.narrativeText}>{dim.narrative.whyItMatters}</Text>
+                        <Text style={styles.narrativeSectionLabel}>Recommended next steps</Text>
+                        {dim.narrative.recommendedSteps.map((step, i) => (
+                          <Text key={i} style={styles.narrativeStep}>{i + 1}. {step}</Text>
+                        ))}
+                        <Text style={styles.narrativeSectionLabel}>The numbers</Text>
+                      </View>
+                    )}
+
+                    {dim.outputs.map((o, i) => (
+                      <View key={i} style={styles.dimensionOutputRow}>
+                        <Text style={styles.dimensionOutputLabel}>{o.label}</Text>
+                        <Text style={styles.dimensionOutputValue}>{o.value}</Text>
+                      </View>
+                    ))}
+
+                    {dim.relatedProblems.length > 0 && (
+                      <View style={styles.dimensionRelatedBox}>
+                        <Text style={styles.dimensionRelatedTitle}>Flagged in Early Warning Signals below:</Text>
+                        {dim.relatedProblems.map((p, i) => (
+                          <Text key={i} style={styles.dimensionRelatedItem}>• {p}</Text>
+                        ))}
+                      </View>
+                    )}
+
+                    {dim.seeFullDetail && (
+                      <NextStepLink
+                        text={dim.seeFullDetail.text}
+                        onPress={() => navigate(dim.seeFullDetail!.screen, dim.seeFullDetail!.params)}
+                      />
+                    )}
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* How much to trust the score above -- how the diagnosis
@@ -313,6 +496,23 @@ export default function FinancialAssessmentScreen() {
           <SwotAnalysis />
         </View>
 
+        {/* Resolved Since Last Check -- the positive half of follow-up:
+            not just "is this getting better" but "did this go away
+            entirely." Only ever diagnoses this device has actually tracked
+            (diagnosisHistory.ts), never a claim about issues from before
+            this feature existed. */}
+        {resolvedDiagnoses.length > 0 && (
+          <View style={styles.resolvedCard}>
+            <View style={styles.titleIconRow}>
+              <Icon name="check-circle" size={15} color={Colors.income} />
+              <Text style={styles.resolvedTitle}>Resolved Since Last Check</Text>
+            </View>
+            {resolvedDiagnoses.map((r, i) => (
+              <Text key={i} style={styles.resolvedItemText}>✓ {r.problem}</Text>
+            ))}
+          </View>
+        )}
+
         {/* Diagnoses */}
         <View style={styles.section}>
           <View style={styles.diagnosisHeader}>
@@ -376,6 +576,24 @@ export default function FinancialAssessmentScreen() {
               <Text style={[styles.diagnosisText, { color: Colors.income, fontWeight: '600' }]}>
                 → {diagnosis.diagnoses[selectedDiagnosis].opportunity}
               </Text>
+
+              {/* Follow-up -- "how will Quad360 determine whether this
+                  improved," made concrete with an actual before/after
+                  comparison instead of left as a one-time finding. See
+                  diagnosisHistory.ts. */}
+              {(() => {
+                const followUp = describeDiagnosisFollowUp(diagnosis.diagnoses[selectedDiagnosis], diagnosisHistory, settings.currency);
+                if (!followUp) return null;
+                const followUpColor = followUp.kind === 'improving' ? Colors.income : followUp.kind === 'worsening' ? Colors.expense : Colors.textMuted;
+                return (
+                  <>
+                    <Text style={styles.diagnosisLabel}>Follow-up</Text>
+                    <Text style={[styles.diagnosisText, { color: followUpColor }]}>
+                      {followUp.kind === 'improving' ? '↓ ' : followUp.kind === 'worsening' ? '↑ ' : followUp.kind === 'new' ? '🆕 ' : '→ '}{followUp.text}
+                    </Text>
+                  </>
+                );
+              })()}
 
               {/* "Mark as intentional" -- for when this diagnosis is a
                   deliberate business choice (e.g. long payment terms offered
@@ -581,6 +799,35 @@ const styles = StyleSheet.create({
   categoryDot: { width: 8, height: 8, borderRadius: 4 },
   categoryLabel: { flex: 1, fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
   categoryStatus: { fontSize: 12, fontWeight: '700' },
+  healthSeeMoreText: { fontSize: 11.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: Spacing.sm },
+
+  dimensionsIntro: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginBottom: Spacing.md },
+  dimensionCard: {
+    backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
+    borderLeftWidth: 3, padding: Spacing.md, marginBottom: Spacing.sm, ...Shadow.sm,
+  },
+  dimensionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  dimensionTitle: { fontSize: 13.5, fontWeight: '800', color: Colors.textPrimary },
+  dimensionQuestion: { fontSize: 11.5, color: Colors.textMuted, marginTop: 1 },
+  dimensionDetailText: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary, marginTop: 3 },
+  dimensionStatusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.pill, maxWidth: 110 },
+  dimensionStatusText: { fontSize: 10.5, fontWeight: '800' },
+  dimensionBody: { marginTop: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border, gap: 8 },
+  narrativeBox: { marginBottom: 4, gap: 4 },
+  narrativeHeadline: { fontSize: 14, fontWeight: '800', marginBottom: 2 },
+  narrativeMetricsRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
+  narrativeMetricTile: { flex: 1, backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: Spacing.sm },
+  narrativeMetricLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
+  narrativeMetricValue: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginTop: 2 },
+  narrativeSectionLabel: { fontSize: 10.5, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 6 },
+  narrativeText: { fontSize: 12.5, color: Colors.textPrimary, lineHeight: 18, marginTop: 1 },
+  narrativeStep: { fontSize: 12.5, color: Colors.textPrimary, lineHeight: 18, marginTop: 1 },
+  dimensionOutputRow: { marginBottom: 2 },
+  dimensionOutputLabel: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
+  dimensionOutputValue: { fontSize: 12.5, color: Colors.textPrimary, lineHeight: 17, marginTop: 1 },
+  dimensionRelatedBox: { backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: Spacing.sm, marginTop: 4 },
+  dimensionRelatedTitle: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, marginBottom: 3 },
+  dimensionRelatedItem: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
   fixFirstCard: {
     backgroundColor: Colors.surface,
@@ -602,6 +849,21 @@ const styles = StyleSheet.create({
     width: 20, height: 20, textAlign: 'center', lineHeight: 20,
   },
   fixFirstText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+
+  resolvedCard: {
+    backgroundColor: Colors.income + '10',
+    borderRadius: 14,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.income,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.sm,
+  },
+  resolvedTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary },
+  resolvedItemText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginTop: 4 },
 
   section: { marginBottom: Spacing.xxl },
   sectionTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: Spacing.md },

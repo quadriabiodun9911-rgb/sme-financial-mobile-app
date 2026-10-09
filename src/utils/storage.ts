@@ -1878,6 +1878,9 @@ const FINANCIAL_CACHE_KEYS = [
     '@quad360/dismissed_alerts',
     // diagnosisDismissal.ts -- "mark as intentional" dismissed diagnosis ids
     '@quad360/dismissed_diagnoses',
+    // diagnosisHistory.ts -- weekly diagnosis snapshots for the "is this
+    // improving" follow-up on Financial Assessment
+    '@quad360/diagnosis_history',
     // RetentionNudges.tsx -- usage streak/milestone state; a second
     // account inheriting a stranger's streak is exactly the kind of
     // "looks like MY data" bug this device already had enough of.
