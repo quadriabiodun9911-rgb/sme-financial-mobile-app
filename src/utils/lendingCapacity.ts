@@ -1,5 +1,14 @@
 export type LendingTier = 'not-yet-bankable' | 'emerging' | 'standard' | 'strong';
 
+// The three conclusions a business owner should actually see, distinct from
+// the tier above: 'strong'/'standard'/'emerging' all mean "ready" (terms
+// vary), but 'not-yet-bankable' bundles three genuinely different
+// situations that call for a different message and tone -- a data gap isn't
+// a risk judgment, and "can't safely service more debt" isn't the same
+// conclusion as "score needs work." Computed alongside `reason` below so the
+// two can never drift apart (e.g. a DSCR-driven reason labeled 'improve').
+export type LendingConclusion = 'ready' | 'improve' | 'risk' | 'insufficient-data';
+
 // Ordered highest tier first. Exported so anything that needs the real
 // credit-score cutoffs (e.g. metricIntelligence.ts's trigger) reads them
 // from here rather than hardcoding a second copy — computeLendingCapacityEstimate
@@ -29,6 +38,7 @@ export interface InventoryBackedCapacity {
 export interface LendingCapacityEstimate {
     tier: LendingTier;
     tierLabel: string;
+    conclusion: LendingConclusion;
     minAmount: number;
     maxAmount: number;
     maxTenureMonths: number;
@@ -76,6 +86,7 @@ export function computeLendingCapacityEstimate(input: LendingCapacityInput): Len
         return {
             tier: 'not-yet-bankable',
             tierLabel: 'Not Enough History Yet',
+            conclusion: 'insufficient-data',
             minAmount: 0,
             maxAmount: 0,
             maxTenureMonths: 0,
@@ -93,6 +104,7 @@ export function computeLendingCapacityEstimate(input: LendingCapacityInput): Len
         return {
             tier: 'not-yet-bankable',
             tierLabel: 'Not Yet Bankable',
+            conclusion: 'risk',
             minAmount: 0,
             maxAmount: 0,
             maxTenureMonths: 0,
@@ -104,6 +116,7 @@ export function computeLendingCapacityEstimate(input: LendingCapacityInput): Len
 
     let tier: LendingTier;
     let tierLabel: string;
+    let conclusion: LendingConclusion;
     let revenueMultiplierRange: [number, number];
     let maxTenureMonths: number;
     let rateTierLabel: string;
@@ -114,6 +127,7 @@ export function computeLendingCapacityEstimate(input: LendingCapacityInput): Len
     if (overallCreditScore >= strongCutoff) {
         tier = 'strong';
         tierLabel = 'Strong';
+        conclusion = 'ready';
         revenueMultiplierRange = [2.5, 4];
         maxTenureMonths = 12;
         rateTierLabel = 'Likely a lower-rate tier — strong, consistent repayment capacity';
@@ -121,6 +135,7 @@ export function computeLendingCapacityEstimate(input: LendingCapacityInput): Len
     } else if (overallCreditScore >= standardCutoff) {
         tier = 'standard';
         tierLabel = 'Standard';
+        conclusion = 'ready';
         revenueMultiplierRange = [1.5, 2.5];
         maxTenureMonths = 9;
         rateTierLabel = 'Likely a standard-rate tier';
@@ -128,6 +143,7 @@ export function computeLendingCapacityEstimate(input: LendingCapacityInput): Len
     } else if (overallCreditScore >= emergingCutoff) {
         tier = 'emerging';
         tierLabel = 'Emerging';
+        conclusion = 'ready';
         revenueMultiplierRange = [0.5, 1.5];
         maxTenureMonths = 6;
         rateTierLabel = 'Likely a higher-rate tier — limited track record';
@@ -135,6 +151,7 @@ export function computeLendingCapacityEstimate(input: LendingCapacityInput): Len
     } else {
         tier = 'not-yet-bankable';
         tierLabel = 'Not Yet Bankable';
+        conclusion = 'improve';
         revenueMultiplierRange = [0, 0];
         maxTenureMonths = 0;
         rateTierLabel = 'Not likely to qualify yet';
@@ -144,5 +161,5 @@ export function computeLendingCapacityEstimate(input: LendingCapacityInput): Len
     const minAmount = Math.round(avgMonthlyRevenue * revenueMultiplierRange[0]);
     const maxAmount = Math.round(avgMonthlyRevenue * revenueMultiplierRange[1]);
 
-    return { tier, tierLabel, minAmount, maxAmount, maxTenureMonths, rateTierLabel, reason, inventoryBacked };
+    return { tier, tierLabel, conclusion, minAmount, maxAmount, maxTenureMonths, rateTierLabel, reason, inventoryBacked };
 }

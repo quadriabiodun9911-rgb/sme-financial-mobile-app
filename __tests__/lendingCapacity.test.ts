@@ -7,12 +7,14 @@ describe('computeLendingCapacityEstimate', () => {
         const r = computeLendingCapacityEstimate({ ...base, hasReliableData: false });
         expect(r.tier).toBe('not-yet-bankable');
         expect(r.tierLabel).toBe('Not Enough History Yet');
+        expect(r.conclusion).toBe('insufficient-data');
         expect(r.maxAmount).toBe(0);
     });
 
     it('flags not-bankable when DSCR < 1, regardless of credit score', () => {
         const r = computeLendingCapacityEstimate({ ...base, overallCreditScore: 95, dscr: 0.8 });
         expect(r.tier).toBe('not-yet-bankable');
+        expect(r.conclusion).toBe('risk');
         expect(r.maxAmount).toBe(0);
         expect(r.reason).toMatch(/doesn't fully cover existing debt|debt obligations/i);
     });
@@ -20,6 +22,7 @@ describe('computeLendingCapacityEstimate', () => {
     it('assigns the Strong tier and a 2.5x-4x revenue range for a high score with healthy DSCR', () => {
         const r = computeLendingCapacityEstimate(base);
         expect(r.tier).toBe('strong');
+        expect(r.conclusion).toBe('ready');
         expect(r.minAmount).toBe(250000);
         expect(r.maxAmount).toBe(400000);
         expect(r.maxTenureMonths).toBe(12);
@@ -41,6 +44,7 @@ describe('computeLendingCapacityEstimate', () => {
     it('returns zero capacity for a poor score even with healthy DSCR', () => {
         const r = computeLendingCapacityEstimate({ ...base, overallCreditScore: 40 });
         expect(r.tier).toBe('not-yet-bankable');
+        expect(r.conclusion).toBe('improve');
         expect(r.minAmount).toBe(0);
         expect(r.maxAmount).toBe(0);
     });

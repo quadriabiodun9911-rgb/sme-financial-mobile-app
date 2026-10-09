@@ -2103,27 +2103,58 @@ export default function DashboardScreen() {
                 )}
 
                 {/* BEFORE YOU BORROW — the other side of "If You Need
-                    Capital". financingCapacity.reason already carries the
-                    plain-language "why not yet" (too little history, DSCR
-                    below 1, or a score that's currently too low) that
-                    computeLendingCapacityEstimate always returns for a
-                    'not-yet-bankable' tier -- previously computed here and
-                    then thrown away, since the capacity card above hides
-                    itself in exactly this case. Surfacing it instead means
-                    the home page gives a financing conclusion either way,
-                    not just when the answer is encouraging. */}
-                {canViewFinancials && financingCapacity && financingCapacity.tier === 'not-yet-bankable' && (
+                    Capital". financingCapacity.conclusion distinguishes three
+                    genuinely different situations computeLendingCapacityEstimate
+                    can return for a 'not-yet-bankable' tier -- "can't safely
+                    service more debt" (risk) is not the same conclusion as
+                    "score needs work" (improve), and neither is the same as
+                    "not enough history yet" (a data gap, not a judgment on the
+                    business). Previously these three were shown as one
+                    identically-styled card; each now gets its own title, tone
+                    and color so the owner isn't given the same visual alarm
+                    for a data gap as for an active debt-service risk. */}
+                {canViewFinancials && financingCapacity && financingCapacity.conclusion === 'risk' && (
                   <TouchableOpacity
-                    style={styles.beforeYouBorrowCard}
+                    style={[styles.beforeYouBorrowCard, { borderLeftColor: Colors.expense }]}
                     onPress={() => setCurrentScreen('financial-assessment')}
                     activeOpacity={0.85}
                   >
                     <View style={styles.sectionTitleRow}>
-                      <Icon name="alert-circle" size={13} color={Colors.warning} />
-                      <Text style={styles.operationsSectionTitle}>Before You Borrow</Text>
+                      <Icon name="alert-triangle" size={13} color={Colors.expense} />
+                      <Text style={styles.operationsSectionTitle}>Borrowing May Increase Risk</Text>
+                    </View>
+                    <Text style={styles.beforeYouBorrowText}>{financingCapacity.reason}</Text>
+                    <Text style={styles.healthLinkText}>See the full picture →</Text>
+                  </TouchableOpacity>
+                )}
+
+                {canViewFinancials && financingCapacity && financingCapacity.conclusion === 'improve' && (
+                  <TouchableOpacity
+                    style={[styles.beforeYouBorrowCard, { borderLeftColor: Colors.warning }]}
+                    onPress={() => setCurrentScreen('financial-assessment')}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.sectionTitleRow}>
+                      <Icon name="target" size={13} color={Colors.warning} />
+                      <Text style={styles.operationsSectionTitle}>Improve Before Applying</Text>
                     </View>
                     <Text style={styles.beforeYouBorrowText}>{financingCapacity.reason}</Text>
                     <Text style={styles.healthLinkText}>See what to fix first →</Text>
+                  </TouchableOpacity>
+                )}
+
+                {canViewFinancials && financingCapacity && financingCapacity.conclusion === 'insufficient-data' && (
+                  <TouchableOpacity
+                    style={[styles.beforeYouBorrowCard, { borderLeftColor: Colors.textMuted }]}
+                    onPress={() => setCurrentScreen('financial-assessment')}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.sectionTitleRow}>
+                      <Icon name="info" size={13} color={Colors.textMuted} />
+                      <Text style={styles.operationsSectionTitle}>Not Enough Data Yet</Text>
+                    </View>
+                    <Text style={styles.beforeYouBorrowText}>{financingCapacity.reason}</Text>
+                    <Text style={styles.healthLinkText}>Add more transaction history →</Text>
                   </TouchableOpacity>
                 )}
 
