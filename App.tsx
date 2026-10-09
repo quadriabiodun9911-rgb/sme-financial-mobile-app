@@ -51,7 +51,6 @@ import ScoreboardScreen from './src/screens/ScoreboardScreen';
 import RiskManagementScreen from './src/screens/RiskManagementScreen';
 import MacroAssumptionsScreen from './src/screens/MacroAssumptionsScreen';
 import MacroShieldDetailScreen from './src/screens/MacroShieldDetailScreen';
-import FutureEventsScreen from './src/screens/FutureEventsScreen';
 import FinancialAssessmentScreen from './src/screens/FinancialAssessmentScreen';
 import ActionTrackerScreen from './src/screens/ActionTrackerScreen';
 import FinancingMarketplaceScreen from './src/screens/FinancingMarketplaceScreen';
@@ -240,7 +239,6 @@ function NavigatorContent() {
                     <MacroShieldDetailScreen />
                 </ProGate>
             )}
-            {currentScreen === 'future-events' && <FutureEventsScreen />}
             {currentScreen === 'financial-assessment' && (
                 <ProGate feature="Financial Assessment" description="Root-cause diagnosis of what's actually driving your numbers, SWOT analysis, and an early-warning signal feed.">
                     <FinancialAssessmentScreen />

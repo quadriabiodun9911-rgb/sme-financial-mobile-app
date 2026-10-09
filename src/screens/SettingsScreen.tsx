@@ -90,7 +90,7 @@ export default function SettingsScreen() {
     const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const {
-        settings, updateSettings, setCurrentScreen,
+        settings, updateSettings, setCurrentScreen, navigate,
         changePin, exportData, importData, clearData, resetBusinessData, deleteAccount, logout,
         userRole, teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
@@ -683,7 +683,7 @@ export default function SettingsScreen() {
                                 purchase — aren't in your transaction history yet. Add them so the forecast can
                                 place them in the right month, never applied silently.
                             </Text>
-                            <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('future-events')}>
+                            <TouchableOpacity style={styles.dataBtn} onPress={() => navigate('future-statements', { openEventsManager: true })}>
                                 <Text style={styles.dataBtnText}>
                                     {(settings.futureEvents?.length ?? 0) > 0
                                         ? `Manage Future Events (${settings.futureEvents!.length})`

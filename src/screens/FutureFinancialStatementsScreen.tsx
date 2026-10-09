@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, ScrollView, View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -7,6 +7,7 @@ import FooterNav from '../components/FooterNav';
 import Icon from '../components/ui/Icon';
 import NextStepLink from '../components/NextStepLink';
 import Collapsible from '../components/Collapsible';
+import FutureEventsManagerModal from '../components/FutureEventsManagerModal';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { buildFutureFinancialStatements, NO_ADJUSTMENTS, ForecastAdjustments } from '../utils/futureFinancialStatements';
 import { computeForecastSummary, describeCashFlowPressure, findReserveBreach, ForecastPeriod, PERIOD_LABELS } from '../utils/forecastSummary';
@@ -56,13 +57,22 @@ function AdjustmentInput({ label, value, onChange, suffix }: { label: string; va
 }
 
 export default function FutureFinancialStatementsScreen() {
-    const { transactions, loans, finance, settings, staff, goBack, inventory, invoices, navigate, assets, forecastHistory } = useApp();
+    const { transactions, loans, finance, settings, staff, goBack, inventory, invoices, navigate, navParams, assets, forecastHistory } = useApp();
     const { currency } = settings;
 
     const [activeStatement, setActiveStatement] = useState<Statement>('pnl');
     const [horizon, setHorizon] = useState<6 | 12>(6);
     const [selectedMonthIdx, setSelectedMonthIdx] = useState(0);
     const [forecastPeriod, setForecastPeriod] = useState<ForecastPeriod>('90d');
+
+    // Future Events used to be its own top-level screen; it only ever
+    // existed to feed this one, so it's now a modal launched from here (and
+    // from Settings, via this same nav-param deep link) instead of a
+    // separate destination.
+    const [showEventsManager, setShowEventsManager] = useState(false);
+    useEffect(() => {
+        if (navParams?.openEventsManager) setShowEventsManager(true);
+    }, [navParams]);
 
     const [revenueGrowth, setRevenueGrowth] = useState('0');
     const [expenseGrowth, setExpenseGrowth] = useState('0');
@@ -800,7 +810,7 @@ export default function FutureFinancialStatementsScreen() {
                                         already know about aren't in your transaction history yet. Add one so this
                                         forecast can place it in the right month.
                                     </Text>
-                                    <TouchableOpacity onPress={() => navigate('future-events')}>
+                                    <TouchableOpacity onPress={() => setShowEventsManager(true)}>
                                         <Text style={s.aiCardLink}>Add a Known Future Event →</Text>
                                     </TouchableOpacity>
                                 </>
@@ -826,7 +836,7 @@ export default function FutureFinancialStatementsScreen() {
                                             </Text>
                                         </View>
                                     ))}
-                                    <TouchableOpacity onPress={() => navigate('future-events')}>
+                                    <TouchableOpacity onPress={() => setShowEventsManager(true)}>
                                         <Text style={s.aiCardLink}>Manage Future Events →</Text>
                                     </TouchableOpacity>
                                 </>
@@ -1190,6 +1200,7 @@ export default function FutureFinancialStatementsScreen() {
                 )}
             </ScrollView>
             <FooterNav />
+            <FutureEventsManagerModal visible={showEventsManager} onClose={() => setShowEventsManager(false)} />
         </SafeAreaView>
     );
 }

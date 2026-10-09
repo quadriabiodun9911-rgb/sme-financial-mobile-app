@@ -36,7 +36,6 @@ export type Screen =
     | 'scoreboard'
     | 'risk-management'
     | 'macro-assumptions'
-    | 'future-events'
     | 'financing-marketplace'
     | 'financing-admin'
     | 'contact'
@@ -447,6 +446,7 @@ export interface NavParams {
     openWeeklyReport?: boolean; // open the Weekly Dashboard modal on the Dashboard screen
     openMonthlyReview?: boolean; // open the Monthly Review modal on the Dashboard screen
     openDailyReport?: boolean; // open the Daily (End of Day) Report modal on the Dashboard screen
+    openEventsManager?: boolean; // open the Known Future Events modal on the Future Financial Statements screen
     // Carries the exact scenario the owner was testing on the Dashboard's
     // MacroShield card into macroshield-detail, so the detail page never
     // shows a different shock than the one just explored.
