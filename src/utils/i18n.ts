@@ -235,7 +235,7 @@ const T = {
         navRisk: 'Risk', navForecast: 'Forecast',
         navInsightsDesc: 'What actually needs a decision right now',
         navAdvisor: 'Fractional CFO', navAdvisorDesc: 'Forecasts, ratios, risk score — CFO-level insight on demand',
-        navAnalysisDecisions: 'Analysis & Decisions', navAnalysisDecisionsDesc: 'Why is this happening, and what if I...',
+        navAnalysisDecisions: 'Analysis & Decisions', navAnalysisDecisionsDesc: 'Why is this happening, what if I..., and pressure-test a real decision',
         navBeforeYouDecide: 'Before You Decide', navBeforeYouDecideDesc: 'Pressure-test a hire, purchase, discount, or loan',
         navGoalsDesc: 'Set the target this decision is aimed at',
         navBudget: 'Budget', navBudgetDesc: 'Put a spending plan behind that target',

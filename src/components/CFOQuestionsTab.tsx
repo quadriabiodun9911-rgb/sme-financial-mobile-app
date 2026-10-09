@@ -288,7 +288,7 @@ export default function CFOQuestionsTab() {
                                         <TouchableOpacity onPress={() => navigate('inventory', { tab: 'pricing' })}><Text style={s.allocationGo}>Go →</Text></TouchableOpacity>
                                     )}
                                     {opt.destination === 'undeployed' && (
-                                        <TouchableOpacity onPress={() => navigate('before-you-decide')}><Text style={s.allocationGo}>Test an idea →</Text></TouchableOpacity>
+                                        <TouchableOpacity onPress={() => navigate('analysis', { tab: 'decide' })}><Text style={s.allocationGo}>Test an idea →</Text></TouchableOpacity>
                                     )}
                                 </View>
                             </View>

@@ -47,7 +47,6 @@ export type Screen =
     | 'security-center'
     | 'business-timeline'
     | 'data-permission-centre'
-    | 'before-you-decide'
     | 'macroshield-detail'
     | 'upgrade'
     | 'portfolio'
