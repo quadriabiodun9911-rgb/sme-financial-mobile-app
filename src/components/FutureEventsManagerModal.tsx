@@ -1,9 +1,15 @@
+/**
+ * The former FutureEventsScreen, as a modal launched from Future Financial
+ * Statements (and from Settings) instead of its own top-level screen. Part
+ * of consolidating the "Forecast" area from two screens to one -- this
+ * screen only ever existed to feed the other one, so a user managing
+ * events never needed a separate destination, just this list and form
+ * reachable from where the events actually matter.
+ */
 import React, { useState } from 'react';
-import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, StyleSheet, TextInput, Modal, Platform, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, TextInput, Modal, ScrollView, Platform, useWindowDimensions } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
-import Header from '../components/Header';
-import FooterNav from '../components/FooterNav';
 import { generateId } from '../utils/uuid';
 import { FutureEvent, FutureEventCategory } from '../types';
 import { showAlert, confirmAction } from '../utils/webAlert';
@@ -28,14 +34,16 @@ function todayIso(): string {
     return localDateStr();
 }
 
-export default function FutureEventsScreen() {
-    const { settings, updateSettings, navigate } = useApp();
+interface Props {
+    visible: boolean;
+    onClose: () => void;
+}
+
+export default function FutureEventsManagerModal({ visible, onClose }: Props) {
+    const { settings, updateSettings } = useApp();
     const events = settings.futureEvents ?? [];
     const currency = settings.currency || '₦';
 
-    // Modal renders via a portal on web, outside App.tsx's width constraint --
-    // see FooterNav.tsx for the reference fix. Applied here to the bottom
-    // sheet so it doesn't stretch full-bleed on desktop.
     const { width: windowWidth } = useWindowDimensions();
     const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
@@ -107,63 +115,65 @@ export default function FutureEventsScreen() {
     }
 
     return (
-        <SafeAreaView style={s.safe}>
-            <Header />
-            <View style={s.headerRow}>
-                <TouchableOpacity onPress={() => navigate('settings')}>
-                    <Text style={s.backBtn}>← Settings</Text>
-                </TouchableOpacity>
-                <Text style={s.screenTitle}>Known Future Events</Text>
-                <TouchableOpacity style={s.addBtn} onPress={openAdd}>
-                    <Text style={s.addBtnText}>+ Add</Text>
-                </TouchableOpacity>
-            </View>
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+            <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={onClose} />
+            <View style={[s.sheet, constrainSheetWidth && s.sheetWide]}>
+                <View style={s.headerRow}>
+                    <Text style={s.screenTitle}>Known Future Events</Text>
+                    <TouchableOpacity style={s.addBtn} onPress={openAdd}>
+                        <Text style={s.addBtnText}>+ Add</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={onClose} style={s.closeBtn}>
+                        <Icon name="x" size={18} color={Colors.textMuted} />
+                    </TouchableOpacity>
+                </View>
 
-            <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
-                <Text style={s.subtitle}>
-                    Plans you already know about — a new branch, a hire, a signed contract, an equipment purchase —
-                    aren't in your transaction history yet, so the forecast can't see them unless you tell it. Add
-                    them here and they'll land in the exact month you specify, never applied silently.
-                </Text>
+                <ScrollView contentContainerStyle={s.pad}>
+                    <Text style={s.subtitle}>
+                        Plans you already know about — a new branch, a hire, a signed contract, an equipment purchase —
+                        aren't in your transaction history yet, so the forecast can't see them unless you tell it. Add
+                        them here and they'll land in the exact month you specify, never applied silently.
+                    </Text>
 
-                {events.length === 0 ? (
-                    <View style={s.emptyState}>
-                        <Text style={s.emptyTitle}>No future events yet</Text>
-                        <Text style={s.emptySub}>
-                            e.g. "New generator" — a one-time {currency}500,000 outflow next month
-                        </Text>
-                        <TouchableOpacity style={s.emptyBtn} onPress={openAdd}>
-                            <Text style={s.emptyBtnText}>+ Add Your First Event</Text>
-                        </TouchableOpacity>
-                    </View>
-                ) : (
-                    events.map(ev => {
-                        const meta = categoryMeta(ev.category);
-                        return (
-                            <TouchableOpacity key={ev.id} style={s.card} onPress={() => openEdit(ev)}>
-                                <View style={s.cardHeaderRow}>
-                                    <Icon name={meta.icon} size={20} color={Colors.textSecondary} />
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={s.cardLabel}>{ev.label}</Text>
-                                        <Text style={s.cardDriver}>{meta.label} · {new Date(`${ev.date}T00:00:00`).toLocaleDateString()}</Text>
-                                    </View>
-                                    <Text style={[s.cardChange, { color: ev.direction === 'inflow' ? Colors.income : Colors.expense }]}>
-                                        {ev.direction === 'inflow' ? '+' : '-'}{currency}{ev.amount.toLocaleString()}
-                                    </Text>
-                                </View>
-                                <View style={s.chipRow}>
-                                    <View style={s.catChip}><Text style={s.catChipText}>{ev.recurring ? 'Recurring' : 'One-time'}</Text></View>
-                                </View>
-                                {ev.note ? <Text style={s.cardNote}>{ev.note}</Text> : null}
+                    {events.length === 0 ? (
+                        <View style={s.emptyState}>
+                            <Text style={s.emptyTitle}>No future events yet</Text>
+                            <Text style={s.emptySub}>
+                                e.g. "New generator" — a one-time {currency}500,000 outflow next month
+                            </Text>
+                            <TouchableOpacity style={s.emptyBtn} onPress={openAdd}>
+                                <Text style={s.emptyBtnText}>+ Add Your First Event</Text>
                             </TouchableOpacity>
-                        );
-                    })
-                )}
-            </ScrollView>
+                        </View>
+                    ) : (
+                        events.map(ev => {
+                            const meta = categoryMeta(ev.category);
+                            return (
+                                <TouchableOpacity key={ev.id} style={s.card} onPress={() => openEdit(ev)}>
+                                    <View style={s.cardHeaderRow}>
+                                        <Icon name={meta.icon} size={20} color={Colors.textSecondary} />
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={s.cardLabel}>{ev.label}</Text>
+                                            <Text style={s.cardDriver}>{meta.label} · {new Date(`${ev.date}T00:00:00`).toLocaleDateString()}</Text>
+                                        </View>
+                                        <Text style={[s.cardChange, { color: ev.direction === 'inflow' ? Colors.income : Colors.expense }]}>
+                                            {ev.direction === 'inflow' ? '+' : '-'}{currency}{ev.amount.toLocaleString()}
+                                        </Text>
+                                    </View>
+                                    <View style={s.chipRow}>
+                                        <View style={s.catChip}><Text style={s.catChipText}>{ev.recurring ? 'Recurring' : 'One-time'}</Text></View>
+                                    </View>
+                                    {ev.note ? <Text style={s.cardNote}>{ev.note}</Text> : null}
+                                </TouchableOpacity>
+                            );
+                        })
+                    )}
+                </ScrollView>
+            </View>
 
             <Modal visible={showForm} transparent animationType="slide" onRequestClose={() => setShowForm(false)}>
                 <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowForm(false)} />
-                <View style={[s.sheet, constrainSheetWidth && s.sheetWide]}>
+                <View style={[s.formSheet, constrainSheetWidth && s.sheetWide]}>
                     <ScrollView contentContainerStyle={{ paddingBottom: 8 }}>
                         <View style={s.sheetHandle} />
                         <Text style={s.sheetTitle}>{editingId ? 'Edit Event' : 'Add Future Event'}</Text>
@@ -256,23 +266,26 @@ export default function FutureEventsScreen() {
                     </ScrollView>
                 </View>
             </Modal>
-
-            <FooterNav />
-        </SafeAreaView>
+        </Modal>
     );
 }
 
 const s = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: Colors.bg },
-    scroll: { flex: 1, backgroundColor: Colors.bg },
-    pad: { padding: Spacing.lg, paddingBottom: 100 },
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+    sheet: { backgroundColor: Colors.bg, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, maxHeight: '90%', flex: 1 },
+    sheetWide: { maxWidth: 560, width: '100%', alignSelf: 'center' },
+    formSheet: { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xxl, paddingBottom: 30, maxHeight: '85%' },
 
-    headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, gap: Spacing.md },
-    backBtn: { color: Colors.primary, fontSize: 14 },
+    headerRow: {
+        flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, gap: Spacing.md,
+        borderBottomWidth: 1, borderBottomColor: Colors.border,
+    },
     screenTitle: { flex: 1, fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
     addBtn: { backgroundColor: Colors.primary, borderRadius: Radius.sm, paddingHorizontal: 14, paddingVertical: 7 },
     addBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+    closeBtn: { padding: Spacing.xs },
 
+    pad: { padding: Spacing.lg, paddingBottom: 40 },
     subtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: Spacing.lg, lineHeight: 17 },
 
     emptyState: { alignItems: 'center', padding: Spacing.xxxl, backgroundColor: Colors.surface, borderRadius: 14 },
@@ -295,9 +308,6 @@ const s = StyleSheet.create({
     catChip: { backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 6 },
     catChipText: { fontSize: 11, color: Colors.textSecondary },
 
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-    sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xxl, paddingBottom: 30, maxHeight: '85%' },
-    sheetWide: { maxWidth: 560, width: '100%', alignSelf: 'center' },
     sheetHandle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing.lg },
     sheetTitle: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.lg },
 

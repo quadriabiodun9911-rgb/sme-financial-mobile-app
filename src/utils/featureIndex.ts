@@ -99,7 +99,7 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         id: 'future-events', label: 'Known Future Events', icon: '📅',
         description: 'Add planned expansions, hires, contracts or equipment purchases so the forecast places them in the right month',
         keywords: ['future events', 'known future events', 'planned expansion', 'new hire', 'new branch', 'equipment purchase', 'signed contract', 'upcoming plans'],
-        screen: 'future-events',
+        screen: 'future-statements', navParams: { openEventsManager: true },
     },
     // 'Inventory' itself had no entry -- searching that exact word only
     // surfaced its Pricing Optimization sub-feature and matching Stock
