@@ -224,9 +224,9 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'financing-marketplace',
     },
     {
-        id: 'financial-health', label: 'Financial Health (Mobile Money)', icon: '📱',
+        id: 'financial-health', label: 'Income Verification (Mobile Money)', icon: '📱',
         description: 'Pulls income and account signals from mobile money data via phone number — requires the backend integration to be deployed',
-        keywords: ['mobile money', 'pngme', 'phone', 'income verification'],
+        keywords: ['mobile money', 'pngme', 'phone', 'income verification', 'financial health'],
         screen: 'financial-health',
     },
     {
