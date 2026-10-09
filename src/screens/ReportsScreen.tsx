@@ -59,7 +59,7 @@ import { localDateStr } from '../utils/localDate';
 type SectionKey = 'statements' | 'customers' | 'tax' | 'planning' | 'growth';
 
 const SECTIONS: { key: SectionKey; label: string; icon: IconName; desc: string }[] = [
-    { key: 'statements', label: 'Financial Statements',    icon: 'bar-chart-2', desc: 'Balance Sheet, P&L, Inventory, Cash Flow' },
+    { key: 'statements', label: 'Financial Statements',    icon: 'bar-chart-2', desc: 'Balance Sheet, Profit & Loss, Inventory, Cash Flow' },
     { key: 'customers',  label: 'Customers & Collections',  icon: 'dollar-sign', desc: 'Who Owes Me - Unpaid Invoices' },
     { key: 'tax',        label: 'Tax & Compliance',         icon: 'clipboard',   desc: 'Tax Summary and Obligations' },
     { key: 'planning',   label: 'Planning & Forecasts',     icon: 'trending-up', desc: 'Cash Flow & Safety, Loans & Debt, Assets' },
