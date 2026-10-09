@@ -71,7 +71,7 @@ export default function InsightsScreen() {
     // same rows the Scoreboard's own Direction vs Status card shows). See
     // decisionCentre.ts -- nothing here is scored independently.
     const diagnosis = useMemo(
-        () => performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets),
+        () => performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets, settings.industry),
         [transactions, invoices, finance, currency, loans, inventory, assets],
     );
     const directionVsStatus = useMemo(() => {

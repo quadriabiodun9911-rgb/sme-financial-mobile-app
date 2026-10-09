@@ -281,7 +281,7 @@ export default function FutureFinancialStatementsScreen() {
     // uses -- reused as-is rather than writing a third recommendation
     // generator, so "what should I do" never disagrees between screens.
     const diagnosis = useMemo(
-        () => performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets),
+        () => performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets, settings.industry),
         [transactions, invoices, finance, currency, loans, inventory, assets],
     );
     const actionPlan = useMemo(

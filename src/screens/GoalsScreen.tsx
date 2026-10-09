@@ -129,7 +129,7 @@ export default function GoalsScreen() {
     const shouldComputeGoalDiagnosis = !!planGoal || (transactions.length >= 5 && goals.length > 0);
     const goalDiagnosis = useMemo(() => {
         if (!shouldComputeGoalDiagnosis) return null;
-        return performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory, assets);
+        return performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings.currency, loans, inventory, assets, settings.industry);
     }, [shouldComputeGoalDiagnosis, transactions, invoices, finance.cashBalance, finance.expense, settings.currency, loans, inventory, assets]);
 
     // Feasibility per goal — reuses the same root-cause diagnosis + tactics

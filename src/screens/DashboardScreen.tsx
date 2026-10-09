@@ -808,9 +808,9 @@ export default function DashboardScreen() {
     // makes the diagnosis too noisy to be worth a second engine run here.
     const diagnosisForNextGoal = useMemo(
         () => (transactions.length >= 5
-            ? performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings?.currency, loans, inventory, assets)
+            ? performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), settings?.currency, loans, inventory, assets, settings?.industry)
             : null),
-        [transactions, invoices, finance.cashBalance, finance.expense, settings?.currency, loans, inventory, assets]
+        [transactions, invoices, finance.cashBalance, finance.expense, settings?.currency, loans, inventory, assets, settings?.industry]
     );
 
     // Decision Centre preview -- the same Act Now/Watch/Improving combinator

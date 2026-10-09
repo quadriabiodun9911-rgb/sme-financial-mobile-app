@@ -3,7 +3,7 @@
 // daysOutstanding was hardcoded to 30 for any unpaid invoice, regardless of
 // how much was actually owed or how overdue it actually was.
 
-import { calculateFinancialMetrics, diagnoseProfitability, diagnoseLiquidity, diagnoseWorkingCapital, diagnoseDebt, diagnoseCashFlow, diagnoseInventory, diagnoseConcentration, diagnoseEfficiency, computeFinancialHealthSummary, HealthCategory, RootCauseAnalysis, FinancialMetrics, computeRevenueRecurringPct } from '../src/utils/financialDiagnosisEngine';
+import { calculateFinancialMetrics, diagnoseProfitability, diagnoseLiquidity, diagnoseWorkingCapital, diagnoseDebt, diagnoseCashFlow, diagnoseInventory, diagnoseConcentration, diagnoseEfficiency, diagnoseRecordKeeping, computeFinancialHealthSummary, getIndustryBenchmarks, HealthCategory, RootCauseAnalysis, FinancialMetrics, computeRevenueRecurringPct } from '../src/utils/financialDiagnosisEngine';
 import { Transaction, Invoice, Asset } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
@@ -665,5 +665,114 @@ describe('computeRevenueRecurringPct', () => {
         ];
         const metrics = calculateFinancialMetrics(txs, [], 500000, 50000);
         expect(metrics.revenueRecurringPct).toBeCloseTo(computeRevenueRecurringPct(txs), 5);
+    });
+});
+
+describe('getIndustryBenchmarks — per-sector overrides', () => {
+    it('falls back to the flat defaults for general or no industry', () => {
+        expect(getIndustryBenchmarks('general').profitMargin).toBe(20);
+        expect(getIndustryBenchmarks(undefined).profitMargin).toBe(20);
+    });
+
+    it('lowers the profit-margin target for retail', () => {
+        expect(getIndustryBenchmarks('retail').profitMargin).toBe(12);
+    });
+
+    it('raises the profit-margin target for professional services', () => {
+        expect(getIndustryBenchmarks('professional-services').profitMargin).toBe(28);
+    });
+
+    it('shortens the days-outstanding target for food service (cash-paid customers)', () => {
+        expect(getIndustryBenchmarks('food-service').daysOutstandingTarget).toBe(7);
+    });
+
+    it('lengthens the days-outstanding target for manufacturing (longer B2B terms)', () => {
+        expect(getIndustryBenchmarks('manufacturing').daysOutstandingTarget).toBe(45);
+    });
+
+    it('keeps runway thresholds identical across every industry', () => {
+        (['general', 'retail', 'food-service', 'manufacturing', 'professional-services'] as const).forEach(ind => {
+            expect(getIndustryBenchmarks(ind).runwayDaysCritical).toBe(30);
+            expect(getIndustryBenchmarks(ind).runwayDaysSafe).toBe(60);
+        });
+    });
+});
+
+describe('diagnoseProfitability / diagnoseLiquidity — industry-aware benchmarks', () => {
+    const baseMetrics: FinancialMetrics = {
+        totalRevenue: 1000000, totalExpenses: 850000, netProfit: 150000, profitMargin: 15,
+        cashBalance: 500000, runwayDays: 90, accountsReceivable: 150000, accountsPayable: 0,
+        daysOutstanding: 20, dso: 20, dpo: 10, cashConversionCycleDays: 10,
+        dscr: 2, dscrStatus: 'healthy', monthlyDebtService: 0,
+        operatingCashFlow: 150000, cashFlowConversionPct: 100,
+        inventoryValue: 0, slowMovingValuePct: 0,
+        topCustomerConcentrationPct: 10, topSupplierConcentrationPct: 10,
+        expensesByCategory: {}, revenueRecurringPct: 60, expenseGrowthPct: 5,
+        monthOverMonthGrowth: 5, profitTrend: 'stable', receivablesGrowthPct: null,
+    };
+
+    it('flags a 15% margin against the general 20% target but not against retail\'s 12% target', () => {
+        const generalDiagnoses = diagnoseProfitability(baseMetrics, '₦', 'general');
+        const retailDiagnoses = diagnoseProfitability(baseMetrics, '₦', 'retail');
+        expect(generalDiagnoses.find(d => d.problem.includes('Low profit margin'))).toBeTruthy();
+        expect(retailDiagnoses.find(d => d.problem.includes('Low profit margin'))).toBeUndefined();
+    });
+
+    it('flags 20-day DSO against food service\'s 7-day target but not against manufacturing\'s 45-day target', () => {
+        const foodServiceDiagnoses = diagnoseLiquidity(baseMetrics, '₦', 'food-service');
+        const manufacturingDiagnoses = diagnoseLiquidity(baseMetrics, '₦', 'manufacturing');
+        expect(foodServiceDiagnoses.find(d => d.problem.includes('Slow-paying customers'))).toBeTruthy();
+        expect(manufacturingDiagnoses.find(d => d.problem.includes('Slow-paying customers'))).toBeUndefined();
+    });
+});
+
+describe('diagnoseRecordKeeping — under-recording detection', () => {
+    const healthyMetrics: FinancialMetrics = {
+        totalRevenue: 1000000, totalExpenses: 700000, netProfit: 300000, profitMargin: 30,
+        cashBalance: 500000, runwayDays: 90, accountsReceivable: 0, accountsPayable: 0,
+        daysOutstanding: 10, dso: 10, dpo: 10, cashConversionCycleDays: 10,
+        dscr: 2, dscrStatus: 'healthy', monthlyDebtService: 0,
+        operatingCashFlow: 300000, cashFlowConversionPct: 100,
+        inventoryValue: 0, slowMovingValuePct: 0,
+        topCustomerConcentrationPct: 10, topSupplierConcentrationPct: 10,
+        expensesByCategory: {}, revenueRecurringPct: 60, expenseGrowthPct: 5,
+        monthOverMonthGrowth: 5, profitTrend: 'stable', receivablesGrowthPct: null,
+    };
+
+    it('flags months with income but zero logged expenses once it\'s a recurring pattern, not a one-off', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 100000, date: '2024-01-10' }),
+            makeTx({ type: 'income', amount: 100000, date: '2024-02-10' }),
+            makeTx({ type: 'expense', amount: 20000, date: '2024-02-15' }),
+            makeTx({ type: 'income', amount: 100000, date: '2024-03-10' }),
+        ];
+        const diagnoses = diagnoseRecordKeeping(txs, healthyMetrics);
+        const found = diagnoses.find(d => d.problem.includes('no expenses logged'));
+        expect(found).toBeTruthy();
+        expect(found?.problem).toContain('2 of 3 months');
+    });
+
+    it('does not flag a single sparse month out of several well-recorded ones', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 100000, date: '2024-01-10' }),
+            makeTx({ type: 'expense', amount: 20000, date: '2024-01-15' }),
+            makeTx({ type: 'income', amount: 100000, date: '2024-02-10' }),
+            makeTx({ type: 'expense', amount: 20000, date: '2024-02-15' }),
+            makeTx({ type: 'income', amount: 100000, date: '2024-03-10' }), // the one sparse month
+        ];
+        const diagnoses = diagnoseRecordKeeping(txs, healthyMetrics);
+        expect(diagnoses.find(d => d.problem.includes('no expenses logged'))).toBeUndefined();
+    });
+
+    it('flags an implausibly high margin for the industry as a possible recording gap', () => {
+        const suspiciousMetrics = { ...healthyMetrics, profitMargin: 55 }; // >2.5x the 20% general target
+        const diagnoses = diagnoseRecordKeeping([], suspiciousMetrics, 'general');
+        expect(diagnoses.find(d => d.problem.includes('unusually high'))?.severity).toBe('info');
+    });
+
+    it('does not flag a high margin that is plausible for a naturally higher-margin industry', () => {
+        const servicesMetrics = { ...healthyMetrics, profitMargin: 55 }; // under 2.5x professional-services' 28% target
+        const diagnoses = diagnoseRecordKeeping([], servicesMetrics, 'professional-services');
+        expect(diagnoses.find(d => d.problem.includes('unusually high'))).toBeUndefined();
     });
 });
