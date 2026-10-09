@@ -198,10 +198,33 @@ export default function InsightsScreen() {
                                                 {item.trigger && (
                                                     <Text style={styles.triggerText}>⚠️ {item.trigger}</Text>
                                                 )}
+                                                {/* Act Now/Watch items come straight from the diagnosis engine's
+                                                    root-cause analysis (see decisionCentre.ts) -- Analysis &
+                                                    Decisions' Why? tab is that same engine's full write-up, so
+                                                    "dig into this" always lands somewhere real, never a dead end.
+                                                    Improving-bucket rows are a trend judgment, not a root-cause
+                                                    finding, so they skip this link. */}
+                                                {item.bucket !== 'improving' && (
+                                                    <TouchableOpacity onPress={() => navigate('analysis', { tab: 'diagnosis' })}>
+                                                        <Text style={styles.goalLink}>Dig into why & what to do →</Text>
+                                                    </TouchableOpacity>
+                                                )}
                                                 {item.recommendedAction && (
                                                     <View style={styles.sourceRow}>
                                                         <Text style={styles.recommendedAction}>→ {item.recommendedAction}</Text>
-                                                        <TouchableOpacity onPress={() => navigate('goals', { goalType: 'custom' })}>
+                                                        {/* Prefills the right goal TYPE from this finding's own
+                                                            suggestedGoalType (financialDiagnosisEngine.ts) instead of
+                                                            always opening the generic "Custom Goal" template -- a
+                                                            revenue/margin/cost/cash finding gets that type's own
+                                                            well-formed title+target, not a blank form the owner has
+                                                            to fill in by hand. Only truly type-less findings (no
+                                                            suggestedGoalType -- mainly Improving-bucket rows) fall
+                                                            back to 'custom', carrying this finding's own title/action
+                                                            text forward instead of a blank placeholder. */}
+                                                        <TouchableOpacity onPress={() => navigate('goals', {
+                                                            goalType: item.suggestedGoalType ?? 'custom',
+                                                            ...(item.suggestedGoalType ? {} : { goalTitle: item.title, goalDescription: item.recommendedAction }),
+                                                        })}>
                                                             <Text style={styles.goalLink}>Set a goal →</Text>
                                                         </TouchableOpacity>
                                                     </View>

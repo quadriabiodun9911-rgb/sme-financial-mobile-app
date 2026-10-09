@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text,
     TouchableOpacity, StyleSheet, TextInput, Modal, Platform, useWindowDimensions,
@@ -51,7 +51,7 @@ const EXPENSE_CATEGORIES = [
 ];
 
 export default function BudgetScreen() {
-    const { transactions, budgets, addBudget, updateBudget, deleteBudget, settings, navigate, finance, loans, invoices, inventory, goals, assets, forecastHistory } = useApp();
+    const { transactions, budgets, addBudget, updateBudget, deleteBudget, settings, navigate, navParams, finance, loans, invoices, inventory, goals, assets, forecastHistory } = useApp();
     const { currency } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -297,6 +297,14 @@ export default function BudgetScreen() {
         setExcludedCats(new Set());
         setShowAutoGen(true);
     }
+
+    // "Turn into a budget" from a cost_reduction goal on GoalsScreen --
+    // lands directly on a ready-to-apply plan instead of the owner having
+    // to find and tap Auto-Generate themselves.
+    useEffect(() => {
+        if (navParams?.openAutoGenForGoal) openAutoGen();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     function applyAutoBudget() {
         const toApply = autoBudget.suggestions.filter(s => !excludedCats.has(s.category));
@@ -892,6 +900,21 @@ export default function BudgetScreen() {
                         {autoBudget.loanBurden > 0 ? ` (after ${currency}${Math.round(autoBudget.loanBurden).toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo loan repayments)` : ''}.
                     </Text>
 
+                    {/* Opened from a cost_reduction goal on GoalsScreen --
+                        checks the suggestion against that goal's own target
+                        total (same number goalDefaults set the goal's
+                        targetValue to: finance.expense * 0.85) instead of
+                        leaving the owner to do that comparison by hand. */}
+                    {navParams?.budgetGoalTarget != null && (
+                        <View style={[s.goalCheckBox, { borderColor: autoBudget.totalSuggested <= navParams.budgetGoalTarget ? Colors.income : Colors.warning }]}>
+                            <Text style={[s.goalCheckText, { color: autoBudget.totalSuggested <= navParams.budgetGoalTarget ? Colors.income : Colors.warning }]}>
+                                {autoBudget.totalSuggested <= navParams.budgetGoalTarget
+                                    ? `✓ This plan totals ${currency}${Math.round(autoBudget.totalSuggested).toLocaleString()}/mo — under your ${currency}${Math.round(navParams.budgetGoalTarget).toLocaleString()}/mo goal.`
+                                    : `⚠ This plan totals ${currency}${Math.round(autoBudget.totalSuggested).toLocaleString()}/mo — ${currency}${Math.round(autoBudget.totalSuggested - navParams.budgetGoalTarget).toLocaleString()}/mo over your goal. Exclude or trim a category below to close the gap.`}
+                            </Text>
+                        </View>
+                    )}
+
                     {/* Smart Budget Builder's revenue half -- "don't ask the
                         owner what revenue to expect, suggest a realistic
                         starting point instead" (smartBudget.ts). Tapping a
@@ -1077,6 +1100,8 @@ const s = StyleSheet.create({
     emptyBtnTextSecondary: { color: Colors.textSecondary },
 
     autoGenSub:        { fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginBottom: Spacing.md },
+    goalCheckBox:      { borderWidth: 1.5, borderRadius: Radius.md, padding: Spacing.sm, marginBottom: Spacing.md },
+    goalCheckText:     { fontSize: 12.5, fontWeight: '600', lineHeight: 18 },
     autoGenScaledNote: { backgroundColor: Colors.warning + '18', borderWidth: 1, borderColor: Colors.warning, borderRadius: Radius.sm, padding: 10, marginBottom: Spacing.md, flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
     autoGenScaledNoteText: { flex: 1, fontSize: 11, color: Colors.warning, fontWeight: '600', lineHeight: 16 },
     autoGenList:       { maxHeight: 320, marginBottom: Spacing.md },

@@ -239,7 +239,12 @@ export default function GoalsScreen() {
     useEffect(() => {
         if (navParams?.goalType) {
             setAddModalOpen(true);
-            openAddModal(navParams.goalType);
+            openAddModal(navParams.goalType, {
+                title: navParams?.goalTitle,
+                description: navParams?.goalDescription,
+                targetValue: navParams?.goalTarget,
+                deadline: navParams?.goalDeadline,
+            });
         }
         if (navParams?.goalId) {
             setPlanGoalId(navParams.goalId);
@@ -248,15 +253,22 @@ export default function GoalsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const openAddModal = (type: GoalType) => {
+    // overrides carries a specific title/description/target/deadline from
+    // wherever this goal was proposed (an Insights Decision Centre item, an
+    // Analysis & Decisions scenario) instead of the generic per-type
+    // template goalDefaults() would otherwise fill in -- "Set this as a
+    // goal" from a specific finding should open with THAT finding's own
+    // numbers prefilled, not a blank template the user has to re-derive by
+    // hand.
+    const openAddModal = (type: GoalType, overrides?: { title?: string; description?: string; targetValue?: number; deadline?: string }) => {
         setSelectedType(type);
         const meta = GOAL_TYPES.find(g => g.type === type)!;
         const defaults = goalDefaults(type, finance, settings, transactions);
         setForm({
-            title: defaults.title ?? meta.label,
-            description: defaults.description ?? meta.description,
-            targetValue: defaults.targetValue ? String(defaults.targetValue) : '',
-            deadline: '',
+            title: overrides?.title ?? defaults.title ?? meta.label,
+            description: overrides?.description ?? defaults.description ?? meta.description,
+            targetValue: overrides?.targetValue != null ? String(overrides.targetValue) : defaults.targetValue ? String(defaults.targetValue) : '',
+            deadline: overrides?.deadline ?? '',
             percentTarget: defaults.percentTarget != null ? String(defaults.percentTarget) : '',
         });
     };
@@ -389,6 +401,7 @@ export default function GoalsScreen() {
                                     onExecute={handleExecute}
                                     onCollect={handleCollect}
                                     onSeeFullPicture={handleSeeFullPicture}
+                                    onTurnIntoBudget={goal.type === 'cost_reduction' ? () => navigate('budget', { openAutoGenForGoal: true, budgetGoalTarget: goal.targetValue }) : undefined}
                                 />
                             ))}
                             {/* Achieved goals */}
@@ -929,7 +942,7 @@ function DailyActionsSection({ goal, transactions, currency }: { goal: Financial
 // the parent means a card whose own goal/feasibility hasn't changed can
 // skip re-rendering entirely when a sibling goal updates or the screen
 // re-renders for an unrelated reason (typing in the add-goal form, etc.).
-const GoalCard = React.memo(function GoalCard({ goal, currency, daysRemaining, feasibility, onPlan, onEdit, onDelete, onExecute, onCollect, onSeeFullPicture }: {
+const GoalCard = React.memo(function GoalCard({ goal, currency, daysRemaining, feasibility, onPlan, onEdit, onDelete, onExecute, onCollect, onSeeFullPicture, onTurnIntoBudget }: {
     goal: FinancialGoal;
     currency: string;
     daysRemaining: string;
@@ -940,6 +953,7 @@ const GoalCard = React.memo(function GoalCard({ goal, currency, daysRemaining, f
     onExecute?: () => void;
     onCollect?: () => void;
     onSeeFullPicture?: () => void;
+    onTurnIntoBudget?: () => void;
 }) {
     const statusColor = STATUS_COLORS[goal.status];
     const isReduction = goal.type === 'cost_reduction' || goal.type === 'reduce_overdue_ar';
@@ -1008,6 +1022,16 @@ const GoalCard = React.memo(function GoalCard({ goal, currency, daysRemaining, f
             )}
             {!isAchieved && goal.type === 'reduce_overdue_ar' && (goal.status === 'off_track' || goal.status === 'at_risk') && onCollect && (
                 <NextStepLink text="Review overdue collections" onPress={onCollect} />
+            )}
+            {/* Only cost_reduction maps onto an actual spending plan --
+                revenue/margin/cash-reserve goals aren't about a specific
+                expense category a budget line could track. Routes to
+                Budget's own Auto-Generate flow (real per-category
+                suggestions from real spending history) pre-opened with
+                this goal's target total, rather than inventing a second,
+                less-informed category-splitting engine here. */}
+            {!isAchieved && goal.type === 'cost_reduction' && onTurnIntoBudget && (
+                <NextStepLink text="Turn into a budget →" onPress={onTurnIntoBudget} />
             )}
 
             {/* Progress bar + key numbers */}

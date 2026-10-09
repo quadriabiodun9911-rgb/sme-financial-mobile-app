@@ -184,7 +184,7 @@ export default function BeforeYouDecideContent() {
                     </TouchableOpacity>
                 </View>
                 {affordabilityMode === 'quick' ? (
-                    <DecisionSimulator currency={currency} transactions={transactions} currentCashBalance={finance.cashBalance} pillars={pillars.pillars} goals={goals} />
+                    <DecisionSimulator currency={currency} transactions={transactions} currentCashBalance={finance.cashBalance} pillars={pillars.pillars} goals={goals} navigate={navigate} />
                 ) : (
                     <GrowthAffordabilityCalculator currency={currency} currentCashBalance={finance.cashBalance} monthlyBurn={monthlyBurn} currentMonthlySurplus={monthlyProfit} goals={goals} />
                 )}

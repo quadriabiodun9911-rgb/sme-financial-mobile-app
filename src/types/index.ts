@@ -442,10 +442,23 @@ export interface NavParams {
     tab?: string;              // sub-tab within a screen that manages its own tab state (e.g. CFOScreen, GrowthIntelligenceScreen)
     goalType?: GoalType;
     goalId?: string;           // pass a saved goal into Goal Bridge
+    // "Set this as a goal" from a specific source (an Insights Decision
+    // Centre item, an Analysis & Decisions scenario/decision result) --
+    // prefills GoalsScreen's add-goal form with that source's own numbers
+    // instead of the generic per-type template, alongside goalType.
+    goalTitle?: string;
+    goalDescription?: string;
+    goalTarget?: number;
+    goalDeadline?: string;
     openWeeklyReport?: boolean; // open the Weekly Dashboard modal on the Dashboard screen
     openMonthlyReview?: boolean; // open the Monthly Review modal on the Dashboard screen
     openDailyReport?: boolean; // open the Daily (End of Day) Report modal on the Dashboard screen
     openEventsManager?: boolean; // open the Known Future Events modal on the Future Financial Statements screen
+    // "Turn into a budget" from a cost_reduction goal on GoalsScreen --
+    // opens Budget's existing Auto-Generate flow directly, with the goal's
+    // own target total to compare the suggestion against.
+    openAutoGenForGoal?: boolean;
+    budgetGoalTarget?: number;
     // Carries the exact scenario the owner was testing on the Dashboard's
     // MacroShield card into macroshield-detail, so the detail page never
     // shows a different shock than the one just explored.

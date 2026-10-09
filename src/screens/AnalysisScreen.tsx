@@ -10,6 +10,8 @@ import FooterNav from '../components/FooterNav';
 import Icon, { IconName } from '../components/ui/Icon';
 import BeforeYouDecideContent from '../components/BeforeYouDecideContent';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { localDateStr } from '../utils/localDate';
+import { Screen } from '../types';
 import {
     analyseRootCause,
     modelHireStaff,
@@ -325,7 +327,7 @@ const RISK_FLAG_COLOR: Record<ScenarioRiskFlag['severity'], string> = {
 
 const PROJECTION_CHECKPOINTS = [1, 3, 6, 12];
 
-function ScenarioResultCard({ result, currency, currentCashBalance }: { result: ScenarioResult | CombinedScenarioResult; currency: string; currentCashBalance: number }) {
+function ScenarioResultCard({ result, currency, currentCashBalance, navigate }: { result: ScenarioResult | CombinedScenarioResult; currency: string; currentCashBalance: number; navigate: (screen: Screen, params?: any) => void }) {
     const breakdown = (result as CombinedScenarioResult).breakdown;
     const good = result.profitImpact >= 0;
     const recommend = result.newProfit >= 0 && result.profitImpact >= 0;
@@ -349,6 +351,29 @@ function ScenarioResultCard({ result, currency, currentCashBalance }: { result: 
                 <Text style={[s.yesNoSub, { color: recommend ? Colors.income : Colors.expense }]}>
                     {recommend ? 'This looks like a good move for your business.' : 'This could hurt your profitability — review the risks.'}
                 </Text>
+                {/* Only offered once the model actually says GO FOR IT --
+                    turning a "THINK TWICE" result into a goal would be
+                    encouraging the owner to chase a plan this same card
+                    just warned against. 'custom' type (not a specific
+                    revenue/margin/cost/cash type) since a scenario can be
+                    any mix of levers (see combine) with no single formula
+                    goalDefaults could apply -- title/description/target
+                    come straight from this result's own already-computed
+                    numbers instead. */}
+                {recommend && (
+                    <TouchableOpacity
+                        style={s.setGoalBtn}
+                        onPress={() => navigate('goals', {
+                            goalType: 'custom',
+                            goalTitle: result.label,
+                            goalDescription: result.verdict,
+                            goalTarget: Math.round(result.newProfit),
+                            goalDeadline: localDateStr(new Date(Date.now() + 90 * 86400000)),
+                        })}
+                    >
+                        <Text style={[s.setGoalBtnText, { color: recommend ? Colors.income : Colors.expense }]}>Set this as a goal →</Text>
+                    </TouchableOpacity>
+                )}
             </View>
 
             <Text style={s.resultLabel}>{result.label}</Text>
@@ -739,7 +764,7 @@ export default function AnalysisScreen() {
                         {/* Result — persists per scenario type */}
                         {scenarioResults[scenarioType] && (
                             <>
-                                <ScenarioResultCard result={scenarioResults[scenarioType]!} currency={currency} currentCashBalance={finance.cashBalance} />
+                                <ScenarioResultCard result={scenarioResults[scenarioType]!} currency={currency} currentCashBalance={finance.cashBalance} navigate={navigate} />
 
                                 {savedScenarios.length < MAX_SAVED_SCENARIOS && (
                                     <View style={s.saveRow}>
@@ -907,6 +932,8 @@ const s = StyleSheet.create({
     yesNoRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
     yesNoText:     { fontSize: 16, fontWeight: '800', letterSpacing: 1 },
     yesNoSub:      { fontSize: 12, marginTop: 4, textAlign: 'center' },
+    setGoalBtn:    { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border + '55', alignSelf: 'stretch', alignItems: 'center' },
+    setGoalBtnText: { fontSize: 12.5, fontWeight: '700' },
     resultLabel:   { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 14 },
     impactRow:     { flexDirection: 'row', marginBottom: 14, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 14 },
     impactBox:     { flex: 1, alignItems: 'center' },
