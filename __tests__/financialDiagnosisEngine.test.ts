@@ -3,7 +3,7 @@
 // daysOutstanding was hardcoded to 30 for any unpaid invoice, regardless of
 // how much was actually owed or how overdue it actually was.
 
-import { calculateFinancialMetrics, diagnoseProfitability, diagnoseLiquidity, diagnoseWorkingCapital, diagnoseDebt, diagnoseCashFlow, diagnoseInventory, diagnoseConcentration, diagnoseEfficiency, diagnoseRecordKeeping, computeFinancialHealthSummary, getIndustryBenchmarks, HealthCategory, RootCauseAnalysis, FinancialMetrics, computeRevenueRecurringPct } from '../src/utils/financialDiagnosisEngine';
+import { calculateFinancialMetrics, diagnoseProfitability, diagnoseLiquidity, diagnoseWorkingCapital, diagnoseDebt, diagnoseCashFlow, diagnoseInventory, diagnoseConcentration, diagnoseEfficiency, diagnoseRecordKeeping, filterDismissedDiagnoses, computeFinancialHealthSummary, getIndustryBenchmarks, HealthCategory, RootCauseAnalysis, FinancialMetrics, computeRevenueRecurringPct } from '../src/utils/financialDiagnosisEngine';
 import { Transaction, Invoice, Asset } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
@@ -584,6 +584,7 @@ const makeCategory = (overrides: Partial<HealthCategory> = {}): HealthCategory =
 });
 
 const makeDiagnosisEntry = (overrides: Partial<RootCauseAnalysis> = {}): RootCauseAnalysis => ({
+    id: 'low-profit-margin',
     problem: 'Low profit margin (12% vs target 20%)',
     severity: 'warning',
     rootCause: 'Expenses too high relative to revenue',
@@ -774,5 +775,65 @@ describe('diagnoseRecordKeeping — under-recording detection', () => {
         const servicesMetrics = { ...healthyMetrics, profitMargin: 55 }; // under 2.5x professional-services' 28% target
         const diagnoses = diagnoseRecordKeeping([], servicesMetrics, 'professional-services');
         expect(diagnoses.find(d => d.problem.includes('unusually high'))).toBeUndefined();
+    });
+});
+
+describe('diagnose* functions — stable ids for "mark as intentional"', () => {
+    const healthyMetrics: FinancialMetrics = {
+        totalRevenue: 1000000, totalExpenses: 700000, netProfit: 300000, profitMargin: 5,
+        cashBalance: 500000, runwayDays: 90, accountsReceivable: 0, accountsPayable: 0,
+        daysOutstanding: 10, dso: 10, dpo: 10, cashConversionCycleDays: 10,
+        dscr: 2, dscrStatus: 'healthy', monthlyDebtService: 0,
+        operatingCashFlow: 300000, cashFlowConversionPct: 100,
+        inventoryValue: 0, slowMovingValuePct: 0,
+        topCustomerConcentrationPct: 10, topSupplierConcentrationPct: 10,
+        expensesByCategory: {}, revenueRecurringPct: 60, expenseGrowthPct: 5,
+        monthOverMonthGrowth: 5, profitTrend: 'stable', receivablesGrowthPct: null,
+    };
+
+    it('gives the same id every time the same rule fires, regardless of the dynamic numbers in `problem`', () => {
+        const a = diagnoseProfitability({ ...healthyMetrics, profitMargin: 5 })[0];
+        const b = diagnoseProfitability({ ...healthyMetrics, profitMargin: 8 })[0];
+        expect(a.id).toBe('low-profit-margin');
+        expect(a.id).toBe(b.id);
+        expect(a.problem).not.toBe(b.problem); // the dynamic numbers still differ
+    });
+
+    it('gives every diagnosis a non-empty id', () => {
+        const all = [
+            ...diagnoseProfitability({ ...healthyMetrics, profitMargin: 5, monthOverMonthGrowth: -20, revenueRecurringPct: 10 }),
+            ...diagnoseLiquidity({ ...healthyMetrics, runwayDays: 10, accountsReceivable: 200000, daysOutstanding: 60 }),
+            ...diagnoseWorkingCapital({ ...healthyMetrics, cashConversionCycleDays: 80 }),
+            ...diagnoseDebt({ ...healthyMetrics, dscrStatus: 'danger', monthlyDebtService: 10000 }),
+            ...diagnoseCashFlow({ ...healthyMetrics, operatingCashFlow: -5000 }),
+            ...diagnoseInventory({ ...healthyMetrics, inventoryValue: 100000, slowMovingValuePct: 60 }),
+            ...diagnoseConcentration({ ...healthyMetrics, topCustomerConcentrationPct: 70, topSupplierConcentrationPct: 70 }),
+            ...diagnoseEfficiency({ ...healthyMetrics, expenseGrowthPct: 40 }),
+        ];
+        expect(all.length).toBeGreaterThan(0);
+        all.forEach(d => expect(d.id).toBeTruthy());
+    });
+});
+
+describe('filterDismissedDiagnoses', () => {
+    const makeDiagnosis = (id: string): RootCauseAnalysis => ({
+        id, problem: `Problem ${id}`, severity: 'warning', rootCause: 'Test',
+        impact: 'Test', financialImpact: 0, opportunity: 'Test', dimension: 'cashFlow',
+    });
+
+    it('removes only the dismissed ids, keeping the rest in order', () => {
+        const diagnoses = [makeDiagnosis('a'), makeDiagnosis('b'), makeDiagnosis('c')];
+        const result = filterDismissedDiagnoses(diagnoses, ['b']);
+        expect(result.map(d => d.id)).toEqual(['a', 'c']);
+    });
+
+    it('returns the same list unchanged when nothing is dismissed', () => {
+        const diagnoses = [makeDiagnosis('a'), makeDiagnosis('b')];
+        expect(filterDismissedDiagnoses(diagnoses, [])).toEqual(diagnoses);
+    });
+
+    it('is safe when a dismissed id no longer appears in the current diagnoses', () => {
+        const diagnoses = [makeDiagnosis('a')];
+        expect(filterDismissedDiagnoses(diagnoses, ['some-old-id'])).toEqual(diagnoses);
     });
 });

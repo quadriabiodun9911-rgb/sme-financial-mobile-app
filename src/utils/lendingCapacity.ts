@@ -56,6 +56,28 @@ export interface LendingCapacityEstimate {
 // revenue-multiplier ranges below.
 const INVENTORY_ADVANCE_RATE_RANGE: [number, number] = [30, 50];
 
+// A DSCR of 0.99 and a DSCR of 0.3 both fail the "< 1" cutoff below, but
+// they're not remotely the same situation -- one is a near miss, the other
+// is a structural shortfall. 0.85 isn't a precise economic threshold, it's
+// a labeled, illustrative near-miss band (same discipline as the inventory
+// advance-rate range above), used only to pick which sentence to show.
+const DSCR_NEAR_MISS_FLOOR = 0.85;
+
+// How many points below the next tier up a score sits, when it's close
+// enough to be worth naming -- keeps a score of 68 (2 points under
+// Standard's 70) from reading as a flat wall the way "too low" does for a
+// score of 20. Only looks upward, so a score that already cleared a tier
+// is never described as "close to" a lower one it passed long ago.
+const TIER_GAP_WORTH_NAMING = 5;
+function nextTierGapNote(score: number): string | null {
+    const nextUp = [...LENDING_CAPACITY_TIER_CUTOFFS].reverse().find(c => c.min > score);
+    if (!nextUp) return null;
+    const gap = nextUp.min - score;
+    if (gap > TIER_GAP_WORTH_NAMING) return null;
+    const label = nextUp.tier === 'strong' ? 'Strong' : nextUp.tier === 'standard' ? 'Standard' : 'Emerging';
+    return ` ${gap} point${gap === 1 ? '' : 's'} from the ${label} tier.`;
+}
+
 function computeInventoryBackedCapacity(inventoryValue: number | undefined): InventoryBackedCapacity | null {
     if (!inventoryValue || inventoryValue <= 0) return null;
     const [minPct, maxPct] = INVENTORY_ADVANCE_RATE_RANGE;
@@ -101,6 +123,7 @@ export function computeLendingCapacityEstimate(input: LendingCapacityInput): Len
     // same logic the article describes: lenders who saw live payment data
     // could see this coming before it became a missed payment.
     if (dscr < 1) {
+        const nearMiss = dscr >= DSCR_NEAR_MISS_FLOOR;
         return {
             tier: 'not-yet-bankable',
             tierLabel: 'Not Yet Bankable',
@@ -109,7 +132,9 @@ export function computeLendingCapacityEstimate(input: LendingCapacityInput): Len
             maxAmount: 0,
             maxTenureMonths: 0,
             rateTierLabel: 'Not likely to qualify yet',
-            reason: 'Current income doesn\'t fully cover existing debt obligations — build repayment headroom before taking on more.',
+            reason: nearMiss
+                ? `Current income is close to covering existing debt obligations (a DSCR of ${dscr.toFixed(2)}, just under the 1.0 break-even point) — a modest income increase or expense reduction would likely resolve this.`
+                : `Current income doesn't fully cover existing debt obligations (a DSCR of ${dscr.toFixed(2)}) — build repayment headroom before taking on more.`,
             inventoryBacked,
         };
     }
@@ -123,6 +148,13 @@ export function computeLendingCapacityEstimate(input: LendingCapacityInput): Len
     let reason: string;
 
     const [strongCutoff, standardCutoff, emergingCutoff] = LENDING_CAPACITY_TIER_CUTOFFS.map(c => c.min);
+
+    // Named once, close to the cutoffs it describes, and appended only when
+    // a score sits near enough to the next tier up to be worth mentioning
+    // (null otherwise) -- so a score of 68 reads as "2 points from Standard"
+    // rather than landing in the same flat "Emerging" bucket as a 61 with
+    // nothing to distinguish them.
+    const gapNote = nextTierGapNote(overallCreditScore) ?? '';
 
     if (overallCreditScore >= strongCutoff) {
         tier = 'strong';
@@ -139,7 +171,7 @@ export function computeLendingCapacityEstimate(input: LendingCapacityInput): Len
         revenueMultiplierRange = [1.5, 2.5];
         maxTenureMonths = 9;
         rateTierLabel = 'Likely a standard-rate tier';
-        reason = 'Good credit-worthiness score with a reasonable track record.';
+        reason = `Good credit-worthiness score with a reasonable track record.${gapNote}`;
     } else if (overallCreditScore >= emergingCutoff) {
         tier = 'emerging';
         tierLabel = 'Emerging';
@@ -147,7 +179,7 @@ export function computeLendingCapacityEstimate(input: LendingCapacityInput): Len
         revenueMultiplierRange = [0.5, 1.5];
         maxTenureMonths = 6;
         rateTierLabel = 'Likely a higher-rate tier — limited track record';
-        reason = 'Fair credit-worthiness score — lenders will want to see more consistent history.';
+        reason = `Fair credit-worthiness score — lenders will want to see more consistent history.${gapNote}`;
     } else {
         tier = 'not-yet-bankable';
         tierLabel = 'Not Yet Bankable';
@@ -155,7 +187,7 @@ export function computeLendingCapacityEstimate(input: LendingCapacityInput): Len
         revenueMultiplierRange = [0, 0];
         maxTenureMonths = 0;
         rateTierLabel = 'Not likely to qualify yet';
-        reason = 'Credit-worthiness score is currently too low — focus on the factors flagged below.';
+        reason = `Credit-worthiness score is currently too low — focus on the factors flagged below.${gapNote}`;
     }
 
     const minAmount = Math.round(avgMonthlyRevenue * revenueMultiplierRange[0]);

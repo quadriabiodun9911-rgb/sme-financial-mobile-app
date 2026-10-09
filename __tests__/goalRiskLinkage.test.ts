@@ -4,6 +4,7 @@ import { RiskRadar, RiskRadarCategory } from '../src/utils/riskRadar';
 
 function makeDiagnosis(overrides: Partial<RootCauseAnalysis> = {}): RootCauseAnalysis {
     return {
+        id: 'low-cash-buffer',
         problem: 'Low cash buffer (20-day runway)',
         severity: 'warning',
         rootCause: 'Insufficient cash reserves',

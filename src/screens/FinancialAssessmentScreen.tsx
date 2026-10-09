@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
@@ -13,11 +13,23 @@ import Icon, { IconName } from '../components/ui/Icon';
 import DataConfidenceBadge from '../components/DataConfidenceBadge';
 import { describeDataConfidenceTrend } from '../utils/dataConfidenceHistory';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { loadDismissedDiagnosisIds, dismissDiagnosis, undismissDiagnosis } from '../utils/diagnosisDismissal';
 
 export default function FinancialAssessmentScreen() {
   const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory, assets, dataConfidenceHistory } = useApp();
   const [selectedDiagnosis, setSelectedDiagnosis] = useState<number>(0);
   const dataConfidenceTrend = useMemo(() => describeDataConfidenceTrend(dataConfidenceHistory), [dataConfidenceHistory]);
+
+  // "Mark as intentional" -- see diagnosisDismissal.ts for why this exists
+  // (the engine's template rules can't tell a deliberate business choice
+  // apart from a genuine problem that happens to cross the same threshold).
+  // Loaded once on mount; dismissDiagnosis/undismissDiagnosis below update
+  // this state directly from their own return value rather than re-reading
+  // storage, so the diagnosis recomputes immediately on tap.
+  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+  useEffect(() => {
+    loadDismissedDiagnosisIds().then(setDismissedIds);
+  }, []);
 
   const diagnosis = useMemo(() => {
     return performFinancialDiagnosis(
@@ -29,9 +41,19 @@ export default function FinancialAssessmentScreen() {
       loans,
       inventory,
       assets,
-      settings.industry
+      settings.industry,
+      dismissedIds
     );
-  }, [transactions, invoices, finance, settings, loans, inventory, assets]);
+  }, [transactions, invoices, finance, settings, loans, inventory, assets, dismissedIds]);
+
+  const toggleDismissSelected = async () => {
+    const current = diagnosis.diagnoses[selectedDiagnosis];
+    if (!current) return;
+    const next = dismissedIds.includes(current.id)
+      ? await undismissDiagnosis(current.id)
+      : await dismissDiagnosis(current.id);
+    setDismissedIds(next);
+  };
 
   const actionPlan = useMemo(() => {
     return generateActionPlan(diagnosis, diagnosis.metrics, settings.currency, [], settings.primaryGoal);
@@ -305,7 +327,11 @@ export default function FinancialAssessmentScreen() {
           </View>
 
           {diagnosis.diagnoses.length > 0 ? (
-            <View style={[styles.diagnosisCard, { borderLeftColor: getSeverityColor(diagnosis.diagnoses[selectedDiagnosis].severity) }]}>
+            <View style={[
+              styles.diagnosisCard,
+              { borderLeftColor: getSeverityColor(diagnosis.diagnoses[selectedDiagnosis].severity) },
+              dismissedIds.includes(diagnosis.diagnoses[selectedDiagnosis].id) && styles.diagnosisCardDismissed,
+            ]}>
               <View style={styles.diagnosisCardTop}>
                 <View>
                   <Text style={styles.diagnosisProblem}>
@@ -351,6 +377,29 @@ export default function FinancialAssessmentScreen() {
               <Text style={[styles.diagnosisText, { color: Colors.income, fontWeight: '600' }]}>
                 → {diagnosis.diagnoses[selectedDiagnosis].opportunity}
               </Text>
+
+              {/* "Mark as intentional" -- for when this diagnosis is a
+                  deliberate business choice (e.g. long payment terms offered
+                  on purpose to land a big client), not a genuine problem.
+                  Dismissing it removes it from the "fix first" list and the
+                  narrative text immediately (diagnosis recomputes above),
+                  but it stays visible here, muted, with an undo -- marking
+                  something intentional by mistake should be a tap to fix,
+                  not a silent disappearance. */}
+              {dismissedIds.includes(diagnosis.diagnoses[selectedDiagnosis].id) ? (
+                <View style={styles.dismissedRow}>
+                  <Icon name="check-circle" size={13} color={Colors.textMuted} />
+                  <Text style={styles.dismissedText}>Marked as intentional — not counted in "fix first"</Text>
+                  <TouchableOpacity onPress={toggleDismissSelected}>
+                    <Text style={styles.undoDismissText}>Undo</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity style={styles.markIntentionalBtn} onPress={toggleDismissSelected}>
+                  <Icon name="check-circle" size={13} color={Colors.textMuted} />
+                  <Text style={styles.markIntentionalText}>This is intentional, not a problem</Text>
+                </TouchableOpacity>
+              )}
 
               {diagnosis.diagnoses.length > 1 && (
                 <View style={styles.navigationButtons}>
@@ -587,12 +636,27 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     ...Shadow.sm,
   },
+  diagnosisCardDismissed: { opacity: 0.6 },
   diagnosisCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   diagnosisProblem: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6, flex: 1 },
   severityBadge: { alignSelf: 'flex-start', paddingVertical: 3, paddingHorizontal: Spacing.sm, borderRadius: Radius.pill, backgroundColor: Colors.bg },
   severityText: { fontSize: 9, fontWeight: '700' },
   diagnosisLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, marginTop: Spacing.xs },
   diagnosisText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+
+  markIntentionalBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    marginTop: Spacing.sm, paddingVertical: 6, paddingHorizontal: Spacing.sm,
+    borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border,
+  },
+  markIntentionalText: { fontSize: 11.5, color: Colors.textMuted, fontWeight: '600' },
+  dismissedRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.sm,
+    paddingVertical: 6, paddingHorizontal: Spacing.sm, borderRadius: Radius.sm,
+    backgroundColor: Colors.bg,
+  },
+  dismissedText: { flex: 1, fontSize: 11.5, color: Colors.textMuted },
+  undoDismissText: { fontSize: 11.5, color: Colors.primary, fontWeight: '700' },
 
   navigationButtons: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
   navButton: { flex: 1, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: Radius.sm, alignItems: 'center' },

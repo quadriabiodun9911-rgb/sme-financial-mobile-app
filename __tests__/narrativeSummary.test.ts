@@ -16,6 +16,7 @@ const makeMetrics = (overrides: Partial<FinancialMetrics> = {}): FinancialMetric
 });
 
 const makeDiagnosis = (overrides: Partial<RootCauseAnalysis> = {}): RootCauseAnalysis => ({
+    id: 'expenses-outgrowing-revenue',
     problem: 'Expenses growing faster than revenue',
     severity: 'warning',
     rootCause: 'Cost growth is outrunning revenue growth',

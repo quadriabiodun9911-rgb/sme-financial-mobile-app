@@ -7,6 +7,7 @@
 import { deriveTopActionImpacts, RootCauseAnalysis } from '../src/utils/financialDiagnosisEngine';
 
 const diag = (overrides: Partial<RootCauseAnalysis>): RootCauseAnalysis => ({
+    id: 'test-diagnosis',
     problem: 'Test problem',
     severity: 'warning',
     rootCause: 'Test root cause',
