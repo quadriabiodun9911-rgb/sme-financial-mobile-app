@@ -1,583 +1,59 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import {
-    SafeAreaView, ScrollView, View, Text,
-    TouchableOpacity, StyleSheet, TextInput, Animated, Easing,
-} from 'react-native';
+import React from 'react';
+import { SafeAreaView, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
-import NextStepLink from '../components/NextStepLink';
 import CFOQuestionsTab from '../components/CFOQuestionsTab';
-import {
-    computeWeeklyCFOSummary,
-    computeRiskScore,
-    computeRevenueForecast,
-    computeCashFlowForecast,
-    computeFinancialRatios,
-    computeDebtOptimiser,
-    computePaymentOptimiser,
-    RISK_BAND_STYLE,
-    latestTransactionDate,
-} from '../utils/finance';
-import { computeInventoryValue } from '../utils/stockVelocity';
-import Icon, { IconName } from '../components/ui/Icon';
-import { Radius, Shadow, Spacing } from '../theme/tokens';
-import { computeForecastSummary } from '../utils/forecastSummary';
-import { NO_ADJUSTMENTS } from '../utils/futureFinancialStatements';
-import { generateForecastRiskActions } from '../utils/forecastRiskRecommendations';
-import { ImpactLevel } from '../utils/externalFactorsPanel';
 
-type Tab = 'pulse' | 'forecast' | 'growth' | 'questions';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function fmtRunway(days: number): string {
-    if (days > 365) return 'Very healthy';
-    if (days > 90)  return Math.round(days / 30) + ' months';
-    if (days > 0)   return days + ' days';
-    return 'Unknown';
-}
-
-// Labels computeRiskScore's result — a debt/liquidity risk score, distinct
-// from user.financialHealthScore (the diagnosis-engine health score shown on
-// the Financial Health Score card) and from CreditWorthinessScreen's
-// lender-focused credit score. Named riskLabel (not healthLabel) so the code
-// doesn't conflate the two.
-function riskLabel(score: number): { label: string; color: string; icon: IconName } {
-    if (score >= 80) return { label: 'Low Risk',      color: Colors.income,   icon: 'check-circle' };
-    if (score >= 60) return { label: 'Moderate Risk',  color: Colors.income,   icon: 'check-circle' };
-    if (score >= 40) return { label: 'Elevated Risk',  color: Colors.warning,  icon: 'alert-triangle' };
-    return               { label: 'High Risk',      color: Colors.expense,  icon: 'alert-circle' };
-}
-
-// Mini horizontal bar
-function MiniBar({ pct, color }: { pct: number; color: string }) {
-    const anim = useRef(new Animated.Value(0)).current;
-    useEffect(() => {
-        Animated.timing(anim, {
-            toValue: Math.min(100, Math.max(0, pct)),
-            duration: 500,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: false,
-        }).start();
-    }, [pct]);
-    return (
-        <View style={{ height: 5, backgroundColor: Colors.border, borderRadius: 3, flex: 1, marginLeft: 8 }}>
-            <Animated.View style={{
-                height: 5, borderRadius: 3, backgroundColor: color,
-                width: anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
-            }} />
-        </View>
-    );
-}
-
-// The Revenue Forecast row's fill bar -- owns its own Animated.Value so it
-// grows in independently, matching the motion language used across the app.
-function ForecastBar({ pct }: { pct: number }) {
-    const anim = useRef(new Animated.Value(0)).current;
-    useEffect(() => {
-        Animated.timing(anim, {
-            toValue: Math.min(100, Math.max(0, pct)),
-            duration: 600,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: false,
-        }).start();
-    }, [pct]);
-    return (
-        <View style={{ height: 8, backgroundColor: Colors.border, borderRadius: 4 }}>
-            <Animated.View style={{
-                height: 8, borderRadius: 4, backgroundColor: Colors.primary + '80',
-                width: anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
-            }} />
-        </View>
-    );
-}
-
-// ── Tab: Pulse (was Overview) ─────────────────────────────────────────────────
-function PulseTab({ onOpenRisk }: { onOpenRisk: () => void }) {
-    const { transactions, goals, loans, finance, settings, inventory } = useApp();
-    const { currency } = settings;
-    const summary = useMemo(() => computeWeeklyCFOSummary(transactions, goals, loans, finance), [transactions, goals, loans, finance]);
-    const risk    = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
-    const inventoryValue = useMemo(() => computeInventoryValue(inventory), [inventory]);
-    const ratios  = useMemo(() => computeFinancialRatios(finance, loans, transactions, inventoryValue), [finance, loans, transactions, inventoryValue]);
-
-    const riskDisplay = riskLabel(risk.score);
-    const profit  = finance.profit;
-    const margin  = finance.income > 0 ? (profit / finance.income) * 100 : 0;
-
-    // Plain-English daily briefing
-    const briefing: string[] = useMemo(() => {
-        const lines: string[] = [];
-        if (summary.weeklyChange >= 10) lines.push(`Income is up ${summary.weeklyChange.toFixed(0)}% this week — great momentum.`);
-        else if (summary.weeklyChange <= -10) lines.push(`Income dropped ${Math.abs(summary.weeklyChange).toFixed(0)}% this week — worth investigating.`);
-        if (profit < 0) lines.push('You are currently running at a loss. Focus on cutting costs or increasing sales.');
-        else if (margin > 20) lines.push(`Strong ${margin.toFixed(0)}% profit margin — you're keeping most of what you earn.`);
-        else if (margin < 10 && margin >= 0) lines.push(`Profit margin is thin at ${margin.toFixed(0)}%. Review your biggest costs.`);
-        if (summary.cashRunwayDays < 30 && summary.cashRunwayDays > 0) lines.push('Cash runway is under 30 days — prioritise collecting payments now.');
-        if (ratios.hasLiabilitiesData && ratios.currentRatio < 1) lines.push('Your short-term liabilities exceed assets — cash flow needs attention.');
-        if (lines.length === 0) lines.push('Business looks stable. Keep monitoring your cash flow and margins.');
-        return lines.slice(0, 3);
-    }, [summary, profit, margin, ratios]);
-
-    // Today's top focus
-    const todayFocus: string = useMemo(() => {
-        if (summary.cashRunwayDays < 30) return '💸 Chase any unpaid invoices today to protect your cash position.';
-        if (profit < 0) return '✂️ Review your top 3 expenses and identify one to reduce this week.';
-        if (summary.weeklyChange < -5) return '📞 Reach out to your top customers to understand any slowdown.';
-        if (margin < 10 && finance.income > 0) return '💰 Your margins are low — consider a small price increase on key products.';
-        return '📈 Things look healthy. Focus on winning your next customer.';
-    }, [summary, profit, margin, finance]);
-
-    return (
-        <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
-            {/* Debt/risk snapshot — was a full duplicate of the Risk tab
-                below (same computeRiskScore, same score, same "Business
-                Health" name colliding with the actual Financial Health
-                Score card above, which uses a different, canonical
-                engine). Condensed to a one-line teaser pointing at the
-                Risk tab, which already shows this in full. */}
-            <TouchableOpacity style={[s.card, { borderLeftWidth: 4, borderLeftColor: riskDisplay.color, flexDirection: 'row', alignItems: 'center' }]} onPress={onOpenRisk}>
-                <View style={{ width: 44, height: 44, borderRadius: Radius.pill, backgroundColor: riskDisplay.color + '18', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                    <Icon name={riskDisplay.icon} size={20} color={riskDisplay.color} />
-                </View>
-                <View style={{ flex: 1 }}>
-                    <Text style={s.cardTitle}>Debt & Risk Score: {riskDisplay.label} ({risk.score}/100)</Text>
-                    {briefing[0] && <Text style={s.briefingLine}>{briefing[0]}</Text>}
-                </View>
-                <Icon name="chevron-right" size={18} color={Colors.primary} />
-            </TouchableOpacity>
-
-            {/* Today's focus */}
-            <View style={[s.card, { backgroundColor: Colors.primary + '15', borderColor: Colors.primary + '40', borderWidth: 1 }]}>
-                <Text style={[s.cardTitle, { color: Colors.primary }]}>Today's Focus</Text>
-                <Text style={s.focusText}>{todayFocus}</Text>
-            </View>
-
-            {/* Snapshot strip */}
-            <View style={s.card}>
-                <Text style={s.cardTitle}>This Week at a Glance</Text>
-                <View style={s.metricsRow}>
-                    <View style={s.metricBox}>
-                        <Text style={s.metricLabel}>Income</Text>
-                        <Text style={[s.metricVal, { color: Colors.income }]}>{currency}{Math.round(summary.thisWeekIncome).toLocaleString()}</Text>
-                        <Text style={[s.metricSub, { color: summary.weeklyChange >= 0 ? Colors.income : Colors.expense }]}>
-                            {summary.weeklyChange >= 0 ? '▲' : '▼'} {Math.abs(summary.weeklyChange).toFixed(1)}%
-                        </Text>
-                    </View>
-                    <View style={s.metricDivider} />
-                    <View style={s.metricBox}>
-                        <Text style={s.metricLabel}>Spending</Text>
-                        <Text style={[s.metricVal, { color: Colors.expense }]}>{currency}{Math.round(summary.thisWeekExpense).toLocaleString()}</Text>
-                        <Text style={s.metricSub}>Last: {currency}{Math.round(summary.lastWeekExpense).toLocaleString()}</Text>
-                    </View>
-                    <View style={s.metricDivider} />
-                    <View style={s.metricBox}>
-                        <Text style={s.metricLabel}>Cash Runway</Text>
-                        <Text style={[s.metricVal, { color: summary.cashRunwayDays < 30 ? Colors.expense : Colors.income, fontSize: 13 }]}>
-                            {fmtRunway(summary.cashRunwayDays)}
-                        </Text>
-                        <Text style={s.metricSub}>of cash left</Text>
-                    </View>
-                </View>
-            </View>
-
-
-            {/* Risks */}
-            {summary.topRisks.length > 0 && (
-                <View style={[s.card, { borderLeftWidth: 3, borderLeftColor: Colors.expense }]}>
-                    <Text style={s.cardTitle}>Watch Out For</Text>
-                    {summary.topRisks.map((r, i) => (
-                        <Text key={i} style={s.riskItem}>⚠ {r}</Text>
-                    ))}
-                </View>
-            )}
-
-            {/* Actions */}
-            {summary.topActions.length > 0 && (
-                <View style={[s.card, { borderLeftWidth: 3, borderLeftColor: Colors.income }]}>
-                    <Text style={s.cardTitle}>Recommended Actions</Text>
-                    {summary.topActions.map((a, i) => (
-                        <Text key={i} style={s.actionItem}>→ {a}</Text>
-                    ))}
-                </View>
-            )}
-        </ScrollView>
-    );
-}
-
-// ── Tab: Forecast ─────────────────────────────────────────────────────────────
-// Chip color for an internal signal or external risk-radar impact level --
-// shared by both halves of the "What's influencing your forecast" row so
-// internal and external factors read on the same scale.
-const IMPACT_DOT_COLOR: Record<ImpactLevel, string> = {
-    high: Colors.expense, medium: Colors.warning, low: Colors.textMuted, positive: Colors.income,
-};
-
-function ForecastTab() {
-    const { transactions, loans, invoices, budgets, settings, staff, inventory, finance, setCurrentScreen, navigate } = useApp();
-    const { currency } = settings;
-    const [forecastMonths, setForecastMonths] = useState<3 | 6 | 12>(3);
-
-    // Anchored to the latest transaction date, not real-world "now" -- a
-    // forward forecast should always project from the business's most
-    // recent real data point, not silently start from a fake $0 baseline
-    // whenever there's no activity in the literal current calendar month.
-    const forecast  = useMemo(() => computeRevenueForecast(transactions, forecastMonths, latestTransactionDate(transactions) ?? undefined), [transactions, forecastMonths]);
-    const cashFlow  = useMemo(() => computeCashFlowForecast(transactions, loans, invoices, budgets, finance.cashBalance), [transactions, loans, invoices, budgets, finance.cashBalance]);
-    const maxVal    = Math.max(...forecast.map(f => f.bestCase), 1);
-    const alertWeeks = cashFlow.filter(w => w.alert).length;
-
-    // The "decision" front door: a single 90-day read combining internal
-    // trend, external relevance-gated risk, scenario range, and a forecast-
-    // driven recommendation -- everything below reuses computeForecastSummary
-    // (forecastSummary.ts), the same engine the full Financial Forecast
-    // screen is built on, so this never disagrees with the detail one tap away.
-    const macroAssumptions = settings.macroAssumptions ?? [];
-    const futureEvents = settings.futureEvents ?? [];
-    const outlook = useMemo(
-        () => computeForecastSummary(transactions, loans, finance, '90d', staff, macroAssumptions, NO_ADJUSTMENTS, inventory, futureEvents),
-        [transactions, loans, finance, staff, macroAssumptions, inventory, futureEvents],
-    );
-    const outlookActions = useMemo(() => generateForecastRiskActions(outlook, currency), [outlook, currency]);
-    const topOutlookAction = outlookActions[0];
-    const soonestPressuredMonth = outlook.cashFlowMonths.find(m => m.pressured);
-    const worstExternalRisk = [...outlook.riskRadar].sort((a, b) => {
-        const rank: Record<ImpactLevel, number> = { high: 3, medium: 2, low: 1, positive: 0 };
-        return rank[b.impact] - rank[a.impact];
-    })[0];
-    const healthStyle = RISK_BAND_STYLE[outlook.healthForecast.projectedScore.band];
-    const healthDeclined = outlook.healthForecast.projectedScore.score < outlook.healthForecast.currentScore.score;
-
-    return (
-        <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
-            {/* Financial Outlook — the front door: what's likely to happen,
-                why, what's most exposed, and one clear next step. Full
-                assumption/scenario/attribution detail lives one tap away on
-                the Financial Forecast screen; this is the glance-friendly
-                summary of the same numbers. */}
-            <View style={s.card}>
-                <Text style={s.cardTitle}>🔮 Financial Outlook — Next 90 Days</Text>
-                <View style={s.outlookGrid}>
-                    <View style={s.outlookBox}>
-                        <Text style={s.outlookLabel}>Revenue</Text>
-                        <Text style={[s.outlookVal, { color: Colors.income }]}>{currency}{Math.round(outlook.headline.expectedRevenue).toLocaleString()}</Text>
-                    </View>
-                    <View style={s.outlookBox}>
-                        <Text style={s.outlookLabel}>Profit</Text>
-                        <Text style={[s.outlookVal, { color: outlook.headline.expectedProfit >= 0 ? Colors.income : Colors.expense }]}>{currency}{Math.round(outlook.headline.expectedProfit).toLocaleString()}</Text>
-                    </View>
-                    <View style={s.outlookBox}>
-                        <Text style={s.outlookLabel}>Cash</Text>
-                        <Text style={[s.outlookVal, { color: Colors.primary }]}>{currency}{Math.round(outlook.headline.expectedCashPosition).toLocaleString()}</Text>
-                    </View>
-                    <View style={s.outlookBox}>
-                        <Text style={s.outlookLabel}>Financial Health</Text>
-                        <Text style={[s.outlookVal, { color: healthDeclined ? Colors.warning : Colors.income }]}>
-                            {outlook.healthForecast.currentScore.score} → {outlook.healthForecast.projectedScore.score} {healthDeclined ? '⚠️' : ''}
-                        </Text>
-                    </View>
-                </View>
-
-                {/* What's influencing this forecast */}
-                <Text style={s.outlookSectionLabel}>What's influencing your forecast</Text>
-                <View style={s.outlookChipRow}>
-                    <Text style={s.outlookChipGroupLabel}>Internal</Text>
-                    {outlook.detectedRevenueGrowthPctPerMonth !== null && (
-                        <View style={s.outlookChip}>
-                            <View style={[s.outlookDot, { backgroundColor: outlook.detectedRevenueGrowthPctPerMonth >= 0 ? Colors.income : Colors.expense }]} />
-                            <Text style={s.outlookChipText}>Sales trend</Text>
-                        </View>
-                    )}
-                    {outlook.marginRisk.show && (
-                        <View style={s.outlookChip}>
-                            <View style={[s.outlookDot, { backgroundColor: Colors.expense }]} />
-                            <Text style={s.outlookChipText}>Discounting</Text>
-                        </View>
-                    )}
-                    {outlook.inventoryForecast.atRiskItemCount > 0 && (
-                        <View style={s.outlookChip}>
-                            <View style={[s.outlookDot, { backgroundColor: Colors.warning }]} />
-                            <Text style={s.outlookChipText}>Inventory</Text>
-                        </View>
-                    )}
-                </View>
-                {outlook.riskRadar.length > 0 && (
-                    <View style={s.outlookChipRow}>
-                        <Text style={s.outlookChipGroupLabel}>External</Text>
-                        {outlook.riskRadar.map((r, i) => (
-                            <View key={i} style={s.outlookChip}>
-                                <View style={[s.outlookDot, { backgroundColor: IMPACT_DOT_COLOR[r.impact] }]} />
-                                <Text style={s.outlookChipText}>{r.label}</Text>
-                            </View>
-                        ))}
-                    </View>
-                )}
-
-                {/* Biggest risk */}
-                {(soonestPressuredMonth || (worstExternalRisk && worstExternalRisk.impact === 'high')) && (
-                    <View style={s.outlookRiskBox}>
-                        <Text style={s.outlookRiskLabel}>⚠️ Biggest Risk</Text>
-                        <Text style={s.outlookRiskText}>
-                            {soonestPressuredMonth
-                                ? `Cash-flow pressure in ${soonestPressuredMonth.monthLabel} — expected outflows may exceed expected collections.`
-                                : `${worstExternalRisk!.label} is a high-impact, corroborated risk to this forecast.`}
-                        </Text>
-                    </View>
-                )}
-
-                {/* Forecast assumptions -- explainable, not just a number */}
-                <Text style={s.outlookSectionLabel}>Forecast assumptions</Text>
-                <View style={s.outlookAssumptions}>
-                    {outlook.detectedRevenueGrowthPctPerMonth !== null && (
-                        <Text style={s.outlookAssumptionRow}>• Historical sales trend: {outlook.detectedRevenueGrowthPctPerMonth >= 0 ? '+' : ''}{outlook.detectedRevenueGrowthPctPerMonth.toFixed(1)}%/mo</Text>
-                    )}
-                    {outlook.discountTrend.hasEnoughData && (
-                        <Text style={s.outlookAssumptionRow}>• Average discount: {outlook.discountTrend.recentRatePct.toFixed(1)}%</Text>
-                    )}
-                    {outlook.externalFactors.items.map((item, i) => (
-                        <Text key={i} style={s.outlookAssumptionRow}>
-                            • {item.label}: {item.changePct >= 0 ? '+' : ''}{item.changePct.toFixed(0)}% ({item.corroborated ? 'showing in your books' : 'not yet showing in your books'})
-                        </Text>
-                    ))}
-                    <Text style={s.outlookAssumptionRow}>• Expected collection period: {outlook.profitBridge.revenue > 0 ? 'based on recent invoice timing' : 'not enough invoice history yet'}</Text>
-                    <Text style={[s.outlookAssumptionRow, { fontWeight: '700', marginTop: 4 }]}>Forecast confidence (rough estimate, not a statistical measure): {outlook.confidencePct}%</Text>
-                </View>
-
-                {/* One clear recommendation */}
-                {topOutlookAction && (
-                    <View style={s.outlookRecommendBox}>
-                        <Text style={s.outlookRecommendLabel}>🤖 Quad360 Recommendation</Text>
-                        <Text style={s.outlookRecommendText}>{topOutlookAction.description}</Text>
-                        <TouchableOpacity onPress={() => navigate('action-tracker')}>
-                            <Text style={s.outlookRecommendLink}>View Action Plan →</Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
-
-                <NextStepLink text="See the full explainable forecast, scenarios & what-ifs" onPress={() => setCurrentScreen('future-statements')} />
-            </View>
-
-            {/* Revenue forecast */}
-            <View style={s.card}>
-                <Text style={s.cardTitle}>Revenue Forecast</Text>
-                <Text style={s.cardSub}>Based on your historical trends — actual results may vary.</Text>
-                <View style={s.toggleRow}>
-                    {([3, 6, 12] as const).map(m => (
-                        <TouchableOpacity
-                            key={m}
-                            style={[s.toggleBtn, forecastMonths === m && s.toggleActive]}
-                            onPress={() => setForecastMonths(m)}
-                        >
-                            <Text style={[s.toggleText, forecastMonths === m && s.toggleTextActive]}>{m} months</Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
-
-                {forecast.map((f, i) => {
-                    const barPct = (f.projected / maxVal) * 100;
-                    return (
-                        <View key={i} style={s.forecastRow}>
-                            <Text style={s.forecastMonth}>{f.month}</Text>
-                            <View style={{ flex: 1, marginHorizontal: 10 }}>
-                                <ForecastBar pct={barPct} />
-                                <Text style={s.forecastRange}>
-                                    Best {currency}{Math.round(f.bestCase / 1000)}k · Worst {currency}{Math.round(f.worstCase / 1000)}k
-                                </Text>
-                            </View>
-                            <Text style={[s.forecastVal]}>{currency}{Math.round(f.projected).toLocaleString()}</Text>
-                        </View>
-                    );
-                })}
-            </View>
-
-            {/* 90-day cash flow -- full weekly table lives on Cash Flow
-                (the screen named for it, with the richer bar visualization);
-                this is a teaser on the same computeCashFlowForecast rather
-                than a second full copy of the same 13-week breakdown. */}
-            <TouchableOpacity style={s.card} onPress={() => navigate('cashflow')} activeOpacity={0.85}>
-                <Text style={s.cardTitle}>90-Day Cash Flow Outlook</Text>
-                <Text style={s.cardSub}>
-                    {alertWeeks > 0
-                        ? `${alertWeeks} week${alertWeeks > 1 ? 's' : ''} with negative projected cash flow in the next 90 days.`
-                        : 'No weeks with negative projected cash flow in the next 90 days.'}
-                </Text>
-                <NextStepLink text="See the full week-by-week breakdown → Cash Flow" onPress={() => navigate('cashflow')} />
-            </TouchableOpacity>
-            <NextStepLink text="See a full projected P&L, Cash Flow & Balance Sheet, adjustable to your plans" onPress={() => setCurrentScreen('future-statements')} />
-        </ScrollView>
-    );
-}
-
-// ── Tab: Growth (was Debt) ────────────────────────────────────────────────────
-function GrowthTab() {
-    const { loans, transactions, invoices, finance, settings, navigate } = useApp();
-    const { currency } = settings;
-    const debtOpt    = useMemo(() => computeDebtOptimiser(loans, currency), [loans, currency]);
-    const payActions = useMemo(() => computePaymentOptimiser(transactions, invoices, finance.cashBalance), [transactions, invoices, finance.cashBalance]);
-
-    // Pricing opportunity
-    const avgTransaction = useMemo(() => {
-        const inc = transactions.filter(t => t.type === 'income');
-        return inc.length > 0 ? inc.reduce((s, t) => s + (t.amount ?? 0), 0) / inc.length : 0;
-    }, [transactions]);
-
-    // Revenue gap — what 10% price increase would mean
-    const revenueGap10 = finance.income * 0.10;
-    const revenueGap20 = finance.income * 0.20;
-
-    // Top expense categories driving cost-cutting advice below — loan
-    // principal isn't a cuttable operating cost (only the interest is), so
-    // it's excluded the same way computeEnhancedPnL/analysis.ts exclude it,
-    // or a loan repayment could rank as "your top expense to cut".
-    const topExpenses = useMemo(() => {
-        const map = new Map<string, number>();
-        transactions.filter(t => t.type === 'expense').forEach(t => {
-            map.set(t.category || 'Uncategorised', (map.get(t.category || 'Uncategorised') ?? 0) + (t.amount ?? 0) - (t.principalPortion || 0));
-        });
-        return Array.from(map.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
-    }, [transactions]);
-
-    const totalExpense = topExpenses.reduce((s, e) => s + e[1], 0) || 1;
-
-    return (
-        <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
-            {/* Pricing opportunity */}
-            <View style={s.card}>
-                <Text style={s.cardTitle}>Pricing Opportunity</Text>
-                <Text style={s.cardSub}>Small price increases have an outsized impact on profit.</Text>
-                <View style={s.opportunityRow}>
-                    <Text style={s.oppLabel}>Your average sale value</Text>
-                    <Text style={[s.oppVal, { color: Colors.primary }]}>{currency}{Math.round(avgTransaction).toLocaleString()}</Text>
-                </View>
-                <View style={s.opportunityRow}>
-                    <Text style={s.oppLabel}>Extra revenue with 10% price rise</Text>
-                    <Text style={[s.oppVal, { color: Colors.income }]}>+{currency}{Math.round(revenueGap10).toLocaleString()}</Text>
-                </View>
-                <View style={s.opportunityRow}>
-                    <Text style={s.oppLabel}>Extra revenue with 20% price rise</Text>
-                    <Text style={[s.oppVal, { color: Colors.income }]}>+{currency}{Math.round(revenueGap20).toLocaleString()}</Text>
-                </View>
-                <View style={{ backgroundColor: Colors.primary + '10', borderRadius: 8, padding: 10, marginTop: 8 }}>
-                    <Text style={{ fontSize: 12, color: Colors.textSecondary, lineHeight: 18 }}>
-                        💡 Most small businesses under-price by 10–20%. If customers rarely push back on price, that's a sign you can charge more.
-                    </Text>
-                </View>
-            </View>
-
-            {/* Cost reduction */}
-            <View style={s.card}>
-                <Text style={s.cardTitle}>Where Your Money Goes</Text>
-                <Text style={s.cardSub}>Focus cost reduction on your biggest categories first.</Text>
-                {topExpenses.length === 0 ? (
-                    <Text style={s.empty}>No expense data yet.</Text>
-                ) : topExpenses.map(([cat, amt], i) => (
-                    <View key={i} style={{ marginBottom: 10 }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                            <Text style={s.pillarName}>{cat}</Text>
-                            <Text style={[s.pillarScore, { color: Colors.expense }]}>{currency}{Math.round(amt).toLocaleString()}</Text>
-                        </View>
-                        <MiniBar pct={(amt / totalExpense) * 100} color={Colors.expense} />
-                    </View>
-                ))}
-                <View style={{ backgroundColor: Colors.expense + '10', borderRadius: 8, padding: 10, marginTop: 4 }}>
-                    <Text style={{ fontSize: 12, color: Colors.textSecondary, lineHeight: 18 }}>
-                        💡 Cutting your top expense by just 10% is often easier than winning a new customer — and the profit impact is immediate.
-                    </Text>
-                </View>
-            </View>
-
-            {/* Debt repayment -- avalanche/snowball strategy, DSCR, and rate
-                shock now live together on Loans, so this is a link rather
-                than a second copy of the same computeDebtOptimiser output. */}
-            {loans.filter(l => l.status === 'active').length > 0 && (
-                <TouchableOpacity style={s.card} onPress={() => navigate('loans')}>
-                    <Text style={s.cardTitle}>Loan Repayment Strategy</Text>
-                    <Text style={s.cardSub}>💡 {debtOpt.recommendation}</Text>
-                    <NextStepLink text="See the full avalanche vs. snowball breakdown → Loans" onPress={() => navigate('loans')} />
-                </TouchableOpacity>
-            )}
-
-            {/* Payment timing */}
-            {payActions.length > 0 && (
-                <View style={s.card}>
-                    <Text style={s.cardTitle}>Payments & Collections Due</Text>
-                    {payActions.map((a, i) => (
-                        <View key={i} style={[s.payRow, { borderLeftColor: a.urgency === 'urgent' ? Colors.expense : a.urgency === 'soon' ? Colors.warning : Colors.income }]}>
-                            <View style={s.payTop}>
-                                <Text style={[s.payAction, { color: a.action === 'collect' ? Colors.income : Colors.expense }]}>
-                                    {a.action === 'collect' ? '↓ COLLECT' : '↑ PAY'}
-                                </Text>
-                                <View style={[s.urgencyBadge, { backgroundColor: a.urgency === 'urgent' ? Colors.expense + '20' : a.urgency === 'soon' ? Colors.warning + '20' : Colors.income + '20' }]}>
-                                    <Text style={[s.urgencyText, { color: a.urgency === 'urgent' ? Colors.expense : a.urgency === 'soon' ? Colors.warning : Colors.income }]}>
-                                        {a.urgency.toUpperCase()}
-                                    </Text>
-                                </View>
-                            </View>
-                            <Text style={s.payDesc}>{a.description}</Text>
-                            <Text style={s.payAmount}>{settings.currency}{a.amount.toLocaleString()} · Due {a.dueDate}</Text>
-                            <Text style={s.payImpact}>{a.impact}</Text>
-                        </View>
-                    ))}
-                </View>
-            )}
-
-            <NextStepLink text="Looking for growth score, momentum, top customers & products → Growth Intelligence" onPress={() => navigate('growth')} />
-        </ScrollView>
-    );
-}
-
-// ── Main Screen ───────────────────────────────────────────────────────────────
+/**
+ * Ask Advisor -- formerly "Fractional CFO," a 5-tab screen (Pulse, Forecast,
+ * Finance, Quick Wins, Q&A). A business owner asked whether the screen was
+ * worth keeping at all; investigating each tab found four of the five were
+ * re-presentations of numbers already shown elsewhere, not new information:
+ *  - Pulse's Debt & Risk Score duplicated the Scoreboard/Loans score; its
+ *    "This Week at a Glance" + "Today's Focus" moved to Scoreboard instead,
+ *    next to the same score it's a pulse on.
+ *  - Forecast was explicitly, by its own doc comment, "the glance-friendly
+ *    summary of the same numbers" the Financial Forecast screen already
+ *    shows in full (including the risk-aware "what's likely to happen"
+ *    pipeline the Anticipate nav section is built around) -- dropped
+ *    entirely, nothing unique to preserve.
+ *  - Finance (ratios) was mostly a duplicate of Scoreboard/Loans/this
+ *    screen's own Q&A tab/Reports' P&L; its three genuinely new readings
+ *    (Operating Margin, Cash Ratio, Debt-to-Cash-Flow) moved to the Reports
+ *    tabs they're actually about, and its one standalone tool (a
+ *    hypothetical Break-Even Calculator) moved to Analysis & Decisions'
+ *    Decide tab.
+ *  - Quick Wins' Pricing Opportunity and Where Your Money Goes duplicated
+ *    Analysis & Decisions' "Raise Prices" scenario and Insights' Top
+ *    Expense Categories respectively; its one unique card (Payments &
+ *    Collections Due) moved to Insights.
+ * Q&A -- the only tab that was genuinely irreplaceable, an ask-a-question
+ * advisor deep-linked from all over the app -- is what's left. This screen
+ * is now just that, renamed to say so.
+ */
 export default function CFOScreen() {
-    const { navigate, transactions, setCurrentScreen, navParams } = useApp();
-    const [activeTab, setActiveTab] = useState<Tab>(
-        (['pulse', 'forecast', 'growth', 'questions'] as Tab[]).includes(navParams?.tab) ? navParams.tab : 'pulse'
-    );
-
-    // 'growth' here is pricing/cost/debt levers, not the same thing as the
-    // standalone Growth Intelligence screen (score/momentum/customers) --
-    // labeling it "Growth" too made two unrelated screens look like the
-    // same destination. "Quick Wins" names what the tab actually contains.
-    //
-    // Finance (ratios) used to be a fifth tab here. Dropped after a
-    // business owner questioned why Fractional CFO existed at all --
-    // investigating found it was almost entirely a re-presentation of
-    // numbers already shown elsewhere (Scoreboard's pillars, Loans & Debt,
-    // this screen's own Q&A tab's Cash Conversion Cycle visual, Reports'
-    // P&L). The three readings that WERE genuinely new (Operating Margin,
-    // Cash Ratio, Debt-to-Cash-Flow) moved to the Reports tabs they're
-    // actually about; the one standalone tool in there (the hypothetical
-    // Break-Even Calculator) moved to Analysis & Decisions' Decide tab,
-    // alongside the other real-decision calculators. Everything else was a
-    // pure duplicate, safe to delete rather than move anywhere.
-    const TABS: { key: Tab; label: string; icon: IconName }[] = [
-        { key: 'pulse',     label: 'Pulse',      icon: 'activity' },
-        { key: 'forecast',  label: 'Forecast',   icon: 'calendar' },
-        { key: 'growth',    label: 'Quick Wins', icon: 'trending-up' },
-        { key: 'questions', label: 'CFO Q&A',    icon: 'help-circle' },
-    ];
-
+    const { transactions, setCurrentScreen, navigate } = useApp();
     const hasEnoughData = transactions.length >= 3;
 
     return (
         <SafeAreaView style={s.safe}>
             <Header />
+            <TouchableOpacity style={s.backLinkRow} onPress={() => navigate('dashboard')}>
+                <Text style={s.backBtn}>← Dashboard</Text>
+            </TouchableOpacity>
             <View style={s.headerRow}>
-                <TouchableOpacity onPress={() => navigate('dashboard')}>
-                    <Text style={s.backBtn}>← Dashboard</Text>
-                </TouchableOpacity>
-                <View>
-                    <Text style={s.screenTitle}>Your Fractional CFO</Text>
-                    <Text style={s.screenSub}>Forecasts, quick wins, and straight answers — on demand, no hire required</Text>
-                </View>
+                <Text style={s.screenTitle}>Ask Advisor</Text>
+                <Text style={s.screenSub}>Ask about your numbers, get a straight answer — CFO-level insight on demand</Text>
             </View>
 
             {!hasEnoughData && (
                 <View style={s.emptyState}>
                     <Text style={s.emptyIcon}>🧠</Text>
-                    <Text style={s.emptyTitle}>Your Fractional CFO is ready when you are</Text>
+                    <Text style={s.emptyTitle}>Your Advisor is ready when you are</Text>
                     <Text style={s.emptyBody}>
-                        Add at least 3 transactions to unlock forecasting, risk scoring, financial analysis, and personalised business advice.
+                        Add at least 3 transactions so there's something real to ask about.
                     </Text>
                     <Text style={s.emptyProgress}>{transactions.length}/3 transactions added</Text>
                     <View style={s.emptyProgressBarBg}>
@@ -589,26 +65,7 @@ export default function CFOScreen() {
                 </View>
             )}
 
-            {hasEnoughData && (
-                <>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabBar} contentContainerStyle={s.tabBarContent}>
-                        {TABS.map(tab => (
-                            <TouchableOpacity
-                                key={tab.key}
-                                style={[s.tab, activeTab === tab.key && s.tabActive]}
-                                onPress={() => setActiveTab(tab.key)}
-                            >
-                                <Icon name={tab.icon} size={14} color={activeTab === tab.key ? '#fff' : Colors.textMuted} />
-                                <Text style={[s.tabText, activeTab === tab.key && s.tabTextActive]}>{tab.label}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                    {activeTab === 'pulse'    && <PulseTab onOpenRisk={() => setCurrentScreen('risk-management')} />}
-                    {activeTab === 'forecast' && <ForecastTab />}
-                    {activeTab === 'growth'   && <GrowthTab />}
-                    {activeTab === 'questions' && <CFOQuestionsTab />}
-                </>
-            )}
+            {hasEnoughData && <CFOQuestionsTab />}
 
             <FooterNav />
         </SafeAreaView>
@@ -616,38 +73,13 @@ export default function CFOScreen() {
 }
 
 const s = StyleSheet.create({
-    safe:        { flex: 1, backgroundColor: Colors.bg },
-    scroll:      { flex: 1, backgroundColor: Colors.bg },
-    pad:         { padding: 16, paddingBottom: 100 },
+    safe: { flex: 1, backgroundColor: Colors.bg },
 
-    outlookGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
-    outlookBox:  { flexBasis: '47%', flexGrow: 1, backgroundColor: Colors.bg, borderRadius: Radius.md, padding: 10 },
-    outlookLabel: { fontSize: 11, color: Colors.textMuted, marginBottom: 3 },
-    outlookVal:  { fontSize: 16, fontWeight: '700' },
-
-    outlookSectionLabel: { fontSize: 11.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 6, marginBottom: 6 },
-    outlookChipRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 8 },
-    outlookChipGroupLabel: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary, marginRight: 2 },
-    outlookChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: Colors.bg, borderRadius: 12, paddingHorizontal: 9, paddingVertical: 4 },
-    outlookDot:  { width: 7, height: 7, borderRadius: 4 },
-    outlookChipText: { fontSize: 11.5, color: Colors.textSecondary, fontWeight: '600' },
-
-    outlookRiskBox: { backgroundColor: Colors.expense + '14', borderWidth: 1, borderColor: Colors.expense + '55', borderRadius: Radius.md, padding: 10, marginTop: 4, marginBottom: 10 },
-    outlookRiskLabel: { fontSize: 12.5, fontWeight: '700', color: Colors.expense, marginBottom: 3 },
-    outlookRiskText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
-
-    outlookAssumptions: { backgroundColor: Colors.bg, borderRadius: Radius.md, padding: 10, marginBottom: 10 },
-    outlookAssumptionRow: { fontSize: 12, color: Colors.textSecondary, lineHeight: 19 },
-
-    outlookRecommendBox: { backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary + '40', borderRadius: Radius.md, padding: 12, marginBottom: 10 },
-    outlookRecommendLabel: { fontSize: 12.5, fontWeight: '700', color: Colors.primary, marginBottom: 4 },
-    outlookRecommendText: { fontSize: 12.5, color: Colors.textPrimary, lineHeight: 18, marginBottom: 6 },
-    outlookRecommendLink: { fontSize: 12.5, fontWeight: '700', color: Colors.primary },
-
-    headerRow:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, gap: 12 },
+    backLinkRow: { paddingHorizontal: 16, paddingTop: 10 },
     backBtn:     { color: Colors.primary, fontSize: 14 },
+    headerRow:   { flexDirection: 'row', alignItems: 'baseline', paddingHorizontal: 16, paddingVertical: 10, gap: 12 },
     screenTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
-    screenSub:   { fontSize: 11, color: Colors.textMuted, marginTop: 1 },
+    screenSub:   { fontSize: 11, color: Colors.textMuted, flexShrink: 1 },
 
     emptyState:           { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
     emptyIcon:            { fontSize: 56, marginBottom: 16 },
@@ -658,71 +90,4 @@ const s = StyleSheet.create({
     emptyProgressBarFill: { height: 6, backgroundColor: Colors.primary, borderRadius: 3 },
     emptyBtn:             { backgroundColor: Colors.primary, paddingVertical: 13, paddingHorizontal: 32, borderRadius: 10 },
     emptyBtnText:         { color: '#fff', fontWeight: 'bold', fontSize: 15 },
-
-    tabBar:        { maxHeight: 52, backgroundColor: Colors.surface },
-    tabBarContent: { paddingHorizontal: 8, gap: 2, alignItems: 'center' },
-    tab:           { alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, gap: 2 },
-    tabActive:     { backgroundColor: Colors.primary },
-    tabText:       { fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
-    tabTextActive: { color: '#fff' },
-
-    sectionHdr:   { fontSize: 12, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.8, marginBottom: 8, marginTop: 4, textTransform: 'uppercase' },
-    card:         { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
-    cardTitle:    { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8 },
-    cardSub:      { fontSize: 12, color: Colors.textMuted, marginBottom: 10, lineHeight: 18 },
-    empty:        { fontSize: 13, color: Colors.textMuted, textAlign: 'center', paddingVertical: 12 },
-
-    healthLabel:  { fontSize: 22, fontWeight: 'bold' },
-    healthScore:  { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
-    briefingLine: { fontSize: 13, color: Colors.textSecondary, marginBottom: 6, lineHeight: 18 },
-    focusText:    { fontSize: 14, color: Colors.primary, fontWeight: '600', lineHeight: 20 },
-
-    metricsRow:    { flexDirection: 'row', alignItems: 'center' },
-    metricBox:     { flex: 1, alignItems: 'center' },
-    metricLabel:   { fontSize: 10, color: Colors.textMuted, marginBottom: 4 },
-    metricVal:     { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, textAlign: 'center' },
-    metricSub:     { fontSize: 10, color: Colors.textMuted, marginTop: 2, textAlign: 'center' },
-    metricDivider: { width: 1, backgroundColor: Colors.border, alignSelf: 'stretch', marginHorizontal: 6 },
-
-    pillarName:   { flex: 1, fontSize: 12, color: Colors.textSecondary },
-    pillarScore:  { fontSize: 12, fontWeight: '700' },
-
-    riskItem:      { fontSize: 13, color: Colors.expense, marginBottom: 6 },
-    actionItem:    { fontSize: 13, color: Colors.income, marginBottom: 6 },
-
-    toggleRow:        { flexDirection: 'row', gap: 8, marginBottom: 12 },
-    toggleBtn:        { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.border },
-    toggleActive:     { backgroundColor: Colors.primary },
-    toggleText:       { fontSize: 12, color: Colors.textMuted, fontWeight: '600' },
-    toggleTextActive: { color: '#fff' },
-
-    forecastRow:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.border },
-    forecastMonth: { fontSize: 12, color: Colors.textSecondary, width: 56 },
-    forecastVal:   { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
-    forecastRange: { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
-
-    ratioRow:     { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 10, padding: 14, marginBottom: 8, borderLeftWidth: 3, ...Shadow.sm },
-    ratioLabel:   { fontSize: 13, color: Colors.textPrimary, fontWeight: '600' },
-    ratioExplain: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
-    ratioVal:     { fontSize: 18, fontWeight: 'bold' },
-
-    dscrRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, borderTopWidth: 1, borderTopColor: Colors.border },
-    dscrLabel:    { fontSize: 13, color: Colors.textSecondary },
-    dscrVal:      { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
-    dscrHint:     { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 4, marginBottom: 6, lineHeight: 16 },
-
-    input:        { backgroundColor: Colors.bg, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, padding: 12, color: Colors.textPrimary, marginBottom: 10, fontSize: 14 },
-
-    opportunityRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderTopWidth: 1, borderTopColor: Colors.border },
-    oppLabel:       { fontSize: 13, color: Colors.textSecondary, flex: 1 },
-    oppVal:         { fontSize: 15, fontWeight: '700' },
-
-    payRow:       { borderLeftWidth: 3, paddingLeft: 12, marginBottom: 12, paddingVertical: 4 },
-    payTop:       { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-    payAction:    { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
-    payDesc:      { fontSize: 14, color: Colors.textPrimary, fontWeight: '600', marginBottom: 2 },
-    payAmount:    { fontSize: 12, color: Colors.textSecondary, marginBottom: 2 },
-    payImpact:    { fontSize: 11, color: Colors.textMuted },
-    urgencyBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: Radius.pill },
-    urgencyText:  { fontSize: 9, fontWeight: '700' },
 });

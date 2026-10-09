@@ -234,7 +234,7 @@ const T = {
         navPortfolio: 'Portfolio', navPortfolioDesc: 'Combined cash, revenue & profit across every business you own',
         navRisk: 'Risk', navForecast: 'Forecast',
         navInsightsDesc: 'What actually needs a decision right now',
-        navAdvisor: 'Fractional CFO', navAdvisorDesc: 'Forecasts, quick wins, straight answers — CFO-level insight on demand',
+        navAdvisor: 'Ask Advisor', navAdvisorDesc: 'Ask about your numbers, get a straight answer — CFO-level insight on demand',
         navAnalysisDecisions: 'Analysis & Decisions', navAnalysisDecisionsDesc: 'Why is this happening, what if I..., and pressure-test a real decision',
         navBeforeYouDecide: 'Before You Decide', navBeforeYouDecideDesc: 'Pressure-test a hire, purchase, discount, or loan',
         navGoalsDesc: 'Set the target this decision is aimed at',

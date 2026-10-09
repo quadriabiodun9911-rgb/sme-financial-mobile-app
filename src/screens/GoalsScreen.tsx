@@ -821,7 +821,7 @@ export default function GoalsScreen() {
                                                         <Text style={styles.readinessNarrative}>{planRevenueMarginForecastAlignment.message}</Text>
                                                     </View>
                                                     {!planRevenueMarginForecastAlignment.onPace && (
-                                                        <NextStepLink text="See the full revenue forecast" onPress={() => { setPlanGoalId(null); navigate('cfo', { tab: 'forecast' }); }} />
+                                                        <NextStepLink text="See the full revenue forecast" onPress={() => { setPlanGoalId(null); navigate('future-statements'); }} />
                                                     )}
                                                 </>
                                             )}

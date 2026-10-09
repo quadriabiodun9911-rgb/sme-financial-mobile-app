@@ -8,7 +8,7 @@ import FooterNav from '../components/FooterNav';
 import LowDataNotice from '../components/LowDataNotice';
 import Icon, { IconName } from '../components/ui/Icon';
 import RadialGauge from '../components/RadialGauge';
-import { computeRiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage } from '../utils/finance';
+import { computeRiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage, computeWeeklyCFOSummary } from '../utils/finance';
 import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
 import { computeReadinessDelta } from '../utils/readinessHistory';
 import { computeBusinessExposure, computeBusinessResilience, describeHealthResilienceGap, ExposureLevel } from '../utils/businessExposure';
@@ -148,6 +148,24 @@ export default function ScoreboardScreen() {
     const risk = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
     const bandMeta = useMemo(() => ({ ...RISK_BAND_STYLE[risk.band], color: BAND_COLOR[risk.band] }), [risk.band]);
     const readinessDelta = useMemo(() => computeReadinessDelta(readinessHistory), [readinessHistory]);
+
+    // This Week's Performance -- formerly Fractional CFO's "Pulse" tab.
+    // That tab's own Debt & Risk Score card was a straight duplicate of the
+    // score above (dropped entirely); "Watch Out For"/"Recommended Actions"
+    // duplicated this screen's own "What Needs Attention" card and
+    // Insights' Decision Centre (also dropped). Only the one thing with no
+    // real duplicate survives: the week-over-week income/spending/cash
+    // -runway read and the single highest-priority focus line, both of
+    // which belong right next to the score they're a performance pulse on.
+    const weeklySummary = useMemo(() => computeWeeklyCFOSummary(transactions, goals, loans, finance), [transactions, goals, loans, finance]);
+    const todayFocus: string = useMemo(() => {
+        const margin = finance.income > 0 ? (finance.profit / finance.income) * 100 : 0;
+        if (weeklySummary.cashRunwayDays < 30) return '💸 Chase any unpaid invoices today to protect your cash position.';
+        if (finance.profit < 0) return '✂️ Review your top 3 expenses and identify one to reduce this week.';
+        if (weeklySummary.weeklyChange < -5) return '📞 Reach out to your top customers to understand any slowdown.';
+        if (margin < 10 && finance.income > 0) return '💰 Your margins are low — consider a small price increase on key products.';
+        return '📈 Things look healthy. Focus on winning your next customer.';
+    }, [weeklySummary, finance]);
 
     // Same RadialGauge + count-up treatment DashboardScreen's own Business
     // Health card already got -- this hero card is exactly where its "See
@@ -381,6 +399,42 @@ export default function ScoreboardScreen() {
                     <TouchableOpacity style={s.linkRow} onPress={() => setCurrentScreen('credit-worthiness')}>
                         <Text style={s.linkText}>See full readiness trend & breakdown →</Text>
                     </TouchableOpacity>
+                </View>
+
+                {/* This Week's Performance -- see weeklySummary/todayFocus
+                    above for why this moved here from Fractional CFO's
+                    Pulse tab. Always visible (not behind simpleView) since
+                    it's the same "glance at this every time" prominence
+                    the score hero above has. */}
+                <View style={s.card}>
+                    <View style={s.cardHeaderRow}>
+                        <Icon name="activity" size={14} color={Colors.textMuted} />
+                        <Text style={s.cardTitle}>This Week's Performance</Text>
+                    </View>
+                    <Text style={[s.cardBodyText, { fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.sm }]}>{todayFocus}</Text>
+                    <View style={s.weeklyStatsRow}>
+                        <View style={s.weeklyStatBox}>
+                            <Text style={s.weeklyStatLabel}>Income</Text>
+                            <Text style={[s.weeklyStatVal, { color: Colors.income }]}>{currency}{Math.round(weeklySummary.thisWeekIncome).toLocaleString()}</Text>
+                            <Text style={[s.weeklyStatSub, { color: weeklySummary.weeklyChange >= 0 ? Colors.income : Colors.expense }]}>
+                                {weeklySummary.weeklyChange >= 0 ? '▲' : '▼'} {Math.abs(weeklySummary.weeklyChange).toFixed(1)}%
+                            </Text>
+                        </View>
+                        <View style={s.weeklyStatDivider} />
+                        <View style={s.weeklyStatBox}>
+                            <Text style={s.weeklyStatLabel}>Spending</Text>
+                            <Text style={[s.weeklyStatVal, { color: Colors.expense }]}>{currency}{Math.round(weeklySummary.thisWeekExpense).toLocaleString()}</Text>
+                            <Text style={s.weeklyStatSub}>Last: {currency}{Math.round(weeklySummary.lastWeekExpense).toLocaleString()}</Text>
+                        </View>
+                        <View style={s.weeklyStatDivider} />
+                        <View style={s.weeklyStatBox}>
+                            <Text style={s.weeklyStatLabel}>Cash Runway</Text>
+                            <Text style={[s.weeklyStatVal, { color: weeklySummary.cashRunwayDays < 30 ? Colors.expense : Colors.income, fontSize: 13 }]}>
+                                {weeklySummary.cashRunwayDays > 365 ? 'Very healthy' : weeklySummary.cashRunwayDays > 90 ? `${Math.round(weeklySummary.cashRunwayDays / 30)} months` : weeklySummary.cashRunwayDays > 0 ? `${weeklySummary.cashRunwayDays} days` : 'Unknown'}
+                            </Text>
+                            <Text style={s.weeklyStatSub}>of cash left</Text>
+                        </View>
+                    </View>
                 </View>
 
                 {simpleView ? (
@@ -777,6 +831,13 @@ const s = StyleSheet.create({
     cardHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Spacing.sm },
     cardTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
     cardBodyText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+
+    weeklyStatsRow: { flexDirection: 'row', alignItems: 'center' },
+    weeklyStatBox: { flex: 1, alignItems: 'center' },
+    weeklyStatDivider: { width: 1, height: 36, backgroundColor: Colors.border },
+    weeklyStatLabel: { fontSize: 10.5, color: Colors.textMuted, fontWeight: '600', marginBottom: 2 },
+    weeklyStatVal: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
+    weeklyStatSub: { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
 
     factorChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: Spacing.sm },
     factorChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: Colors.bg, borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: Colors.border },

@@ -1680,7 +1680,7 @@ export default function DashboardScreen() {
                       <Text style={styles.operationsSectionTitle}>{t(language, 'vitalSigns')}</Text>
                       <Text style={styles.vitalGreeting}>· {dailyBriefing.greeting}</Text>
                     </View>
-                    <PressScale style={styles.vitalAskBtn} onPress={() => navigate('cfo', { tab: 'questions' })}>
+                    <PressScale style={styles.vitalAskBtn} onPress={() => navigate('cfo')}>
                       <Icon name="message-square" size={13} color={Colors.primary} />
                     </PressScale>
                   </View>
