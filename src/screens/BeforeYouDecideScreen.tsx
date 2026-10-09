@@ -115,6 +115,13 @@ export default function BeforeYouDecideScreen() {
                     forecast of what will happen, but what your current cash flow can actually
                     absorb.
                 </Text>
+                {/* This screen is the guided path: pick the shape of your real
+                    decision below and get a stress-tested verdict. For open-
+                    ended "what if" exploration -- modelling a hypothetical
+                    that doesn't fit one of these shapes, or combining several
+                    levers at once -- Analysis & Decisions' What If? tab is the
+                    better tool; it isn't a second version of this screen. */}
+                <NextStepLink text="Just exploring, or combining several levers at once? → Analysis & Decisions (What If?)" onPress={() => navigate('analysis', { tab: 'scenarios' })} />
 
                 <DecisionEvidencePanel evidence={decisionEvidence} />
 

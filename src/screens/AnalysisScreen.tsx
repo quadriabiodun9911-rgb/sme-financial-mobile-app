@@ -686,7 +686,12 @@ export default function AnalysisScreen() {
                         {/* These levers are deliberately generic (a hypothetical
                             loan/hire/price change), not tied to a specific product
                             or existing loan. For scenarios grounded in real data,
-                            these two are the better tool. */}
+                            these three are the better tool. Before You Decide in
+                            particular overlaps most with the Hire/Loan levers here
+                            -- this stays the open sandbox for exploring and saving
+                            any combination of levers, that screen is the guided,
+                            decision-specific stress test once you know which real
+                            decision you're actually facing. */}
                         <View style={s.crossLinkRow}>
                             <TouchableOpacity style={s.crossLinkChip} onPress={() => navigate('inventory', { tab: 'pricing' })}>
                                 <Icon name="tag" size={12} color={Colors.primary} />
@@ -695,6 +700,10 @@ export default function AnalysisScreen() {
                             <TouchableOpacity style={s.crossLinkChip} onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'growth' })}>
                                 <Icon name="trending-up" size={12} color={Colors.primary} />
                                 <Text style={s.crossLinkText}>Multi-month trajectory → Growth Trends & Scenarios</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={s.crossLinkChip} onPress={() => navigate('before-you-decide')}>
+                                <Icon name="check-circle" size={12} color={Colors.primary} />
+                                <Text style={s.crossLinkText}>Facing a real hire, loan, or purchase? → Before You Decide</Text>
                             </TouchableOpacity>
                         </View>
 
