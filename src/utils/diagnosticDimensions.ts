@@ -52,6 +52,23 @@ export interface DiagnosticNarrative {
     recommendedSteps: string[];
 }
 
+// "Your Business Health Report" -- the single headline finding the owner
+// should see first, before the 8-dimension breakdown: one plain-language
+// diagnosis (what was found, why it matters, what to do, and the one
+// decision it bears on) built from whichever of the four priority
+// dimensions (cash, profitability, debt, trends) is currently most
+// urgent -- never a fifth, independently-written assessment.
+export interface BusinessHealthReport {
+    status: 'critical' | 'warning' | 'healthy';
+    statusLabel: string;
+    sourceDimension: 'cashHealth' | 'profitability' | 'debtHealth' | 'businessPerformance';
+    whatWeFound: string;
+    metrics: DiagnosticOutput[];
+    whyThisMatters: string;
+    nextSteps: string[];
+    nextDecision: { text: string; screen: Screen; params?: Record<string, any> };
+}
+
 export interface DiagnosticDimension {
     key: 'cashHealth' | 'profitability' | 'workingCapital' | 'debtHealth' | 'businessPerformance' | 'riskResilience' | 'decisionReadiness' | 'financingReadiness';
     title: string;
@@ -109,7 +126,12 @@ export interface BuildDiagnosticDimensionsInput {
     budgets: Budget[];
 }
 
-export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput): DiagnosticDimension[] {
+export interface BuildDiagnosticDimensionsResult {
+    dimensions: DiagnosticDimension[];
+    report: BusinessHealthReport;
+}
+
+export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput): BuildDiagnosticDimensionsResult {
     const { diagnosis, risk, currency, directionVsStatus, riskRadar, resilience, reserveCoverageMonths, financingReadinessScore, lendingCapacity, transactions, loans, invoices, budgets } = input;
     const m = diagnosis.metrics;
     const factor = (name: string) => risk.factors.find(f => f.name === name);
@@ -363,5 +385,124 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
         seeFullDetail: { text: 'Full financing readiness & matched options', screen: 'credit-worthiness' },
     });
 
-    return dims;
+    // "Your Business Health Report" -- the one headline finding, picked
+    // from whichever of the four priority dimensions is currently most
+    // urgent (high-risk beats watch beats strong, in cash > profitability >
+    // debt > trends order when tied), so the owner sees one coherent story
+    // instead of four competing ones.
+    const severityRank = (s: DiagnosticStatus) => (s === 'high-risk' ? 0 : s === 'watch' ? 1 : s === 'strong' ? 2 : 3);
+    const priorityDims = [dims[0], dims[1], dims[3], dims[4]]; // cashHealth, profitability, debtHealth, businessPerformance
+    const worst = priorityDims.reduce((a, b) => (severityRank(b.status) < severityRank(a.status) ? b : a));
+    const reportStatus: BusinessHealthReport['status'] = worst.status === 'high-risk' ? 'critical' : worst.status === 'watch' ? 'warning' : 'healthy';
+    const reportStatusLabel = reportStatus === 'critical' ? 'Needs urgent attention' : reportStatus === 'warning' ? 'Needs attention' : 'Looking good';
+
+    let report: BusinessHealthReport;
+    if (worst.key === 'cashHealth' && worst.status !== 'strong') {
+        report = {
+            status: reportStatus, statusLabel: reportStatusLabel, sourceDimension: 'cashHealth',
+            whatWeFound: cashAfterCommitments < 0
+                ? "Your business has cash in the bank, but known upcoming payments already exceed what's currently available -- putting pressure on your ability to restock and meet everyday expenses."
+                : "Your business has cash in the bank, but upcoming payments could put pressure on your ability to restock and meet everyday expenses.",
+            metrics: [
+                { label: 'Current bank balance', value: fmtMoney(currency, m.cashBalance) },
+                { label: 'Known upcoming payments', value: fmtMoney(currency, upcomingPayments) },
+            ],
+            whyThisMatters: cashAfterCommitments >= 0
+                ? `After those known payments, ${fmtMoney(currency, cashAfterCommitments)} remains before other expenses and reserves. Your bank balance therefore does not represent the amount you can safely spend.`
+                : `After those known payments, you'd be short by ${fmtMoney(currency, Math.abs(cashAfterCommitments))} before other expenses and reserves even arise. Your bank balance alone cannot cover what's already committed.`,
+            nextSteps: [
+                'Confirm all outstanding bills and loan repayments.',
+                'Calculate how much cash is needed to keep operating.',
+                hasInventory ? 'Review your next stock purchase before committing the money.' : 'Review any new spending before committing the money.',
+            ],
+            nextDecision: {
+                text: hasInventory
+                    ? 'Before spending on new stock, determine how much you can afford without putting essential payments at risk.'
+                    : 'Before taking on new spending, determine how much you can afford without putting essential payments at risk.',
+                screen: 'analysis', params: { tab: 'decide' },
+            },
+        };
+    } else if (worst.key === 'profitability' && worst.status !== 'strong') {
+        report = {
+            status: reportStatus, statusLabel: reportStatusLabel, sourceDimension: 'profitability',
+            whatWeFound: m.netProfit < 0
+                ? 'Your business is spending more than it earns, and the gap is coming straight out of cash.'
+                : 'Your margins are thinner than they look once real costs are accounted for, leaving little room for error.',
+            metrics: [
+                { label: 'Revenue', value: fmtMoney(currency, m.totalRevenue) },
+                { label: 'Net profit', value: `${m.netProfit >= 0 ? '' : '-'}${fmtMoney(currency, m.netProfit)}` },
+            ],
+            whyThisMatters: `Revenue of ${fmtMoney(currency, m.totalRevenue)} against ${fmtMoney(currency, m.totalExpenses)} in expenses leaves ${m.netProfit >= 0 ? `only ${fmtMoney(currency, m.netProfit)}` : `a loss of ${fmtMoney(currency, m.netProfit)}`} -- a ${m.profitMargin.toFixed(1)}% margin. A small rise in costs or a slow month could erase this entirely.`,
+            nextSteps: [
+                'Review your biggest expense categories for quick wins.',
+                'Check whether recent pricing still covers your real costs.',
+                'Confirm which costs are fixed and which can flex if sales slow down.',
+            ],
+            nextDecision: {
+                text: 'Before committing to new costs or a price change, confirm it still leaves you with a safe margin.',
+                screen: 'analysis', params: { tab: 'decide' },
+            },
+        };
+    } else if (worst.key === 'debtHealth' && worst.status !== 'strong') {
+        report = {
+            status: reportStatus, statusLabel: reportStatusLabel, sourceDimension: 'debtHealth',
+            whatWeFound: m.dscrStatus === 'danger'
+                ? 'Your monthly debt payments are higher than your cash flow can comfortably support.'
+                : "Your debt payments are manageable today, but there's little room to absorb a slow month.",
+            metrics: [
+                { label: 'Monthly debt payments', value: fmtMoney(currency, m.monthlyDebtService) },
+                { label: 'Coverage ratio', value: `${m.dscr.toFixed(2)}x` },
+            ],
+            whyThisMatters: `Monthly debt payments of ${fmtMoney(currency, m.monthlyDebtService)} are covered ${m.dscr.toFixed(2)}x by operating cash flow. A ratio below 1.25x means thin coverage, and a slower month could put a repayment at risk.`,
+            nextSteps: [
+                'Confirm your next repayment dates and amounts.',
+                'Check how a slower sales month would affect your coverage ratio.',
+                'Talk to your lender about restructuring before a payment is missed.',
+            ],
+            nextDecision: {
+                text: 'Before taking on any new costs or debt, confirm your current repayments are fully covered first.',
+                screen: 'loans',
+            },
+        };
+    } else if (worst.key === 'businessPerformance' && worst.status !== 'strong' && directionVsStatus.directionAvailable) {
+        report = {
+            status: reportStatus, statusLabel: reportStatusLabel, sourceDimension: 'businessPerformance',
+            whatWeFound: 'More of your business is trending in the wrong direction than the right one right now.',
+            metrics: [
+                { label: 'Improving', value: `${improving}` },
+                { label: 'Declining', value: `${declining}` },
+            ],
+            whyThisMatters: `${declining} of the trends being tracked are getting worse, against ${improving} improving. Left unaddressed, this usually shows up in cash and profit within a few months.`,
+            nextSteps: [
+                'Identify exactly which trend is declining and why.',
+                "Decide whether it's seasonal, one-off, or a real shift.",
+                "Set a check-in date to confirm whether it's turned around.",
+            ],
+            nextDecision: {
+                text: "Before planning new growth spending, confirm the decline isn't about to get worse.",
+                screen: 'scoreboard',
+            },
+        };
+    } else {
+        report = {
+            status: 'healthy', statusLabel: 'Looking good', sourceDimension: 'cashHealth',
+            whatWeFound: 'Across cash, profitability, debt and recent trends, nothing is currently flashing a warning.',
+            metrics: [
+                { label: 'Current bank balance', value: fmtMoney(currency, m.cashBalance) },
+                { label: 'Known upcoming payments', value: fmtMoney(currency, upcomingPayments) },
+            ],
+            whyThisMatters: 'This is a good position to plan from -- you have room to consider growth, not just defend what you have.',
+            nextSteps: [
+                'Keep tracking upcoming payments and recent trends so you catch pressure early.',
+                'Consider whether this is a good time to invest in growth.',
+                "Revisit this report after your next few transactions to confirm it's holding.",
+            ],
+            nextDecision: {
+                text: "If you're considering a new investment or expansion, this is a reasonable place to start.",
+                screen: 'analysis', params: { tab: 'decide' },
+            },
+        };
+    }
+
+    return { dimensions: dims, report };
 }

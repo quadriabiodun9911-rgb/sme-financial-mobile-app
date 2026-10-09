@@ -153,7 +153,7 @@ export default function FinancialAssessmentScreen() {
     });
   }, [transactions, loans, settings, user, financingReadinessScore, diagnosis.metrics.dscr, inventory]);
 
-  const diagnosticDimensions = useMemo(
+  const { dimensions: diagnosticDimensions, report: businessHealthReport } = useMemo(
     () => buildDiagnosticDimensions({
       diagnosis,
       risk,
@@ -333,7 +333,53 @@ export default function FinancialAssessmentScreen() {
               and financing readiness), with a real Output per dimension
               instead of just a status dot. Kept to one structure instead
               of two overlapping ones. */}
-          <Text style={styles.healthSeeMoreText}>See what's driving this score in the 8-Dimension Diagnosis below ↓</Text>
+          <Text style={styles.healthSeeMoreText}>See what's driving this score in the Business Health Report and 8-Dimension Diagnosis below ↓</Text>
+        </View>
+
+        {/* "Your Business Health Report" -- the one headline finding the
+            owner should read first: what was found, why it matters, what
+            to do, and the one decision it bears on. Built from whichever
+            of cash/profitability/debt/trends is most urgent right now --
+            never a fifth, separately-written assessment layered on top of
+            the 8-Dimension Diagnosis below. */}
+        <View style={[styles.reportCard, { borderLeftColor: businessHealthReport.status === 'critical' ? Colors.expense : businessHealthReport.status === 'warning' ? Colors.warning : Colors.income }]}>
+          <View style={styles.reportHeaderRow}>
+            <Text style={styles.reportTitle}>Your Business Health Report</Text>
+            <View style={[styles.reportStatusBadge, { backgroundColor: (businessHealthReport.status === 'critical' ? Colors.expense : businessHealthReport.status === 'warning' ? Colors.warning : Colors.income) + '22' }]}>
+              <Text style={[styles.reportStatusText, { color: businessHealthReport.status === 'critical' ? Colors.expense : businessHealthReport.status === 'warning' ? Colors.warning : Colors.income }]}>
+                {businessHealthReport.statusLabel}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.reportSectionLabel}>What we found</Text>
+          <Text style={styles.reportText}>{businessHealthReport.whatWeFound}</Text>
+
+          <View style={styles.narrativeMetricsRow}>
+            {businessHealthReport.metrics.map((mt, i) => (
+              <View key={i} style={styles.narrativeMetricTile}>
+                <Text style={styles.narrativeMetricLabel}>{mt.label}</Text>
+                <Text style={styles.narrativeMetricValue}>{mt.value}</Text>
+              </View>
+            ))}
+          </View>
+
+          <Text style={styles.reportSectionLabel}>Why this matters</Text>
+          <Text style={styles.reportText}>{businessHealthReport.whyThisMatters}</Text>
+
+          <Text style={styles.reportSectionLabel}>What you should do next</Text>
+          {businessHealthReport.nextSteps.map((step, i) => (
+            <Text key={i} style={styles.reportStep}>{i + 1}. {step}</Text>
+          ))}
+
+          <View style={styles.reportDecisionBox}>
+            <Text style={styles.reportSectionLabel}>Your next decision</Text>
+            <Text style={styles.reportText}>{businessHealthReport.nextDecision.text}</Text>
+            <NextStepLink
+              text="Explore this decision"
+              onPress={() => navigate(businessHealthReport.nextDecision.screen, businessHealthReport.nextDecision.params)}
+            />
+          </View>
         </View>
 
         {/* The 8-Dimension Diagnosis -- Quad360's Diagnostic Engine
@@ -776,6 +822,26 @@ const styles = StyleSheet.create({
   healthStatus: { fontSize: 13, color: Colors.textSecondary },
   healthDescriptionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
   healthDescription: { flex: 1, fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
+
+  reportCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    borderLeftWidth: 4,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.sm,
+  },
+  reportHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  reportTitle: { fontSize: 15.5, fontWeight: '800', color: Colors.textPrimary, flex: 1 },
+  reportStatusBadge: { borderRadius: Radius.pill, paddingHorizontal: Spacing.md, paddingVertical: 6 },
+  reportStatusText: { fontSize: 12, fontWeight: '800' },
+  reportSectionLabel: { fontSize: 10.5, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 8 },
+  reportText: { fontSize: 13, color: Colors.textPrimary, lineHeight: 19, marginTop: 2 },
+  reportStep: { fontSize: 13, color: Colors.textPrimary, lineHeight: 19, marginTop: 1 },
+  reportDecisionBox: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
 
   pillarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: Spacing.xl },
   pillarCard: {
