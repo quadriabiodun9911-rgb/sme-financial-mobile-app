@@ -573,7 +573,7 @@ export default function TransactionsScreen() {
                 </ScrollView>
             ) : screenTab === 'revenue' ? (
                 <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
-                    <Text style={styles.exposureTabIntro}>The other side of Cost Exposure -- concentration risk in WHERE your revenue comes from (top customers, channels), not what's eating it.</Text>
+                    <Text style={styles.exposureTabIntro}>The other side of Cost Exposure -- how much you'd lose if one big customer or channel disappeared, not what's eating your revenue.</Text>
                     <RevenueExposureTab />
                 </ScrollView>
             ) : (
