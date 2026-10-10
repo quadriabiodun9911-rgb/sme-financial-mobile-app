@@ -167,6 +167,70 @@ export function computeAllTimeMonthlyBuckets(transactions: Transaction[]): Month
         });
 }
 
+export interface HistoricalMonthlyTrend {
+    available: boolean;
+    monthsUsed: number;
+    // Average month-over-month % change across the trailing window --
+    // the business's own real pattern, not a single noisy two-point
+    // comparison. Null when there isn't enough history (< MIN_MONTHS
+    // complete month-pairs) or the base month had no revenue/expense to
+    // compare against.
+    revenueMoMPct: number | null;
+    expenseMoMPct: number | null;
+    // Average change in profit margin, in percentage POINTS per month
+    // (not a % of the margin itself) -- the same unit margin_improvement
+    // goals are already denominated in.
+    marginPtsPerMonth: number | null;
+}
+
+const TREND_WINDOW_MONTHS = 6;
+const MIN_TREND_MONTH_PAIRS = 2; // at least 3 months of data (2 month-over-month steps)
+
+// Turns computeAllTimeMonthlyBuckets into the "revenue pattern, cost
+// pattern, month to month" signal goalDefaults() (goals.ts) uses to
+// suggest a realistic target instead of a flat, one-size-fits-all
+// percentage -- the most recent month is EXCLUDED when the data clearly
+// looks partial (fewer transactions than the median of prior months),
+// since an in-progress month's lower total would otherwise read as a
+// fake decline, the same partial-month fallacy financialDiagnosisEngine's
+// own day-capping guards against elsewhere.
+export function computeHistoricalMonthlyTrend(transactions: Transaction[]): HistoricalMonthlyTrend {
+    const empty: HistoricalMonthlyTrend = { available: false, monthsUsed: 0, revenueMoMPct: null, expenseMoMPct: null, marginPtsPerMonth: null };
+    let buckets = computeAllTimeMonthlyBuckets(transactions);
+    if (buckets.length === 0) return empty;
+
+    const currentMonth = localMonthStr(new Date());
+    const last = buckets[buckets.length - 1];
+    if (last.month === currentMonth && buckets.length > 1) {
+        const priorCounts = buckets.slice(0, -1).map(b => b.transactionCount).sort((a, b) => a - b);
+        const median = priorCounts[Math.floor(priorCounts.length / 2)];
+        if (last.transactionCount < median * 0.6) buckets = buckets.slice(0, -1);
+    }
+
+    buckets = buckets.slice(-TREND_WINDOW_MONTHS);
+    if (buckets.length - 1 < MIN_TREND_MONTH_PAIRS) return empty;
+
+    const revenueSteps: number[] = [];
+    const expenseSteps: number[] = [];
+    const marginSteps: number[] = [];
+    for (let i = 1; i < buckets.length; i++) {
+        const prev = buckets[i - 1];
+        const cur = buckets[i];
+        if (prev.revenue > 0) revenueSteps.push(((cur.revenue - prev.revenue) / prev.revenue) * 100);
+        if (prev.expense > 0) expenseSteps.push(((cur.expense - prev.expense) / prev.expense) * 100);
+        marginSteps.push(cur.profitMargin - prev.profitMargin);
+    }
+
+    const avg = (arr: number[]) => (arr.length > 0 ? arr.reduce((s, v) => s + v, 0) / arr.length : null);
+    return {
+        available: true,
+        monthsUsed: buckets.length,
+        revenueMoMPct: avg(revenueSteps),
+        expenseMoMPct: avg(expenseSteps),
+        marginPtsPerMonth: avg(marginSteps),
+    };
+}
+
 /** Group transactions into daily revenue/expense/profit buckets. */
 export function computeDailyTrend(transactions: Transaction[]): DailyTrendPoint[] {
     const buckets = new Map<string, { revenue: number; expense: number; cogs: number; opex: number; otherExpense: number }>();
