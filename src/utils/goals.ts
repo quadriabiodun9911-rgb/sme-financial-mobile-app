@@ -1,9 +1,11 @@
 import {
     FinancialGoal, GoalType, GoalStatus, GoalStrategy,
-    StrategyAction, FinanceData, Transaction, BusinessSettings,
+    StrategyAction, FinanceData, Transaction, BusinessSettings, Loan,
 } from '../types';
 import { getTopCategories, getMonthlyExpenseAverage, computeCustomerConcentration, computeSupplierConcentration } from './finance';
 import { computeMonthlyBaseline } from './analysis';
+import { computeHistoricalMonthlyTrend } from './trendAnalysis';
+import { totalMonthlyLoanBurden } from './loanMath';
 
 // ─── Goal progress computation ────────────────────────────────────────────────
 
@@ -346,8 +348,9 @@ export function buildNewGoal(
     finance: FinanceData,
     settings: BusinessSettings,
     transactions: Transaction[] = [],
+    loans: Loan[] = [],
 ): FinancialGoal {
-    const defaults = goalDefaults(input.type, finance, settings, transactions);
+    const defaults = goalDefaults(input.type, finance, settings, transactions, loans);
     const baselineValue = defaults.baselineValue ?? 0;
     const unit = defaults.unit ?? settings.currency;
     return {
@@ -395,36 +398,89 @@ export function goalDefaults(
     finance: FinanceData,
     settings: BusinessSettings,
     transactions: Transaction[] = [],
+    loans: Loan[] = [],
 ): Partial<FinancialGoal> {
     const { currency } = settings;
+    // The business's own trailing revenue/expense/margin pattern -- what
+    // turns "increase revenue by 20%" from a flat, identical-for-everyone
+    // template into a target actually informed by how this business has
+    // been moving. `available` is false (and every *Pct/PtsPerMonth field
+    // null) for a business without enough history yet
+    // (computeHistoricalMonthlyTrend's own MIN_TREND_MONTH_PAIRS); every
+    // case below falls back to the original flat default in that case, same
+    // as before this trend data existed.
+    const trend = computeHistoricalMonthlyTrend(transactions);
     switch (type) {
-        case 'revenue_growth':
+        case 'revenue_growth': {
+            // Only lean on the real trend when it's actually growing --
+            // extrapolating a declining or flat trend would turn a
+            // "growth" goal into "stay the same" or worse, which isn't
+            // what this goal type means. Capped at 15%/month before
+            // compounding so one unusually strong month can't suggest an
+            // unreachable target.
+            const hasTrend = trend.available && trend.revenueMoMPct !== null && trend.revenueMoMPct > 0;
+            const monthlyPct = hasTrend ? Math.min(15, trend.revenueMoMPct!) : null;
+            // Compounded over 3 months -- a reasonable near-term goal
+            // horizon (goals.ts has no deadline yet at this point; the
+            // owner sets the real one on the form).
+            const percentTarget = monthlyPct !== null ? Math.round((Math.pow(1 + monthlyPct / 100, 3) - 1) * 100) : 20;
             return {
-                title: 'Increase Revenue by 20%',
-                description: 'Grow total income by at least 20% within the goal period.',
-                targetValue: Math.round(finance.income * 1.2),
+                title: `Increase Revenue by ${percentTarget}%`,
+                description: hasTrend
+                    ? `Grow total income by ${percentTarget}% within the goal period -- continuing your own recent pace of about ${monthlyPct!.toFixed(1)}% a month.`
+                    : 'Grow total income by at least 20% within the goal period.',
+                targetValue: Math.round(finance.income * (1 + percentTarget / 100)),
                 baselineValue: finance.income,
                 unit: currency,
-                percentTarget: 20,
+                percentTarget,
             };
-        case 'margin_improvement':
+        }
+        case 'margin_improvement': {
+            // Same reasoning as revenue_growth: only extrapolate a margin
+            // trend that's actually improving. Capped at 3 points/month
+            // before projecting forward 3 months, floored at 3 points so a
+            // barely-positive trend doesn't suggest a goal too small to be
+            // worth tracking.
+            const hasTrend = trend.available && trend.marginPtsPerMonth !== null && trend.marginPtsPerMonth > 0;
+            const monthlyPts = hasTrend ? Math.min(3, trend.marginPtsPerMonth!) : null;
+            const pts = monthlyPts !== null ? Math.max(3, Math.round(monthlyPts * 3)) : 10;
             return {
-                title: 'Improve Profit Margin by 10 pts',
-                description: 'Raise profit margin by 10 percentage points through revenue growth and cost discipline.',
-                targetValue: parseFloat((finance.margin + 10).toFixed(1)),
+                title: `Improve Profit Margin by ${pts} pts`,
+                description: hasTrend
+                    ? `Raise profit margin by ${pts} percentage points -- continuing your own recent margin trend of about +${monthlyPts!.toFixed(1)} pts a month.`
+                    : 'Raise profit margin by 10 percentage points through revenue growth and cost discipline.',
+                targetValue: parseFloat((finance.margin + pts).toFixed(1)),
                 baselineValue: parseFloat(finance.margin.toFixed(1)),
                 unit: '%',
-                percentTarget: 10,
+                percentTarget: pts,
             };
-        case 'cost_reduction':
+        }
+        case 'cost_reduction': {
+            // Costs that have recently been CLIMBING suggest more real fat
+            // to trim (a more ambitious target is realistic); costs already
+            // flat or falling suggest the easy savings are already gone (a
+            // gentler target is realistic). Adjustment is capped at
+            // ±10 points either way so one volatile month can't swing the
+            // suggestion wildly, and the final target stays within a
+            // sane 8%-25% band regardless.
+            const hasTrend = trend.available && trend.expenseMoMPct !== null;
+            const adjustment = hasTrend ? Math.max(-10, Math.min(10, trend.expenseMoMPct!)) : 0;
+            const pct = hasTrend ? Math.round(Math.max(8, Math.min(25, 15 + adjustment))) : 15;
             return {
-                title: 'Reduce Operating Costs by 15%',
-                description: 'Cut total business expenses by 15% without impacting revenue.',
-                targetValue: Math.round(finance.expense * 0.85),
+                title: `Reduce Operating Costs by ${pct}%`,
+                description: hasTrend
+                    ? (adjustment > 1
+                        ? `Cut total business expenses by ${pct}% without impacting revenue -- your costs have been rising about ${adjustment.toFixed(1)}% a month recently, so there's real room to trim.`
+                        : adjustment < -1
+                            ? `Cut total business expenses by ${pct}% without impacting revenue -- a lighter target since your costs are already trending down about ${Math.abs(adjustment).toFixed(1)}% a month.`
+                            : `Cut total business expenses by ${pct}% without impacting revenue.`)
+                    : 'Cut total business expenses by 15% without impacting revenue.',
+                targetValue: Math.round(finance.expense * (1 - pct / 100)),
                 baselineValue: finance.expense,
                 unit: currency,
-                percentTarget: 15,
+                percentTarget: pct,
             };
+        }
         case 'cash_reserve': {
             const minReserveNum = parseFloat(settings.minReserve) || 0;
             // minReserve defaults to '0' until a user visits Settings and
@@ -433,15 +489,21 @@ export function goalDefaults(
             // falsy, so the form's `defaults.targetValue ? ... : ''` never
             // prefilled it either), for what's likely to be a brand new
             // user's very first goal. Falls back to 3 months of average
-            // expenses -- the same rule of thumb Cash Runway is built on --
-            // until they set a real Minimum Reserve.
-            const fallbackTarget = Math.round(getMonthlyExpenseAverage(finance.expense, transactions) * 3);
+            // expenses PLUS monthly loan repayments -- the same rule of
+            // thumb Cash Runway is built on, extended to cover committed
+            // debt service too (a business paying down a loan needs a
+            // bigger buffer than one that isn't) -- until they set a real
+            // Minimum Reserve.
+            const monthlyLoanBurden = totalMonthlyLoanBurden(loans);
+            const fallbackTarget = Math.round((getMonthlyExpenseAverage(finance.expense, transactions) + monthlyLoanBurden) * 3);
             const target = minReserveNum > 0 ? minReserveNum * 2 : fallbackTarget;
             return {
                 title: `Build Cash Reserve to ${currency}${target.toLocaleString()}`,
                 description: minReserveNum > 0
                     ? 'Grow the cash buffer to twice the minimum reserve threshold.'
-                    : 'Grow the cash buffer to about 3 months of average expenses. Set a Minimum Reserve in Settings for a target tailored to your own number.',
+                    : monthlyLoanBurden > 0
+                        ? 'Grow the cash buffer to about 3 months of average expenses plus loan repayments. Set a Minimum Reserve in Settings for a target tailored to your own number.'
+                        : 'Grow the cash buffer to about 3 months of average expenses. Set a Minimum Reserve in Settings for a target tailored to your own number.',
                 targetValue: target,
                 baselineValue: finance.cashBalance,
                 unit: currency,

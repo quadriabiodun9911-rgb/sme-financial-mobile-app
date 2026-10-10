@@ -269,7 +269,7 @@ export default function GoalsScreen() {
     const openAddModal = (type: GoalType, overrides?: { title?: string; description?: string; targetValue?: number; deadline?: string }) => {
         setSelectedType(type);
         const meta = GOAL_TYPES.find(g => g.type === type)!;
-        const defaults = goalDefaults(type, finance, settings, transactions);
+        const defaults = goalDefaults(type, finance, settings, transactions, loans);
         setForm({
             title: overrides?.title ?? defaults.title ?? meta.label,
             description: overrides?.description ?? defaults.description ?? meta.description,
@@ -320,7 +320,7 @@ export default function GoalsScreen() {
             targetValue: tv,
             deadline: form.deadline,
             percentTarget: isNaN(pct) ? undefined : pct,
-        }, finance, settings, transactions));
+        }, finance, settings, transactions, loans));
         setAddModalOpen(false);
         setSelectedType(null);
     };

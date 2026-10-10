@@ -1,4 +1,4 @@
-import { computeAllTimeMonthlyBuckets, computeQuarterlyTrend, computeYearlyTrend, computeDailyTrend, computeWeeklyTrend, analyzeTrend, classifyRevenueGrowth, computeMarginTrendDirection, MonthlyTrendPoint } from '../src/utils/trendAnalysis';
+import { computeAllTimeMonthlyBuckets, computeQuarterlyTrend, computeYearlyTrend, computeDailyTrend, computeWeeklyTrend, analyzeTrend, classifyRevenueGrowth, computeMarginTrendDirection, computeHistoricalMonthlyTrend, MonthlyTrendPoint } from '../src/utils/trendAnalysis';
 import { Transaction } from '../src/types';
 
 const makeMonth = (overrides: Partial<MonthlyTrendPoint>): MonthlyTrendPoint => ({
@@ -294,5 +294,46 @@ describe('computeMarginTrendDirection', () => {
             makeMonth({ month: '2025-03', profitMargin: 16.5 }),
         ];
         expect(computeMarginTrendDirection(months)).toBe('stable');
+    });
+});
+
+describe('computeHistoricalMonthlyTrend', () => {
+    it('is unavailable with no transactions', () => {
+        expect(computeHistoricalMonthlyTrend([]).available).toBe(false);
+    });
+
+    it('is unavailable with fewer than 3 distinct months of history', () => {
+        const txs = [
+            makeTx({ type: 'income', amount: 1000, date: '2024-01-15' }),
+            makeTx({ type: 'income', amount: 1100, date: '2024-02-15' }),
+        ];
+        const trend = computeHistoricalMonthlyTrend(txs);
+        expect(trend.available).toBe(false);
+        expect(trend.revenueMoMPct).toBeNull();
+        expect(trend.expenseMoMPct).toBeNull();
+        expect(trend.marginPtsPerMonth).toBeNull();
+    });
+
+    it('computes the average month-over-month revenue growth across a clean trend', () => {
+        // Revenue grows exactly 10% each month; expenses stay flat -- a
+        // deliberately clean fixture so the expected average isn't a
+        // floating-point approximation.
+        const txs = [
+            makeTx({ type: 'income', amount: 1000, date: '2024-01-10' }),
+            makeTx({ type: 'expense', amount: 800, date: '2024-01-20' }),
+            makeTx({ type: 'income', amount: 1100, date: '2024-02-10' }),
+            makeTx({ type: 'expense', amount: 800, date: '2024-02-20' }),
+            makeTx({ type: 'income', amount: 1210, date: '2024-03-10' }),
+            makeTx({ type: 'expense', amount: 800, date: '2024-03-20' }),
+            makeTx({ type: 'income', amount: 1331, date: '2024-04-10' }),
+            makeTx({ type: 'expense', amount: 800, date: '2024-04-20' }),
+        ];
+        const trend = computeHistoricalMonthlyTrend(txs);
+        expect(trend.available).toBe(true);
+        expect(trend.monthsUsed).toBe(4);
+        expect(trend.revenueMoMPct).toBeCloseTo(10, 5);
+        expect(trend.expenseMoMPct).toBeCloseTo(0, 5);
+        expect(trend.marginPtsPerMonth).not.toBeNull();
+        expect(trend.marginPtsPerMonth!).toBeGreaterThan(0); // margin improves every step since revenue grows and costs don't
     });
 });

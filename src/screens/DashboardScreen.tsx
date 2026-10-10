@@ -857,8 +857,8 @@ export default function DashboardScreen() {
     // Same defaults GoalsScreen's own "add goal" tile would prefill for this
     // type -- never a number invented just for this banner.
     const nextGoalPreview = useMemo(
-        () => (nextGoalType ? goalDefaults(nextGoalType, finance, settings, transactions) : null),
-        [nextGoalType, finance, settings, transactions]
+        () => (nextGoalType ? goalDefaults(nextGoalType, finance, settings, transactions, loans) : null),
+        [nextGoalType, finance, settings, transactions, loans]
     );
 
     const markGoalCelebrated = (goalId: string) => {
@@ -878,7 +878,7 @@ export default function DashboardScreen() {
             description: nextGoalPreview.description ?? '',
             targetValue: nextGoalPreview.targetValue ?? 0,
             deadline,
-        }, finance, settings, transactions));
+        }, finance, settings, transactions, loans));
         markGoalCelebrated(goalToCelebrate.id);
         showToast(`New goal set: ${nextGoalPreview.title}`);
     };
