@@ -36,22 +36,6 @@ export interface DiagnosticOutput {
     value: string;
 }
 
-// The "what the business owner should actually see" format: not a wall of
-// ratios but a short diagnosis narrative -- two headline figures, what they
-// mean together, why that matters for the business, and what to actually do
-// about it. Only built for the dimensions the Diagnostic Engine's strongest
-// first version should focus on (cash health, profitability, debt pressure,
-// financial trends); the other four stay output-only until the data behind
-// a narrative (inventory turns, receivables aging, lender terms) is
-// reliably available.
-export interface DiagnosticNarrative {
-    headline: string;
-    metrics: DiagnosticOutput[]; // exactly the 2 figures the headline math is built from
-    whatThisMeans: string;
-    whyItMatters: string;
-    recommendedSteps: string[];
-}
-
 // A "what you should do next" step that's actually actionable -- tapping
 // it opens the real screen that lets the owner do it, instead of a plain
 // checkmark the owner then has to go find their own way to act on.
@@ -62,6 +46,31 @@ export interface DiagnosticActionStep {
     text: string;
     screen?: Screen;
     params?: Record<string, any>;
+}
+
+// The "what the business owner should actually see" format: not a wall of
+// ratios but a short diagnosis narrative -- two headline figures, what they
+// mean together, why that matters for the business, and what to actually do
+// about it, with each step tappable straight into the real tool for it
+// (same DiagnosticActionStep format Your Business Health Report uses, so
+// every dimension card behaves the same way once expanded). Built for seven
+// of the eight dimensions -- Decision Readiness has no current-state finding
+// to narrate by design (there's no "decision" to score until the owner has
+// one in mind; see its own comment below), so it stays a pure launcher.
+export interface DiagnosticNarrative {
+    headline: string;
+    metrics: DiagnosticOutput[]; // exactly the 2 figures the headline math is built from
+    whatThisMeans: string;
+    whyItMatters: string;
+    recommendedSteps: DiagnosticActionStep[];
+    // Which trackable GoalType (goals.ts) this dimension's finding maps to,
+    // if any -- same "one tap into a pre-filled, still-editable goal, then
+    // this card tracks its real progress" affordance Your Business Health
+    // Report offers. Null when nothing in goals.ts cleanly represents this
+    // dimension (debt reduction, trend-reversal and financing readiness have
+    // no dedicated GoalType today) -- never forced into the closest-but
+    // -wrong type.
+    suggestedGoalType: GoalType | null;
 }
 
 // "Your Business Health Report" -- the single headline finding the owner
@@ -223,11 +232,15 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? `Spending further now${hasInventory ? ', such as buying additional stock,' : ''} could leave you short for rent, suppliers, wages or loan repayments.`
                 : 'This leaves a reasonable buffer, but keep tracking upcoming commitments closely rather than assuming the balance is all spare.',
             recommendedSteps: [
-                'Confirm all upcoming payments are accurate and complete.',
-                ...(hasInventory ? ['Check how quickly your current stock converts into cash.'] : []),
-                'Forecast the next 13 weeks of cash flow.',
-                hasInventory ? 'Determine how much you can safely spend before purchasing more stock.' : 'Determine how much you can safely commit before taking on new spending.',
+                { text: 'Confirm all upcoming payments are accurate and complete.', screen: 'bills' },
+                ...(hasInventory ? [{ text: 'Check how quickly your current stock converts into cash.', screen: 'inventory' as Screen }] : []),
+                { text: 'Forecast the next 13 weeks of cash flow.', screen: 'cashflow' },
+                {
+                    text: hasInventory ? 'Determine how much you can safely spend before purchasing more stock.' : 'Determine how much you can safely commit before taking on new spending.',
+                    screen: 'analysis', params: { tab: 'decide' },
+                },
             ],
+            suggestedGoalType: 'cash_reserve',
         },
     });
 
@@ -263,10 +276,11 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? 'At this margin, a small rise in costs or a slow sales month could erase your profit entirely.'
                 : 'This gives you room to absorb a cost increase or a slow month and stay profitable.',
             recommendedSteps: [
-                'Review your biggest expense categories for quick wins.',
-                'Check whether recent pricing still covers your real costs.',
-                "Compare this month's margin against your own trend, not just an industry benchmark.",
+                { text: 'Review your biggest expense categories for quick wins.', screen: 'reports', params: { reportSection: 'statements', reportTab: 'pnl' } },
+                { text: 'Check whether recent pricing still covers your real costs.', screen: 'analysis', params: { tab: 'decide' } },
+                { text: "Compare this month's margin against your own trend, not just an industry benchmark.", screen: 'reports', params: { reportSection: 'growth', reportTab: 'history' } },
             ],
+            suggestedGoalType: 'margin_improvement',
         },
     });
 
@@ -285,6 +299,33 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
         ],
         relatedProblems: problemsFor(diagnosis.diagnoses, ['workingCapital', 'inventory']),
         seeFullDetail: { text: 'Full working capital & inventory detail', screen: 'reports', params: { reportSection: 'statements', reportTab: 'workingcapitalhealth' } },
+        narrative: {
+            headline: m.cashConversionCycleDays > 75
+                ? 'Your money is trapped in the business for a long time'
+                : m.cashConversionCycleDays > INDUSTRY_BENCHMARKS.daysOutstandingTarget + 15
+                ? 'Your cash conversion cycle is longer than ideal'
+                : 'Your working capital cycle looks healthy',
+            metrics: [
+                { label: 'Customers owe you', value: fmtMoney(currency, m.accountsReceivable) },
+                { label: 'Cash conversion cycle', value: `${Math.round(m.cashConversionCycleDays)} days` },
+            ],
+            whatThisMeans: `Customers owe you ${fmtMoney(currency, m.accountsReceivable)} and you owe suppliers ${fmtMoney(currency, m.accountsPayable)}, with ${fmtMoney(currency, m.inventoryValue)} tied up in stock. Together, cash takes about ${Math.round(m.cashConversionCycleDays)} days to go from being spent to being collected again.`,
+            whyItMatters: m.cashConversionCycleDays > 75
+                ? "That's a long gap to fund out of your own cash -- it ties up money that could otherwise go toward a buffer or growth."
+                : m.cashConversionCycleDays > INDUSTRY_BENCHMARKS.daysOutstandingTarget + 15
+                ? "There's real room to free up cash here by collecting faster or holding less stock."
+                : 'A short cycle means cash comes back quickly, giving you more flexibility day to day.',
+            recommendedSteps: [
+                { text: 'Follow up on outstanding customer invoices.', screen: 'invoices' },
+                { text: 'Review supplier payment terms for room to extend them.', screen: 'bills' },
+                ...(m.inventoryValue > 0 ? [{ text: 'Check which stock is moving slowly and tying up cash.', screen: 'inventory' as Screen }] : []),
+            ],
+            // 'reduce_overdue_ar' specifically tracks OVERDUE receivables, a
+            // narrower figure than m.accountsReceivable above -- not reused
+            // here to avoid suggesting a goal against a number this
+            // dimension doesn't actually show.
+            suggestedGoalType: null,
+        },
     });
 
     // 4. Debt health
@@ -321,10 +362,11 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? "There isn't much room to absorb a slow month without the repayment becoming a strain."
                 : 'Your cash flow comfortably covers what you owe each month, even allowing for some month-to-month variation.',
             recommendedSteps: [
-                'Confirm your next repayment dates and amounts.',
-                'Check how a slower sales month would affect your coverage ratio.',
-                ...(m.dscrStatus !== 'healthy' ? ["Talk to your lender about restructuring before a payment is missed."] : []),
+                { text: 'Confirm your next repayment dates and amounts.', screen: 'loans' },
+                { text: 'Check how a slower sales month would affect your coverage ratio.', screen: 'loans' },
+                ...(m.dscrStatus !== 'healthy' ? [{ text: "Talk to your lender about restructuring before a payment is missed.", screen: 'loans' as Screen }] : []),
             ],
+            suggestedGoalType: null,
         } : {
             headline: 'You currently have no active debt to service',
             metrics: [
@@ -334,9 +376,10 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             whatThisMeans: "You're not carrying any active loan repayments right now.",
             whyItMatters: "This isn't a current risk, but it's worth modelling before taking on any debt -- know what a repayment would do to your monthly cash flow before you apply.",
             recommendedSteps: [
-                "Model what a loan's repayment would do to your monthly cash flow before applying.",
-                'Decide the maximum monthly repayment your cash flow could absorb without strain.',
+                { text: "Model what a loan's repayment would do to your monthly cash flow before applying.", screen: 'analysis', params: { tab: 'decide' } },
+                { text: 'Decide the maximum monthly repayment your cash flow could absorb without strain.', screen: 'loans' },
             ],
+            suggestedGoalType: null,
         },
     });
 
@@ -371,10 +414,11 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? "Most of the business is moving the right way, but keep an eye on what's slipping before it affects the rest."
                 : 'A good time to plan growth rather than just defend cash -- see Decision Readiness before committing new spend.',
             recommendedSteps: [
-                'Identify exactly which trend is declining and why (see the breakdown below).',
-                'Decide whether it’s seasonal, one-off, or a real shift before reacting.',
-                'Set a check-in date to confirm whether it has turned around.',
+                { text: 'Identify exactly which trend is declining and why (see the breakdown below).', screen: 'scoreboard' },
+                { text: 'Decide whether it’s seasonal, one-off, or a real shift before reacting.', screen: 'scoreboard' },
+                { text: 'Set a check-in date to confirm whether it has turned around.' },
             ],
+            suggestedGoalType: null,
         } : undefined,
     });
 
@@ -392,6 +436,35 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
         ],
         relatedProblems: problemsFor(diagnosis.diagnoses, ['concentration']),
         seeFullDetail: { text: 'Full risk radar & shock resilience', screen: 'risk-management' },
+        narrative: {
+            headline: riskRadar.overallLevel === 'high'
+                ? 'Your biggest risk needs attention now'
+                : riskRadar.overallLevel === 'medium'
+                ? "There's a risk worth watching"
+                : 'No major risks are standing out right now',
+            metrics: [
+                { label: 'Biggest risk', value: riskRadar.topRisks[0]?.label ?? 'None identified' },
+                { label: 'Shock resilience', value: `${resilience.score}/100` },
+            ],
+            whatThisMeans: riskRadar.topRisks.length > 0
+                ? `${riskRadar.topRisks[0].summary} Your shock resilience score is ${resilience.score}/100 (${resilience.band}) -- ${resilience.band.toLowerCase()} ability to absorb an unexpected setback.`
+                : `Nothing in your customer, supplier, lender, seasonal or economic exposure is currently flagged as a risk. Your shock resilience score is ${resilience.score}/100 (${resilience.band}).`,
+            whyItMatters: riskRadar.overallLevel === 'high'
+                ? 'A risk at this level could hit cash or operations quickly if it plays out -- worth a concrete mitigation plan now, not after it happens.'
+                : riskRadar.overallLevel === 'medium'
+                ? "This isn't urgent, but worth keeping an eye on before it becomes one."
+                : 'A good position to be in -- the real risk now is complacency, not a specific exposure.',
+            recommendedSteps: [
+                { text: 'Review the full risk radar to see every category, not just the top one.', screen: 'risk-management' },
+                ...(resilience.topConcerns.length > 0 ? [{ text: `Address your top exposure: ${resilience.topConcerns[0].detail}`, screen: 'risk-management' as Screen }] : []),
+                { text: 'Check your shock resilience score and what would most improve it.', screen: 'risk-management' },
+            ],
+            suggestedGoalType: riskRadar.topRisks[0]?.key === 'customerConcentration'
+                ? 'customer_concentration'
+                : riskRadar.topRisks[0]?.key === 'supplierConcentration'
+                ? 'supplier_concentration'
+                : null,
+        },
     });
 
     // 7. Decision readiness -- not a current-state score (there's no
@@ -426,6 +499,34 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             ],
         relatedProblems: [],
         seeFullDetail: { text: 'Full financing readiness & matched options', screen: 'credit-worthiness' },
+        narrative: lendingCapacity ? {
+            headline: lendingCapacity.conclusion === 'ready'
+                ? 'You look ready to take on financing if needed'
+                : lendingCapacity.conclusion === 'improve'
+                ? "You're close, but a few things would strengthen your position first"
+                : lendingCapacity.conclusion === 'risk'
+                ? 'Borrowing right now would add real risk'
+                : 'Not enough data yet to assess this confidently',
+            metrics: [
+                { label: 'Readiness score', value: `${Math.round(financingReadinessScore)}/100` },
+                { label: 'Estimated capacity', value: `${fmtMoney(currency, lendingCapacity.minAmount)}–${fmtMoney(currency, lendingCapacity.maxAmount)}` },
+            ],
+            whatThisMeans: `Based on your real cash flow, profitability and debt position, Quad360 estimates you could responsibly take on ${fmtMoney(currency, lendingCapacity.minAmount)}–${fmtMoney(currency, lendingCapacity.maxAmount)} in financing. ${lendingCapacity.reason}`,
+            whyItMatters: lendingCapacity.conclusion === 'ready'
+                ? 'This means financing could genuinely help you grow, not just plug a gap.'
+                : lendingCapacity.conclusion === 'improve'
+                ? 'Taking on financing now might work, but strengthening these numbers first would get you better terms and less risk.'
+                : lendingCapacity.conclusion === 'risk'
+                ? 'Taking on new debt now could strain cash flow that is already under pressure.'
+                : 'Log a few more transactions so this estimate reflects your real numbers.',
+            recommendedSteps: [
+                { text: 'See the full financing readiness breakdown and matched options.', screen: 'credit-worthiness' },
+                lendingCapacity.conclusion === 'ready'
+                    ? { text: 'Compare financing options matched to your real numbers.', screen: 'financing-marketplace' }
+                    : { text: 'Check which specific factor is holding your readiness score back.', screen: 'credit-worthiness' },
+            ],
+            suggestedGoalType: null,
+        } : undefined,
     });
 
     // "Your Business Health Report" -- the one headline finding, picked

@@ -495,12 +495,48 @@ export default function FinancialAssessmentScreen() {
                         <Text style={styles.narrativeSectionLabel}>Why it matters</Text>
                         <Text style={styles.narrativeText}>{dim.narrative.whyItMatters}</Text>
                         <Text style={styles.narrativeSectionLabel}>Recommended next steps</Text>
+                        <Text style={styles.reportStepsHint}>Tap a step to go do it.</Text>
                         {dim.narrative.recommendedSteps.map((step, i) => (
-                          <View key={i} style={styles.stepRow}>
-                            <Icon name="check-circle" size={14} color={Colors.income} />
-                            <Text style={styles.narrativeStep}>{step}</Text>
-                          </View>
+                          step.screen ? (
+                            <TouchableOpacity
+                              key={i}
+                              style={styles.stepRow}
+                              onPress={() => navigate(step.screen!, { ...step.params, focusTask: step.text })}
+                              activeOpacity={0.7}
+                            >
+                              <Icon name="check-circle" size={14} color={Colors.income} />
+                              <Text style={styles.narrativeStep}>{step.text}</Text>
+                              <Icon name="chevron-right" size={16} color={Colors.textMuted} />
+                            </TouchableOpacity>
+                          ) : (
+                            <View key={i} style={styles.stepRow}>
+                              <Icon name="check-circle" size={14} color={Colors.income} />
+                              <Text style={styles.narrativeStep}>{step.text}</Text>
+                            </View>
+                          )
                         ))}
+
+                        {dim.narrative.suggestedGoalType && (() => {
+                          const tracked = goals.find(g => g.type === dim.narrative!.suggestedGoalType && g.status !== 'achieved');
+                          return (
+                            <View style={styles.dimensionGoalBox}>
+                              {tracked ? (
+                                <>
+                                  <Text style={styles.narrativeSectionLabel}>Tracking this as a goal</Text>
+                                  <Text style={styles.narrativeText}>
+                                    "{tracked.title}" is {Math.round(tracked.progress)}% there -- {GOAL_STATUS_LABEL[tracked.status]}.
+                                  </Text>
+                                  <NextStepLink text="View or adjust this goal" onPress={() => navigate('goals', { goalId: tracked.id })} />
+                                </>
+                              ) : (
+                                <NextStepLink
+                                  text="Set this up as a goal"
+                                  onPress={() => navigate('goals', { goalType: dim.narrative!.suggestedGoalType! })}
+                                />
+                              )}
+                            </View>
+                          );
+                        })()}
                       </View>
                     )}
 
@@ -911,6 +947,7 @@ const styles = StyleSheet.create({
   narrativeSectionLabel: { fontSize: 10.5, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 6 },
   narrativeText: { fontSize: 12.5, color: Colors.textPrimary, lineHeight: 18, marginTop: 1 },
   narrativeStep: { flex: 1, fontSize: 12.5, color: Colors.textPrimary, lineHeight: 18 },
+  dimensionGoalBox: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
   dimensionOutputRow: { marginBottom: 2 },
   dimensionOutputLabel: { fontSize: 10.5, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
   dimensionOutputValue: { fontSize: 12.5, color: Colors.textPrimary, lineHeight: 17, marginTop: 1 },
