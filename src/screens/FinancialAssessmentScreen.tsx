@@ -156,7 +156,6 @@ export default function FinancialAssessmentScreen() {
   const { dimensions: diagnosticDimensions, report: businessHealthReport } = useMemo(
     () => buildDiagnosticDimensions({
       diagnosis,
-      risk,
       currency: settings.currency,
       directionVsStatus,
       riskRadar,
@@ -169,7 +168,7 @@ export default function FinancialAssessmentScreen() {
       invoices,
       budgets,
     }),
-    [diagnosis, risk, settings.currency, directionVsStatus, riskRadar, resilience, financialResilience, financingReadinessScore, lendingCapacity, transactions, loans, invoices, budgets]
+    [diagnosis, settings.currency, directionVsStatus, riskRadar, resilience, financialResilience, financingReadinessScore, lendingCapacity, transactions, loans, invoices, budgets]
   );
   const [expandedDimension, setExpandedDimension] = useState<string | null>(null);
 

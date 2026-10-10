@@ -23,7 +23,7 @@
 import { Screen } from '../types';
 import { Transaction, Loan, Invoice, Budget } from '../types';
 import { DiagnosisResult, RootCauseAnalysis, INDUSTRY_BENCHMARKS } from './financialDiagnosisEngine';
-import { RiskScore, computeCashFlowForecast } from './finance';
+import { computeCashFlowForecast } from './finance';
 import { DirectionVsStatusResult } from './directionVsStatus';
 import { RiskRadar } from './riskRadar';
 import { BusinessResilience } from './businessExposure';
@@ -101,15 +101,31 @@ function problemsFor(diagnoses: RootCauseAnalysis[], dimensions: string[]): stri
     return diagnoses.filter(d => dimensions.includes(d.dimension)).map(d => d.problem);
 }
 
-// HealthCategory/RiskFactor status -> this file's 3-level status.
+// HealthCategory status -> this file's 3-level status.
 function fromCategoryStatus(status: 'strong' | 'watch' | 'high-risk'): DiagnosticStatus { return status; }
-function fromFactorStatus(status: 'good' | 'warning' | 'danger'): DiagnosticStatus {
-    return status === 'good' ? 'strong' : status === 'warning' ? 'watch' : 'high-risk';
+
+// Same thresholds risk.factors' own Profitability/Liquidity factors use
+// (finance.ts: margin >= 20 good, runway >= 6 months good, etc.) -- but
+// applied to THIS MONTH's own metrics (m), never risk.factors' all-time
+// aggregate. risk.factors is computed from EVERY transaction ever recorded
+// (computeFinance has no date filter), which can disagree with this screen's
+// own current-month numbers -- a dimension's status badge used to come from
+// that all-time figure while its narrative quoted this month's, so a
+// business with a strong current month but a weaker history could see
+// "Needs attention" right above numbers that plainly look fine. Deriving
+// status from the same `m` the narrative already reads keeps the two always
+// in agreement.
+function profitabilityStatus(profitMarginPct: number): DiagnosticStatus {
+    return profitMarginPct >= 20 ? 'strong' : profitMarginPct >= 0 ? 'watch' : 'high-risk';
+}
+function cashHealthStatus(runwayDays: number | null): DiagnosticStatus {
+    if (runwayDays === null) return 'info';
+    const runwayMonths = runwayDays / 30;
+    return runwayMonths >= 6 ? 'strong' : runwayMonths >= 3 ? 'watch' : 'high-risk';
 }
 
 export interface BuildDiagnosticDimensionsInput {
     diagnosis: DiagnosisResult;
-    risk: RiskScore;
     currency: string;
     directionVsStatus: DirectionVsStatusResult;
     riskRadar: RiskRadar;
@@ -132,12 +148,8 @@ export interface BuildDiagnosticDimensionsResult {
 }
 
 export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput): BuildDiagnosticDimensionsResult {
-    const { diagnosis, risk, currency, directionVsStatus, riskRadar, resilience, reserveCoverageMonths, financingReadinessScore, lendingCapacity, transactions, loans, invoices, budgets } = input;
+    const { diagnosis, currency, directionVsStatus, riskRadar, resilience, reserveCoverageMonths, financingReadinessScore, lendingCapacity, transactions, loans, invoices, budgets } = input;
     const m = diagnosis.metrics;
-    const factor = (name: string) => risk.factors.find(f => f.name === name);
-    const liquidityFactor = factor('Liquidity');
-    const profitFactor = factor('Profitability');
-    const debtFactor = factor('Debt');
     const wcCategory = diagnosis.categories.find(c => c.key === 'workingCapital');
 
     const dims: DiagnosticDimension[] = [];
@@ -154,7 +166,7 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
         key: 'cashHealth',
         title: 'Cash Health',
         question: 'Do I have money to operate?',
-        status: liquidityFactor ? fromFactorStatus(liquidityFactor.status) : 'info',
+        status: cashHealthStatus(m.runwayDays),
         statusLabel: fmtRunway(m.runwayDays),
         outputs: [
             { label: 'Cash on hand', value: fmtMoney(currency, m.cashBalance) },
@@ -196,7 +208,7 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
         key: 'profitability',
         title: 'Profitability',
         question: 'Am I actually making money?',
-        status: profitFactor ? fromFactorStatus(profitFactor.status) : 'info',
+        status: profitabilityStatus(m.profitMargin),
         statusLabel: `${m.profitMargin.toFixed(1)}% margin`,
         outputs: [
             { label: 'Revenue', value: fmtMoney(currency, m.totalRevenue) },
@@ -252,7 +264,10 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
         key: 'debtHealth',
         title: 'Debt Health',
         question: 'Can my business handle what it owes?',
-        status: debtFactor ? fromFactorStatus(debtFactor.status) : 'info',
+        // m.dscrStatus is already this month's own healthy/warning/danger
+        // read on the same m.dscr the narrative quotes -- no debt at all is
+        // never a risk in itself, so it reads as strong rather than 'info'.
+        status: m.monthlyDebtService > 0 ? (m.dscrStatus === 'healthy' ? 'strong' : m.dscrStatus === 'warning' ? 'watch' : 'high-risk') : 'strong',
         statusLabel: m.monthlyDebtService > 0 ? `${m.dscr.toFixed(2)}x coverage` : 'No active debt',
         outputs: [
             { label: 'Monthly debt obligations', value: fmtMoney(currency, m.monthlyDebtService) },
