@@ -52,6 +52,18 @@ export interface DiagnosticNarrative {
     recommendedSteps: string[];
 }
 
+// A "what you should do next" step that's actually actionable -- tapping
+// it opens the real screen that lets the owner do it, instead of a plain
+// checkmark the owner then has to go find their own way to act on.
+// screen is omitted only for a step with genuinely no destination (e.g.
+// "revisit this in a few days"), never left off a step that could be
+// clickable.
+export interface DiagnosticActionStep {
+    text: string;
+    screen?: Screen;
+    params?: Record<string, any>;
+}
+
 // "Your Business Health Report" -- the single headline finding the owner
 // should see first, before the 8-dimension breakdown: one plain-language
 // diagnosis (what was found, why it matters, what to do, and the one
@@ -65,8 +77,14 @@ export interface BusinessHealthReport {
     whatWeFound: string;
     metrics: DiagnosticOutput[];
     whyThisMatters: string;
-    nextSteps: string[];
-    nextDecision: { text: string; screen: Screen; params?: Record<string, any> };
+    // The "what to do" and "which decision this bears on" used to be two
+    // separate sections -- a static checklist, then an unrelated-looking
+    // single button below it -- which read as two disconnected prompts
+    // instead of one flow. Now one list: each step is tappable and goes
+    // straight to the real screen/tool for it, and the step that's
+    // actually a decision (comparing a number against a real baseline)
+    // IS the link into Analysis & Decisions, not a second button after.
+    nextSteps: DiagnosticActionStep[];
     // Which trackable GoalType (goals.ts) "What you should do next" above
     // actually corresponds to, if any -- lets the screen offer a one-tap
     // "set this up as a goal" straight into a pre-filled, still-editable
@@ -436,16 +454,15 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? `After those known payments, ${fmtMoney(currency, cashAfterCommitments)} remains before other expenses and reserves. Your bank balance therefore does not represent the amount you can safely spend.`
                 : `After those known payments, you'd be short by ${fmtMoney(currency, Math.abs(cashAfterCommitments))} before other expenses and reserves even arise. Your bank balance alone cannot cover what's already committed.`,
             nextSteps: [
-                'Confirm all outstanding bills and loan repayments.',
-                'Calculate how much cash is needed to keep operating.',
-                hasInventory ? 'Review your next stock purchase before committing the money.' : 'Review any new spending before committing the money.',
+                { text: 'Confirm all outstanding bills and loan repayments.', screen: 'bills' },
+                { text: 'Calculate how much cash is needed to keep operating.', screen: 'cashflow' },
+                {
+                    text: hasInventory
+                        ? `Before spending on new stock, check it against ${fmtMoney(currency, Math.max(0, cashAfterCommitments))} -- what's left after your known upcoming payments, not your full bank balance.`
+                        : `Before taking on new spending, check it against ${fmtMoney(currency, Math.max(0, cashAfterCommitments))} -- what's left after your known upcoming payments, not your full bank balance.`,
+                    screen: 'analysis', params: { tab: 'decide' },
+                },
             ],
-            nextDecision: {
-                text: hasInventory
-                    ? `Before spending on new stock, check it against ${fmtMoney(currency, Math.max(0, cashAfterCommitments))} -- what's left after your known upcoming payments, not your full bank balance.`
-                    : `Before taking on new spending, check it against ${fmtMoney(currency, Math.max(0, cashAfterCommitments))} -- what's left after your known upcoming payments, not your full bank balance.`,
-                screen: 'analysis', params: { tab: 'decide' },
-            },
             suggestedGoalType: 'cash_reserve',
         };
     } else if (worst.key === 'profitability' && worst.status !== 'strong') {
@@ -460,14 +477,13 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             ],
             whyThisMatters: `Revenue of ${fmtMoney(currency, m.totalRevenue)} against ${fmtMoney(currency, m.totalExpenses)} in expenses leaves ${m.netProfit >= 0 ? `only ${fmtMoney(currency, m.netProfit)}` : `a loss of ${fmtMoney(currency, m.netProfit)}`} -- a ${m.profitMargin.toFixed(1)}% margin. A small rise in costs or a slow month could erase this entirely.`,
             nextSteps: [
-                'Review your biggest expense categories for quick wins.',
-                'Check whether recent pricing still covers your real costs.',
-                'Confirm which costs are fixed and which can flex if sales slow down.',
+                { text: 'Review your biggest expense categories for quick wins.', screen: 'reports', params: { reportSection: 'statements', reportTab: 'pnl' } },
+                {
+                    text: `Before committing to new costs or a price change, check it against your current ${m.profitMargin.toFixed(1)}% margin -- the 20% benchmark is the line where a small shock stops being survivable.`,
+                    screen: 'analysis', params: { tab: 'decide' },
+                },
+                { text: 'Confirm which costs are fixed and which can flex if sales slow down.', screen: 'budget' },
             ],
-            nextDecision: {
-                text: `Before committing to new costs or a price change, check it against your current ${m.profitMargin.toFixed(1)}% margin -- the 20% benchmark is the line where a small shock stops being survivable.`,
-                screen: 'analysis', params: { tab: 'decide' },
-            },
             suggestedGoalType: 'margin_improvement',
         };
     } else if (worst.key === 'debtHealth' && worst.status !== 'strong') {
@@ -482,14 +498,13 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             ],
             whyThisMatters: `Monthly debt payments of ${fmtMoney(currency, m.monthlyDebtService)} are covered ${m.dscr.toFixed(2)}x by operating cash flow. A ratio below 1.25x means thin coverage, and a slower month could put a repayment at risk.`,
             nextSteps: [
-                'Confirm your next repayment dates and amounts.',
-                'Check how a slower sales month would affect your coverage ratio.',
-                'Talk to your lender about restructuring before a payment is missed.',
+                { text: 'Confirm your next repayment dates and amounts.', screen: 'loans' },
+                {
+                    text: `Check how a slower sales month would affect your coverage ratio -- check it against your current ${m.dscr.toFixed(2)}x, which needs to stay above 1.25x to leave room for a slow month.`,
+                    screen: 'loans',
+                },
+                ...(m.dscrStatus !== 'healthy' ? [{ text: 'Talk to your lender about restructuring before a payment is missed.', screen: 'loans' as Screen }] : []),
             ],
-            nextDecision: {
-                text: `Before taking on any new costs or debt, check it against your current ${m.dscr.toFixed(2)}x coverage ratio -- it needs to stay above 1.25x to leave room for a slow month.`,
-                screen: 'loans',
-            },
             suggestedGoalType: null,
         };
     } else if (worst.key === 'businessPerformance' && worst.status !== 'strong' && directionVsStatus.directionAvailable) {
@@ -502,14 +517,13 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             ],
             whyThisMatters: `${declining} of the trends being tracked are getting worse, against ${improving} improving. Left unaddressed, this usually shows up in cash and profit within a few months.`,
             nextSteps: [
-                'Identify exactly which trend is declining and why.',
-                "Decide whether it's seasonal, one-off, or a real shift.",
-                "Set a check-in date to confirm whether it's turned around.",
+                { text: 'Identify exactly which trend is declining and why.', screen: 'scoreboard' },
+                {
+                    text: `Before planning new growth spending, check whether it depends on the ${declining} trend${declining === 1 ? '' : 's'} currently moving the wrong way, or on the ${improving} that's still working.`,
+                    screen: 'scoreboard',
+                },
+                { text: "Set a check-in date to confirm whether it's turned around." },
             ],
-            nextDecision: {
-                text: `Before planning new growth spending, check whether it depends on the ${declining} trend${declining === 1 ? '' : 's'} currently moving the wrong way, or on the ${improving} that's still working.`,
-                screen: 'scoreboard',
-            },
             suggestedGoalType: null,
         };
     } else {
@@ -522,14 +536,13 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             ],
             whyThisMatters: 'This is a good position to plan from -- you have room to consider growth, not just defend what you have.',
             nextSteps: [
-                'Keep tracking upcoming payments and recent trends so you catch pressure early.',
-                'Consider whether this is a good time to invest in growth.',
-                "Revisit this report after your next few transactions to confirm it's holding.",
+                { text: 'Keep tracking upcoming payments and recent trends so you catch pressure early.', screen: 'scoreboard' },
+                {
+                    text: `If you're considering a new investment or expansion, test it against your current ${fmtMoney(currency, m.cashBalance)} balance and ${m.profitMargin.toFixed(1)}% margin before committing.`,
+                    screen: 'analysis', params: { tab: 'decide' },
+                },
+                { text: "Revisit this report after your next few transactions to confirm it's holding." },
             ],
-            nextDecision: {
-                text: `If you're considering a new investment or expansion, test it against your current ${fmtMoney(currency, m.cashBalance)} balance and ${m.profitMargin.toFixed(1)}% margin before committing.`,
-                screen: 'analysis', params: { tab: 'decide' },
-            },
             suggestedGoalType: 'revenue_growth',
         };
     }
