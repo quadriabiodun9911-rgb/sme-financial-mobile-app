@@ -35,6 +35,8 @@ const GOAL_TYPE_SOLUTION: Record<GoalType, ImpactSource> = {
     cost_reduction: 'budget',
     cash_reserve: 'budget',
     reduce_overdue_ar: 'expense',
+    customer_concentration: 'expense',
+    supplier_concentration: 'expense',
     custom: 'expense',
 };
 
@@ -44,6 +46,8 @@ const GOAL_TYPES: { type: GoalType; label: string; icon: IconName; description: 
     { type: 'cost_reduction', label: 'Reduce Costs', icon: 'scissors', description: 'Cut total operating expenses' },
     { type: 'cash_reserve', label: 'Build Cash Reserve', icon: 'save', description: 'Grow cash balance to a target amount' },
     { type: 'reduce_overdue_ar', label: 'Clear Overdue AR', icon: 'clipboard', description: 'Collect all outstanding receivables' },
+    { type: 'customer_concentration', label: 'Diversify Customers', icon: 'users', description: "Cap any single customer's share of revenue" },
+    { type: 'supplier_concentration', label: 'Diversify Suppliers', icon: 'truck', description: "Cap any single supplier's share of spend" },
     { type: 'custom', label: 'Custom Goal', icon: 'target', description: 'Define your own financial milestone' },
 ];
 

@@ -78,6 +78,8 @@ const GOAL_RELEVANT_DIMENSIONS: Record<GoalType, HealthCategory['key'][]> = {
     cost_reduction: ['efficiency', 'concentration'],
     cash_reserve: ['liquidity', 'workingCapital', 'debt'],
     reduce_overdue_ar: ['liquidity', 'workingCapital', 'concentration'],
+    customer_concentration: ['concentration'],
+    supplier_concentration: ['concentration'],
     custom: [],
 };
 
@@ -87,6 +89,8 @@ const GOAL_RELEVANT_RISK_CATEGORIES: Record<GoalType, RiskRadarCategory['key'][]
     cost_reduction: ['supplierConcentration', 'economic'],
     cash_reserve: ['debtCoverage', 'lenderConcentration', 'seasonal'],
     reduce_overdue_ar: ['customerConcentration'],
+    customer_concentration: ['customerConcentration'],
+    supplier_concentration: ['supplierConcentration'],
     custom: [],
 };
 

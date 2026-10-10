@@ -122,10 +122,9 @@ export interface RootCauseAnalysis {
   // explicitly per diagnosis rather than inferred from the problem text, so
   // the "achieve a goal -> here's your next one" loop (DashboardScreen)
   // never guesses. Left undefined for diagnoses with no corresponding
-  // FinancialGoal type today (debt, concentration, inventory, cash
-  // conversion cycle, revenue mix) -- proposing a "goal" for those would
-  // either misuse an unrelated type or create one nothing can track
-  // progress against.
+  // FinancialGoal type today (debt, inventory, cash conversion cycle,
+  // revenue mix) -- proposing a "goal" for those would either misuse an
+  // unrelated type or create one nothing can track progress against.
   suggestedGoalType?: GoalType;
 }
 
@@ -815,6 +814,7 @@ export function diagnoseConcentration(
       trigger: metrics.topCustomerConcentrationPct >= 60
         ? 'Resolves once this customer\'s share drops under 40% of revenue.'
         : 'Becomes critical if this customer\'s share reaches 60% of revenue.',
+      suggestedGoalType: 'customer_concentration',
     });
   }
 
@@ -831,6 +831,7 @@ export function diagnoseConcentration(
       trigger: metrics.topSupplierConcentrationPct >= 60
         ? 'Resolves once this supplier\'s share drops under 40% of spend.'
         : 'Becomes critical if this supplier\'s share reaches 60% of spend.',
+      suggestedGoalType: 'supplier_concentration',
     });
   }
 
