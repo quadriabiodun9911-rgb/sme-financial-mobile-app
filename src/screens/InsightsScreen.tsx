@@ -16,6 +16,7 @@ import { computeDecisionCentre, DecisionCentreItem, DecisionBucket } from '../ut
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { trackInsightViewed } from '../utils/analytics';
+import { localDateStr } from '../utils/localDate';
 
 if (Platform.OS === 'android') {
     UIManager.setLayoutAnimationEnabledExperimental?.(true);
@@ -224,6 +225,11 @@ export default function InsightsScreen() {
                                                         <TouchableOpacity onPress={() => navigate('goals', {
                                                             goalType: item.suggestedGoalType ?? 'custom',
                                                             ...(item.suggestedGoalType ? {} : { goalTitle: item.title, goalDescription: item.recommendedAction }),
+                                                            // Same 90-day default every other "Set this as a goal"
+                                                            // link in the app prefills (ScenarioResultCard,
+                                                            // DecisionSimulator) -- a concrete starting deadline the
+                                                            // owner can still change, not a blank field to guess at.
+                                                            goalDeadline: localDateStr(new Date(Date.now() + 90 * 86400000)),
                                                         })}>
                                                             <Text style={styles.goalLink}>Set a goal →</Text>
                                                         </TouchableOpacity>

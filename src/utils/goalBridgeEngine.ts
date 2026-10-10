@@ -273,6 +273,10 @@ const GOAL_TYPE_TO_BRIDGE: Record<GoalType, FinancialGoal['type']> = {
   cost_reduction: 'profit',
   cash_reserve: 'cash',
   reduce_overdue_ar: 'cash',
+  // Goal Bridge has no concentration metric of its own -- same 'profit'
+  // degrade as custom/cost_reduction above.
+  customer_concentration: 'profit',
+  supplier_concentration: 'profit',
   custom: 'profit',
 };
 

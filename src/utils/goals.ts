@@ -2,7 +2,7 @@ import {
     FinancialGoal, GoalType, GoalStatus, GoalStrategy,
     StrategyAction, FinanceData, Transaction, BusinessSettings,
 } from '../types';
-import { getTopCategories, getMonthlyExpenseAverage } from './finance';
+import { getTopCategories, getMonthlyExpenseAverage, computeCustomerConcentration, computeSupplierConcentration } from './finance';
 import { computeMonthlyBaseline } from './analysis';
 
 // ─── Goal progress computation ────────────────────────────────────────────────
@@ -21,6 +21,8 @@ export function computeGoalCurrent(
             const overdue = transactions.filter(t => t.type === 'income' && t.status === 'overdue');
             return overdue.reduce((s, t) => s + (t.amount ?? 0), 0);
         }
+        case 'customer_concentration': return computeCustomerConcentration(transactions)[0]?.percentage ?? 0;
+        case 'supplier_concentration': return computeSupplierConcentration(transactions)[0]?.percentage ?? 0;
         case 'custom': return goal.currentValue;
         default: return 0;
     }
@@ -29,7 +31,7 @@ export function computeGoalCurrent(
 export function computeGoalProgress(goal: FinancialGoal): number {
     const { type, baselineValue, targetValue, currentValue } = goal;
 
-    if (type === 'cost_reduction' || type === 'reduce_overdue_ar') {
+    if (type === 'cost_reduction' || type === 'reduce_overdue_ar' || type === 'customer_concentration' || type === 'supplier_concentration') {
         const needed = baselineValue - targetValue;
         if (!isFinite(needed) || needed <= 0) return currentValue <= targetValue ? 100 : 0;
         const achieved = baselineValue - currentValue;
@@ -421,6 +423,29 @@ export function goalDefaults(
                 targetValue: 0,
                 baselineValue: overdueAR,
                 unit: currency,
+            };
+        }
+        case 'customer_concentration': {
+            // Same 40% "resolves" threshold diagnoseConcentration itself
+            // fires on (financialDiagnosisEngine.ts) -- never a second,
+            // independently-chosen cutoff.
+            const current = computeCustomerConcentration(transactions)[0]?.percentage ?? 0;
+            return {
+                title: 'Cap Top Customer at 40% of Revenue',
+                description: "Diversify the customer base so no single customer's share of revenue exceeds 40%.",
+                targetValue: 40,
+                baselineValue: parseFloat(current.toFixed(1)),
+                unit: '%',
+            };
+        }
+        case 'supplier_concentration': {
+            const current = computeSupplierConcentration(transactions)[0]?.percentage ?? 0;
+            return {
+                title: 'Cap Top Supplier at 40% of Spend',
+                description: "Qualify a second supplier so no single vendor's share of spend exceeds 40%.",
+                targetValue: 40,
+                baselineValue: parseFloat(current.toFixed(1)),
+                unit: '%',
             };
         }
         case 'custom':

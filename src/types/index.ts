@@ -125,6 +125,8 @@ export type GoalType =
     | 'cost_reduction'
     | 'cash_reserve'
     | 'reduce_overdue_ar'
+    | 'customer_concentration'
+    | 'supplier_concentration'
     | 'custom';
 
 export type GoalStatus = 'on_track' | 'at_risk' | 'off_track' | 'achieved';
