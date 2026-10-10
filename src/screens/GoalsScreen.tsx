@@ -23,6 +23,7 @@ import { showAlert, confirmAction } from '../utils/webAlert';
 import { computeRiskRadar } from '../utils/riskRadar';
 import { assessGoalRisk, GoalRiskSeverity } from '../utils/goalRiskLinkage';
 import { computeExternalFactorsPanel } from '../utils/externalFactorsPanel';
+import { buildInventoryGoalSignal } from '../utils/inventoryIntelligence';
 import { computeGoalBudgetAlignment, computeGoalForecastAlignment, computeRevenueMarginForecastAlignment } from '../utils/goalAlignment';
 import { computeGoalForecastGap } from '../utils/goalForecastGap';
 import { localDateStr } from '../utils/localDate';
@@ -191,8 +192,9 @@ export default function GoalsScreen() {
         if (!planGoal || !planDiagnosis || !planBridge) return null;
         const riskRadar = computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? [], new Date(), assets);
         const externalFactorsPanel = computeExternalFactorsPanel(transactions, settings?.macroAssumptions ?? []);
-        return assessGoalRisk(planGoal.type, planDiagnosis.diagnoses, riskRadar, planBridge.successProbability, externalFactorsPanel);
-    }, [planGoal, planDiagnosis, planBridge, transactions, loans, settings?.macroAssumptions, assets]);
+        const inventorySignal = buildInventoryGoalSignal(inventory, transactions, getMonthlyExpenseAverage(finance.expense, transactions));
+        return assessGoalRisk(planGoal.type, planDiagnosis.diagnoses, riskRadar, planBridge.successProbability, externalFactorsPanel, inventorySignal);
+    }, [planGoal, planDiagnosis, planBridge, transactions, loans, settings?.macroAssumptions, assets, inventory, finance.expense]);
 
     // Whether what's actually committed (this month's Budget) and what's
     // actually trending (the near-term Cash Flow Forecast, which already

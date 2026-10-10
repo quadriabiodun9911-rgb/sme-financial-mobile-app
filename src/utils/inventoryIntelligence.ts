@@ -16,6 +16,7 @@
 
 import { InventoryItem, Transaction } from '../types';
 import { computeStockVelocity } from './stockVelocity';
+import { computeInventoryForecast } from './inventoryForecast';
 
 export interface InventoryPace {
     purchasesThisMonth: number;
@@ -70,4 +71,36 @@ export function computeSlowMovingValue(items: InventoryItem[], transactions: Tra
         const velocity = computeStockVelocity(item, transactions);
         return velocity.tier === 'slow' ? sum + (item.quantity || 0) * (item.costPrice || 0) : sum;
     }, 0);
+}
+
+export interface InventoryGoalSignal {
+    avgMonthlyPurchases: number;
+    // Share of the business's average monthly expenses that goes toward
+    // restocking -- null when there's no expense baseline to compare
+    // against. How much a cost-cutting target would have to lean on
+    // inventory spend specifically to be hit.
+    purchasesPctOfExpenses: number | null;
+    atRiskItemCount: number; // items within computeInventoryForecast's own stockout window
+    inventoryValue: number;
+}
+
+// Assembled from computeInventoryForecast's own already-computed purchase
+// pace and stockout-risk count -- called with a 1-month window and no sales
+// estimate purely to reuse that exact logic rather than recomputing it
+// (daysOfCoverage/projectedInventoryValue from that call depend on the sales
+// estimate and are meaningless here, so intentionally unused). This is the
+// real signal goalRiskLinkage.ts uses to warn when a goal's own target would
+// clash with restocking spend or stockout risk, never a separate estimate.
+export function buildInventoryGoalSignal(
+    inventory: InventoryItem[],
+    transactions: Transaction[],
+    avgMonthlyExpense: number,
+): InventoryGoalSignal {
+    const forecast = computeInventoryForecast(inventory, transactions, 0, 1);
+    return {
+        avgMonthlyPurchases: forecast.expectedPurchases,
+        purchasesPctOfExpenses: avgMonthlyExpense > 0 ? (forecast.expectedPurchases / avgMonthlyExpense) * 100 : null,
+        atRiskItemCount: forecast.atRiskItemCount,
+        inventoryValue: forecast.currentInventoryValue,
+    };
 }
