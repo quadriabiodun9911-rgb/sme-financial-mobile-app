@@ -4,6 +4,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Header from '../components/Header';
+import FocusTaskBanner from '../components/FocusTaskBanner';
 import FooterNav from '../components/FooterNav';
 import LowDataNotice from '../components/LowDataNotice';
 import Icon, { IconName } from '../components/ui/Icon';
@@ -117,7 +118,7 @@ function GoalBar({ pct, color }: { pct: number; color: string }) {
 }
 
 export default function ScoreboardScreen() {
-    const { transactions, invoices, loans, inventory, finance, settings, goals, readinessHistory, navigate, setCurrentScreen, assets } = useApp();
+    const { transactions, invoices, loans, inventory, finance, settings, goals, readinessHistory, navigate, setCurrentScreen, assets, navParams } = useApp();
     const { currency } = settings;
 
     // Every colored dot on this screen already carries a real, computed
@@ -337,6 +338,7 @@ export default function ScoreboardScreen() {
         <SafeAreaView style={s.safe}>
             <Header />
             <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
+                <FocusTaskBanner focusTask={navParams?.focusTask} />
                 <View style={s.titleRow}>
                     <Icon name="activity" size={20} color={Colors.textPrimary} />
                     <Text style={s.title}>Scoreboard</Text>

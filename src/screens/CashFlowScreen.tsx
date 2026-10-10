@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
+import FocusTaskBanner from '../components/FocusTaskBanner';
 import FooterNav from '../components/FooterNav';
 import RadialGauge from '../components/RadialGauge';
 import { computeCashFlowForecast, computeDSCR } from '../utils/finance';
@@ -199,6 +200,11 @@ export default function CashFlowScreen() {
     return (
         <SafeAreaView style={styles.safe}>
             <Header />
+            {navParams?.focusTask && (
+                <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+                    <FocusTaskBanner focusTask={navParams.focusTask} />
+                </View>
+            )}
 
             {/* Tabs */}
             <View style={styles.tabRow}>

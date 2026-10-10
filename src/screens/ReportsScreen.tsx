@@ -6,6 +6,7 @@ import {
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
+import FocusTaskBanner from '../components/FocusTaskBanner';
 import FooterNav from '../components/FooterNav';
 import InfoTip from '../components/InfoTip';
 import { canWriteBusinessData } from '../utils/rolePermissions';
@@ -457,6 +458,11 @@ export default function ReportsScreen() {
                 <Text style={styles.backToLandingText}>All Reports</Text>
             </TouchableOpacity>
 
+            {navParams?.focusTask && (
+                <View style={{ paddingHorizontal: 16 }}>
+                    <FocusTaskBanner focusTask={navParams.focusTask} />
+                </View>
+            )}
 
             {/* ── Section picker ────────────────────────────────────── */}
             <View style={styles.sectionRow}>

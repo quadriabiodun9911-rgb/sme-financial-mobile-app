@@ -461,6 +461,12 @@ export interface NavParams {
     // own target total to compare the suggestion against.
     openAutoGenForGoal?: boolean;
     budgetGoalTarget?: number;
+    // The specific "why you're here" instruction from whichever "what to do
+    // next" step deep-linked to this screen (Business Health Report, Decision
+    // Centre...) -- rendered as a banner (FocusTaskBanner) right under the
+    // header so landing on a screen's generic default view doesn't leave the
+    // owner to remember the actual task on their own.
+    focusTask?: string;
     // Carries the exact scenario the owner was testing on the Dashboard's
     // MacroShield card into macroshield-detail, so the detail page never
     // shows a different shock than the one just explored.
