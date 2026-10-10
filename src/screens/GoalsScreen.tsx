@@ -599,8 +599,18 @@ export default function GoalsScreen() {
                                                 </View>
 
                                                 <View style={styles.assessmentRow}>
-                                                    <Text style={styles.assessmentRowLabel}>Required Monthly Improvement:</Text>
+                                                    <Text style={styles.assessmentRowLabel}>Required Monthly Pace:</Text>
                                                     <Text style={styles.assessmentRowValue}>{formatGoalMetric(planBridge.requiredMonthlyImprovement, planBridge.goal.type, currency)}</Text>
+                                                </View>
+
+                                                <View style={styles.assessmentRow}>
+                                                    <Text style={styles.assessmentRowLabel}>Required Weekly Pace:</Text>
+                                                    <Text style={styles.assessmentRowValue}>{formatGoalMetric(planBridge.requiredWeeklyImprovement, planBridge.goal.type, currency)}</Text>
+                                                </View>
+
+                                                <View style={styles.assessmentRow}>
+                                                    <Text style={styles.assessmentRowLabel}>Required Daily Pace:</Text>
+                                                    <Text style={styles.assessmentRowValue}>{formatGoalMetric(planBridge.requiredDailyImprovement, planBridge.goal.type, currency)}</Text>
                                                 </View>
 
                                                 <View style={styles.assessmentRow}>
@@ -765,6 +775,27 @@ export default function GoalsScreen() {
                                                     <Text style={[styles.actionDetail, { marginTop: 6, fontStyle: 'italic' }]}>→ {risk.action}</Text>
                                                 </View>
                                             ))}
+
+                                            {/* Categories relevant to this goal that riskRadar couldn't assess
+                                                at all (e.g. Economic Risk needs macro assumptions set in
+                                                Settings) -- named explicitly rather than just missing from the
+                                                list above, so "no risk shown" never gets mistaken for "no risk
+                                                exists." */}
+                                            {planGoalRisk.dataGaps.length > 0 && (
+                                                <>
+                                                    <View style={styles.sectionTitleRow}>
+                                                        <Icon name="help-circle" size={15} color={Colors.textMuted} />
+                                                        <Text style={[styles.sectionTitle, styles.sectionTitleInRow]}>Not Yet Assessed</Text>
+                                                    </View>
+                                                    {planGoalRisk.dataGaps.map((gap, i) => (
+                                                        <View key={i} style={[styles.actionCard, { borderLeftColor: Colors.border }]}>
+                                                            <Text style={styles.actionTitle}>{gap.label}</Text>
+                                                            <Text style={styles.actionDetail}>{gap.note}</Text>
+                                                        </View>
+                                                    ))}
+                                                    <NextStepLink text="Add your economic assumptions in Settings" onPress={() => { setPlanGoalId(null); setCurrentScreen('settings'); }} />
+                                                </>
+                                            )}
 
                                             <Text style={styles.strategyFooter}>
                                                 Risks refresh automatically as your financial data changes.

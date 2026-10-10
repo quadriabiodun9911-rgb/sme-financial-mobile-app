@@ -116,6 +116,40 @@ export function generateStrategy(
                     detail: 'You have fewer than 3 active income categories. Adding new revenue streams reduces concentration risk and opens growth paths.',
                 });
             }
+            {
+                // Repeat vs one-off customers, from the business's own
+                // income transactions (computeCustomerConcentration's
+                // txCount per customer) -- the closest real signal this app
+                // has to "customer retention," never a fabricated
+                // satisfaction or churn number it has no data for.
+                const customers = computeCustomerConcentration(transactions);
+                const repeatCustomers = customers.filter(c => c.txCount >= 2).length;
+                const repeatPct = customers.length > 0 ? (repeatCustomers / customers.length) * 100 : 0;
+                actions.push({
+                    priority: repeatPct < 30 && customers.length >= 3 ? 'high' : 'medium',
+                    title: 'Grow revenue from repeat customers',
+                    detail: customers.length >= 3
+                        ? `${repeatCustomers} of ${customers.length} customers (${repeatPct.toFixed(0)}%) have bought more than once. Winning repeat business is cheaper than acquiring new customers -- follow up after every sale and consider a standing offer for regulars.`
+                        : 'Too few distinct customers logged yet to measure repeat-purchase behaviour. As more sales come in, Quad360 will show what share of revenue comes from returning customers.',
+                    metric: customers.length >= 3 ? `${repeatPct.toFixed(0)}% repeat customers` : undefined,
+                });
+            }
+            {
+                // Grounded in the business's own expense categories -- never
+                // a fabricated "marketing ROI" figure Quad360 has no data to
+                // support. If nothing is tagged as marketing, the honest
+                // answer is that this can't be assessed yet, not a made-up
+                // recommendation.
+                const marketingSpend = topExpenses.find(e => /market|advert|promo/i.test(e.category));
+                actions.push({
+                    priority: 'low',
+                    title: marketingSpend ? 'Review marketing spend effectiveness' : 'Start tracking marketing spend',
+                    detail: marketingSpend
+                        ? `You spent ${currency}${marketingSpend.amount.toLocaleString()} on "${marketingSpend.category}". Compare which channel or campaign brought in new customers this period before spending more there.`
+                        : 'No transactions are currently tagged as marketing or advertising spend. Categorising that spend separately lets Quad360 show whether it\'s actually driving new revenue.',
+                    metric: marketingSpend ? `Spend: ${currency}${marketingSpend.amount.toLocaleString()}` : undefined,
+                });
+            }
             actions.push({
                 priority: 'medium',
                 title: 'Accelerate invoicing and collections',

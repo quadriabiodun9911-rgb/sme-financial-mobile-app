@@ -62,11 +62,23 @@ const DIMENSION_SHORT_LABEL: Record<HealthCategory['key'], string> = {
     cashFlow: 'weak cash conversion',
 };
 
+export interface GoalRiskDataGap {
+    label: string;
+    note: string; // riskRadar's own explanation of what's missing (e.g. "Add your economic assumptions in Settings to see this.")
+}
+
 export interface GoalRiskAssessment {
     risks: GoalRiskItem[]; // worst-first: severity desc, then financialImpact desc
     growthReadiness: number; // 0-100
     readinessBand: 'Strong' | 'Moderate' | 'Weak';
     narrative: string;
+    // Risk-radar categories relevant to this goal type that couldn't be
+    // assessed at all (riskRadar's own 'no-data' level) -- surfaced
+    // separately from `risks` so a category like Economic Risk (inflation,
+    // demand) doesn't just silently vanish when macro assumptions haven't
+    // been set in Settings. Never a fabricated risk; just an honest "this
+    // can't be assessed yet, and here's why."
+    dataGaps: GoalRiskDataGap[];
 }
 
 // Which diagnosis dimensions and risk-radar categories actually threaten
@@ -134,6 +146,7 @@ export function assessGoalRisk(
     const categoryFilter = relevantCategories.length > 0 ? relevantCategories : null;
 
     const risks: GoalRiskItem[] = [];
+    const dataGaps: GoalRiskDataGap[] = [];
 
     for (const d of diagnoses) {
         if (dimensionFilter && !dimensionFilter.includes(d.dimension)) continue;
@@ -151,7 +164,10 @@ export function assessGoalRisk(
     for (const c of riskRadar.categories) {
         if (categoryFilter && !categoryFilter.includes(c.key)) continue;
         const severity = riskLevelSeverity(c.level);
-        if (!severity) continue;
+        if (!severity) {
+            if (c.level === 'no-data') dataGaps.push({ label: c.label, note: c.summary });
+            continue;
+        }
         risks.push({
             source: 'riskRadar',
             label: c.label,
@@ -189,5 +205,5 @@ export function assessGoalRisk(
         ? 'No major risks currently threaten this goal — a clear runway to hit your target.'
         : `Your biggest constraint right now isn't the goal itself — it's ${topRealRisk.shortLabel}.`;
 
-    return { risks, growthReadiness, readinessBand, narrative };
+    return { risks, growthReadiness, readinessBand, narrative, dataGaps };
 }
