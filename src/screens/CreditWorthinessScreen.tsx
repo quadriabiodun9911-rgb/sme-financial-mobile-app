@@ -27,6 +27,7 @@ import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { calculateGoalBridge, mapSavedGoalToBridge } from '../utils/goalBridgeEngine';
 import { assessGoalRisk, GoalRiskAssessment } from '../utils/goalRiskLinkage';
 import { computeExternalFactorsPanel } from '../utils/externalFactorsPanel';
+import { buildInventoryGoalSignal } from '../utils/inventoryIntelligence';
 import { computeRiskRadar } from '../utils/riskRadar';
 import { computeForecastSummary } from '../utils/forecastSummary';
 import { computeForwardFinancingReadiness } from '../utils/forwardFinancingReadiness';
@@ -345,15 +346,17 @@ export default function CreditWorthinessScreen() {
     const activeGoals = useMemo(() => goals.filter(g => g.status !== 'achieved'), [goals]);
     const goalRiskByGoalId = useMemo(() => {
         if (transactions.length < 5 || activeGoals.length === 0) return {};
-        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets, settings?.industry);
+        const avgMonthlyExpense = getMonthlyExpenseAverage(finance.expense, transactions);
+        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, avgMonthlyExpense, currency, loans, inventory, assets, settings?.industry);
         const riskRadar = computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? [], new Date(), assets);
         const externalFactorsPanel = computeExternalFactorsPanel(transactions, settings?.macroAssumptions ?? []);
+        const inventorySignal = buildInventoryGoalSignal(inventory, transactions, avgMonthlyExpense);
         const tactics = generateActionPlan(diagnosis, diagnosis.metrics, currency);
         const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
         const map: Record<string, GoalRiskAssessment> = {};
         for (const g of activeGoals) {
             const bridge = calculateGoalBridge(mapSavedGoalToBridge(g), diagnosis.metrics, allTactics, currency);
-            map[g.id] = assessGoalRisk(g.type, diagnosis.diagnoses, riskRadar, bridge.successProbability, externalFactorsPanel);
+            map[g.id] = assessGoalRisk(g.type, diagnosis.diagnoses, riskRadar, bridge.successProbability, externalFactorsPanel, inventorySignal);
         }
         return map;
     }, [transactions, invoices, finance, currency, loans, inventory, assets, activeGoals, settings?.macroAssumptions]);

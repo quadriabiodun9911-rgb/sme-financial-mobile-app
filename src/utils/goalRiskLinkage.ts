@@ -17,6 +17,12 @@
  *     sensitive is this goal to micro/macro economics" -- never a predicted
  *     inflation number of its own, only the real % change the owner logged,
  *     translated into what it would mean for their own books.
+ *   - inventoryIntelligence's InventoryGoalSignal -- real restocking pace
+ *     and stockout risk (buildInventoryGoalSignal), surfaced wherever
+ *     inventory could actually undermine the goal in question: a cost-
+ *     cutting target that would have to bite into restocking spend, or a
+ *     revenue/cash/concentration goal that depends on having stock to sell
+ *     while items are already close to running out.
  * -- then combines all of that with Goal Bridge's already-computed
  * successProbability into one "Growth Readiness" score. No probability or
  * impact number here is invented: growthReadiness is a deterministic
@@ -35,11 +41,12 @@ import { RootCauseAnalysis, HealthCategory } from './financialDiagnosisEngine';
 import { RiskRadar, RiskRadarCategory } from './riskRadar';
 import { ExternalFactorsPanel, ImpactLevel } from './externalFactorsPanel';
 import { MacroDriver } from '../types';
+import { InventoryGoalSignal } from './inventoryIntelligence';
 
 export type GoalRiskSeverity = 'high' | 'medium' | 'low';
 
 export interface GoalRiskItem {
-    source: 'diagnosis' | 'riskRadar' | 'external';
+    source: 'diagnosis' | 'riskRadar' | 'external' | 'inventory';
     label: string;
     /** A short phrase for the narrative sentence ("it's ___") -- `label` for a
      *  diagnosis-sourced risk is a full formatted sentence with its own
@@ -131,6 +138,21 @@ const GOAL_RELEVANT_EXTERNAL_DRIVERS: Record<GoalType, MacroDriver[]> = {
     custom: [],
 };
 
+// Whether inventory could realistically undermine a given goal type at
+// all -- a receivables-collection or customer-diversification goal has no
+// real inventory dependency, so it's left out rather than showing a
+// stockout warning that has nothing to do with the goal.
+const GOAL_CARES_ABOUT_INVENTORY: Record<GoalType, boolean> = {
+    revenue_growth: true,       // can't sell what's out of stock
+    margin_improvement: true,   // restocking is a real cost pressure on margin
+    cost_reduction: true,       // this is the one most likely to bite into restocking spend
+    cash_reserve: true,         // restocking spend is lumpy, not a smooth monthly draw
+    reduce_overdue_ar: false,
+    customer_concentration: false,
+    supplier_concentration: true, // a second supplier is exactly how this goal protects stock continuity
+    custom: true,
+};
+
 // Grounded in what the driver actually is, not a generic "watch this
 // closely" -- a concrete, driver-specific move the owner can make before
 // the assumption (if it plays out) actually hits.
@@ -183,12 +205,34 @@ function externalImpactSeverity(level: ImpactLevel): GoalRiskSeverity | null {
     return null;
 }
 
+// What running low on stock specifically threatens, per goal type -- the
+// underlying fact (n items close to running out) is the same everywhere,
+// but what it means for a revenue goal (can't sell it) is a different
+// sentence than what it means for a cash goal (an unplanned cash draw) or
+// a cost-cutting goal (a bad time to tighten spend).
+function inventoryStockoutSummary(goalType: GoalType, n: number, plural: boolean): string {
+    const are = plural ? 'are' : 'is';
+    switch (goalType) {
+        case 'revenue_growth':
+            return `${n} item${plural ? 's' : ''} ${are} within about 2 weeks of running out -- you can't grow sales on stock you don't have.`;
+        case 'cash_reserve':
+            return `${n} item${plural ? 's' : ''} ${are} close to running out. Restocking them draws down cash sooner than a smooth monthly average would suggest.`;
+        case 'margin_improvement':
+            return `${n} item${plural ? 's' : ''} ${are} close to running out. A rushed, last-minute reorder usually costs more per unit than a planned one, eating into margin.`;
+        case 'supplier_concentration':
+            return `${n} item${plural ? 's' : ''} ${are} close to running out -- exactly where depending on a single supplier would hurt most.`;
+        default:
+            return `${n} item${plural ? 's' : ''} ${are} within about 2 weeks of running out. Cutting spend right now risks delaying a restock you actually need.`;
+    }
+}
+
 export function assessGoalRisk(
     goalType: GoalType,
     diagnoses: RootCauseAnalysis[],
     riskRadar: RiskRadar,
     successProbability: number, // GoalBridge.successProbability, 0-1
     externalFactorsPanel: ExternalFactorsPanel, // computeExternalFactorsPanel(transactions, macroAssumptions)
+    inventorySignal: InventoryGoalSignal, // buildInventoryGoalSignal(inventory, transactions, avgMonthlyExpense)
 ): GoalRiskAssessment {
     const relevantDimensions = GOAL_RELEVANT_DIMENSIONS[goalType];
     const relevantCategories = GOAL_RELEVANT_RISK_CATEGORIES[goalType];
@@ -255,6 +299,41 @@ export function assessGoalRisk(
             financialImpact: 0,
             summary: item.sentence,
             action: EXTERNAL_DRIVER_ACTION[item.driver],
+        });
+    }
+
+    // Stockout risk -- real, dated items within computeInventoryForecast's
+    // own low-stock window (inventoryIntelligence.ts), surfaced with what
+    // it specifically means for THIS goal type rather than one generic
+    // "restock soon" line.
+    if (GOAL_CARES_ABOUT_INVENTORY[goalType] && inventorySignal.atRiskItemCount > 0) {
+        const n = inventorySignal.atRiskItemCount;
+        const plural = n > 1;
+        risks.push({
+            source: 'inventory',
+            label: `${n} item${plural ? 's' : ''} close to running out of stock`,
+            shortLabel: 'low stock risk',
+            severity: n >= 3 ? 'high' : 'medium',
+            financialImpact: 0,
+            summary: inventoryStockoutSummary(goalType, n, plural),
+            action: 'Reorder these items before they run out, and build that cost into this goal\'s near-term plan rather than treating it as a surprise.',
+        });
+    }
+
+    // Inventory-heavy cost base -- only meaningful for a goal that's
+    // literally about cutting spend: if restocking is already a large share
+    // of expenses, hitting the target by cutting it indiscriminately risks
+    // under-stocking just to make a number move.
+    if (goalType === 'cost_reduction' && inventorySignal.purchasesPctOfExpenses !== null && inventorySignal.purchasesPctOfExpenses >= 20) {
+        const pct = inventorySignal.purchasesPctOfExpenses;
+        risks.push({
+            source: 'inventory',
+            label: `Inventory restocking is ${pct.toFixed(0)}% of your expenses`,
+            shortLabel: 'inventory spend',
+            severity: pct >= 40 ? 'high' : 'medium',
+            financialImpact: 0,
+            summary: 'A large share of what you spend goes toward keeping stock on hand. Cutting this category to hit your target risks under-stocking just to make the number move.',
+            action: 'Set a lighter, separate target for inventory spend and focus the rest of the cut on other categories first.',
         });
     }
 

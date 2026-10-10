@@ -21,9 +21,9 @@
  */
 
 import { Screen } from '../types';
-import { Transaction, Loan, Invoice, Budget } from '../types';
+import { Transaction, Loan, Invoice, Budget, GoalType } from '../types';
 import { DiagnosisResult, RootCauseAnalysis, INDUSTRY_BENCHMARKS } from './financialDiagnosisEngine';
-import { RiskScore, computeCashFlowForecast } from './finance';
+import { computeCashFlowForecast } from './finance';
 import { DirectionVsStatusResult } from './directionVsStatus';
 import { RiskRadar } from './riskRadar';
 import { BusinessResilience } from './businessExposure';
@@ -67,6 +67,16 @@ export interface BusinessHealthReport {
     whyThisMatters: string;
     nextSteps: string[];
     nextDecision: { text: string; screen: Screen; params?: Record<string, any> };
+    // Which trackable GoalType (goals.ts) "What you should do next" above
+    // actually corresponds to, if any -- lets the screen offer a one-tap
+    // "set this up as a goal" straight into a pre-filled, still-editable
+    // Goal form (goalDefaults() already grounds the target in this
+    // business's own pattern) instead of making the owner re-derive the
+    // same plan by hand on a different screen. Null when nothing in
+    // goals.ts cleanly represents this finding (debt reduction and
+    // trend-reversal have no dedicated GoalType today) -- never forced
+    // into the closest-but-wrong type.
+    suggestedGoalType: GoalType | null;
 }
 
 export interface DiagnosticDimension {
@@ -101,15 +111,31 @@ function problemsFor(diagnoses: RootCauseAnalysis[], dimensions: string[]): stri
     return diagnoses.filter(d => dimensions.includes(d.dimension)).map(d => d.problem);
 }
 
-// HealthCategory/RiskFactor status -> this file's 3-level status.
+// HealthCategory status -> this file's 3-level status.
 function fromCategoryStatus(status: 'strong' | 'watch' | 'high-risk'): DiagnosticStatus { return status; }
-function fromFactorStatus(status: 'good' | 'warning' | 'danger'): DiagnosticStatus {
-    return status === 'good' ? 'strong' : status === 'warning' ? 'watch' : 'high-risk';
+
+// Same thresholds risk.factors' own Profitability/Liquidity factors use
+// (finance.ts: margin >= 20 good, runway >= 6 months good, etc.) -- but
+// applied to THIS MONTH's own metrics (m), never risk.factors' all-time
+// aggregate. risk.factors is computed from EVERY transaction ever recorded
+// (computeFinance has no date filter), which can disagree with this screen's
+// own current-month numbers -- a dimension's status badge used to come from
+// that all-time figure while its narrative quoted this month's, so a
+// business with a strong current month but a weaker history could see
+// "Needs attention" right above numbers that plainly look fine. Deriving
+// status from the same `m` the narrative already reads keeps the two always
+// in agreement.
+function profitabilityStatus(profitMarginPct: number): DiagnosticStatus {
+    return profitMarginPct >= 20 ? 'strong' : profitMarginPct >= 0 ? 'watch' : 'high-risk';
+}
+function cashHealthStatus(runwayDays: number | null): DiagnosticStatus {
+    if (runwayDays === null) return 'info';
+    const runwayMonths = runwayDays / 30;
+    return runwayMonths >= 6 ? 'strong' : runwayMonths >= 3 ? 'watch' : 'high-risk';
 }
 
 export interface BuildDiagnosticDimensionsInput {
     diagnosis: DiagnosisResult;
-    risk: RiskScore;
     currency: string;
     directionVsStatus: DirectionVsStatusResult;
     riskRadar: RiskRadar;
@@ -132,12 +158,8 @@ export interface BuildDiagnosticDimensionsResult {
 }
 
 export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput): BuildDiagnosticDimensionsResult {
-    const { diagnosis, risk, currency, directionVsStatus, riskRadar, resilience, reserveCoverageMonths, financingReadinessScore, lendingCapacity, transactions, loans, invoices, budgets } = input;
+    const { diagnosis, currency, directionVsStatus, riskRadar, resilience, reserveCoverageMonths, financingReadinessScore, lendingCapacity, transactions, loans, invoices, budgets } = input;
     const m = diagnosis.metrics;
-    const factor = (name: string) => risk.factors.find(f => f.name === name);
-    const liquidityFactor = factor('Liquidity');
-    const profitFactor = factor('Profitability');
-    const debtFactor = factor('Debt');
     const wcCategory = diagnosis.categories.find(c => c.key === 'workingCapital');
 
     const dims: DiagnosticDimension[] = [];
@@ -154,7 +176,7 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
         key: 'cashHealth',
         title: 'Cash Health',
         question: 'Do I have money to operate?',
-        status: liquidityFactor ? fromFactorStatus(liquidityFactor.status) : 'info',
+        status: cashHealthStatus(m.runwayDays),
         statusLabel: fmtRunway(m.runwayDays),
         outputs: [
             { label: 'Cash on hand', value: fmtMoney(currency, m.cashBalance) },
@@ -196,7 +218,7 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
         key: 'profitability',
         title: 'Profitability',
         question: 'Am I actually making money?',
-        status: profitFactor ? fromFactorStatus(profitFactor.status) : 'info',
+        status: profitabilityStatus(m.profitMargin),
         statusLabel: `${m.profitMargin.toFixed(1)}% margin`,
         outputs: [
             { label: 'Revenue', value: fmtMoney(currency, m.totalRevenue) },
@@ -252,7 +274,10 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
         key: 'debtHealth',
         title: 'Debt Health',
         question: 'Can my business handle what it owes?',
-        status: debtFactor ? fromFactorStatus(debtFactor.status) : 'info',
+        // m.dscrStatus is already this month's own healthy/warning/danger
+        // read on the same m.dscr the narrative quotes -- no debt at all is
+        // never a risk in itself, so it reads as strong rather than 'info'.
+        status: m.monthlyDebtService > 0 ? (m.dscrStatus === 'healthy' ? 'strong' : m.dscrStatus === 'warning' ? 'watch' : 'high-risk') : 'strong',
         statusLabel: m.monthlyDebtService > 0 ? `${m.dscr.toFixed(2)}x coverage` : 'No active debt',
         outputs: [
             { label: 'Monthly debt obligations', value: fmtMoney(currency, m.monthlyDebtService) },
@@ -417,10 +442,11 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             ],
             nextDecision: {
                 text: hasInventory
-                    ? 'Before spending on new stock, determine how much you can afford without putting essential payments at risk.'
-                    : 'Before taking on new spending, determine how much you can afford without putting essential payments at risk.',
+                    ? `Before spending on new stock, check it against ${fmtMoney(currency, Math.max(0, cashAfterCommitments))} -- what's left after your known upcoming payments, not your full bank balance.`
+                    : `Before taking on new spending, check it against ${fmtMoney(currency, Math.max(0, cashAfterCommitments))} -- what's left after your known upcoming payments, not your full bank balance.`,
                 screen: 'analysis', params: { tab: 'decide' },
             },
+            suggestedGoalType: 'cash_reserve',
         };
     } else if (worst.key === 'profitability' && worst.status !== 'strong') {
         report = {
@@ -439,9 +465,10 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 'Confirm which costs are fixed and which can flex if sales slow down.',
             ],
             nextDecision: {
-                text: 'Before committing to new costs or a price change, confirm it still leaves you with a safe margin.',
+                text: `Before committing to new costs or a price change, check it against your current ${m.profitMargin.toFixed(1)}% margin -- the 20% benchmark is the line where a small shock stops being survivable.`,
                 screen: 'analysis', params: { tab: 'decide' },
             },
+            suggestedGoalType: 'margin_improvement',
         };
     } else if (worst.key === 'debtHealth' && worst.status !== 'strong') {
         report = {
@@ -460,9 +487,10 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 'Talk to your lender about restructuring before a payment is missed.',
             ],
             nextDecision: {
-                text: 'Before taking on any new costs or debt, confirm your current repayments are fully covered first.',
+                text: `Before taking on any new costs or debt, check it against your current ${m.dscr.toFixed(2)}x coverage ratio -- it needs to stay above 1.25x to leave room for a slow month.`,
                 screen: 'loans',
             },
+            suggestedGoalType: null,
         };
     } else if (worst.key === 'businessPerformance' && worst.status !== 'strong' && directionVsStatus.directionAvailable) {
         report = {
@@ -479,9 +507,10 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 "Set a check-in date to confirm whether it's turned around.",
             ],
             nextDecision: {
-                text: "Before planning new growth spending, confirm the decline isn't about to get worse.",
+                text: `Before planning new growth spending, check whether it depends on the ${declining} trend${declining === 1 ? '' : 's'} currently moving the wrong way, or on the ${improving} that's still working.`,
                 screen: 'scoreboard',
             },
+            suggestedGoalType: null,
         };
     } else {
         report = {
@@ -498,9 +527,10 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 "Revisit this report after your next few transactions to confirm it's holding.",
             ],
             nextDecision: {
-                text: "If you're considering a new investment or expansion, this is a reasonable place to start.",
+                text: `If you're considering a new investment or expansion, test it against your current ${fmtMoney(currency, m.cashBalance)} balance and ${m.profitMargin.toFixed(1)}% margin before committing.`,
                 screen: 'analysis', params: { tab: 'decide' },
             },
+            suggestedGoalType: 'revenue_growth',
         };
     }
 

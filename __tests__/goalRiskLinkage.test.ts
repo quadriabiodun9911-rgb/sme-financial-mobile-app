@@ -2,8 +2,10 @@ import { assessGoalRisk } from '../src/utils/goalRiskLinkage';
 import { RootCauseAnalysis } from '../src/utils/financialDiagnosisEngine';
 import { RiskRadar, RiskRadarCategory } from '../src/utils/riskRadar';
 import { ExternalFactorsPanel } from '../src/utils/externalFactorsPanel';
+import { InventoryGoalSignal } from '../src/utils/inventoryIntelligence';
 
 const EMPTY_PANEL: ExternalFactorsPanel = { items: [], summarySentence: null };
+const EMPTY_INVENTORY_SIGNAL: InventoryGoalSignal = { avgMonthlyPurchases: 0, purchasesPctOfExpenses: null, atRiskItemCount: 0, inventoryValue: 0 };
 
 function makeDiagnosis(overrides: Partial<RootCauseAnalysis> = {}): RootCauseAnalysis {
     return {
@@ -37,7 +39,7 @@ describe('assessGoalRisk', () => {
             makeDiagnosis({ dimension: 'liquidity', problem: 'Low cash buffer' }),
             makeDiagnosis({ dimension: 'inventory', problem: 'Slow-moving stock' }), // irrelevant to cash_reserve
         ];
-        const { risks } = assessGoalRisk('cash_reserve', diagnoses, makeRiskRadar([]), 0.6, EMPTY_PANEL);
+        const { risks } = assessGoalRisk('cash_reserve', diagnoses, makeRiskRadar([]), 0.6, EMPTY_PANEL, EMPTY_INVENTORY_SIGNAL);
         expect(risks).toHaveLength(1);
         expect(risks[0].label).toBe('Low cash buffer');
     });
@@ -47,21 +49,21 @@ describe('assessGoalRisk', () => {
             makeCategory({ key: 'economic', level: 'high' }), // relevant to margin_improvement
             makeCategory({ key: 'seasonal', label: 'Seasonal Risk', level: 'high' }), // not relevant to margin_improvement
         ]);
-        const { risks } = assessGoalRisk('margin_improvement', [], radar, 0.6, EMPTY_PANEL);
+        const { risks } = assessGoalRisk('margin_improvement', [], radar, 0.6, EMPTY_PANEL, EMPTY_INVENTORY_SIGNAL);
         expect(risks).toHaveLength(1);
         expect(risks[0].label).toBe('Economic Risk');
     });
 
     it('never surfaces a no-data risk-radar category as a risk', () => {
         const radar = makeRiskRadar([makeCategory({ key: 'economic', level: 'no-data' })]);
-        const { risks } = assessGoalRisk('margin_improvement', [], radar, 0.6, EMPTY_PANEL);
+        const { risks } = assessGoalRisk('margin_improvement', [], radar, 0.6, EMPTY_PANEL, EMPTY_INVENTORY_SIGNAL);
         expect(risks).toHaveLength(0);
     });
 
     it('considers everything relevant for a custom goal (no dimension mapping)', () => {
         const diagnoses = [makeDiagnosis({ dimension: 'inventory' })];
         const radar = makeRiskRadar([makeCategory({ key: 'seasonal', label: 'Seasonal Risk', level: 'low' })]);
-        const { risks } = assessGoalRisk('custom', diagnoses, radar, 0.6, EMPTY_PANEL);
+        const { risks } = assessGoalRisk('custom', diagnoses, radar, 0.6, EMPTY_PANEL, EMPTY_INVENTORY_SIGNAL);
         expect(risks).toHaveLength(2);
     });
 
@@ -71,7 +73,7 @@ describe('assessGoalRisk', () => {
             makeDiagnosis({ severity: 'critical', financialImpact: 100000, problem: 'Critical but small impact' }),
             makeDiagnosis({ severity: 'critical', financialImpact: 500000, problem: 'Critical and large impact' }),
         ];
-        const { risks } = assessGoalRisk('cash_reserve', diagnoses, makeRiskRadar([]), 0.6, EMPTY_PANEL);
+        const { risks } = assessGoalRisk('cash_reserve', diagnoses, makeRiskRadar([]), 0.6, EMPTY_PANEL, EMPTY_INVENTORY_SIGNAL);
         expect(risks.map(r => r.label)).toEqual([
             'Critical and large impact',
             'Critical but small impact',
@@ -84,34 +86,34 @@ describe('assessGoalRisk', () => {
             makeDiagnosis({ severity: 'critical' }), // -12
             makeDiagnosis({ severity: 'warning', problem: 'second' }), // -6
         ];
-        const { growthReadiness } = assessGoalRisk('cash_reserve', diagnoses, makeRiskRadar([]), 0.8, EMPTY_PANEL);
+        const { growthReadiness } = assessGoalRisk('cash_reserve', diagnoses, makeRiskRadar([]), 0.8, EMPTY_PANEL, EMPTY_INVENTORY_SIGNAL);
         expect(growthReadiness).toBeCloseTo(80 - 12 - 6, 5);
     });
 
     it('never lets growthReadiness go below 0 or above 100', () => {
         const manyRisks = Array.from({ length: 10 }, () => makeDiagnosis({ severity: 'critical' }));
-        const low = assessGoalRisk('cash_reserve', manyRisks, makeRiskRadar([]), 0.1, EMPTY_PANEL);
+        const low = assessGoalRisk('cash_reserve', manyRisks, makeRiskRadar([]), 0.1, EMPTY_PANEL, EMPTY_INVENTORY_SIGNAL);
         expect(low.growthReadiness).toBe(0);
 
-        const high = assessGoalRisk('cash_reserve', [], makeRiskRadar([]), 1.5, EMPTY_PANEL);
+        const high = assessGoalRisk('cash_reserve', [], makeRiskRadar([]), 1.5, EMPTY_PANEL, EMPTY_INVENTORY_SIGNAL);
         expect(high.growthReadiness).toBeLessThanOrEqual(100);
     });
 
     it('bands readiness Strong/Moderate/Weak from the same real score', () => {
-        expect(assessGoalRisk('cash_reserve', [], makeRiskRadar([]), 0.9, EMPTY_PANEL).readinessBand).toBe('Strong');
-        expect(assessGoalRisk('cash_reserve', [makeDiagnosis({ severity: 'warning' })], makeRiskRadar([]), 0.6, EMPTY_PANEL).readinessBand).toBe('Moderate');
-        expect(assessGoalRisk('cash_reserve', [makeDiagnosis({ severity: 'critical' }), makeDiagnosis({ severity: 'critical', problem: 'x' })], makeRiskRadar([]), 0.5, EMPTY_PANEL).readinessBand).toBe('Weak');
+        expect(assessGoalRisk('cash_reserve', [], makeRiskRadar([]), 0.9, EMPTY_PANEL, EMPTY_INVENTORY_SIGNAL).readinessBand).toBe('Strong');
+        expect(assessGoalRisk('cash_reserve', [makeDiagnosis({ severity: 'warning' })], makeRiskRadar([]), 0.6, EMPTY_PANEL, EMPTY_INVENTORY_SIGNAL).readinessBand).toBe('Moderate');
+        expect(assessGoalRisk('cash_reserve', [makeDiagnosis({ severity: 'critical' }), makeDiagnosis({ severity: 'critical', problem: 'x' })], makeRiskRadar([]), 0.5, EMPTY_PANEL, EMPTY_INVENTORY_SIGNAL).readinessBand).toBe('Weak');
     });
 
     it('names the top real risk in the narrative using its short label, not the full diagnosis sentence', () => {
         const diagnoses = [makeDiagnosis({ problem: 'Low cash buffer (20-day runway)', dimension: 'liquidity', severity: 'critical' })];
-        const { narrative } = assessGoalRisk('cash_reserve', diagnoses, makeRiskRadar([]), 0.6, EMPTY_PANEL);
+        const { narrative } = assessGoalRisk('cash_reserve', diagnoses, makeRiskRadar([]), 0.6, EMPTY_PANEL, EMPTY_INVENTORY_SIGNAL);
         expect(narrative).toContain('your cash position');
         expect(narrative).not.toContain('20-day runway');
     });
 
     it('gives a positive narrative when no relevant risks are found', () => {
-        const { narrative, risks } = assessGoalRisk('cash_reserve', [], makeRiskRadar([]), 0.9, EMPTY_PANEL);
+        const { narrative, risks } = assessGoalRisk('cash_reserve', [], makeRiskRadar([]), 0.9, EMPTY_PANEL, EMPTY_INVENTORY_SIGNAL);
         expect(risks).toHaveLength(0);
         expect(narrative).toContain('No major risks');
     });
@@ -127,7 +129,7 @@ describe('assessGoalRisk', () => {
         const radar = makeRiskRadar([
             makeCategory({ key: 'debtCoverage', label: 'Debt Coverage', level: 'low', summary: 'No active loan repayments to cover.' }),
         ]);
-        const { narrative, risks, growthReadiness } = assessGoalRisk('cash_reserve', [], radar, 0.9, EMPTY_PANEL);
+        const { narrative, risks, growthReadiness } = assessGoalRisk('cash_reserve', [], radar, 0.9, EMPTY_PANEL, EMPTY_INVENTORY_SIGNAL);
         expect(risks).toHaveLength(1); // still surfaced in the list itself
         expect(narrative).toContain('No major risks');
         expect(growthReadiness).toBe(90);
@@ -138,7 +140,7 @@ describe('assessGoalRisk', () => {
             makeCategory({ key: 'debtCoverage', label: 'Debt Coverage', level: 'low', summary: 'No active loan repayments to cover.' }),
             makeCategory({ key: 'seasonal', label: 'Seasonal Risk', level: 'high', summary: 'December is historically weak.' }),
         ]);
-        const { narrative } = assessGoalRisk('cash_reserve', [], radar, 0.9, EMPTY_PANEL);
+        const { narrative } = assessGoalRisk('cash_reserve', [], radar, 0.9, EMPTY_PANEL, EMPTY_INVENTORY_SIGNAL);
         expect(narrative).toContain('seasonal risk');
     });
 });

@@ -40,6 +40,7 @@ import { analyzeTrend } from './trendAnalysis';
 import { buildStructuralSnapshot, StructuralSnapshot } from './structuralSnapshot';
 import { computeRiskRadar } from './riskRadar';
 import { computeExternalFactorsPanel } from './externalFactorsPanel';
+import { buildInventoryGoalSignal } from './inventoryIntelligence';
 import { generateActionPlan } from './actionRecommendationEngine';
 import { calculateGoalBridge, mapSavedGoalToBridge } from './goalBridgeEngine';
 import { assessGoalRisk, GoalRiskAssessment } from './goalRiskLinkage';
@@ -267,11 +268,12 @@ export function buildBusinessPassport(
         ? (() => {
             const riskRadar = computeRiskRadar(transactions, loans, settings.macroAssumptions ?? [], new Date(), assets);
             const externalFactorsPanel = computeExternalFactorsPanel(transactions, settings.macroAssumptions ?? []);
+            const inventorySignal = buildInventoryGoalSignal(inventory, transactions, getMonthlyExpenseAverage(finance.expense, transactions));
             const tactics = generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
             const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
             return activeGoals.map(g => {
                 const bridge = calculateGoalBridge(mapSavedGoalToBridge(g), diagnosis.metrics, allTactics, settings.currency);
-                const assessment = assessGoalRisk(g.type, diagnosis.diagnoses, riskRadar, bridge.successProbability, externalFactorsPanel);
+                const assessment = assessGoalRisk(g.type, diagnosis.diagnoses, riskRadar, bridge.successProbability, externalFactorsPanel, inventorySignal);
                 return {
                     goalId: g.id,
                     goalTitle: g.title,
