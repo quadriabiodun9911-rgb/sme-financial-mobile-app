@@ -390,21 +390,21 @@ export default function FinancialAssessmentScreen() {
           <Text style={styles.reportText}>{businessHealthReport.whyThisMatters}</Text>
 
           <Text style={styles.reportSectionLabel}>What you should do next</Text>
+          <Text style={styles.reportStepsHint}>Tap a step to go do it.</Text>
           {businessHealthReport.nextSteps.map((step, i) => (
-            <View key={i} style={styles.stepRow}>
-              <Icon name="check-circle" size={14} color={Colors.income} />
-              <Text style={styles.reportStep}>{step}</Text>
-            </View>
+            step.screen ? (
+              <TouchableOpacity key={i} style={styles.stepRow} onPress={() => navigate(step.screen!, step.params)} activeOpacity={0.7}>
+                <Icon name="check-circle" size={14} color={Colors.income} />
+                <Text style={styles.reportStep}>{step.text}</Text>
+                <Icon name="chevron-right" size={16} color={Colors.textMuted} />
+              </TouchableOpacity>
+            ) : (
+              <View key={i} style={styles.stepRow}>
+                <Icon name="check-circle" size={14} color={Colors.income} />
+                <Text style={styles.reportStep}>{step.text}</Text>
+              </View>
+            )
           ))}
-
-          <View style={styles.reportDecisionBox}>
-            <Text style={styles.reportSectionLabel}>Your next decision</Text>
-            <Text style={styles.reportText}>{businessHealthReport.nextDecision.text}</Text>
-            <NextStepLink
-              text="Explore this decision"
-              onPress={() => navigate(businessHealthReport.nextDecision.screen, businessHealthReport.nextDecision.params)}
-            />
-          </View>
 
           {/* Where a diagnosis actually goes once you act on it -- the same
               findings above are already what Insights' Decision Centre is
@@ -863,7 +863,8 @@ const styles = StyleSheet.create({
   reportText: { fontSize: 13, color: Colors.textPrimary, lineHeight: 19, marginTop: 2 },
   reportStep: { flex: 1, fontSize: 13, color: Colors.textPrimary, lineHeight: 19 },
   reportDecisionBox: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
-  stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 6 },
+  stepRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  reportStepsHint: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 2 },
 
   pillarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: Spacing.xl },
   pillarCard: {
