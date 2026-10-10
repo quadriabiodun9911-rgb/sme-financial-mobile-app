@@ -393,7 +393,7 @@ export default function FinancialAssessmentScreen() {
           <Text style={styles.reportStepsHint}>Tap a step to go do it.</Text>
           {businessHealthReport.nextSteps.map((step, i) => (
             step.screen ? (
-              <TouchableOpacity key={i} style={styles.stepRow} onPress={() => navigate(step.screen!, step.params)} activeOpacity={0.7}>
+              <TouchableOpacity key={i} style={styles.stepRow} onPress={() => navigate(step.screen!, { ...step.params, focusTask: step.text })} activeOpacity={0.7}>
                 <Icon name="check-circle" size={14} color={Colors.income} />
                 <Text style={styles.reportStep}>{step.text}</Text>
                 <Icon name="chevron-right" size={16} color={Colors.textMuted} />

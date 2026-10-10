@@ -6,6 +6,7 @@ import {
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
+import FocusTaskBanner from '../components/FocusTaskBanner';
 import FooterNav from '../components/FooterNav';
 import Icon, { IconName } from '../components/ui/Icon';
 import BeforeYouDecideContent from '../components/BeforeYouDecideContent';
@@ -567,6 +568,11 @@ export default function AnalysisScreen() {
                 </TouchableOpacity>
                 <Text style={s.screenTitle}>Analysis & Decisions</Text>
             </View>
+            {navParams?.focusTask && (
+                <View style={{ paddingHorizontal: 16 }}>
+                    <FocusTaskBanner focusTask={navParams.focusTask} />
+                </View>
+            )}
 
             {/* Tab bar */}
             <View style={s.tabBar}>

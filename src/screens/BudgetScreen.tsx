@@ -6,6 +6,7 @@ import {
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
+import FocusTaskBanner from '../components/FocusTaskBanner';
 import FooterNav from '../components/FooterNav';
 import { computeBudgetVsActual, getMonthlyExpenseAverage } from '../utils/finance';
 import { totalMonthlyLoanBurden } from '../utils/loanMath';
@@ -397,6 +398,11 @@ export default function BudgetScreen() {
                     <Text style={s.addBtnText}>+ Add</Text>
                 </TouchableOpacity>
             </View>
+            {navParams?.focusTask && (
+                <View style={{ paddingHorizontal: 16 }}>
+                    <FocusTaskBanner focusTask={navParams.focusTask} />
+                </View>
+            )}
 
             <ScrollView ref={scrollRef} style={s.scroll} contentContainerStyle={s.pad}>
                 {budgetPeriodLapsed && (

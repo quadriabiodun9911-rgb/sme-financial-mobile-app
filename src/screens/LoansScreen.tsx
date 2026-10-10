@@ -18,6 +18,7 @@ import {
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
+import FocusTaskBanner from '../components/FocusTaskBanner';
 import FooterNav from '../components/FooterNav';
 import { Loan, LoanStatus, Transaction, ReadinessSnapshot } from '../types';
 import DateInput from '../components/DateInput';
@@ -331,6 +332,11 @@ export default function LoansScreen() {
                     <Text style={{ color: Colors.primary, fontSize: 14 }}>← Dashboard</Text>
                 </TouchableOpacity>
             </View>
+            {navParams?.focusTask && (
+                <View style={{ paddingHorizontal: 16 }}>
+                    <FocusTaskBanner focusTask={navParams.focusTask} />
+                </View>
+            )}
 
             {/* TAB BAR */}
             <View style={s.tabBar}>

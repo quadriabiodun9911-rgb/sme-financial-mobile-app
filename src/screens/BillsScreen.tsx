@@ -16,6 +16,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Header from '../components/Header';
+import FocusTaskBanner from '../components/FocusTaskBanner';
 import FooterNav from '../components/FooterNav';
 import Icon, { IconName } from '../components/ui/Icon';
 import DateInput from '../components/DateInput';
@@ -66,7 +67,7 @@ function FlagRow({ flags }: { flags: BillFlag[] }) {
 export default function BillsScreen() {
     const {
         bills, addBill, updateBill, deleteBill, reviewBill,
-        transactions, finance, settings,
+        transactions, finance, settings, navParams,
     } = useApp() as ReturnType<typeof useApp>;
 
     const cur = settings.currency || '';
@@ -325,6 +326,7 @@ export default function BillsScreen() {
             <Header />
             <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 48 }}>
                 <View style={s.pad}>
+                    <FocusTaskBanner focusTask={navParams?.focusTask} />
                     <View style={s.titleRow}>
                         <View>
                             <Text style={s.title}>Vendor Bills</Text>
