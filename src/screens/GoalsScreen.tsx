@@ -22,6 +22,7 @@ import { getMonthlyExpenseAverage, computeCashFlowForecast, computeRevenueForeca
 import { showAlert, confirmAction } from '../utils/webAlert';
 import { computeRiskRadar } from '../utils/riskRadar';
 import { assessGoalRisk, GoalRiskSeverity } from '../utils/goalRiskLinkage';
+import { computeExternalFactorsPanel } from '../utils/externalFactorsPanel';
 import { computeGoalBudgetAlignment, computeGoalForecastAlignment, computeRevenueMarginForecastAlignment } from '../utils/goalAlignment';
 import { computeGoalForecastGap } from '../utils/goalForecastGap';
 import { localDateStr } from '../utils/localDate';
@@ -189,7 +190,8 @@ export default function GoalsScreen() {
     const planGoalRisk = useMemo(() => {
         if (!planGoal || !planDiagnosis || !planBridge) return null;
         const riskRadar = computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? [], new Date(), assets);
-        return assessGoalRisk(planGoal.type, planDiagnosis.diagnoses, riskRadar, planBridge.successProbability);
+        const externalFactorsPanel = computeExternalFactorsPanel(transactions, settings?.macroAssumptions ?? []);
+        return assessGoalRisk(planGoal.type, planDiagnosis.diagnoses, riskRadar, planBridge.successProbability, externalFactorsPanel);
     }, [planGoal, planDiagnosis, planBridge, transactions, loans, settings?.macroAssumptions, assets]);
 
     // Whether what's actually committed (this month's Budget) and what's
@@ -599,8 +601,18 @@ export default function GoalsScreen() {
                                                 </View>
 
                                                 <View style={styles.assessmentRow}>
-                                                    <Text style={styles.assessmentRowLabel}>Required Monthly Improvement:</Text>
+                                                    <Text style={styles.assessmentRowLabel}>Required Monthly Pace:</Text>
                                                     <Text style={styles.assessmentRowValue}>{formatGoalMetric(planBridge.requiredMonthlyImprovement, planBridge.goal.type, currency)}</Text>
+                                                </View>
+
+                                                <View style={styles.assessmentRow}>
+                                                    <Text style={styles.assessmentRowLabel}>Required Weekly Pace:</Text>
+                                                    <Text style={styles.assessmentRowValue}>{formatGoalMetric(planBridge.requiredWeeklyImprovement, planBridge.goal.type, currency)}</Text>
+                                                </View>
+
+                                                <View style={styles.assessmentRow}>
+                                                    <Text style={styles.assessmentRowLabel}>Required Daily Pace:</Text>
+                                                    <Text style={styles.assessmentRowValue}>{formatGoalMetric(planBridge.requiredDailyImprovement, planBridge.goal.type, currency)}</Text>
                                                 </View>
 
                                                 <View style={styles.assessmentRow}>
@@ -765,6 +777,27 @@ export default function GoalsScreen() {
                                                     <Text style={[styles.actionDetail, { marginTop: 6, fontStyle: 'italic' }]}>→ {risk.action}</Text>
                                                 </View>
                                             ))}
+
+                                            {/* Categories relevant to this goal that riskRadar couldn't assess
+                                                at all (e.g. Economic Risk needs macro assumptions set in
+                                                Settings) -- named explicitly rather than just missing from the
+                                                list above, so "no risk shown" never gets mistaken for "no risk
+                                                exists." */}
+                                            {planGoalRisk.dataGaps.length > 0 && (
+                                                <>
+                                                    <View style={styles.sectionTitleRow}>
+                                                        <Icon name="help-circle" size={15} color={Colors.textMuted} />
+                                                        <Text style={[styles.sectionTitle, styles.sectionTitleInRow]}>Not Yet Assessed</Text>
+                                                    </View>
+                                                    {planGoalRisk.dataGaps.map((gap, i) => (
+                                                        <View key={i} style={[styles.actionCard, { borderLeftColor: Colors.border }]}>
+                                                            <Text style={styles.actionTitle}>{gap.label}</Text>
+                                                            <Text style={styles.actionDetail}>{gap.note}</Text>
+                                                        </View>
+                                                    ))}
+                                                    <NextStepLink text="Add your economic assumptions in Settings" onPress={() => { setPlanGoalId(null); setCurrentScreen('settings'); }} />
+                                                </>
+                                            )}
 
                                             <Text style={styles.strategyFooter}>
                                                 Risks refresh automatically as your financial data changes.

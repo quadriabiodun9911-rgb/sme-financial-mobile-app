@@ -3,34 +3,43 @@
  * specifically" instead of the general, goal-independent risk view
  * riskRadar.ts already provides on the Dashboard/Scoreboard.
  *
- * Deliberately does not compute anything new: it filters two already-real,
+ * Deliberately does not compute anything new: it filters three already-real,
  * already-computed signals down to whichever ones are actually relevant to
  * a given goal type --
  *   - financialDiagnosisEngine's RootCauseAnalysis[] (severity, real
  *     financialImpact, root cause, opportunity), narrowed by `dimension`
  *   - riskRadar's categories (debt coverage, customer/supplier/lender
  *     concentration, seasonal, economic), narrowed by category key
- * -- then combines that with Goal Bridge's already-computed
+ *   - externalFactorsPanel's items -- the owner's own macro assumptions
+ *     (inflation, FX, demand...) scored against how much of THIS business's
+ *     revenue/costs actually run through what they affect (exposurePct,
+ *     corroborated), narrowed by MacroDriver. This is what answers "how
+ *     sensitive is this goal to micro/macro economics" -- never a predicted
+ *     inflation number of its own, only the real % change the owner logged,
+ *     translated into what it would mean for their own books.
+ * -- then combines all of that with Goal Bridge's already-computed
  * successProbability into one "Growth Readiness" score. No probability or
  * impact number here is invented: growthReadiness is a deterministic
  * function of two real inputs (successProbability and the count/severity of
  * real risks found), the same way riskRadar's own overallLevel is derived
  * from its real category levels rather than a separately guessed number.
  *
- * `custom` goals have no clean dimension/category mapping (same reasoning
- * financialDiagnosisEngine's suggestedGoalType already applies) -- for
- * those, every diagnosis/risk category is considered relevant rather than
- * silently showing nothing.
+ * `custom` goals have no clean dimension/category/driver mapping (same
+ * reasoning financialDiagnosisEngine's suggestedGoalType already applies) --
+ * for those, every diagnosis/risk category/external factor is considered
+ * relevant rather than silently showing nothing.
  */
 
 import { GoalType } from '../types';
 import { RootCauseAnalysis, HealthCategory } from './financialDiagnosisEngine';
 import { RiskRadar, RiskRadarCategory } from './riskRadar';
+import { ExternalFactorsPanel, ImpactLevel } from './externalFactorsPanel';
+import { MacroDriver } from '../types';
 
 export type GoalRiskSeverity = 'high' | 'medium' | 'low';
 
 export interface GoalRiskItem {
-    source: 'diagnosis' | 'riskRadar';
+    source: 'diagnosis' | 'riskRadar' | 'external';
     label: string;
     /** A short phrase for the narrative sentence ("it's ___") -- `label` for a
      *  diagnosis-sourced risk is a full formatted sentence with its own
@@ -39,7 +48,7 @@ export interface GoalRiskItem {
      *  named briefly instead. */
     shortLabel: string;
     severity: GoalRiskSeverity;
-    /** Real currency figure from the diagnosis engine; 0 when the source (a riskRadar category) has no dollar figure of its own. */
+    /** Real currency figure from the diagnosis engine; 0 when the source (a riskRadar category or external factor) has no dollar figure of its own. */
     financialImpact: number;
     summary: string;
     action: string;
@@ -62,11 +71,23 @@ const DIMENSION_SHORT_LABEL: Record<HealthCategory['key'], string> = {
     cashFlow: 'weak cash conversion',
 };
 
+export interface GoalRiskDataGap {
+    label: string;
+    note: string; // riskRadar's own explanation of what's missing (e.g. "Add your economic assumptions in Settings to see this.")
+}
+
 export interface GoalRiskAssessment {
     risks: GoalRiskItem[]; // worst-first: severity desc, then financialImpact desc
     growthReadiness: number; // 0-100
     readinessBand: 'Strong' | 'Moderate' | 'Weak';
     narrative: string;
+    // Risk-radar categories relevant to this goal type that couldn't be
+    // assessed at all (riskRadar's own 'no-data' level) -- surfaced
+    // separately from `risks` so a category like Economic Risk (inflation,
+    // demand) doesn't just silently vanish when macro assumptions haven't
+    // been set in Settings. Never a fabricated risk; just an honest "this
+    // can't be assessed yet, and here's why."
+    dataGaps: GoalRiskDataGap[];
 }
 
 // Which diagnosis dimensions and risk-radar categories actually threaten
@@ -92,6 +113,36 @@ const GOAL_RELEVANT_RISK_CATEGORIES: Record<GoalType, RiskRadarCategory['key'][]
     customer_concentration: ['customerConcentration'],
     supplier_concentration: ['supplierConcentration'],
     custom: [],
+};
+
+// Which of the owner's own macro assumptions (externalFactorsPanel.ts)
+// actually bear on each goal type -- a revenue goal lives or dies on
+// demand, a margin/cost goal on input costs, a cash goal on both. Empty
+// list (custom) falls back to "everything," same convention as the two
+// maps above.
+const GOAL_RELEVANT_EXTERNAL_DRIVERS: Record<GoalType, MacroDriver[]> = {
+    revenue_growth: ['demand'],
+    margin_improvement: ['energy', 'fx', 'interestRate', 'inflation', 'commodity', 'supplyChain'],
+    cost_reduction: ['energy', 'fx', 'interestRate', 'inflation', 'commodity', 'supplyChain'],
+    cash_reserve: ['demand', 'interestRate', 'inflation'],
+    reduce_overdue_ar: ['demand'],
+    customer_concentration: ['demand'],
+    supplier_concentration: ['supplyChain', 'fx', 'commodity'],
+    custom: [],
+};
+
+// Grounded in what the driver actually is, not a generic "watch this
+// closely" -- a concrete, driver-specific move the owner can make before
+// the assumption (if it plays out) actually hits.
+const EXTERNAL_DRIVER_ACTION: Record<MacroDriver, string> = {
+    energy: 'Lock in supplier rates where possible and build the extra cost into pricing before it erodes margin.',
+    fx: 'Price with a buffer, or hold some reserves in the currency you actually pay suppliers in.',
+    interestRate: 'Avoid new variable-rate debt until this settles, or lock in a fixed rate now.',
+    inflation: 'Review pricing on a shorter cycle so costs don\'t quietly outrun what you charge.',
+    commodity: 'Qualify an alternate supplier or material so this goal isn\'t fully exposed to one price.',
+    regulation: 'Confirm the real compliance cost before it takes effect, not after.',
+    supplyChain: 'Build buffer stock or a backup supplier for anything on a single, fragile supply line.',
+    demand: 'Watch conversion and repeat-purchase rate closely, and hold off on fixed-cost commitments until demand is confirmed.',
 };
 
 // A generic, category-level playbook line -- riskRadar categories don't
@@ -121,19 +172,34 @@ function riskLevelSeverity(level: RiskRadarCategory['level']): GoalRiskSeverity 
     return null; // 'no-data' is never shown as a risk
 }
 
+// 'positive' means this factor is a tailwind (e.g. strengthening demand) --
+// real, but an opportunity rather than something that could stop the goal,
+// so it's left out of the risk list entirely rather than forced into a
+// severity that misrepresents it.
+function externalImpactSeverity(level: ImpactLevel): GoalRiskSeverity | null {
+    if (level === 'high') return 'high';
+    if (level === 'medium') return 'medium';
+    if (level === 'low') return 'low';
+    return null;
+}
+
 export function assessGoalRisk(
     goalType: GoalType,
     diagnoses: RootCauseAnalysis[],
     riskRadar: RiskRadar,
     successProbability: number, // GoalBridge.successProbability, 0-1
+    externalFactorsPanel: ExternalFactorsPanel, // computeExternalFactorsPanel(transactions, macroAssumptions)
 ): GoalRiskAssessment {
     const relevantDimensions = GOAL_RELEVANT_DIMENSIONS[goalType];
     const relevantCategories = GOAL_RELEVANT_RISK_CATEGORIES[goalType];
+    const relevantDrivers = GOAL_RELEVANT_EXTERNAL_DRIVERS[goalType];
     // 'custom' has no mapping -- fall back to everything rather than showing nothing.
     const dimensionFilter = relevantDimensions.length > 0 ? relevantDimensions : null;
     const categoryFilter = relevantCategories.length > 0 ? relevantCategories : null;
+    const driverFilter = relevantDrivers.length > 0 ? relevantDrivers : null;
 
     const risks: GoalRiskItem[] = [];
+    const dataGaps: GoalRiskDataGap[] = [];
 
     for (const d of diagnoses) {
         if (dimensionFilter && !dimensionFilter.includes(d.dimension)) continue;
@@ -150,8 +216,18 @@ export function assessGoalRisk(
 
     for (const c of riskRadar.categories) {
         if (categoryFilter && !categoryFilter.includes(c.key)) continue;
+        // riskRadar's 'economic' category is one generic line averaged
+        // across every assumption; the per-assumption loop below (real
+        // exposurePct, corroboration, driver-specific action) replaces it
+        // once assumptions actually exist, so skip the duplicate here --
+        // but still fall through when there's genuinely no data, so the
+        // "add your assumptions" dataGap prompt below still fires.
+        if (c.key === 'economic' && externalFactorsPanel.items.length > 0) continue;
         const severity = riskLevelSeverity(c.level);
-        if (!severity) continue;
+        if (!severity) {
+            if (c.level === 'no-data') dataGaps.push({ label: c.label, note: c.summary });
+            continue;
+        }
         risks.push({
             source: 'riskRadar',
             label: c.label,
@@ -160,6 +236,25 @@ export function assessGoalRisk(
             financialImpact: 0,
             summary: c.summary,
             action: RISK_CATEGORY_ACTION[c.key],
+        });
+    }
+
+    // The owner's own macro assumptions, scored against how exposed THIS
+    // business's own revenue/costs actually are (externalFactorsPanel.ts) --
+    // the "how sensitive is this goal to micro/macro economics" signal,
+    // one row per assumption rather than one averaged line.
+    for (const item of externalFactorsPanel.items) {
+        if (driverFilter && !driverFilter.includes(item.driver)) continue;
+        const severity = externalImpactSeverity(item.impactLevel);
+        if (!severity) continue; // 'positive' -- a tailwind, not a risk
+        risks.push({
+            source: 'external',
+            label: item.label,
+            shortLabel: item.driver === 'demand' ? 'demand for your products' : `${item.label.toLowerCase()} exposure`,
+            severity,
+            financialImpact: 0,
+            summary: item.sentence,
+            action: EXTERNAL_DRIVER_ACTION[item.driver],
         });
     }
 
@@ -189,5 +284,5 @@ export function assessGoalRisk(
         ? 'No major risks currently threaten this goal — a clear runway to hit your target.'
         : `Your biggest constraint right now isn't the goal itself — it's ${topRealRisk.shortLabel}.`;
 
-    return { risks, growthReadiness, readinessBand, narrative };
+    return { risks, growthReadiness, readinessBand, narrative, dataGaps };
 }

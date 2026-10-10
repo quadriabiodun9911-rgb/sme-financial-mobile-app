@@ -34,6 +34,14 @@ export interface GoalBridge {
   gap: number; // Gap between current and target
   gapPercentage: number;
   requiredMonthlyImprovement: number;
+  // Same gap, same deadline, just divided into the smaller cadences the
+  // owner actually works in day to day -- not a second, independently
+  // -derived estimate. Same 30-day month convention mapSavedGoalToBridge
+  // already uses to turn a deadline into timelineMonths, so a week is
+  // 7/30 of a month and a day is 1/30, not a different calendar convention
+  // that would make the three numbers disagree with each other.
+  requiredWeeklyImprovement: number;
+  requiredDailyImprovement: number;
   feasibility: 'easy' | 'medium' | 'difficult'; // Can they achieve it?
   achievableTimeline: number; // Realistic months to achieve
   recommendedApproach: 'revenue-focused' | 'expense-focused' | 'hybrid';
@@ -76,6 +84,8 @@ export function calculateGoalBridge(
   const base = Math.abs(current) > 0.0001 ? Math.abs(current) : (Math.abs(goal.targetValue) || 1);
   const gapPercentage = (gap / base) * 100;
   const requiredMonthlyImprovement = gap / Math.max(1, goal.timelineMonths);
+  const requiredWeeklyImprovement = requiredMonthlyImprovement * 7 / 30;
+  const requiredDailyImprovement = requiredMonthlyImprovement / 30;
 
   // Determine feasibility
   let feasibility: 'easy' | 'medium' | 'difficult' = 'difficult';
@@ -125,6 +135,8 @@ export function calculateGoalBridge(
     gap,
     gapPercentage,
     requiredMonthlyImprovement,
+    requiredWeeklyImprovement,
+    requiredDailyImprovement,
     feasibility,
     achievableTimeline,
     recommendedApproach,
