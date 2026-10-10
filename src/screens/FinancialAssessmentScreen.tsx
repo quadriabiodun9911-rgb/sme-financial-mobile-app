@@ -35,9 +35,20 @@ import { computeDataQuality } from '../utils/dataQuality';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { computeInventoryValue } from '../utils/stockVelocity';
 import { buildDiagnosticDimensions } from '../utils/diagnosticDimensions';
+import { GoalStatus } from '../types';
+
+// Same four states GoalsScreen's own goal cards use (goals.ts
+// computeGoalStatus) -- read here only to narrate an already-computed
+// status, never to re-derive one.
+const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
+  on_track: 'on track',
+  at_risk: 'at risk',
+  off_track: 'off track',
+  achieved: 'achieved',
+};
 
 export default function FinancialAssessmentScreen() {
-  const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory, assets, budgets, dataConfidenceHistory, user } = useApp();
+  const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory, assets, budgets, dataConfidenceHistory, user, goals } = useApp();
   const [selectedDiagnosis, setSelectedDiagnosis] = useState<number>(0);
   const dataConfidenceTrend = useMemo(() => describeDataConfidenceTrend(dataConfidenceHistory), [dataConfidenceHistory]);
 
@@ -171,6 +182,18 @@ export default function FinancialAssessmentScreen() {
     [diagnosis, settings.currency, directionVsStatus, riskRadar, resilience, financialResilience, financingReadinessScore, lendingCapacity, transactions, loans, invoices, budgets]
   );
   const [expandedDimension, setExpandedDimension] = useState<string | null>(null);
+
+  // If the owner already set up a goal matching what this report would
+  // suggest, show its real, already-tracked progress instead of asking
+  // them to re-derive the same plan by hand -- the report "monitors" that
+  // goal simply by reading its own live progress/status, never a second
+  // computation of its own.
+  const trackedGoalForReport = useMemo(
+    () => (businessHealthReport.suggestedGoalType
+      ? goals.find(g => g.type === businessHealthReport.suggestedGoalType && g.status !== 'achieved') ?? null
+      : null),
+    [goals, businessHealthReport.suggestedGoalType]
+  );
 
   // Total identified financial impact across every issue the diagnosis
   // found — the honest answer to "where could money be leaking?" instead
@@ -391,11 +414,31 @@ export default function FinancialAssessmentScreen() {
               into a budget" carries it into Budget. Named explicitly here
               since that chain isn't otherwise visible from this screen. */}
           <View style={styles.reportDecisionBox}>
-            <Text style={styles.reportSectionLabel}>Turn this into a tracked plan</Text>
-            <Text style={styles.reportText}>
-              Every finding above also lives in your Decision Centre, where you can set it as a goal and -- for a cost-cutting goal -- turn that goal straight into a budget.
-            </Text>
-            <NextStepLink text="Open your Decision Centre" onPress={() => navigate('insights')} />
+            {trackedGoalForReport ? (
+              <>
+                <Text style={styles.reportSectionLabel}>Tracking this as a goal</Text>
+                <Text style={styles.reportText}>
+                  "{trackedGoalForReport.title}" is {Math.round(trackedGoalForReport.progress)}% there -- {GOAL_STATUS_LABEL[trackedGoalForReport.status]}. This report will keep reflecting its real progress as your numbers change.
+                </Text>
+                <NextStepLink text="View or adjust this goal" onPress={() => navigate('goals', { goalId: trackedGoalForReport.id })} />
+              </>
+            ) : businessHealthReport.suggestedGoalType ? (
+              <>
+                <Text style={styles.reportSectionLabel}>Turn this into a tracked plan</Text>
+                <Text style={styles.reportText}>
+                  Set this up as a goal with one tap -- prefilled from your own numbers, still yours to adjust before saving. Once it exists, this report tracks its real progress automatically.
+                </Text>
+                <NextStepLink text="Set this up as a goal" onPress={() => navigate('goals', { goalType: businessHealthReport.suggestedGoalType })} />
+              </>
+            ) : (
+              <>
+                <Text style={styles.reportSectionLabel}>Turn this into a tracked plan</Text>
+                <Text style={styles.reportText}>
+                  Every finding above also lives in your Decision Centre, where you can set it as a goal and -- for a cost-cutting goal -- turn that goal straight into a budget.
+                </Text>
+                <NextStepLink text="Open your Decision Centre" onPress={() => navigate('insights')} />
+              </>
+            )}
           </View>
         </View>
 
