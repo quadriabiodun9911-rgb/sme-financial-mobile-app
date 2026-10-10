@@ -17,6 +17,7 @@ import {
 } from '../utils/finance';
 import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
 import { computeExternalRiskInsights, DRIVER_LABEL } from '../utils/externalRiskInsights';
+import { computeExternalFactorsPanel, ImpactLevel } from '../utils/externalFactorsPanel';
 import { computeExpenseSeasonalityPattern } from '../utils/seasonality';
 import { MACRO_ASSUMPTION_SUGGESTIONS } from '../utils/macroAssumptionSuggestions';
 import { fetchLiveFxRate, computeFxChangeSuggestion, recordFxSnapshot, LiveFxRate, FxChangeSuggestion } from '../utils/macroFeed';
@@ -38,6 +39,13 @@ const RISK_LEVEL_META: Record<RiskLevel, { color: string; icon: IconName }> = {
     medium:    { color: Colors.warning,   icon: 'alert-triangle' },
     low:       { color: Colors.income,    icon: 'check-circle' },
     'no-data': { color: Colors.textMuted, icon: 'circle' },
+};
+
+const IMPACT_LEVEL_COLOR: Record<ImpactLevel, string> = {
+    high: Colors.expense,
+    medium: Colors.warning,
+    low: Colors.textMuted,
+    positive: Colors.income,
 };
 
 // Same icon set as RISK_LEVEL_META, keyed off tierColor's 'low'/'medium'/'high'
@@ -110,6 +118,14 @@ export default function RiskManagementScreen() {
     const expenseSeasonality = useMemo(() => computeExpenseSeasonalityPattern(transactions), [transactions]);
     const externalRisk  = useMemo(
         () => computeExternalRiskInsights(transactions, settings.macroAssumptions ?? []),
+        [transactions, settings.macroAssumptions]
+    );
+    // How exposed THIS business's own revenue/costs actually are to each
+    // assumption the owner has logged -- not a predicted inflation/demand
+    // number of its own, just the owner's real % change translated into
+    // what it would mean for their own books (externalFactorsPanel.ts).
+    const externalFactorsPanel = useMemo(
+        () => computeExternalFactorsPanel(transactions, settings.macroAssumptions ?? []),
         [transactions, settings.macroAssumptions]
     );
     const topExternalInsight = useMemo(
@@ -467,19 +483,48 @@ export default function RiskManagementScreen() {
                                         </View>
                                     ))}
                                 </>
-                            ) : (settings.macroAssumptions ?? []).map(a => (
-                                <View key={a.id} style={s.assumptionRow}>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={s.concName}>{a.label}</Text>
-                                        <Text style={s.assumptionMeta}>
-                                            {DRIVER_LABEL[a.driver]} · {a.changePct >= 0 ? '+' : ''}{a.changePct}% over {a.periodMonths}mo
-                                            {a.linkedCategories.length > 0 ? ` · linked: ${a.linkedCategories.join(', ')}` : ''}
-                                        </Text>
+                            ) : (settings.macroAssumptions ?? []).map(a => {
+                                const item = externalFactorsPanel.items.find(i => i.id === a.id);
+                                return (
+                                    <View key={a.id} style={s.assumptionRow}>
+                                        <View style={{ flex: 1 }}>
+                                            <View style={s.assumptionHeaderRow}>
+                                                <Text style={s.concName}>{a.label}</Text>
+                                                {item && (
+                                                    <View style={[s.impactBadge, { backgroundColor: IMPACT_LEVEL_COLOR[item.impactLevel] + '22' }]}>
+                                                        <Text style={[s.impactBadgeText, { color: IMPACT_LEVEL_COLOR[item.impactLevel] }]}>
+                                                            {item.impactLevel === 'positive' ? 'TAILWIND' : `${item.impactLevel.toUpperCase()} SENSITIVITY`}
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                            </View>
+                                            <Text style={s.assumptionMeta}>
+                                                {DRIVER_LABEL[a.driver]} · {a.changePct >= 0 ? '+' : ''}{a.changePct}% over {a.periodMonths}mo
+                                                {a.linkedCategories.length > 0 ? ` · linked: ${a.linkedCategories.join(', ')}` : ''}
+                                            </Text>
+                                            {/* How sensitive THIS business actually is -- real exposure (%
+                                                of recent revenue running through what this affects, or the
+                                                demand/revenue-trend match) and whether it's already showing
+                                                up in the business's own numbers, not just the raw assumption
+                                                restated. */}
+                                            {item && <Text style={s.sensitivitySentence}>{item.sentence}</Text>}
+                                        </View>
                                     </View>
-                                </View>
-                            ))}
+                                );
+                            })}
                             <NextStepLink text="Add or edit economic assumptions" onPress={() => setCurrentScreen('macro-assumptions')} />
                         </View>
+
+                        {externalFactorsPanel.summarySentence && (
+                            <View style={s.card}>
+                                <Text style={s.cardTitle}>Sensitivity to Micro & Macro Economics</Text>
+                                <Text style={s.cardSub}>
+                                    What your logged assumptions would mean for this business specifically, based on how much of your
+                                    own revenue and costs actually run through what they affect.
+                                </Text>
+                                <Text style={s.insightBody}>{externalFactorsPanel.summarySentence}</Text>
+                            </View>
+                        )}
 
                         <View style={s.card}>
                             <Text style={s.cardTitle}>Economic Risk Insights</Text>
@@ -668,7 +713,11 @@ const s = StyleSheet.create({
     seasonWarning: { fontSize: 12, lineHeight: 18, marginTop: 6 },
 
     assumptionRow: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    assumptionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
     assumptionMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+    sensitivitySentence: { fontSize: 12, color: Colors.textSecondary, marginTop: 6, lineHeight: 17 },
+    impactBadge: { borderRadius: Radius.pill, paddingHorizontal: 8, paddingVertical: 3 },
+    impactBadgeText: { fontSize: 9.5, fontWeight: '800' },
 
     suggestTitle: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary, marginTop: 10, marginBottom: 8 },
     suggestRow: { paddingVertical: 8, borderTopWidth: 1, borderTopColor: Colors.border },

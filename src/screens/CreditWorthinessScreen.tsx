@@ -26,6 +26,7 @@ import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { calculateGoalBridge, mapSavedGoalToBridge } from '../utils/goalBridgeEngine';
 import { assessGoalRisk, GoalRiskAssessment } from '../utils/goalRiskLinkage';
+import { computeExternalFactorsPanel } from '../utils/externalFactorsPanel';
 import { computeRiskRadar } from '../utils/riskRadar';
 import { computeForecastSummary } from '../utils/forecastSummary';
 import { computeForwardFinancingReadiness } from '../utils/forwardFinancingReadiness';
@@ -346,12 +347,13 @@ export default function CreditWorthinessScreen() {
         if (transactions.length < 5 || activeGoals.length === 0) return {};
         const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, getMonthlyExpenseAverage(finance.expense, transactions), currency, loans, inventory, assets, settings?.industry);
         const riskRadar = computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? [], new Date(), assets);
+        const externalFactorsPanel = computeExternalFactorsPanel(transactions, settings?.macroAssumptions ?? []);
         const tactics = generateActionPlan(diagnosis, diagnosis.metrics, currency);
         const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
         const map: Record<string, GoalRiskAssessment> = {};
         for (const g of activeGoals) {
             const bridge = calculateGoalBridge(mapSavedGoalToBridge(g), diagnosis.metrics, allTactics, currency);
-            map[g.id] = assessGoalRisk(g.type, diagnosis.diagnoses, riskRadar, bridge.successProbability);
+            map[g.id] = assessGoalRisk(g.type, diagnosis.diagnoses, riskRadar, bridge.successProbability, externalFactorsPanel);
         }
         return map;
     }, [transactions, invoices, finance, currency, loans, inventory, assets, activeGoals, settings?.macroAssumptions]);
