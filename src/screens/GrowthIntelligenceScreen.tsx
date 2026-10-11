@@ -69,9 +69,29 @@ function PillarBar({ pct, color }: { pct: number; color: string }) {
     );
 }
 
+// A "how to improve your score" suggestion -- tappable straight into the
+// real tool for it when one applies, matching the same tap-to-act pattern
+// every other diagnosis/suggestion surface in the app uses (the 8-Dimension
+// Diagnosis, Business Health Report, etc.). text-only (no onPress) only for
+// the couple of items with no single matching screen ("log transactions
+// consistently," general praise at a high score).
+function NextItem({ text, onPress }: { text: string; onPress?: () => void }) {
+    const content = (
+        <>
+            <Text style={gs.nextItem}>→ {text}</Text>
+            {onPress && <Icon name="chevron-right" size={14} color={Colors.textMuted} />}
+        </>
+    );
+    return onPress ? (
+        <TouchableOpacity style={gs.nextItemRow} onPress={onPress} activeOpacity={0.7}>{content}</TouchableOpacity>
+    ) : (
+        <View style={gs.nextItemRow}>{content}</View>
+    );
+}
+
 // ─── Growth Score Tab ─────────────────────────────────────────────────────────
 function ScoreTab({ currency }: { currency: string }) {
-    const { transactions, settings } = useApp();
+    const { transactions, settings, navigate } = useApp();
     const result = useMemo(() => computeGrowthScore(transactions, settings), [transactions, settings]);
     const momentum = useMemo(() => computeMomentum(transactions), [transactions]);
     const breakeven = useMemo(() => computeBreakeven(transactions, settings), [transactions, settings]);
@@ -122,32 +142,42 @@ function ScoreTab({ currency }: { currency: string }) {
                 })}
             </View>
 
-            {/* Next steps */}
+            {/* Next steps -- each one tappable into the real tool it's
+                talking about, not just advice left for the owner to act on
+                unassisted. */}
             <View style={gs.nextCard}>
                 <Text style={gs.sectionTitle}>HOW TO IMPROVE YOUR SCORE</Text>
-                {result.score < 25 && <Text style={gs.nextItem}>→ Log transactions consistently for 3+ months</Text>}
+                {result.score < 25 && (
+                    <NextItem text="Log transactions consistently for 3+ months" onPress={() => navigate('transactions')} />
+                )}
                 {(result.pillars[2]?.score ?? 100) < 25 && (
-                    <Text style={gs.nextItem}>
-                        → Grow monthly revenue — even 5% MoM compounds fast
-                        {result.label !== 'Not Enough Data' && ` (you're at ${momentum.revenueGrowthPct >= 0 ? '+' : ''}${momentum.revenueGrowthPct.toFixed(0)}% right now)`}
-                    </Text>
+                    <NextItem
+                        text={`Grow monthly revenue — even 5% MoM compounds fast${result.label !== 'Not Enough Data' ? ` (you're at ${momentum.revenueGrowthPct >= 0 ? '+' : ''}${momentum.revenueGrowthPct.toFixed(0)}% right now)` : ''}`}
+                        onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'growth' })}
+                    />
                 )}
                 {(result.pillars[3]?.score ?? 100) < 20 && (
-                    <Text style={gs.nextItem}>
-                        → {result.label === 'Not Enough Data'
+                    <NextItem
+                        text={result.label === 'Not Enough Data'
                             ? 'Reach breakeven by cutting your top expense category'
                             : breakeven.costStructureUpsideDown
                                 ? "Fix pricing or cost-per-sale first — right now every sale's variable cost alone exceeds what it brings in, so more volume makes it worse, not better"
                                 : `Close the ${fmt(Math.abs(breakeven.surplusOrGap), currency)}/mo gap to breakeven: cut ~${fmt(breakeven.pathsToProfitability.costReductionNeeded, currency)} in costs, or add ~${fmt(breakeven.pathsToProfitability.revenueIncreaseNeeded, currency)} in revenue`}
-                    </Text>
+                        onPress={() => navigate('cashflow', { tab: 'breakeven' })}
+                    />
                 )}
                 {(result.pillars[4]?.score ?? 100) < 10 && performers.topCustomers[0] && (
-                    <Text style={gs.nextItem}>
-                        → {performers.topCustomers[0].name} is {Math.round(performers.topCustomers[0].sharePct)}% of revenue ({fmt(performers.topCustomers[0].revenue, currency)}) — reduce concentration by adding 2+ new clients of similar size
-                    </Text>
+                    <NextItem
+                        text={`${performers.topCustomers[0].name} is ${Math.round(performers.topCustomers[0].sharePct)}% of revenue (${fmt(performers.topCustomers[0].revenue, currency)}) — reduce concentration by adding 2+ new clients of similar size`}
+                        onPress={() => navigate('risk-management', { tab: 'concentration' })}
+                    />
                 )}
-                {(result.pillars[1]?.score ?? 100) < 20 && <Text style={gs.nextItem}>→ Turn loss months profitable — review costs when revenue dips</Text>}
-                {result.score >= 75 && <Text style={gs.nextItem}>→ You're doing great. Reinvest profit into growth channels.</Text>}
+                {(result.pillars[1]?.score ?? 100) < 20 && (
+                    <NextItem text="Turn loss months profitable — review costs when revenue dips" onPress={() => navigate('transactions', { tab: 'exposure' })} />
+                )}
+                {result.score >= 75 && (
+                    <NextItem text="You're doing great. Pressure-test reinvesting profit into growth before committing." onPress={() => navigate('analysis', { tab: 'decide' })} />
+                )}
             </View>
         </ScrollView>
     );
@@ -631,7 +661,8 @@ const gs = StyleSheet.create({
     pillarFill:  { height: 7, borderRadius: 4 },
     pillarNote:  { fontSize: 11, color: Colors.textMuted },
     nextCard:    { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
-    nextItem:    { fontSize: 13, color: Colors.textSecondary, lineHeight: 22, marginBottom: Spacing.xs },
+    nextItemRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: Spacing.xs },
+    nextItem:    { flex: 1, fontSize: 13, color: Colors.textSecondary, lineHeight: 22 },
 
     // Momentum tab
     momCard:     { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
