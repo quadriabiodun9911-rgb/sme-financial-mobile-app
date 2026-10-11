@@ -601,9 +601,13 @@ export default function CreditWorthinessScreen() {
                     {/* Score Composition — this score IS computeRiskScore
                         (overallCreditScore = risk.score above), and the
                         full factor-by-factor breakdown with explanations
-                        now lives on Risk Management; this links there
-                        instead of re-rendering the same list. */}
-                    <NextStepLink text="See the full factor-by-factor breakdown → Risk Management" onPress={() => navigate('risk-management')} />
+                        (risk.factors, tap-to-expand) lives on the
+                        Scoreboard's own Business Health Score card, not
+                        Risk Management (which covers Risk Radar/
+                        concentration/seasonal/economic -- a different
+                        breakdown entirely); this links to where that
+                        content actually is instead of re-rendering it. */}
+                    <NextStepLink text="See the full factor-by-factor breakdown → Scoreboard" onPress={() => navigate('scoreboard')} />
                 </View>
 
                 {simpleView && (
