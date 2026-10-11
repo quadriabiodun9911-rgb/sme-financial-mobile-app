@@ -405,7 +405,7 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             ? directionVsStatus.rows.map(r => ({ label: r.label, value: r.direction ? `${r.direction === 'improving' ? '↑' : r.direction === 'deteriorating' ? '↓' : '→'} ${r.directionEvidence ?? r.direction}` : 'No baseline yet' }))
             : [{ label: 'Status', value: directionVsStatus.directionUnavailableReason ?? 'Needs more transaction history' }],
         relatedProblems: [],
-        seeFullDetail: { text: 'Full Direction vs. Status & Quality of Growth', screen: 'scoreboard' },
+        seeFullDetail: { text: 'Full Quality of Growth breakdown, metric by metric', screen: 'reports', params: { reportSection: 'growth', reportTab: 'quality' } },
         narrative: directionVsStatus.directionAvailable ? {
             headline: declining > improving
                 ? 'More is moving in the wrong direction than the right one'
@@ -426,8 +426,8 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 : 'A good time to plan growth rather than just defend cash -- see Decision Readiness before committing new spend.')
                 + " Trends here are measured against the business's own recent history, not an industry benchmark, so this reflects genuine change in how things are going, not just where you stand compared to others.",
             recommendedSteps: [
-                { text: 'Identify exactly which trend is declining and why (see the breakdown below).', screen: 'scoreboard' },
-                { text: 'Decide whether it’s seasonal, one-off, or a real shift before reacting.', screen: 'scoreboard' },
+                { text: 'Identify exactly which trend is declining and why (see the breakdown below).', screen: 'reports', params: { reportSection: 'growth', reportTab: 'quality' } },
+                { text: 'Decide whether it’s seasonal, one-off, or a real shift before reacting.', screen: 'reports', params: { reportSection: 'growth', reportTab: 'history' } },
                 { text: 'Set a check-in date to confirm whether it has turned around.' },
             ],
             suggestedGoalType: null,
@@ -635,10 +635,10 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             ],
             whyThisMatters: `${declining} of the trends being tracked are getting worse, against ${improving} improving: ${directionVsStatus.rows.filter(r => r.direction === 'deteriorating').map(r => r.label).join(', ')}. Left unaddressed, this usually shows up in cash and profit within a few months, since these trends feed into each other rather than staying contained.`,
             nextSteps: [
-                { text: 'Identify exactly which trend is declining and why.', screen: 'scoreboard' },
+                { text: 'Identify exactly which trend is declining and why.', screen: 'reports', params: { reportSection: 'growth', reportTab: 'quality' } },
                 {
                     text: `Before planning new growth spending, check whether it depends on the ${declining} trend${declining === 1 ? '' : 's'} currently moving the wrong way, or on the ${improving} that's still working.`,
-                    screen: 'scoreboard',
+                    screen: 'reports', params: { reportSection: 'growth', reportTab: 'quality' },
                 },
                 { text: "Set a check-in date to confirm whether it's turned around." },
             ],
