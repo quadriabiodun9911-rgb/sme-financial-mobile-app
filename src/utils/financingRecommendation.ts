@@ -24,6 +24,23 @@ import { computeStockVelocity } from './stockVelocity';
 import { computeSeasonalityPattern } from './seasonality';
 import { CashFlowHealthResult } from './cashFlowHealth';
 
+// Where a recommended FinancingProductType lands in the Financing
+// Marketplace's own category picker (FinancingMarketplaceScreen.tsx) -- the
+// single-purpose category that best represents that product type, not just
+// any category whose productTypes[] happens to include it. Lives here
+// rather than in the screen so other callers (e.g. diagnosticDimensions.ts)
+// can deep-link straight to the matching category's results instead of
+// dropping the owner on the generic category-grid picker and hoping they
+// find the right one themselves.
+export const RECOMMENDATION_CATEGORY: Record<FinancingProductType, string> = {
+    working_capital: 'working_capital',
+    asset_financing: 'asset_equipment',
+    invoice_financing: 'invoice_finance',
+    term_loan: 'expansion',
+    trade_finance: 'trade_export',
+    overdraft: 'working_capital',
+};
+
 export interface FinancingRecommendation {
     productType: FinancingProductType;
     label: string;

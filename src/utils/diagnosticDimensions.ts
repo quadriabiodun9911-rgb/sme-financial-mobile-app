@@ -28,7 +28,7 @@ import { DirectionVsStatusResult } from './directionVsStatus';
 import { RiskRadar } from './riskRadar';
 import { BusinessResilience } from './businessExposure';
 import { LendingCapacityEstimate } from './lendingCapacity';
-import { FinancingRecommendation } from './financingRecommendation';
+import { FinancingRecommendation, RECOMMENDATION_CATEGORY } from './financingRecommendation';
 
 export type DiagnosticStatus = 'strong' | 'watch' | 'high-risk' | 'info';
 
@@ -607,7 +607,14 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 { label: 'Verdict', value: lendingCapacity.reason },
             ],
         relatedProblems: [],
-        seeFullDetail: { text: 'Full financing readiness & matched options', screen: 'credit-worthiness' },
+        // Credit Worthiness shows the readiness breakdown itself (Five C's,
+        // Visibility Score, Estimated Lending Capacity) but never the
+        // matched financing TYPES -- that ranked, reasoned list only
+        // renders on Financing Marketplace's own category picker. Dropped
+        // the "& matched options" claim here since this destination
+        // doesn't have that; the recommendedSteps below send the matched
+        // -options question to where it's actually answered.
+        seeFullDetail: { text: 'Full financing readiness breakdown', screen: 'credit-worthiness' },
         narrative: lendingCapacity ? {
             headline: lendingCapacity.conclusion === 'ready'
                 ? 'You look ready to take on financing if needed'
@@ -633,10 +640,16 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 : 'Log a few more transactions so this estimate reflects your real numbers.')
                 + ' This score and range update automatically as your numbers change -- there\'s no separate application or check to run to see it move.'
                 + (showsFinancingType ? ` Matching the TYPE to your actual need matters as much as the amount -- a working capital facility and an asset loan solve very different problems even at the same size, and applying for the wrong one wastes time and can hurt your application history.` : ''),
+            // "Compare X options" deep-links straight into Financing
+            // Marketplace's results for that matched category (via
+            // RECOMMENDATION_CATEGORY, the same lookup the Marketplace's own
+            // "Recommended For You" cards use) instead of dropping the owner
+            // on the generic category-grid picker and leaving them to find
+            // the right one themselves.
             recommendedSteps: [
-                { text: 'See the full financing readiness breakdown and matched options.', screen: 'credit-worthiness' },
+                { text: 'See the full financing readiness breakdown.', screen: 'credit-worthiness' },
                 showsFinancingType
-                    ? { text: `Compare ${topFinancing!.label} options matched to your real numbers.`, screen: 'financing-marketplace' }
+                    ? { text: `Compare ${topFinancing!.label} options matched to your real numbers.`, screen: 'financing-marketplace', params: { prefill: { category: RECOMMENDATION_CATEGORY[topFinancing!.productType] } } }
                     : { text: 'Check which specific factor is holding your readiness score back.', screen: 'credit-worthiness' },
             ],
             suggestedGoalType: null,
