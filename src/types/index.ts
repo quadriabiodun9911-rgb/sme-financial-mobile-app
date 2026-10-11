@@ -467,6 +467,13 @@ export interface NavParams {
     // header so landing on a screen's generic default view doesn't leave the
     // owner to remember the actual task on their own.
     focusTask?: string;
+    // "Check it against X, not your full bank balance" from the Business
+    // Health Report's cash-health step -- carries that already-computed
+    // safe-to-spend figure (bank balance minus known upcoming payments)
+    // into the Decide tab's spend-check card, so the number the owner was
+    // told to compare against is the one actually sitting in the input,
+    // never re-derived or left for them to remember.
+    spendCheckThreshold?: number;
     // Carries the exact scenario the owner was testing on the Dashboard's
     // MacroShield card into macroshield-detail, so the detail page never
     // shows a different shock than the one just explored.

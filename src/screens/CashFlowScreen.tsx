@@ -197,6 +197,14 @@ export default function CashFlowScreen() {
     // Runway card above already shows (never a separately-estimated figure).
     const reserveGap = dailyBurn > 0 && runwayDays < 90 ? dailyBurn * (90 - runwayDays) : 0;
 
+    // "Cash needed to keep operating" -- the next 4 weeks of this
+    // business's own projected outflows, pulled from the exact same
+    // `weeks` forecast (and therefore the exact same ₦ figure) the
+    // Business Health Report's "known upcoming payments" already told the
+    // owner about, never a second, independently-estimated number.
+    const upcomingPayments4wk = useMemo(() => weeks.slice(0, 4).reduce((s, w) => s + w.projectedOutflow, 0), [weeks]);
+    const cashNeededGap = finance.cashBalance - upcomingPayments4wk;
+
     return (
         <SafeAreaView style={styles.safe}>
             <Header />
@@ -438,6 +446,22 @@ export default function CashFlowScreen() {
                                     <Text style={[styles.runwayWhyText, { color: Colors.warning, fontWeight: '700' }]}>⚠️ {runwayIntelligence.trigger}</Text>
                                 </View>
                             )}
+                        </View>
+
+                        <View style={[styles.dscrCard, { borderColor: cashNeededGap >= 0 ? Colors.income : Colors.expense }]}>
+                            <View style={styles.dscrHeaderRow}>
+                                <Icon name="shield" size={13} color={Colors.muted} />
+                                <Text style={styles.dscrTitle}>Cash Needed To Keep Operating</Text>
+                                <Text style={[styles.dscrBadge, { color: cashNeededGap >= 0 ? Colors.income : Colors.expense, backgroundColor: (cashNeededGap >= 0 ? Colors.income : Colors.expense) + '20' }]}>
+                                    {cashNeededGap >= 0 ? 'COVERED' : 'SHORT'}
+                                </Text>
+                            </View>
+                            <Text style={[styles.card2Val, { marginBottom: 4 }]}>{fmt(upcomingPayments4wk)} <Text style={styles.card2Sub}>over the next 4 weeks</Text></Text>
+                            <Text style={styles.dscrSummary}>
+                                {cashNeededGap >= 0
+                                    ? `Your current balance of ${fmt(finance.cashBalance)} covers this, leaving ${fmt(cashNeededGap)} after known payments.`
+                                    : `Your current balance of ${fmt(finance.cashBalance)} falls short of this by ${fmt(Math.abs(cashNeededGap))} — known payments already exceed what's available.`}
+                            </Text>
                         </View>
 
                         <View style={styles.row2}>
