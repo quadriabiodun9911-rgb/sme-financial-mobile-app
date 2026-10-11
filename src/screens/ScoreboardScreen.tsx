@@ -651,8 +651,15 @@ export default function ScoreboardScreen() {
 
                 {/* Business Exposure & Resilience -- complements Health:
                     Health asks "is the business doing well", this asks
-                    "how much would one bad event hurt it". */}
-                <TouchableOpacity style={[s.card, isWideScoreboard && s.scoreboardGridItem]} onPress={() => setCurrentScreen('risk-management')} activeOpacity={0.85}>
+                    "how much would one bad event hurt it". Not wrapped in a
+                    navigating TouchableOpacity like the cards around it --
+                    score, band, biggest exposure and the full per-factor
+                    breakdown (via the chips below) are already all shown
+                    right here, and Risk Management has no Shock Resilience
+                    section to send a tap to; a card that already shows its
+                    own full detail shouldn't also claim to lead somewhere
+                    deeper that doesn't exist. */}
+                <View style={[s.card, isWideScoreboard && s.scoreboardGridItem]}>
                     <View style={s.cardHeaderRow}>
                         <Icon name="shield" size={14} color={Colors.textMuted} />
                         <Text style={s.cardTitle}>Shock Resilience</Text>
@@ -671,7 +678,7 @@ export default function ScoreboardScreen() {
                                 <TouchableOpacity
                                     key={f.key}
                                     style={[s.factorChip, isOpen && s.factorChipOpen]}
-                                    onPress={(e) => { e.stopPropagation(); toggleChip(key); }}
+                                    onPress={() => toggleChip(key)}
                                     activeOpacity={0.7}
                                 >
                                     <View style={[s.factorDot, { backgroundColor: EXPOSURE_LEVEL_META[f.level].color }]} />
@@ -689,7 +696,7 @@ export default function ScoreboardScreen() {
                             {resilience.topConcerns[0].detail}
                         </Text>
                     )}
-                </TouchableOpacity>
+                </View>
 
                 {/* Risk Radar */}
                 <TouchableOpacity style={[s.card, isWideScoreboard && s.scoreboardGridItem]} onPress={() => setCurrentScreen('risk-management')} activeOpacity={0.85}>
