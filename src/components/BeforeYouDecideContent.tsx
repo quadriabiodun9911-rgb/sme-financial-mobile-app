@@ -17,7 +17,9 @@ import DecisionEvidencePanel from './DecisionEvidencePanel';
 import { computeDecisionEvidence } from '../utils/decisionEvidence';
 import { computeDiscretionaryCash } from '../utils/discretionaryCash';
 import { computeCashRunway } from '../utils/cashRunway';
-import { computeRiskScore, loanMonthlyPayment } from '../utils/finance';
+import { computeRiskScore, loanMonthlyPayment, latestTransactionDate } from '../utils/finance';
+import { computeInventoryValue } from '../utils/stockVelocity';
+import CashFlowStressTester from './CashFlowStressTester';
 import { computeBreakeven } from '../utils/profitability';
 import { computeBreakEven as computeHypotheticalBreakEven } from '../utils/finance';
 import { computeInventoryDecisions, summarizeInventoryDecisions } from '../utils/inventoryDecisions';
@@ -138,8 +140,12 @@ export default function BeforeYouDecideContent() {
     // Same trailing-30-day burn/profit derivation LoansAndDebt.tsx already
     // uses for these exact same components -- kept identical so a number
     // shown here never disagrees with the same calculator opened from
-    // Loans & Debt.
-    const { dailyBurn } = computeCashRunway(transactions, finance.cashBalance);
+    // Loans & Debt. Anchored to the latest date actually present in the
+    // transaction data, not the real device clock -- an unanchored
+    // trailing-30-day window reads as zero burn for any account whose data
+    // isn't current with real-world today, the same false-healthy bug
+    // already fixed for computeFinancialResilience/computeRiskScore.
+    const { dailyBurn } = computeCashRunway(transactions, finance.cashBalance, latestTransactionDate(transactions) ?? new Date());
     const monthlyBurn = dailyBurn * 30;
 
     const last30 = new Date();
@@ -173,6 +179,10 @@ export default function BeforeYouDecideContent() {
     const inventorySummary = summarizeInventoryDecisions(inventoryDecisions);
     const reorderDecisions = inventoryDecisions.filter(d => d.action === 'reorder');
     const unaffordableReorders = reorderDecisions.filter(d => d.affordable === false);
+
+    // Same inventory-value figure Reports' own Cash Flow & Safety page
+    // computes for the Stress Test below -- not a second estimate.
+    const inventoryValue = useMemo(() => computeInventoryValue(inventory), [inventory]);
 
     return (
         <>
@@ -230,6 +240,25 @@ export default function BeforeYouDecideContent() {
                         </TouchableOpacity>
                     </>
                 )}
+            </Collapsible>
+
+            <View style={styles.decisionCard}>
+                <Text style={styles.decisionQuestion}>Worried about a cost spike or a late payment?</Text>
+                <Text style={styles.decisionHelp}>Model a shock -- rising costs, a delayed invoice -- against your real cash position before it actually happens, not after.</Text>
+            </View>
+            {/* Moved here from Reports > Cash Flow & Safety -- a manual
+                what-if stress test belongs alongside the other "pressure-
+                test before you commit" tools on this tab, not filed under
+                a statements-and-reports screen. Reports still links back
+                here rather than keeping its own copy. */}
+            <Collapsible title="Stress-Test Your Cash">
+                <CashFlowStressTester
+                    currency={currency}
+                    currentCashBalance={finance.cashBalance}
+                    dailyBurn={dailyBurn}
+                    transactions={transactions}
+                    inventoryValue={inventoryValue}
+                />
             </Collapsible>
 
             <View style={styles.decisionCard}>

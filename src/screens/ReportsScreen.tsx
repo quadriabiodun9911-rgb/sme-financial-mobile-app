@@ -772,6 +772,14 @@ export default function ReportsScreen() {
                                 currency={currency}
                                 cashBalance={allFinance.cashBalance}
                             />
+                            {/* This tab's own "Tied up in stock" line is one
+                                total, not a real inventory breakdown -- the
+                                full valuation/category/item detail lives on
+                                the Stock tab. */}
+                            <NextStepLink
+                                text="See full inventory valuation, category and item detail"
+                                onPress={() => setActiveTab('inventory')}
+                            />
                         </View>
                     )}
 
