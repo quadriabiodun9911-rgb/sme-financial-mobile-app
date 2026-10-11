@@ -441,10 +441,20 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? "Most of the business is moving the right way, but keep an eye on what's slipping before it affects the rest. A single declining trend sitting alongside several improving ones is often still an early warning, not yet a crisis."
                 : 'A good time to plan growth rather than just defend cash -- see Decision Readiness before committing new spend.')
                 + " Trends here are measured against the business's own recent history, not an industry benchmark, so this reflects genuine change in how things are going, not just where you stand compared to others.",
-            recommendedSteps: [
+            // Only make sense when there's actually a decline to
+            // investigate -- a business with 0 declining trends was
+            // getting told to "identify which trend is declining" with
+            // nothing declining to find, which reads as broken rather
+            // than just unhelpful once the owner taps through and finds
+            // nothing there.
+            recommendedSteps: declining > 0 ? [
                 { text: 'Identify exactly which trend is declining and why (see the breakdown below).', screen: 'reports', params: { reportSection: 'growth', reportTab: 'quality' } },
                 { text: 'Decide whether it’s seasonal, one-off, or a real shift before reacting.', screen: 'reports', params: { reportSection: 'growth', reportTab: 'history' } },
                 { text: 'Set a check-in date to confirm whether it has turned around.' },
+            ] : [
+                { text: 'See exactly what’s driving the improvement, metric by metric.', screen: 'reports', params: { reportSection: 'growth', reportTab: 'quality' } },
+                { text: 'Decide whether this pace is sustainable or a one-off before planning around it.', screen: 'reports', params: { reportSection: 'growth', reportTab: 'history' } },
+                { text: 'A good time to plan growth, not just defend cash -- pressure-test a real decision.', screen: 'analysis', params: { tab: 'decide' } },
             ],
             suggestedGoalType: null,
         } : undefined,
