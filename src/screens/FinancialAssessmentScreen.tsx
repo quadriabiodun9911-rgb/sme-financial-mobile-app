@@ -594,6 +594,31 @@ export default function FinancialAssessmentScreen() {
                       </View>
                     )}
 
+                    {/* Decision Readiness has no current-state finding to
+                        narrate (see diagnosticDimensions.ts), so instead of
+                        narrative.recommendedSteps it offers this launcher
+                        menu -- which kind of decision, straight into the
+                        specific calculator for it, instead of a single
+                        link that drops the owner at the top of a long,
+                        undifferentiated tab. */}
+                    {dim.launcherOptions && dim.launcherOptions.length > 0 && (
+                      <>
+                        <Text style={styles.narrativeSectionLabel}>What kind of decision?</Text>
+                        {dim.launcherOptions.map((step, i) => (
+                          <TouchableOpacity
+                            key={i}
+                            style={styles.stepRow}
+                            onPress={() => navigate(step.screen!, { ...step.params, focusTask: step.text })}
+                            activeOpacity={0.7}
+                          >
+                            <Icon name="arrow-right-circle" size={14} color={Colors.primary} />
+                            <Text style={styles.narrativeStep}>{step.text}</Text>
+                            <Icon name="chevron-right" size={16} color={Colors.textMuted} />
+                          </TouchableOpacity>
+                        ))}
+                      </>
+                    )}
+
                     {/* Outputs already restated as one of the two narrative
                         metric tiles above (same value, e.g. Cash on hand ==
                         Bank balance) are skipped here rather than printed

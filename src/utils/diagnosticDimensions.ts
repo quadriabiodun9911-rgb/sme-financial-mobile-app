@@ -121,6 +121,15 @@ export interface DiagnosticDimension {
     relatedProblems: string[];
     seeFullDetail: { text: string; screen: Screen; params?: Record<string, any> } | null;
     narrative?: DiagnosticNarrative;
+    // Decision Readiness's own launcher menu -- deliberately separate from
+    // narrative.recommendedSteps, which always follows a stated finding
+    // (headline/whatThisMeans/whyItMatters) this dimension doesn't have by
+    // design (see the comment above DiagnosticNarrative). Without this, the
+    // dimension's single seeFullDetail link dropped the owner at the top of
+    // Analysis & Decisions' ~10-calculator Decide tab with no indication of
+    // which one applies to them. Each option deep-links straight into the
+    // specific calculator for that decision type instead.
+    launcherOptions?: DiagnosticActionStep[];
 }
 
 function fmtMoney(currency: string, n: number): string {
@@ -486,7 +495,14 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             ...(resilience.topConcerns.length > 0 ? [{ label: 'Top exposure', value: resilience.topConcerns[0].detail }] : []),
         ],
         relatedProblems: problemsFor(diagnosis.diagnoses, ['concentration']),
-        seeFullDetail: { text: 'Full risk radar & shock resilience', screen: 'risk-management' },
+        // Risk Radar's full category breakdown genuinely lives on Risk
+        // Management's Overview tab -- but Shock Resilience (score, band,
+        // topConcerns) is a different computation (cashReservePlanning.ts)
+        // that screen never shows at all; it's rendered on the Scoreboard
+        // instead. seeFullDetail only promises what Risk Management
+        // actually has; the resilience-specific step below points at
+        // Scoreboard, not a second trip to the same radar page.
+        seeFullDetail: { text: 'Full risk radar breakdown, category by category', screen: 'risk-management' },
         narrative: {
             headline: riskRadar.overallLevel === 'high'
                 ? 'Your biggest risk needs attention now'
@@ -508,10 +524,22 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? "This isn't urgent, but worth keeping an eye on before it becomes one. Risks tend to compound -- a medium risk left unaddressed alongside a second, unrelated shock is what turns a bad month into a real crisis."
                 : 'A good position to be in -- the real risk now is complacency, not a specific exposure.')
                 + ` Shock resilience (${resilience.score}/100) measures something different from the risk radar above: not "what might go wrong" but "how much room you'd have to absorb it if it did" -- the two together give a fuller picture than either alone.`,
+            // Two genuinely different destinations: the risk radar's full
+            // category breakdown lives on Risk Management, but the shock
+            // resilience score, its band and its biggest driver
+            // (topConcerns) are only ever rendered on the Scoreboard --
+            // Risk Management has no resilience section at all. Previously
+            // all three steps here pointed at Risk Management, so the
+            // "address your top exposure" and "check your shock resilience
+            // score" steps landed on a page with neither.
             recommendedSteps: [
                 { text: 'Review the full risk radar to see every category, not just the top one.', screen: 'risk-management' },
-                ...(resilience.topConcerns.length > 0 ? [{ text: `Address your top exposure: ${resilience.topConcerns[0].detail}`, screen: 'risk-management' as Screen }] : []),
-                { text: 'Check your shock resilience score and what would most improve it.', screen: 'risk-management' },
+                {
+                    text: resilience.topConcerns.length > 0
+                        ? `Review your shock resilience score and its biggest driver: ${resilience.topConcerns[0].detail}`
+                        : 'Review your shock resilience score and what would most improve it.',
+                    screen: 'scoreboard',
+                },
             ],
             suggestedGoalType: riskRadar.topRisks[0]?.key === 'customerConcentration'
                 ? 'customer_concentration'
@@ -535,6 +563,16 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
         ],
         relatedProblems: [],
         seeFullDetail: { text: 'Pressure-test a real decision → Analysis & Decisions', screen: 'analysis', params: { tab: 'decide' } },
+        // Each option deep-links straight into the specific calculator for
+        // that kind of decision (via decideFocusTool -- see
+        // BeforeYouDecideContent.tsx), instead of dropping the owner at the
+        // top of a ~10-calculator tab with no indication of which applies.
+        launcherOptions: [
+            { text: 'Hiring or expanding?', screen: 'analysis', params: { tab: 'decide', decideFocusTool: 'hireExpand' } },
+            { text: 'A new purchase or expense?', screen: 'analysis', params: { tab: 'decide', decideFocusTool: 'newSpend' } },
+            { text: 'Taking out a loan?', screen: 'analysis', params: { tab: 'decide', decideFocusTool: 'loanAffordability' } },
+            { text: 'Offering a discount?', screen: 'cashflow', params: { tab: 'breakeven' } },
+        ],
     });
 
     // 8. Financing readiness
