@@ -28,6 +28,7 @@ import { DirectionVsStatusResult } from './directionVsStatus';
 import { RiskRadar } from './riskRadar';
 import { BusinessResilience } from './businessExposure';
 import { LendingCapacityEstimate } from './lendingCapacity';
+import { FinancingRecommendation } from './financingRecommendation';
 
 export type DiagnosticStatus = 'strong' | 'watch' | 'high-risk' | 'info';
 
@@ -170,6 +171,13 @@ export interface BuildDiagnosticDimensionsInput {
     reserveCoverageMonths: number | null; // computeFinancialResilience's reserveCoverageMonths, null when not available
     financingReadinessScore: number; // computeFinancingReadinessScore(risk.factors).score
     lendingCapacity: LendingCapacityEstimate | null; // null when too little data (< 5 transactions)
+    // recommendFinancingTypes' own ranked output (financingRecommendation.ts)
+    // -- which TYPE of financing (invoice financing, asset financing, trade
+    // finance, overdraft, term loan, working capital) actually fits this
+    // business, not just how much. Empty when too little data; never
+    // recomputed here, just the same real signals FinancingMarketplaceScreen
+    // already uses.
+    financingRecommendations: FinancingRecommendation[];
     // Only needed to build the "known upcoming payments" figure in Cash
     // Health's narrative via computeCashFlowForecast -- the same real
     // 13-week forecast the Cash Flow screen uses, never a second estimate.
@@ -185,7 +193,7 @@ export interface BuildDiagnosticDimensionsResult {
 }
 
 export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput): BuildDiagnosticDimensionsResult {
-    const { diagnosis, currency, directionVsStatus, riskRadar, resilience, reserveCoverageMonths, financingReadinessScore, lendingCapacity, transactions, loans, invoices, budgets } = input;
+    const { diagnosis, currency, directionVsStatus, riskRadar, resilience, reserveCoverageMonths, financingReadinessScore, lendingCapacity, financingRecommendations, transactions, loans, invoices, budgets } = input;
     const m = diagnosis.metrics;
     const wcCategory = diagnosis.categories.find(c => c.key === 'workingCapital');
 
@@ -499,6 +507,7 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
     });
 
     // 8. Financing readiness
+    const topFinancing = financingRecommendations[0] ?? null;
     dims.push({
         key: 'financingReadiness',
         title: 'Financing Readiness',
@@ -510,6 +519,7 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             : [
                 { label: 'Readiness score', value: `${Math.round(financingReadinessScore)}/100` },
                 { label: 'Estimated capacity', value: `${fmtMoney(currency, lendingCapacity.minAmount)}–${fmtMoney(currency, lendingCapacity.maxAmount)}` },
+                { label: 'Best-fit financing type', value: topFinancing ? topFinancing.label : 'Not enough data yet' },
                 { label: 'Verdict', value: lendingCapacity.reason },
             ],
         relatedProblems: [],
@@ -524,9 +534,10 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 : 'Not enough data yet to assess this confidently',
             metrics: [
                 { label: 'Readiness score', value: `${Math.round(financingReadinessScore)}/100` },
-                { label: 'Estimated capacity', value: `${fmtMoney(currency, lendingCapacity.minAmount)}–${fmtMoney(currency, lendingCapacity.maxAmount)}` },
+                { label: 'Best-fit type', value: topFinancing ? topFinancing.label : 'N/A' },
             ],
-            whatThisMeans: `Based on your real cash flow, profitability and debt position, Quad360 estimates you could responsibly take on ${fmtMoney(currency, lendingCapacity.minAmount)}–${fmtMoney(currency, lendingCapacity.maxAmount)} in financing -- the lower end reflects a conservative lender's view, the higher end a more generous one. Your overall readiness score is ${Math.round(financingReadinessScore)}/100, putting you in the "${lendingCapacity.tierLabel}" tier. ${lendingCapacity.reason}`,
+            whatThisMeans: `Based on your real cash flow, profitability and debt position, Quad360 estimates you could responsibly take on ${fmtMoney(currency, lendingCapacity.minAmount)}–${fmtMoney(currency, lendingCapacity.maxAmount)} in financing -- the lower end reflects a conservative lender's view, the higher end a more generous one. Your overall readiness score is ${Math.round(financingReadinessScore)}/100, putting you in the "${lendingCapacity.tierLabel}" tier. ${lendingCapacity.reason}`
+                + (topFinancing ? ` The type that best fits your current profile is ${topFinancing.label}${topFinancing.confidence === 'strong' ? ' (a strong match)' : ''}: ${topFinancing.reasons[0]}` : ''),
             whyItMatters: (lendingCapacity.conclusion === 'ready'
                 ? 'This means financing could genuinely help you grow, not just plug a gap -- the kind of borrowing that expands what the business can do, rather than borrowing to survive a shortfall you could have avoided.'
                 : lendingCapacity.conclusion === 'improve'
@@ -534,11 +545,12 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 : lendingCapacity.conclusion === 'risk'
                 ? 'Taking on new debt now could strain cash flow that is already under pressure. A loan adds a fixed monthly obligation on top of whatever is already straining the business, which can turn a recoverable situation into a harder one.'
                 : 'Log a few more transactions so this estimate reflects your real numbers.')
-                + ' This score and range update automatically as your numbers change -- there\'s no separate application or check to run to see it move.',
+                + ' This score and range update automatically as your numbers change -- there\'s no separate application or check to run to see it move.'
+                + (topFinancing ? ` Matching the TYPE to your actual need matters as much as the amount -- a working capital facility and an asset loan solve very different problems even at the same size, and applying for the wrong one wastes time and can hurt your application history.` : ''),
             recommendedSteps: [
                 { text: 'See the full financing readiness breakdown and matched options.', screen: 'credit-worthiness' },
-                lendingCapacity.conclusion === 'ready'
-                    ? { text: 'Compare financing options matched to your real numbers.', screen: 'financing-marketplace' }
+                topFinancing
+                    ? { text: `Compare ${topFinancing.label} options matched to your real numbers.`, screen: 'financing-marketplace' }
                     : { text: 'Check which specific factor is holding your readiness score back.', screen: 'credit-worthiness' },
             ],
             suggestedGoalType: null,
