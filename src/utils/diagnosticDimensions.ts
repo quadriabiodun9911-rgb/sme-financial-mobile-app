@@ -400,9 +400,16 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             ],
             whatThisMeans: "You're not carrying any active loan repayments right now, so there's no fixed monthly obligation competing with rent, stock, wages or anything else you spend on.",
             whyItMatters: "This isn't a current risk, but it's worth modelling before taking on any debt. A loan's repayment becomes a fixed cost that has to be paid whether business is strong or slow that month -- knowing what it would do to your monthly cash flow before you apply means you choose the loan size deliberately instead of discovering it's too much after the first payment is due.",
+            // Two genuinely different destinations, not the same calculator
+            // phrased three ways: the loan-affordability tool (what a given
+            // repayment would do to cash flow, and the max you could safely
+            // absorb) is one card, so those two questions are now one step
+            // pointing at it; Credit Worthiness is a different question
+            // entirely -- what you could actually qualify for and which
+            // financing types fit -- so it gets its own, separate step.
             recommendedSteps: [
-                { text: "Model what a loan's repayment would do to your monthly cash flow before applying.", screen: 'analysis', params: { tab: 'decide', decideFocusTool: 'loanAffordability' } },
-                { text: 'Decide the maximum monthly repayment your cash flow could absorb without strain.', screen: 'analysis', params: { tab: 'decide', decideFocusTool: 'loanAffordability' } },
+                { text: "Model what a loan's repayment would do to your monthly cash flow, and the most you could safely absorb, before applying.", screen: 'analysis', params: { tab: 'decide', decideFocusTool: 'loanAffordability' } },
+                { text: 'Check how much you could realistically qualify for and which financing types fit your business.', screen: 'credit-worthiness' },
             ],
             suggestedGoalType: null,
         },
@@ -447,13 +454,19 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             // nothing declining to find, which reads as broken rather
             // than just unhelpful once the owner taps through and finds
             // nothing there.
+            // "Seasonal, one-off, or a real shift" is a real question with a
+            // real answer -- computeSeasonalRisk/seasonality.ts already know
+            // whether the current calendar month is a historical low/high for
+            // this business. Point there (Risk Management's Seasonal tab),
+            // not at Multi-Year History, which has no seasonal judgment at
+            // all, just raw tables.
             recommendedSteps: declining > 0 ? [
                 { text: 'Identify exactly which trend is declining and why (see the breakdown below).', screen: 'reports', params: { reportSection: 'growth', reportTab: 'quality' } },
-                { text: 'Decide whether it’s seasonal, one-off, or a real shift before reacting.', screen: 'reports', params: { reportSection: 'growth', reportTab: 'history' } },
+                { text: 'Check whether this calendar month is historically a slow one for your business before reacting.', screen: 'risk-management', params: { tab: 'seasonal' } },
                 { text: 'Set a check-in date to confirm whether it has turned around.' },
             ] : [
                 { text: 'See exactly what’s driving the improvement, metric by metric.', screen: 'reports', params: { reportSection: 'growth', reportTab: 'quality' } },
-                { text: 'Decide whether this pace is sustainable or a one-off before planning around it.', screen: 'reports', params: { reportSection: 'growth', reportTab: 'history' } },
+                { text: 'Check whether this calendar month is historically a strong one before assuming the pace is permanent.', screen: 'risk-management', params: { tab: 'seasonal' } },
                 { text: 'A good time to plan growth, not just defend cash -- pressure-test a real decision.', screen: 'analysis', params: { tab: 'decide' } },
             ],
             suggestedGoalType: null,
@@ -684,8 +697,8 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             nextSteps: [
                 { text: 'Identify exactly which trend is declining and why.', screen: 'reports', params: { reportSection: 'growth', reportTab: 'quality' } },
                 {
-                    text: `Before planning new growth spending, check whether it depends on the ${declining} trend${declining === 1 ? '' : 's'} currently moving the wrong way, or on the ${improving} that's still working.`,
-                    screen: 'reports', params: { reportSection: 'growth', reportTab: 'history' },
+                    text: `Check whether this calendar month is historically a slow one for your business before reacting to the ${declining} trend${declining === 1 ? '' : 's'} moving the wrong way.`,
+                    screen: 'risk-management', params: { tab: 'seasonal' },
                 },
                 { text: "Set a check-in date to confirm whether it's turned around." },
             ],
