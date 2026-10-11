@@ -15,7 +15,7 @@ import { assessCapitalNeed, CAPITAL_PURPOSE_PRODUCT_TYPES } from '../utils/capit
 import { computeFundingGapDiagnosis } from '../utils/fundingGapDiagnosis';
 import { computeCashRunway } from '../utils/cashRunway';
 import { computeReadinessDelta } from '../utils/readinessHistory';
-import { recommendFinancingTypes, FinancingRecommendation, buildFinancingProfileNarrative } from '../utils/financingRecommendation';
+import { recommendFinancingTypes, FinancingRecommendation, buildFinancingProfileNarrative, RECOMMENDATION_CATEGORY } from '../utils/financingRecommendation';
 import { computeCashFlowHealth } from '../utils/cashFlowHealth';
 import { buildFinancialBehaviour } from '../utils/businessFinancialDNA';
 import { analyzeTrend } from '../utils/trendAnalysis';
@@ -105,18 +105,6 @@ const CATEGORIES: FinancingCategory[] = [
     { id: 'refinancing',          label: 'Refinancing',            icon: 'refresh-cw',    productTypes: CAPITAL_PURPOSE_PRODUCT_TYPES.refinancing },
     { id: 'emergency_liquidity',  label: 'Emergency Liquidity',     icon: 'alert-circle',  productTypes: CAPITAL_PURPOSE_PRODUCT_TYPES.emergency },
 ];
-
-// Where a recommended FinancingProductType lands if the owner taps it —
-// the single-purpose category that best represents that product type,
-// not just any category whose productTypes[] happens to include it.
-const RECOMMENDATION_CATEGORY: Record<FinancingProductType, string> = {
-    working_capital: 'working_capital',
-    asset_financing: 'asset_equipment',
-    invoice_financing: 'invoice_finance',
-    term_loan: 'expansion',
-    trade_finance: 'trade_export',
-    overdraft: 'working_capital',
-};
 
 function fmtAmt(currency: string, n: number): string {
     const abs = Math.abs(n);
