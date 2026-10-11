@@ -479,7 +479,7 @@ export interface NavParams {
     // above targets "Check a New Spend" -- for steps whose whole point is
     // a particular tool (e.g. "model a loan's repayment" -> Loan
     // Affordability Check), not just the tab in general.
-    decideFocusTool?: 'loanAffordability' | 'newSpend' | 'hireExpand';
+    decideFocusTool?: 'loanAffordability' | 'newSpend' | 'hireExpand' | 'stressTest' | 'breakEvenCalc';
     // Carries the exact scenario the owner was testing on the Dashboard's
     // MacroShield card into macroshield-detail, so the detail page never
     // shows a different shock than the one just explored.

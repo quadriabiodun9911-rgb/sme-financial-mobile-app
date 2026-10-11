@@ -18,9 +18,6 @@ import StockSalesComparisonTable from '../components/StockSalesComparisonTable';
 import TaxSummary from '../components/TaxSummary';
 import TaxFilingReadinessTab from '../components/TaxFilingReadinessTab';
 import TaxPlanningTab from '../components/TaxPlanningTab';
-import CashFlowSafety from '../components/CashFlowSafety';
-import LoansAndDebt from '../components/LoansAndDebt';
-import { computeAssetHealthScore } from '../components/AssetProductivityAnalysis';
 import { computeFinancialRatiosDashboard } from '../utils/financialRatiosEngine';
 import RatioReadingRow from '../components/RatioReadingRow';
 import CustomerProfitability from '../components/CustomerProfitability';
@@ -41,11 +38,7 @@ import CashFlowFormalStatement from '../components/CashFlowFormalStatement';
 import GroupedBarChart from '../components/GroupedBarChart';
 import { computeBalanceSheetTrend } from '../utils/balanceSheetTrend';
 import { computeAllTimeMonthlyBuckets } from '../utils/trendAnalysis';
-import { filterByPeriod, filterByDateRange, getPreviousPeriodRange, computeFinance, computeAssetCurrentValue, computeAssetReplacementForecast, computeMonthlyTrend, computeEnhancedPnL, computeProperCashFlow, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, computeRiskScore, computeDSCR, computeFinancingReadinessScore, ReportPeriod, MonthlyPoint, DateRange } from '../utils/finance';
-import { buildFinancingFitInput } from '../utils/financingFit';
-import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
-import { assessCapitalNeed } from '../utils/capitalNeedAssessment';
-import { computeDataQuality } from '../utils/dataQuality';
+import { filterByPeriod, filterByDateRange, getPreviousPeriodRange, computeFinance, computeAssetCurrentValue, computeMonthlyTrend, computeEnhancedPnL, computeProperCashFlow, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint, DateRange } from '../utils/finance';
 import { trackReportViewed, trackDataExported } from '../utils/analytics';
 import { auditEvents } from '../utils/auditLog';
 import { FinanceData } from '../types';
@@ -59,13 +52,12 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { localDateStr } from '../utils/localDate';
 
 // ─── Section groups ────────────────────────────────────────────────────────────
-type SectionKey = 'statements' | 'customers' | 'tax' | 'planning' | 'growth';
+type SectionKey = 'statements' | 'customers' | 'tax' | 'growth';
 
 const SECTIONS: { key: SectionKey; label: string; icon: IconName; desc: string }[] = [
     { key: 'statements', label: 'Financial Statements',    icon: 'bar-chart-2', desc: 'Balance Sheet, Profit & Loss, Inventory, Cash Flow' },
     { key: 'customers',  label: 'Customers & Collections',  icon: 'dollar-sign', desc: 'Who Owes Me - Unpaid Invoices' },
     { key: 'tax',        label: 'Tax & Compliance',         icon: 'clipboard',   desc: 'Tax Summary and Obligations' },
-    { key: 'planning',   label: 'Planning & Forecasts',     icon: 'trending-up', desc: 'Cash Flow & Safety, Loans & Debt, Assets' },
     { key: 'growth',     label: 'Growth Analytics',         icon: 'zap',         desc: 'Growth Trends & Scenarios, Best Customers & Products' },
 ];
 
@@ -73,7 +65,7 @@ type SubTab =
     | 'balancesheet' | 'pnl' | 'inventory' | 'accrual'
     | 'aging'
     | 'tax' | 'tax-filing' | 'tax-planning'
-    | 'cashflow' | 'cashhealth' | 'workingcapitalhealth' | 'cashsafety' | 'debt' | 'assets'
+    | 'cashflow' | 'cashhealth' | 'workingcapitalhealth'
     | 'growth' | 'history' | 'quality' | 'customers' | 'products';
 
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
@@ -93,11 +85,6 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
         { key: 'tax',          label: 'Tax Summary' },
         { key: 'tax-filing',   label: 'Filing Readiness' },
         { key: 'tax-planning', label: 'Tax Planning' },
-    ],
-    planning: [
-        { key: 'cashsafety',  label: 'Cash Flow & Safety' },
-        { key: 'debt',        label: 'Loans & Debt' },
-        { key: 'assets',      label: 'Assets' },
     ],
     growth: [
         { key: 'growth',    label: 'Growth Trends & Scenarios' },
@@ -119,8 +106,8 @@ const PERIODS: { key: ReportPeriod; label: string }[] = [
 ];
 
 export default function ReportsScreen() {
-    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate, user, isDemoMode, cashPockets } = useApp();
-    const { currency, minReserve, targetMargin } = settings;
+    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate, user, isDemoMode } = useApp();
+    const { currency, targetMargin } = settings;
     const businessName = user?.businessName || 'Your Business';
 
     const [showLanding, setShowLanding] = useState(false);
@@ -188,7 +175,6 @@ export default function ReportsScreen() {
     );
     const operatingMarginReading = ratiosDashboard.categories.find(c => c.key === 'profitability')?.readings.find(r => r.key === 'operatingMargin');
     const cashRatioReading = ratiosDashboard.categories.find(c => c.key === 'liquidity')?.readings.find(r => r.key === 'cashRatio');
-    const debtToCashFlowReading = ratiosDashboard.categories.find(c => c.key === 'debt')?.readings.find(r => r.key === 'debtToCashFlow');
     const enhPnL     = useMemo(() => computeEnhancedPnL(filteredTx, assets), [filteredTx, assets]);
     // Exactly the transactions enhPnL.revenue was summed from -- see
     // computeEnhancedPnL's own revenue line -- so the P&L's drill-down
@@ -196,12 +182,6 @@ export default function ReportsScreen() {
     const revenueTransactions = useMemo(() => filteredTx.filter(t => t.type === 'income'), [filteredTx]);
     const wcMetrics  = useMemo(() => computeWorkingCapitalMetrics(filteredTx), [filteredTx]);
     const revenueByPaymentMethod = useMemo(() => computeRevenueByPaymentMethod(filteredTx), [filteredTx]);
-    // Unfiltered (all-time, "as of today") AR/AP — the Debt tab's leverage
-    // ratios describe the business's current balance sheet, not a
-    // period-scoped slice, so this must match Reports > "What I Own & Owe"
-    // and Credit-Worthiness's Five C's Capital section rather than wcMetrics
-    // above (which is intentionally scoped to whatever period is selected).
-    const allTimeWcMetrics = useMemo(() => computeWorkingCapitalMetrics(transactions), [transactions]);
     const bizSize    = classifyBusinessSize(enhPnL.revenue);
 
     const prevFinance = useMemo(() => {
@@ -421,6 +401,34 @@ export default function ReportsScreen() {
                         </View>
                         <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                     </TouchableOpacity>
+
+                    {/* ── PLANNING Section ────────────────────────────────── —
+                        used to be its own "Planning & Forecasts" Reports
+                        section duplicating three More-menu screens (Cash
+                        Flow Safety & Reserve, Loans & Debt structure, Asset
+                        productivity/replacement). These link straight to
+                        the one real home each now has, instead of a second,
+                        duplicate copy living here. */}
+                    <View style={styles.sectionTitleRow}>
+                        <Icon name="trending-up" size={13} color={Colors.textMuted} />
+                        <Text style={styles.reportGroupHeader}>PLANNING</Text>
+                    </View>
+                    {[
+                        { icon: 'shield' as IconName, label: 'Cash Flow Safety & Reserve', sub: 'Reserve coverage, aging, scenario forecast, rainy-day fund', onPress: () => navigate('cashflow', { tab: 'safety' }) },
+                        { icon: 'percent' as IconName, label: 'Loans & Debt', sub: 'DSCR, debt structure, leverage ratios & calculators', onPress: () => setCurrentScreen('loans') },
+                        { icon: 'briefcase' as IconName, label: 'Assets', sub: 'Productivity, health score & replacement forecast', onPress: () => setCurrentScreen('assets') },
+                    ].map(item => (
+                        <TouchableOpacity key={item.label} style={styles.landingCard} onPress={item.onPress}>
+                            <View style={styles.landingCardIconBadge}>
+                                <Icon name={item.icon} size={18} color={Colors.primary} />
+                            </View>
+                            <View style={styles.landingCardText}>
+                                <Text style={styles.landingCardLabel}>{item.label}</Text>
+                                <Text style={styles.landingCardSub}>{item.sub}</Text>
+                            </View>
+                            <Icon name="chevron-right" size={18} color={Colors.textMuted} />
+                        </TouchableOpacity>
+                    ))}
 
                     {/* ── TAX Section ────────────────────────────────────── */}
                     <View style={styles.sectionTitleRow}>
@@ -782,145 +790,6 @@ export default function ReportsScreen() {
                             />
                         </View>
                     )}
-
-                    {/* ── CASH FLOW & SAFETY ───────────────────────────── */}
-                    {activeTab === 'cashsafety' && (
-                        <CashFlowSafety
-                            finance={allFinance}
-                            transactions={transactions}
-                            invoices={invoices}
-                            currency={currency}
-                            minReserve={minReserve}
-                            inventoryValue={inventoryValue}
-                            cashPockets={cashPockets}
-                        />
-                    )}
-
-                    {/* ── LOANS & DEBT ─────────────────────────────────── */}
-                    {activeTab === 'debt' && (
-                        <View>
-                            {/* Debt-to-Cash-Flow, in plain language -- total
-                                outstanding debt against annualized operating
-                                cash flow (2x/4x mirror the conventional
-                                debt-to-EBITDA caution lines lenders use).
-                                Formerly on Fractional CFO's Finance tab;
-                                moved here since this is literally the "can
-                                the business carry its debt" tab. DSCR below
-                                (inside LoansAndDebt) already answers the
-                                same question a different way -- can monthly
-                                income cover monthly payments -- this is the
-                                total-balance-vs-annual-cash-flow view. */}
-                            {debtToCashFlowReading && (
-                                <View style={styles.card}>
-                                    <Text style={styles.cardTitle}>Debt-to-Cash-Flow — In Plain Language</Text>
-                                    <RatioReadingRow reading={debtToCashFlowReading} />
-                                </View>
-                            )}
-                            <LoansAndDebt
-                                finance={allFinance}
-                                currency={currency}
-                                loans={loansList}
-                                transactions={transactions}
-                                accountsReceivable={allTimeWcMetrics.accountsReceivable}
-                                accountsPayable={allTimeWcMetrics.accountsPayable}
-                                inventoryValue={inventoryValue}
-                                assetsList={assets}
-                                defaultTaxRate={settings.defaultTaxRate}
-                            />
-                        </View>
-                    )}
-
-                    {/* ── ASSET PRODUCTIVITY ───────────────────────────── — the
-                        full analysis (health gauge, turnover/ROA, category
-                        breakdown, recommendations) lives on the Assets
-                        screen; this is a teaser using the same canonical
-                        computeAssetHealthScore rather than a second full
-                        copy of the component. */}
-                    {activeTab === 'assets' && (() => {
-                        const health = computeAssetHealthScore(allFinance, assets, allTimeWcMetrics.accountsReceivable, inventoryValue);
-                        const replacementForecast = computeAssetReplacementForecast(assets, 24);
-                        // Same lending-capacity pipeline the Financing Marketplace
-                        // uses for its own "can you actually support this ask"
-                        // check -- reused here so a replacement-due asset isn't
-                        // just information, it's a one-tap path to "can I afford
-                        // this, and if not, here's financing sized to what I can
-                        // actually support" (assessCapitalNeed), not a second,
-                        // independently-invented affordability heuristic.
-                        const risk = computeRiskScore(allFinance, loansList, transactions, inventory);
-                        const dscr = computeDSCR(transactions, loansList);
-                        const financingReadiness = computeFinancingReadinessScore(risk.factors);
-                        const dataQuality = computeDataQuality(transactions, settings.industry);
-                        const fitInput = buildFinancingFitInput(transactions, loansList, settings, user, undefined);
-                        const lendingCapacity = computeLendingCapacityEstimate({
-                            overallCreditScore: financingReadiness.score,
-                            avgMonthlyRevenue: fitInput.avgMonthlyRevenue,
-                            dscr: dscr.dscr,
-                            hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',
-                            inventoryValue,
-                        });
-                        return (
-                            <>
-                                <TouchableOpacity style={styles.assetTeaserCard} onPress={() => setCurrentScreen('assets')} activeOpacity={0.85}>
-                                    <View style={styles.assetTeaserHeaderRow}>
-                                        <Text style={styles.assetTeaserTitle}>Asset Productivity</Text>
-                                        <View style={[styles.assetTeaserBadge, { backgroundColor: health.color + '20' }]}>
-                                            <Text style={[styles.assetTeaserBadgeText, { color: health.color }]}>{health.score}/100</Text>
-                                        </View>
-                                    </View>
-                                    <NextStepLink text="Full health score, turnover, ROA & recommendations → Assets" onPress={() => setCurrentScreen('assets')} />
-                                </TouchableOpacity>
-
-                                {/* The actual "planning and forecasting" content
-                                    this tab is named for: projects forward from
-                                    each active asset's own depreciation schedule
-                                    to say WHEN it will need replacing, not just
-                                    which ones already do. */}
-                                <View style={styles.card}>
-                                    <Text style={styles.cardTitle}>Asset Replacement Forecast — Next 24 Months</Text>
-                                    {!replacementForecast.available ? (
-                                        <Text style={styles.cardSub}>{replacementForecast.reason}</Text>
-                                    ) : replacementForecast.items.length === 0 ? (
-                                        <Text style={styles.cardSub}>No active asset is projected to need replacement in the next 24 months based on its depreciation schedule.</Text>
-                                    ) : (
-                                        <>
-                                            <Text style={styles.cardSub}>
-                                                Based on each asset's own purchase cost, useful life and elapsed time — projecting when it depreciates to 20% of its original cost, the same threshold the replacement alerts use.
-                                            </Text>
-                                            {replacementForecast.items.map(item => {
-                                                const need = assessCapitalNeed(item.purchaseCost, lendingCapacity.minAmount, lendingCapacity.maxAmount, currency);
-                                                return (
-                                                <View key={item.id} style={styles.assetForecastRow}>
-                                                    <View style={{ flex: 1 }}>
-                                                        <Text style={styles.assetForecastName}>{item.name}</Text>
-                                                        <Text style={styles.assetForecastSub}>
-                                                            {item.monthsUntilThreshold === 0
-                                                                ? 'Already at replacement threshold'
-                                                                : `Due around ${item.projectedThresholdMonth} (${item.monthsUntilThreshold} mo away)`}
-                                                            {' · '}{Math.round(item.pctValueRemaining)}% value remaining
-                                                        </Text>
-                                                        <Text style={styles.assetForecastSub}>{need.message}</Text>
-                                                        <NextStepLink
-                                                            text={need.withinCapacity === false ? 'See financing options →' : 'Plan financing for this →'}
-                                                            onPress={() => navigate('financing-marketplace', { prefill: { category: 'asset_equipment', amount: item.purchaseCost } })}
-                                                        />
-                                                    </View>
-                                                    <Text style={styles.assetForecastCost}>{currency}{item.purchaseCost.toLocaleString()}</Text>
-                                                </View>
-                                                );
-                                            })}
-                                            <View style={styles.assetForecastTotalRow}>
-                                                <Text style={styles.assetForecastTotalLabel}>Total original cost of assets due in this window</Text>
-                                                <Text style={styles.assetForecastTotalValue}>{currency}{replacementForecast.totalReplacementCostDue.toLocaleString()}</Text>
-                                            </View>
-                                            <Text style={styles.assetForecastCaveat}>
-                                                This is what these assets originally cost, not a prediction of tomorrow's replacement price — use it as a floor when budgeting, not the full expected outlay.
-                                            </Text>
-                                        </>
-                                    )}
-                                </View>
-                            </>
-                        );
-                    })()}
 
 
                     {/* ── GROWTH OUTLOOK (trends + scenarios) ──────────── */}
@@ -1353,12 +1222,6 @@ const styles = StyleSheet.create({
     redirectTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
     redirectText:  { fontSize: 13, color: Colors.textSecondary, lineHeight: 19, marginBottom: 4 },
 
-    assetTeaserCard:      { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
-    assetTeaserHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-    assetTeaserTitle:     { flex: 1, fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
-    assetTeaserBadge:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.pill },
-    assetTeaserBadgeText: { fontSize: 13, fontWeight: '800' },
-
     formalToggleBtn: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
         paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: Colors.primary,
@@ -1420,14 +1283,6 @@ const styles = StyleSheet.create({
     cardSub:       { fontSize: 12, color: Colors.textMuted, lineHeight: 17, marginBottom: 12, marginTop: -6 },
     note:          { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 16 },
 
-    assetForecastRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 10 },
-    assetForecastName:       { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
-    assetForecastSub:        { fontSize: 11, color: Colors.textMuted },
-    assetForecastCost:       { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
-    assetForecastTotalRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, marginTop: 4 },
-    assetForecastTotalLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, flex: 1, marginRight: 10 },
-    assetForecastTotalValue: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
-    assetForecastCaveat:     { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 8, lineHeight: 14 },
     sizeBadge:     { fontSize: 11, color: Colors.primary, fontWeight: '600', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primary, borderRadius: Radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
     exportText:    { fontSize: 11, color: Colors.textPrimary, fontWeight: '600' },
 

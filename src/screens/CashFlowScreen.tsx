@@ -22,11 +22,13 @@ import NextStepLink from '../components/NextStepLink';
 import { suggestSolution } from '../utils/impactChain';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import CashFlowSafety from '../components/CashFlowSafety';
+import { computeInventoryValue } from '../utils/stockVelocity';
 
-type Tab = 'forecast' | 'runway' | 'ar' | 'breakeven';
+type Tab = 'forecast' | 'runway' | 'ar' | 'breakeven' | 'safety';
 
-const TAB_ICON: Record<Tab, IconName> = { forecast: 'calendar', runway: 'clock', ar: 'mail', breakeven: 'crosshair' };
-const TAB_LABEL: Record<Tab, string> = { forecast: 'Forecast', runway: 'Runway', ar: 'AR Risk', breakeven: 'Break-Even' };
+const TAB_ICON: Record<Tab, IconName> = { forecast: 'calendar', runway: 'clock', ar: 'mail', breakeven: 'crosshair', safety: 'shield' };
+const TAB_LABEL: Record<Tab, string> = { forecast: 'Forecast', runway: 'Runway', ar: 'AR Risk', breakeven: 'Break-Even', safety: 'Safety & Reserve' };
 
 // One animated inflow/outflow bar in the weekly forecast chart -- owns its
 // own Animated.Value so each row grows in from 0 independently, the same
@@ -52,10 +54,11 @@ function WeekBar({ pct, color }: { pct: number; color: string }) {
 }
 
 export default function CashFlowScreen() {
-    const { transactions, loans, invoices, budgets, finance, settings, setCurrentScreen, navigate, navParams, cashPockets } = useApp();
+    const { transactions, loans, invoices, budgets, finance, settings, setCurrentScreen, navigate, navParams, cashPockets, inventory } = useApp();
     const [tab, setTab] = useState<Tab>(
-        (['forecast', 'runway', 'ar', 'breakeven'] as Tab[]).includes(navParams?.tab as Tab) ? (navParams!.tab as Tab) : 'forecast'
+        (['forecast', 'runway', 'ar', 'breakeven', 'safety'] as Tab[]).includes(navParams?.tab as Tab) ? (navParams!.tab as Tab) : 'forecast'
     );
+    const inventoryValueForSafety = useMemo(() => computeInventoryValue(inventory), [inventory]);
     // Chart is the original view (proportional inflow/outflow bars, good for
     // scanning shape at a glance); Table is the classic CFO "13-Week Cash
     // Forecast" ledger format (opening/inflow/outflow/closing/runway per
@@ -259,7 +262,7 @@ export default function CashFlowScreen() {
 
             {/* Tabs */}
             <View style={styles.tabRow}>
-                {(['forecast', 'runway', 'ar', 'breakeven'] as Tab[]).map(t => (
+                {(['forecast', 'runway', 'ar', 'breakeven', 'safety'] as Tab[]).map(t => (
                     <TouchableOpacity
                         key={t}
                         style={[styles.tab, tab === t && styles.tabActive]}
@@ -772,13 +775,32 @@ export default function CashFlowScreen() {
                         <BreakevenAnalysis result={breakeven} currency={sym} />
                         <NextStepLink
                             text="Planning a new price or product? Use the unit-economics Break-Even Calculator instead"
-                            onPress={() => navigate('analysis', { tab: 'decide' })}
+                            onPress={() => navigate('analysis', { tab: 'decide', decideFocusTool: 'breakEvenCalc' })}
                         />
                         <NextStepLink
                             text="See profit by category and customer"
                             onPress={() => navigate('growth', { tab: 'drivers' })}
                         />
                     </>
+                )}
+
+                {/* ── SAFETY & RESERVE TAB ──
+                    Moved here from Reports > Planning > "Cash Flow &
+                    Safety", which duplicated this screen as a second "cash
+                    flow" destination. Same component, unchanged -- reserve
+                    coverage, working capital, receivables aging, an
+                    automatic 6-month scenario forecast, and the Rainy-Day
+                    Fund Planner. */}
+                {tab === 'safety' && (
+                    <CashFlowSafety
+                        finance={finance}
+                        transactions={transactions}
+                        invoices={invoices}
+                        currency={sym}
+                        minReserve={settings.minReserve}
+                        inventoryValue={inventoryValueForSafety}
+                        cashPockets={cashPockets}
+                    />
                 )}
 
                 <View style={{ height: 100 }} />

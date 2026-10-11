@@ -157,23 +157,24 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         id: 'loans-debt', label: 'Loans & Debt', icon: '🏛️',
         description: 'Debt ratios, solvency, a borrowing-cost-vs-ROI calculator, buy-vs-finance equipment comparison, a growth affordability check, and a should-I-take-this-loan checker',
         keywords: ['loan', 'debt', 'interest', 'solvency', 'leverage', 'dscr', 'equipment', 'buy vs finance', 'runway', 'growth', 'hiring', 'expansion', 'afford', 'should i borrow', 'repayment', 'safe', 'high risk'],
-        screen: 'reports', navParams: { reportSection: 'planning', reportTab: 'debt' },
+        screen: 'loans',
     },
     {
         id: 'cash-timeline', label: 'Cash Timeline (Forecast)', icon: '📈',
         description: 'Forward-looking cash forecast and runway',
         keywords: ['forecast', 'runway', 'projection'],
-        // Cash Flow Outlook and Cash Safety were merged into one
-        // "Cash Flow & Safety" tab -- both search entries now land there.
-        // 'cashflow' (the Statement of Cash Flows, in the statements
-        // section) remains the separate historical statement.
-        screen: 'reports', navParams: { reportSection: 'planning', reportTab: 'cashsafety' },
+        // Cash Flow Outlook and Cash Safety were merged into one "Safety &
+        // Reserve" tab on the Cash Flow screen (More menu) -- both search
+        // entries now land there. 'cashflow' (the Statement of Cash Flows,
+        // in Reports' statements section) remains the separate historical
+        // statement.
+        screen: 'cashflow', navParams: { tab: 'safety' },
     },
     {
         id: 'cash-safety', label: 'Cash Safety', icon: '🛡️',
         description: 'Reserve coverage, AR/AP aging, and a cash flow stress test (with scenario comparison) for cost spikes or payment delays',
         keywords: ['reserve', 'aging', 'receivables', 'payables', 'stress test', 'shock', 'fuel', 'delay', 'shipping', 'scenario', 'compare'],
-        screen: 'reports', navParams: { reportSection: 'planning', reportTab: 'cashsafety' },
+        screen: 'cashflow', navParams: { tab: 'safety' },
     },
     {
         id: 'growth-scenarios', label: 'Growth Trends & Scenarios', icon: '🚀',

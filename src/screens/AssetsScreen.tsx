@@ -10,7 +10,7 @@ import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
 import { t } from '../utils/i18n';
 import { Asset, AssetCategory } from '../types';
-import { computeAssetCurrentValue, computeAssetAnnualDepreciation, computeAssetsNearingReplacement, computeAssetPaybackSummary, countActiveMonths, computeUnregisteredAssetPurchases } from '../utils/finance';
+import { computeAssetCurrentValue, computeAssetAnnualDepreciation, computeAssetsNearingReplacement, computeAssetPaybackSummary, countActiveMonths, computeUnregisteredAssetPurchases, computeAssetReplacementForecast, computeRiskScore, computeDSCR, computeFinancingReadinessScore } from '../utils/finance';
 import { analyzeAcquisition } from '../utils/assetAcquisitionEngine';
 import AssetProductivityAnalysis from '../components/AssetProductivityAnalysis';
 import { monthlyPayment } from '../utils/loanMath';
@@ -23,6 +23,11 @@ import Icon from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { parseAssetQuickAddText } from '../utils/assetQuickAddParser';
 import { localDateStr } from '../utils/localDate';
+import { buildFinancingFitInput } from '../utils/financingFit';
+import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
+import { assessCapitalNeed } from '../utils/capitalNeedAssessment';
+import { computeDataQuality } from '../utils/dataQuality';
+import { computeInventoryValue } from '../utils/stockVelocity';
 
 const CATEGORIES: AssetCategory[] = ['equipment', 'vehicle', 'furniture', 'property', 'intangible', 'other'];
 
@@ -38,7 +43,7 @@ function categoryLabel(cat: AssetCategory, lang: Parameters<typeof t>[0]): strin
 type FilterTab = 'active' | 'disposed' | 'all';
 
 export default function AssetsScreen() {
-    const { assets, addAsset, updateAsset, deleteAsset, disposeAsset, settings, language, setCurrentScreen, navigate, finance, addLoan, addTransaction, transactions } = useApp();
+    const { assets, addAsset, updateAsset, deleteAsset, disposeAsset, settings, language, setCurrentScreen, navigate, finance, addLoan, addTransaction, transactions, loans, inventory, user } = useApp();
     const { currency } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -225,6 +230,34 @@ export default function AssetsScreen() {
     // here and reused everywhere they're read below.
     const activeAssets = useMemo(() => assets.filter(a => a.status === 'active'), [assets]);
     const disposedCount = useMemo(() => assets.filter(a => a.status === 'disposed').length, [assets]);
+    // Projects forward from each active asset's own depreciation schedule to
+    // say WHEN it will need replacing, not just which ones already do (that's
+    // replacementAlerts below -- a current-state check, not a forward plan).
+    // Moved here from Reports > Planning > Assets, which duplicated this
+    // whole screen as a second "Assets" destination; this is now the one
+    // home for it.
+    const replacementForecast = useMemo(() => computeAssetReplacementForecast(assets, 24), [assets]);
+    const inventoryValueForCapacity = useMemo(() => computeInventoryValue(inventory), [inventory]);
+    // Same lending-capacity pipeline Financing Marketplace uses for its own
+    // "can you actually support this ask" check -- reused here so a
+    // replacement-due asset isn't just information, it's a one-tap path to
+    // "can I afford this, and if not, here's financing sized to what I can
+    // actually support" (assessCapitalNeed), not a second, independently
+    // -invented affordability heuristic.
+    const lendingCapacity = useMemo(() => {
+        const risk = computeRiskScore(finance, loans, transactions, inventory);
+        const dscr = computeDSCR(transactions, loans);
+        const financingReadiness = computeFinancingReadinessScore(risk.factors);
+        const dataQuality = computeDataQuality(transactions, settings.industry);
+        const fitInput = buildFinancingFitInput(transactions, loans, settings, user, undefined);
+        return computeLendingCapacityEstimate({
+            overallCreditScore: financingReadiness.score,
+            avgMonthlyRevenue: fitInput.avgMonthlyRevenue,
+            dscr: dscr.dscr,
+            hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',
+            inventoryValue: inventoryValueForCapacity,
+        });
+    }, [finance, loans, transactions, inventory, settings, user, inventoryValueForCapacity]);
     const replacementAlerts = useMemo(
         () => computeAssetsNearingReplacement(activeAssets),
         [activeAssets],
@@ -375,6 +408,59 @@ export default function AssetsScreen() {
                         <NextStepLink text="Set a replacement-fund goal" onPress={() => navigate('goals')} />
                     </View>
                 ))}
+
+                {/* Asset Replacement Forecast -- projects forward from each
+                    active asset's own depreciation schedule to say WHEN it
+                    will need replacing over the next 24 months, not just
+                    which ones already do (the current-state alerts above).
+                    Moved here from Reports > Planning & Forecasts, which
+                    duplicated this entire screen as a second "Assets"
+                    destination. */}
+                {activeAssets.length > 0 && (
+                    <View style={s.forecastCard}>
+                        <Text style={s.forecastCardTitle}>Asset Replacement Forecast — Next 24 Months</Text>
+                        {!replacementForecast.available ? (
+                            <Text style={s.forecastCardSub}>{replacementForecast.reason}</Text>
+                        ) : replacementForecast.items.length === 0 ? (
+                            <Text style={s.forecastCardSub}>No active asset is projected to need replacement in the next 24 months based on its depreciation schedule.</Text>
+                        ) : (
+                            <>
+                                <Text style={s.forecastCardSub}>
+                                    Based on each asset's own purchase cost, useful life and elapsed time — projecting when it depreciates to 20% of its original cost, the same threshold the replacement alerts above use.
+                                </Text>
+                                {replacementForecast.items.map(item => {
+                                    const need = assessCapitalNeed(item.purchaseCost, lendingCapacity.minAmount, lendingCapacity.maxAmount, currency);
+                                    return (
+                                        <View key={item.id} style={s.assetForecastRow}>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={s.assetForecastName}>{item.name}</Text>
+                                                <Text style={s.assetForecastSub}>
+                                                    {item.monthsUntilThreshold === 0
+                                                        ? 'Already at replacement threshold'
+                                                        : `Due around ${item.projectedThresholdMonth} (${item.monthsUntilThreshold} mo away)`}
+                                                    {' · '}{Math.round(item.pctValueRemaining)}% value remaining
+                                                </Text>
+                                                <Text style={s.assetForecastSub}>{need.message}</Text>
+                                                <NextStepLink
+                                                    text={need.withinCapacity === false ? 'See financing options →' : 'Plan financing for this →'}
+                                                    onPress={() => navigate('financing-marketplace', { prefill: { category: 'asset_equipment', amount: item.purchaseCost } })}
+                                                />
+                                            </View>
+                                            <Text style={s.assetForecastCost}>{currency}{item.purchaseCost.toLocaleString()}</Text>
+                                        </View>
+                                    );
+                                })}
+                                <View style={s.assetForecastTotalRow}>
+                                    <Text style={s.assetForecastTotalLabel}>Total original cost of assets due in this window</Text>
+                                    <Text style={s.assetForecastTotalValue}>{currency}{replacementForecast.totalReplacementCostDue.toLocaleString()}</Text>
+                                </View>
+                                <Text style={s.assetForecastCaveat}>
+                                    This is what these assets originally cost, not a prediction of tomorrow's replacement price — use it as a floor when budgeting, not the full expected outlay.
+                                </Text>
+                            </>
+                        )}
+                    </View>
+                )}
 
                 {/* Filter tabs */}
                 <View style={s.tabRow}>
@@ -705,6 +791,18 @@ const s = StyleSheet.create({
     summaryLabel: { fontSize: 12, color: Colors.textMuted, marginBottom: Spacing.xs },
     summaryValue: { fontSize: 28, fontWeight: 'bold', color: Colors.income },
     summaryMeta:  { fontSize: 11, color: Colors.textMuted, marginTop: Spacing.xs },
+
+    forecastCard:  { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: 16, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
+    forecastCardTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
+    forecastCardSub:   { fontSize: 12, color: Colors.textMuted, lineHeight: 17, marginBottom: 12 },
+    assetForecastRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 10 },
+    assetForecastName:       { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    assetForecastSub:        { fontSize: 11, color: Colors.textMuted },
+    assetForecastCost:       { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    assetForecastTotalRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, marginTop: 4 },
+    assetForecastTotalLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, flex: 1, marginRight: 10 },
+    assetForecastTotalValue: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
+    assetForecastCaveat:     { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 8, lineHeight: 14 },
 
     paybackCaveat: { fontSize: 11, color: Colors.textMuted, lineHeight: 15, marginTop: Spacing.xs, marginBottom: Spacing.md },
     paybackRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, gap: Spacing.sm },

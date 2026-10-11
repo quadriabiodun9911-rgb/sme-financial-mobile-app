@@ -23,7 +23,11 @@ import FooterNav from '../components/FooterNav';
 import { Loan, LoanStatus, Transaction, ReadinessSnapshot } from '../types';
 import DateInput from '../components/DateInput';
 import MerchantFinancingSection from './MerchantFinancingSection';
-import { computeDebtOptimiser, computeDSCR, computeInterestRateShock, DSCRResult, computeUnlinkedLoanRepayments, computeLoanPaymentSplit, latestTransactionDate } from '../utils/finance';
+import { computeDebtOptimiser, computeDSCR, computeInterestRateShock, DSCRResult, computeUnlinkedLoanRepayments, computeLoanPaymentSplit, latestTransactionDate, computeWorkingCapitalMetrics } from '../utils/finance';
+import LoansAndDebt from '../components/LoansAndDebt';
+import { computeInventoryValue } from '../utils/stockVelocity';
+import { computeFinancialRatiosDashboard } from '../utils/financialRatiosEngine';
+import RatioReadingRow from '../components/RatioReadingRow';
 import { computeCashRunway } from '../utils/cashRunway';
 import { analyzeOngoingFinancingToLease, LeaseRefinanceCheck } from '../utils/ongoingFinancingLeaseCheck';
 import { computeDSCRIntelligence } from '../utils/metricIntelligence';
@@ -92,7 +96,7 @@ const LEASE_VERDICT_COLOR: Record<LeaseRefinanceCheck['verdict'], string> = {
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
 
 export default function LoansScreen() {
-    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams, transactions, updateTransaction, readinessHistory, user, language, isDemoMode, inventory } = useApp();
+    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams, transactions, updateTransaction, readinessHistory, user, language, isDemoMode, inventory, assets } = useApp();
     const { currency } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -288,6 +292,20 @@ export default function LoansScreen() {
     const leaseChecks = useMemo<LeaseRefinanceCheck[]>(() => activeLoans.map(l =>
         analyzeOngoingFinancingToLease(l, leaseCheckMonthlyProfit, finance?.cashBalance ?? 0, parseFloat(settings?.minReserve || '0') || 0, currency)
     ), [activeLoans, leaseCheckMonthlyProfit, finance?.cashBalance, settings?.minReserve, currency]);
+
+    // AR/AP and inventory value feed the Debt Structure & Leverage section
+    // below (LoansAndDebt) -- same computation Reports > Planning used to
+    // run for its now-removed "Loans & Debt" tab.
+    const wcMetrics = useMemo(() => computeWorkingCapitalMetrics(transactions), [transactions]);
+    const inventoryValueForLeverage = useMemo(() => computeInventoryValue(inventory), [inventory]);
+    // Total outstanding debt against annualized operating cash flow (2x/4x
+    // mirror the conventional debt-to-EBITDA caution lines lenders use) --
+    // a different read than the DSCR gauge below (which is about covering
+    // THIS month's payments, not total balance against annual cash flow).
+    const debtToCashFlowReading = useMemo(() => {
+        const dashboard = computeFinancialRatiosDashboard(finance, loans, transactions, inventory);
+        return dashboard.categories.find(c => c.key === 'debt')?.readings.find(r => r.key === 'debtToCashFlow');
+    }, [finance, loans, transactions, inventory]);
 
     const dscr = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
     // Metric Intelligence pilot -- same Definition/Owner-confidence/Trigger
@@ -727,6 +745,34 @@ export default function LoansScreen() {
                             />
                         ))
                     )}
+
+                    {debtToCashFlowReading && (
+                        <View style={s.strategyCard}>
+                            <Text style={s.strategyTitle}>Debt-to-Cash-Flow — In Plain Language</Text>
+                            <RatioReadingRow reading={debtToCashFlowReading} />
+                        </View>
+                    )}
+
+                    {/* Debt Structure & Leverage -- a different question from
+                        the DSCR gauge above (can cash flow cover THIS
+                        month's payments): debt vs. equity capital structure,
+                        solvency ratios, return on capital, and manual what
+                        -if calculators. Moved here from Reports > Planning &
+                        Forecasts, which duplicated "Loans & Debt" as a
+                        second destination; this is now the one home for it. */}
+                    <Collapsible title="Debt Structure & Leverage Analysis">
+                        <LoansAndDebt
+                            finance={finance}
+                            currency={currency}
+                            loans={loans}
+                            transactions={transactions}
+                            accountsReceivable={wcMetrics.accountsReceivable}
+                            accountsPayable={wcMetrics.accountsPayable}
+                            inventoryValue={inventoryValueForLeverage}
+                            assetsList={assets}
+                            defaultTaxRate={settings.defaultTaxRate}
+                        />
+                    </Collapsible>
                 </ScrollView>
             ) : enableFinancing && activeTab === 'financing' ? (
                 <ScrollView style={s.scroll} contentContainerStyle={s.pad}>

@@ -123,10 +123,14 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
     const loanCheckRef = useRef<View>(null);
     const newSpendRef = useRef<View>(null);
     const hireExpandRef = useRef<View>(null);
+    const stressTestRef = useRef<View>(null);
+    const breakEvenCalcRef = useRef<View>(null);
     const focusRefs: Record<string, React.RefObject<View | null>> = {
         loanAffordability: loanCheckRef,
         newSpend: newSpendRef,
         hireExpand: hireExpandRef,
+        stressTest: stressTestRef,
+        breakEvenCalc: breakEvenCalcRef,
     };
     useEffect(() => {
         const target = navParams?.decideFocusTool ? focusRefs[navParams.decideFocusTool] : undefined;
@@ -302,15 +306,17 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
                 test before you commit" tools on this tab, not filed under
                 a statements-and-reports screen. Reports still links back
                 here rather than keeping its own copy. */}
-            <Collapsible title="Stress-Test Your Cash">
-                <CashFlowStressTester
-                    currency={currency}
-                    currentCashBalance={finance.cashBalance}
-                    dailyBurn={dailyBurn}
-                    transactions={transactions}
-                    inventoryValue={inventoryValue}
-                />
-            </Collapsible>
+            <View ref={stressTestRef} collapsable={false}>
+                <Collapsible title="Stress-Test Your Cash" forceOpen={navParams?.decideFocusTool === 'stressTest'}>
+                    <CashFlowStressTester
+                        currency={currency}
+                        currentCashBalance={finance.cashBalance}
+                        dailyBurn={dailyBurn}
+                        transactions={transactions}
+                        inventoryValue={inventoryValue}
+                    />
+                </Collapsible>
+            </View>
 
             <View style={styles.decisionCard}>
                 <Text style={styles.decisionQuestion}>Weighing more than one option?</Text>
@@ -425,24 +431,26 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
                 into one card, since "what if I priced a new thing" and
                 "how does a discount affect what I already sell" are
                 different questions with different inputs. */}
-            <Collapsible title="Break-Even Calculator (New Product or Price)">
-                <TextInput style={styles.input} placeholder={`Monthly Fixed Costs (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={hypFixedCosts} onChangeText={setHypFixedCosts} />
-                <TextInput style={styles.input} placeholder={`Variable Cost per Unit (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={hypVarCost} onChangeText={setHypVarCost} />
-                <TextInput style={styles.input} placeholder={`Selling Price per Unit (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={hypPrice} onChangeText={setHypPrice} />
-                {hypBreakEven && (
-                    <View>
-                        <Text style={styles.decisionHelp}>
-                            Units needed to break even: <Text style={{ fontWeight: '800', color: Colors.textPrimary }}>{isFinite(hypBreakEven.breakEvenUnits) ? Math.ceil(hypBreakEven.breakEvenUnits).toLocaleString() : '∞'}</Text>
-                        </Text>
-                        <Text style={styles.decisionHelp}>
-                            Revenue needed: <Text style={{ fontWeight: '800', color: Colors.textPrimary }}>{isFinite(hypBreakEven.breakEvenRevenue) ? `${currency}${Math.ceil(hypBreakEven.breakEvenRevenue).toLocaleString()}` : '∞'}</Text>
-                        </Text>
-                        <Text style={styles.decisionHelp}>
-                            Safety buffer: <Text style={{ fontWeight: '800', color: hypBreakEven.marginOfSafety > 20 ? Colors.income : Colors.warning }}>{hypBreakEven.marginOfSafety.toFixed(1)}%</Text> — how far sales can fall before you lose money. Higher is safer.
-                        </Text>
-                    </View>
-                )}
-            </Collapsible>
+            <View ref={breakEvenCalcRef} collapsable={false}>
+                <Collapsible title="Break-Even Calculator (New Product or Price)" forceOpen={navParams?.decideFocusTool === 'breakEvenCalc'}>
+                    <TextInput style={styles.input} placeholder={`Monthly Fixed Costs (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={hypFixedCosts} onChangeText={setHypFixedCosts} />
+                    <TextInput style={styles.input} placeholder={`Variable Cost per Unit (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={hypVarCost} onChangeText={setHypVarCost} />
+                    <TextInput style={styles.input} placeholder={`Selling Price per Unit (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" value={hypPrice} onChangeText={setHypPrice} />
+                    {hypBreakEven && (
+                        <View>
+                            <Text style={styles.decisionHelp}>
+                                Units needed to break even: <Text style={{ fontWeight: '800', color: Colors.textPrimary }}>{isFinite(hypBreakEven.breakEvenUnits) ? Math.ceil(hypBreakEven.breakEvenUnits).toLocaleString() : '∞'}</Text>
+                            </Text>
+                            <Text style={styles.decisionHelp}>
+                                Revenue needed: <Text style={{ fontWeight: '800', color: Colors.textPrimary }}>{isFinite(hypBreakEven.breakEvenRevenue) ? `${currency}${Math.ceil(hypBreakEven.breakEvenRevenue).toLocaleString()}` : '∞'}</Text>
+                            </Text>
+                            <Text style={styles.decisionHelp}>
+                                Safety buffer: <Text style={{ fontWeight: '800', color: hypBreakEven.marginOfSafety > 20 ? Colors.income : Colors.warning }}>{hypBreakEven.marginOfSafety.toFixed(1)}%</Text> — how far sales can fall before you lose money. Higher is safer.
+                            </Text>
+                        </View>
+                    )}
+                </Collapsible>
+            </View>
 
             {reorderDecisions.length > 0 && (
                 <>
