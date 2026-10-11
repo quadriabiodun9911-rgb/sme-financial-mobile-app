@@ -197,13 +197,30 @@ export default function CashFlowScreen() {
     // Runway card above already shows (never a separately-estimated figure).
     const reserveGap = dailyBurn > 0 && runwayDays < 90 ? dailyBurn * (90 - runwayDays) : 0;
 
-    // "Cash needed to keep operating" -- the next 4 weeks of this
-    // business's own projected outflows, pulled from the exact same
-    // `weeks` forecast (and therefore the exact same ₦ figure) the
-    // Business Health Report's "known upcoming payments" already told the
-    // owner about, never a second, independently-estimated number.
+    // Known upcoming payments -- the next 4 weeks of this business's own
+    // projected outflows, pulled from the exact same `weeks` forecast (and
+    // therefore the exact same ₦ figure) the Business Health Report's
+    // "known upcoming payments" already told the owner about, never a
+    // second, independently-estimated number. Shown as a footnote next to
+    // the cost-of-operating forecast below, since "what's contractually
+    // due very soon" and "what it typically costs per month" are related
+    // but different questions.
     const upcomingPayments4wk = useMemo(() => weeks.slice(0, 4).reduce((s, w) => s + w.projectedOutflow, 0), [weeks]);
-    const cashNeededGap = finance.cashBalance - upcomingPayments4wk;
+
+    // "What it costs to run the business" -- the trailing-window average
+    // monthly operating expense burnRateAnalysis.ts already computes for
+    // the Startup Burn Rate card further down this same tab (grossBurn),
+    // reused here rather than re-derived, with the always-available
+    // dailyBurn*30 (computeCashRunway's own figure, same one the Runway
+    // gauge above is built on) as the fallback on too little history for
+    // burnRate itself to be available. Multiplying by a selectable number
+    // of months turns "cost per month" into "cash needed to keep operating
+    // for N more months" -- the actual forecast the owner asked for,
+    // instead of a single point-in-time balance check.
+    const [costHorizonMonths, setCostHorizonMonths] = useState<1 | 3 | 6>(3);
+    const monthlyOperatingCost = burnRate.available ? burnRate.grossBurn : dailyBurn * 30;
+    const cashNeededForHorizon = monthlyOperatingCost * costHorizonMonths;
+    const horizonGap = cashBalance - cashNeededForHorizon;
 
     return (
         <SafeAreaView style={styles.safe}>
@@ -448,19 +465,42 @@ export default function CashFlowScreen() {
                             )}
                         </View>
 
-                        <View style={[styles.dscrCard, { borderColor: cashNeededGap >= 0 ? Colors.income : Colors.expense }]}>
-                            <View style={styles.dscrHeaderRow}>
-                                <Icon name="shield" size={13} color={Colors.muted} />
-                                <Text style={styles.dscrTitle}>Cash Needed To Keep Operating</Text>
-                                <Text style={[styles.dscrBadge, { color: cashNeededGap >= 0 ? Colors.income : Colors.expense, backgroundColor: (cashNeededGap >= 0 ? Colors.income : Colors.expense) + '20' }]}>
-                                    {cashNeededGap >= 0 ? 'COVERED' : 'SHORT'}
+                        <View style={[styles.runwayCard, { borderColor: horizonGap >= 0 ? Colors.income : Colors.expense, alignItems: 'stretch' }]}>
+                            <Text style={[styles.runwayLabel, { textAlign: 'center' }]}>What It Costs To Run Your Business</Text>
+                            <Text style={[styles.card2Val, { fontSize: 24, textAlign: 'center', marginBottom: 2 }]}>
+                                {fmt(monthlyOperatingCost)}<Text style={styles.card2Sub}> /month</Text>
+                            </Text>
+                            <Text style={[styles.runwaySub, { marginBottom: Spacing.md }]}>
+                                Your trailing average monthly operating expense — rent, wages, supplies, recurring bills and loan payments — regardless of how much comes in.
+                            </Text>
+
+                            <Text style={styles.card2Label}>Forecast cash needed for the next:</Text>
+                            <View style={styles.horizonRow}>
+                                {([1, 3, 6] as const).map(m => (
+                                    <TouchableOpacity
+                                        key={m}
+                                        style={[styles.horizonBtn, costHorizonMonths === m && styles.horizonBtnActive]}
+                                        onPress={() => setCostHorizonMonths(m)}
+                                    >
+                                        <Text style={[styles.horizonBtnText, costHorizonMonths === m && styles.horizonBtnTextActive]}>
+                                            {m} {m === 1 ? 'Month' : 'Months'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            <View style={styles.runwaySubRow}>
+                                <Icon name={horizonGap >= 0 ? 'check-circle' : 'alert-circle'} size={13} color={horizonGap >= 0 ? Colors.income : Colors.expense} />
+                                <Text style={[styles.runwaySub, { textAlign: 'left', flex: 1 }]}>
+                                    Running the business for {costHorizonMonths} month{costHorizonMonths > 1 ? 's' : ''} needs {fmt(cashNeededForHorizon)}.
+                                    {horizonGap >= 0
+                                        ? ` Your ${fmt(cashBalance)} balance covers this, leaving ${fmt(horizonGap)}.`
+                                        : ` Your ${fmt(cashBalance)} balance falls short by ${fmt(Math.abs(horizonGap))}.`}
                                 </Text>
                             </View>
-                            <Text style={[styles.card2Val, { marginBottom: 4 }]}>{fmt(upcomingPayments4wk)} <Text style={styles.card2Sub}>over the next 4 weeks</Text></Text>
-                            <Text style={styles.dscrSummary}>
-                                {cashNeededGap >= 0
-                                    ? `Your current balance of ${fmt(finance.cashBalance)} covers this, leaving ${fmt(cashNeededGap)} after known payments.`
-                                    : `Your current balance of ${fmt(finance.cashBalance)} falls short of this by ${fmt(Math.abs(cashNeededGap))} — known payments already exceed what's available.`}
+
+                            <Text style={styles.runwayRangeText}>
+                                Of that, {fmt(upcomingPayments4wk)} is already contractually committed in the next 4 weeks (bills, loans, this month's budget).
                             </Text>
                         </View>
 
@@ -746,6 +786,12 @@ const styles = StyleSheet.create({
     runwayWhyLabel: { fontSize: 10, fontWeight: '700', color: Colors.muted, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 8 },
     runwayWhyText: { fontSize: 12, color: Colors.text, lineHeight: 17, textAlign: 'left' },
     runwayWhyBullet: { fontSize: 11, color: Colors.muted, lineHeight: 16, marginTop: 2, textAlign: 'left' },
+
+    horizonRow: { flexDirection: 'row', gap: 8, marginTop: 8, marginBottom: Spacing.md },
+    horizonBtn: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg },
+    horizonBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    horizonBtnText: { fontSize: 12.5, fontWeight: '700', color: Colors.muted },
+    horizonBtnTextActive: { color: '#fff' },
 
     row2:  { flexDirection: 'row', gap: 10, marginBottom: Spacing.lg },
     card2: { flex: 1, backgroundColor: Colors.card, borderRadius: Radius.md, padding: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
