@@ -247,10 +247,10 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             recommendedSteps: [
                 { text: 'Confirm all upcoming payments are accurate and complete.', screen: 'bills' },
                 ...(hasInventory ? [{ text: 'Check how quickly your current stock converts into cash.', screen: 'inventory' as Screen }] : []),
-                { text: 'Forecast the next 13 weeks of cash flow.', screen: 'cashflow' },
+                { text: 'Forecast the next 13 weeks of cash flow.', screen: 'cashflow', params: { tab: 'forecast' } },
                 {
                     text: hasInventory ? 'Determine how much you can safely spend before purchasing more stock.' : 'Determine how much you can safely commit before taking on new spending.',
-                    screen: 'analysis', params: { tab: 'decide' },
+                    screen: 'analysis', params: { tab: 'decide', spendCheckThreshold: Math.max(0, cashAfterCommitments) },
                 },
             ],
             suggestedGoalType: 'cash_reserve',
@@ -585,12 +585,12 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 + ` ${operatingCashFlowNote} At your current cash runway (${fmtRunway(m.runwayDays)}), the margin for error narrows the longer this goes unaddressed.`,
             nextSteps: [
                 { text: 'Confirm all outstanding bills and loan repayments.', screen: 'bills' },
-                { text: 'Calculate how much cash is needed to keep operating.', screen: 'cashflow' },
+                { text: 'Calculate how much cash is needed to keep operating.', screen: 'cashflow', params: { tab: 'runway' } },
                 {
                     text: hasInventory
                         ? `Before spending on new stock, check it against ${fmtMoney(currency, Math.max(0, cashAfterCommitments))} -- what's left after your known upcoming payments, not your full bank balance.`
                         : `Before taking on new spending, check it against ${fmtMoney(currency, Math.max(0, cashAfterCommitments))} -- what's left after your known upcoming payments, not your full bank balance.`,
-                    screen: 'analysis', params: { tab: 'decide' },
+                    screen: 'analysis', params: { tab: 'decide', spendCheckThreshold: Math.max(0, cashAfterCommitments) },
                 },
             ],
             suggestedGoalType: 'cash_reserve',

@@ -56,9 +56,21 @@ import { localDateStr } from '../utils/localDate';
  * component duplicated in two places.
  */
 export default function BeforeYouDecideContent() {
-    const { finance, transactions, loans, inventory, assets, settings, navigate, goals } = useApp();
+    const { finance, transactions, loans, inventory, assets, settings, navigate, goals, navParams } = useApp();
     const { currency } = settings;
     const [affordabilityMode, setAffordabilityMode] = useState<'quick' | 'detailed'>('quick');
+    // "Check it against X, not your full bank balance" from the Business
+    // Health Report's cash-health step hands off its already-computed
+    // safe-to-spend figure (bank balance minus known upcoming payments)
+    // here via navParams, rather than falling back to the raw cash
+    // balance -- that figure is exactly what the step told the owner to
+    // compare against, so re-deriving or ignoring it would contradict
+    // what they just read.
+    const hasSpendCheckThreshold = typeof navParams?.spendCheckThreshold === 'number';
+    const spendCheckThreshold = hasSpendCheckThreshold ? navParams!.spendCheckThreshold! : finance.cashBalance;
+    const [plannedSpend, setPlannedSpend] = useState('');
+    const plannedSpendNum = parseFloat(plannedSpend) || 0;
+    const spendCheckRemaining = spendCheckThreshold - plannedSpendNum;
     // Hypothetical break-even -- "if I priced a NEW product/service at X,
     // with Y variable cost and Z fixed cost, how many units to break even?"
     // Distinct from `breakeven` below (computeBreakeven), which reads the
@@ -143,6 +155,36 @@ export default function BeforeYouDecideContent() {
             </Text>
 
             <DecisionEvidencePanel evidence={decisionEvidence} />
+
+            <View style={styles.decisionCard}>
+                <Text style={styles.decisionQuestion}>Thinking about a new purchase or expense?</Text>
+                <Text style={styles.decisionHelp}>
+                    {hasSpendCheckThreshold
+                        ? `Check it against ${currency}${Math.round(spendCheckThreshold).toLocaleString()} -- what's left after your known upcoming payments, not your full bank balance.`
+                        : "Check it against what's actually safe to spend, not your full bank balance."}
+                </Text>
+            </View>
+            <Collapsible title="Check a New Spend" defaultOpen={hasSpendCheckThreshold} forceOpen={hasSpendCheckThreshold}>
+                <TextInput
+                    style={styles.input}
+                    placeholder={`Planned Spend Amount (${currency})`}
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="decimal-pad"
+                    value={plannedSpend}
+                    onChangeText={setPlannedSpend}
+                />
+                <Text style={styles.decisionHelp}>
+                    Safe to spend: <Text style={{ fontWeight: '800', color: Colors.textPrimary }}>{currency}{Math.round(spendCheckThreshold).toLocaleString()}</Text>
+                    {hasSpendCheckThreshold ? ' (after known upcoming payments)' : ' (your current cash balance)'}
+                </Text>
+                {plannedSpendNum > 0 && (
+                    <Text style={[styles.decisionHelp, { marginTop: 6, fontWeight: '700', color: spendCheckRemaining >= 0 ? Colors.income : Colors.expense }]}>
+                        {spendCheckRemaining >= 0
+                            ? `This fits, leaving ${currency}${Math.round(spendCheckRemaining).toLocaleString()} after.`
+                            : `This exceeds what's safe to spend by ${currency}${Math.round(Math.abs(spendCheckRemaining)).toLocaleString()}.`}
+                    </Text>
+                )}
+            </Collapsible>
 
             <View style={styles.decisionCard}>
                 <Text style={styles.decisionQuestion}>Weighing more than one option?</Text>
