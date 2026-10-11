@@ -620,7 +620,7 @@ export default function FinancialAssessmentScreen() {
                     {dim.seeFullDetail && (
                       <NextStepLink
                         text={dim.seeFullDetail.text}
-                        onPress={() => navigate(dim.seeFullDetail!.screen, dim.seeFullDetail!.params)}
+                        onPress={() => navigate(dim.seeFullDetail!.screen, { ...dim.seeFullDetail!.params, focusTask: dim.seeFullDetail!.text })}
                       />
                     )}
                   </View>
