@@ -926,7 +926,7 @@ export function filterByDateRange(transactions: Transaction[], range: DateRange)
 // just no activity logged yet this month -- even though the business has
 // real history to work from. Returns null only when there's no data at
 // all, so callers can fall back to real `now` in that one genuine case.
-export function latestTransactionDate(transactions: Transaction[]): Date | null {
+export function latestTransactionDate(transactions: { date: string }[]): Date | null {
     return transactions.reduce<Date | null>((latest, t) => {
         const d = new Date(t.date + 'T00:00:00');
         return isNaN(d.getTime()) ? latest : (!latest || d > latest ? d : latest);

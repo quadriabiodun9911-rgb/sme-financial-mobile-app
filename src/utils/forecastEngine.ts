@@ -8,6 +8,7 @@ import {
   ScenarioType,
 } from '../types/forecast';
 import { localDateStr } from './localDate';
+import { latestTransactionDate } from './finance';
 
 /**
  * Cash Flow Forecasting Engine
@@ -156,7 +157,17 @@ export class ForecastEngine {
   // cash-vs-accrual discipline elsewhere (e.g. cashFlowTrend.ts) -- an
   // unpaid pending/overdue transaction hasn't actually moved cash yet.
   private getHistoricalMonthlyBaseline(): { income: number; expense: number } {
-    const cutoff = new Date();
+    // Anchored to the latest date actually present in the transaction
+    // data, not the real device clock -- a trailing-90-day window measured
+    // from real "today" reads as zero income/expense (and therefore a
+    // flat, risk-free forecast with a 100 health score) for any account
+    // whose data isn't current with real-world today, exactly the
+    // anchoring bug already fixed once for this same engine's
+    // currentRevenue/currentExpenses fields (see buildForecastInput in
+    // alertEngine.ts and __tests__/forecastBaselineAnchor.test.ts) but
+    // never applied to the baseline the scenario projections actually run
+    // on.
+    const cutoff = latestTransactionDate(this.input.transactions) ?? new Date();
     cutoff.setDate(cutoff.getDate() - 90);
     const cutoffStr = localDateStr(cutoff);
     const recent = this.input.transactions.filter(

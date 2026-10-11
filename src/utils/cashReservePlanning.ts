@@ -29,6 +29,7 @@ import { Transaction } from '../types';
 import { computeCashRunway } from './cashRunway';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
 import { computeRevenueVolatility, RevenueVolatility } from './businessFinancialDNA';
+import { latestTransactionDate } from './finance';
 
 export type ResilienceStatus = 'good' | 'warning' | 'danger';
 
@@ -58,7 +59,19 @@ export function computeFinancialResilience(
     transactions: Transaction[],
     currentCashBalance: number,
 ): FinancialResilience {
-    const { dailyBurn } = computeCashRunway(transactions, currentCashBalance);
+    // Anchored to the latest date actually present in the transaction data,
+    // not the real device clock -- computeCashRunway's own trailing-30-day
+    // window otherwise measures "activity in the last 30 real calendar
+    // days," which reads as near-zero burn (and an absurd multi-century
+    // reserveCoverageMonths) for any account whose data isn't current with
+    // real-world today: imported historical statements, demo data, or a
+    // business that hasn't logged this week yet. Same anchor-to-data-not-
+    // clock fix financialDiagnosisEngine.ts's own runwayDays already uses
+    // for this exact reason -- this dimension card was showing both
+    // figures side by side and disagreeing by orders of magnitude because
+    // only one of the two was anchored correctly.
+    const referenceDate = latestTransactionDate(transactions) ?? new Date();
+    const { dailyBurn } = computeCashRunway(transactions, currentCashBalance, referenceDate);
     const essentialMonthlyExpenses = dailyBurn * 30;
     const currentReserve = Math.max(0, currentCashBalance);
     const available = essentialMonthlyExpenses > 0;
