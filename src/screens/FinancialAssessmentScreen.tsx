@@ -34,6 +34,8 @@ import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeDataQuality } from '../utils/dataQuality';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { computeInventoryValue } from '../utils/stockVelocity';
+import { recommendFinancingTypes } from '../utils/financingRecommendation';
+import { computeReadinessDelta } from '../utils/readinessHistory';
 import { buildDiagnosticDimensions } from '../utils/diagnosticDimensions';
 import { GoalStatus } from '../types';
 
@@ -48,7 +50,7 @@ const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
 };
 
 export default function FinancialAssessmentScreen() {
-  const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory, assets, budgets, dataConfidenceHistory, user, goals } = useApp();
+  const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory, assets, budgets, dataConfidenceHistory, user, goals, readinessHistory } = useApp();
   const [selectedDiagnosis, setSelectedDiagnosis] = useState<number>(0);
   const dataConfidenceTrend = useMemo(() => describeDataConfidenceTrend(dataConfidenceHistory), [dataConfidenceHistory]);
 
@@ -150,9 +152,15 @@ export default function FinancialAssessmentScreen() {
   );
   const financialResilience = useMemo(() => computeFinancialResilience(transactions, finance.cashBalance), [transactions, finance.cashBalance]);
   const financingReadinessScore = useMemo(() => computeFinancingReadinessScore(risk.factors).score, [risk.factors]);
+  // Lifted out of lendingCapacity below so the financing-type matcher can
+  // reuse the exact same fit profile (avgMonthlyRevenue, dscr, business
+  // age) rather than rebuilding it a second time.
+  const fitInput = useMemo(
+    () => buildFinancingFitInput(transactions, loans, settings, user),
+    [transactions, loans, settings, user]
+  );
   const lendingCapacity = useMemo(() => {
     if (transactions.length < 5) return null;
-    const fitInput = buildFinancingFitInput(transactions, loans, settings, user);
     const dataQuality = computeDataQuality(transactions, settings.industry);
     const inventoryValue = computeInventoryValue(inventory);
     return computeLendingCapacityEstimate({
@@ -162,7 +170,21 @@ export default function FinancialAssessmentScreen() {
       hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',
       inventoryValue,
     });
-  }, [transactions, loans, settings, user, financingReadinessScore, diagnosis.metrics.dscr, inventory]);
+  }, [transactions, settings, financingReadinessScore, diagnosis.metrics.dscr, inventory, fitInput]);
+  // "What TYPE of financing actually fits" -- invoice financing, asset
+  // financing, trade/PO finance, overdraft, term loan or working capital --
+  // matched from real signals (outstanding invoices, aging assets,
+  // fast-moving stock, seasonality, DSCR headroom), not just "how much."
+  // Same 5-transaction gate as lendingCapacity above, since the underlying
+  // fitInput is too noisy below that.
+  const financingRecommendations = useMemo(() => {
+    if (transactions.length < 5) return [];
+    const readinessDelta = computeReadinessDelta(readinessHistory ?? []);
+    return recommendFinancingTypes(
+      { fitInput, invoices, assets, readinessTrend: readinessDelta?.trend ?? null, transactions, inventory },
+      settings.currency
+    );
+  }, [transactions, fitInput, invoices, assets, readinessHistory, inventory, settings.currency]);
 
   const { dimensions: diagnosticDimensions, report: businessHealthReport } = useMemo(
     () => buildDiagnosticDimensions({
@@ -174,12 +196,13 @@ export default function FinancialAssessmentScreen() {
       reserveCoverageMonths: financialResilience.available ? financialResilience.reserveCoverageMonths : null,
       financingReadinessScore,
       lendingCapacity,
+      financingRecommendations,
       transactions,
       loans,
       invoices,
       budgets,
     }),
-    [diagnosis, settings.currency, directionVsStatus, riskRadar, resilience, financialResilience, financingReadinessScore, lendingCapacity, transactions, loans, invoices, budgets]
+    [diagnosis, settings.currency, directionVsStatus, riskRadar, resilience, financialResilience, financingReadinessScore, lendingCapacity, financingRecommendations, transactions, loans, invoices, budgets]
   );
   const [expandedDimension, setExpandedDimension] = useState<string | null>(null);
 
