@@ -474,6 +474,12 @@ export interface NavParams {
     // told to compare against is the one actually sitting in the input,
     // never re-derived or left for them to remember.
     spendCheckThreshold?: number;
+    // Deep-links into the Decide tab (BeforeYouDecideContent) and force-
+    // opens one specific calculator there, the same way spendCheckThreshold
+    // above targets "Check a New Spend" -- for steps whose whole point is
+    // a particular tool (e.g. "model a loan's repayment" -> Loan
+    // Affordability Check), not just the tab in general.
+    decideFocusTool?: 'loanAffordability';
     // Carries the exact scenario the owner was testing on the Dashboard's
     // MacroShield card into macroshield-detail, so the detail page never
     // shows a different shock than the one just explored.

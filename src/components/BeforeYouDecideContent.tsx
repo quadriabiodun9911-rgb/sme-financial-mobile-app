@@ -391,7 +391,7 @@ export default function BeforeYouDecideContent() {
                 <Text style={styles.decisionQuestion}>Taking a loan?</Text>
                 <Text style={styles.decisionHelp}>Checks one specific loan against your real profit and cash flow — the way a lender's own affordability check would.</Text>
             </View>
-            <Collapsible title="Loan Affordability Check" forceOpen={spendPrefill !== null}>
+            <Collapsible title="Loan Affordability Check" forceOpen={spendPrefill !== null || navParams?.decideFocusTool === 'loanAffordability'}>
                 <LoanAffordabilityChecker
                     currency={currency}
                     currentCashBalance={spendCheckThreshold}

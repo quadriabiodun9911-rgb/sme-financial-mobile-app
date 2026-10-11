@@ -393,7 +393,7 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             whatThisMeans: "You're not carrying any active loan repayments right now, so there's no fixed monthly obligation competing with rent, stock, wages or anything else you spend on.",
             whyItMatters: "This isn't a current risk, but it's worth modelling before taking on any debt. A loan's repayment becomes a fixed cost that has to be paid whether business is strong or slow that month -- knowing what it would do to your monthly cash flow before you apply means you choose the loan size deliberately instead of discovering it's too much after the first payment is due.",
             recommendedSteps: [
-                { text: "Model what a loan's repayment would do to your monthly cash flow before applying.", screen: 'analysis', params: { tab: 'decide' } },
+                { text: "Model what a loan's repayment would do to your monthly cash flow before applying.", screen: 'analysis', params: { tab: 'decide', decideFocusTool: 'loanAffordability' } },
                 { text: 'Decide the maximum monthly repayment your cash flow could absorb without strain.', screen: 'loans' },
             ],
             suggestedGoalType: null,
@@ -508,6 +508,21 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
 
     // 8. Financing readiness
     const topFinancing = financingRecommendations[0] ?? null;
+    // lendingCapacity.minAmount/maxAmount are BOTH forced to 0 for the
+    // 'risk' (DSCR < 1 -- not yet bankable) and 'insufficient-data'
+    // conclusions (lendingCapacity.ts), so a capacity range only exists for
+    // 'ready'/'improve'. Showing "₦0-₦0" as an "estimated capacity" reads as
+    // a real (if tiny) number rather than "not applicable."
+    const hasCapacityRange = !!lendingCapacity && lendingCapacity.maxAmount > 0;
+    // recommendFinancingTypes() is computed independently of lendingCapacity
+    // and doesn't gate on DSCR for most product types, so it can still
+    // suggest a financing type (e.g. Invoice Financing off unpaid invoices
+    // alone) even when lendingCapacity.conclusion is 'risk' -- pairing
+    // "borrowing right now would add real risk" with "here's the type that
+    // best fits your profile, go compare options" is a direct contradiction.
+    // Only surface the type match when the business is actually a
+    // reasonable financing candidate.
+    const showsFinancingType = !!topFinancing && lendingCapacity?.conclusion !== 'risk';
     dims.push({
         key: 'financingReadiness',
         title: 'Financing Readiness',
@@ -518,8 +533,8 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             ? [{ label: 'Status', value: 'Log at least 5 transactions to estimate this.' }]
             : [
                 { label: 'Readiness score', value: `${Math.round(financingReadinessScore)}/100` },
-                { label: 'Estimated capacity', value: `${fmtMoney(currency, lendingCapacity.minAmount)}–${fmtMoney(currency, lendingCapacity.maxAmount)}` },
-                { label: 'Best-fit financing type', value: topFinancing ? topFinancing.label : 'Not enough data yet' },
+                { label: 'Estimated capacity', value: hasCapacityRange ? `${fmtMoney(currency, lendingCapacity.minAmount)}–${fmtMoney(currency, lendingCapacity.maxAmount)}` : 'Not applicable right now' },
+                { label: 'Best-fit financing type', value: showsFinancingType ? topFinancing!.label : 'Not applicable right now' },
                 { label: 'Verdict', value: lendingCapacity.reason },
             ],
         relatedProblems: [],
@@ -534,10 +549,12 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 : 'Not enough data yet to assess this confidently',
             metrics: [
                 { label: 'Readiness score', value: `${Math.round(financingReadinessScore)}/100` },
-                { label: 'Best-fit type', value: topFinancing ? topFinancing.label : 'N/A' },
+                { label: 'Best-fit type', value: showsFinancingType ? topFinancing!.label : 'N/A' },
             ],
-            whatThisMeans: `Based on your real cash flow, profitability and debt position, Quad360 estimates you could responsibly take on ${fmtMoney(currency, lendingCapacity.minAmount)}–${fmtMoney(currency, lendingCapacity.maxAmount)} in financing -- the lower end reflects a conservative lender's view, the higher end a more generous one. Your overall readiness score is ${Math.round(financingReadinessScore)}/100, putting you in the "${lendingCapacity.tierLabel}" tier. ${lendingCapacity.reason}`
-                + (topFinancing ? ` The type that best fits your current profile is ${topFinancing.label}${topFinancing.confidence === 'strong' ? ' (a strong match)' : ''}: ${topFinancing.reasons[0]}` : ''),
+            whatThisMeans: (hasCapacityRange
+                ? `Based on your real cash flow, profitability and debt position, Quad360 estimates you could responsibly take on ${fmtMoney(currency, lendingCapacity.minAmount)}–${fmtMoney(currency, lendingCapacity.maxAmount)} in financing -- the lower end reflects a conservative lender's view, the higher end a more generous one. Your overall readiness score is ${Math.round(financingReadinessScore)}/100, putting you in the "${lendingCapacity.tierLabel}" tier. ${lendingCapacity.reason}`
+                : `Your overall readiness score is ${Math.round(financingReadinessScore)}/100, putting you in the "${lendingCapacity.tierLabel}" tier. ${lendingCapacity.reason}`)
+                + (showsFinancingType ? ` The type that best fits your current profile is ${topFinancing!.label}${topFinancing!.confidence === 'strong' ? ' (a strong match)' : ''}: ${topFinancing!.reasons[0]}` : ''),
             whyItMatters: (lendingCapacity.conclusion === 'ready'
                 ? 'This means financing could genuinely help you grow, not just plug a gap -- the kind of borrowing that expands what the business can do, rather than borrowing to survive a shortfall you could have avoided.'
                 : lendingCapacity.conclusion === 'improve'
@@ -546,11 +563,11 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? 'Taking on new debt now could strain cash flow that is already under pressure. A loan adds a fixed monthly obligation on top of whatever is already straining the business, which can turn a recoverable situation into a harder one.'
                 : 'Log a few more transactions so this estimate reflects your real numbers.')
                 + ' This score and range update automatically as your numbers change -- there\'s no separate application or check to run to see it move.'
-                + (topFinancing ? ` Matching the TYPE to your actual need matters as much as the amount -- a working capital facility and an asset loan solve very different problems even at the same size, and applying for the wrong one wastes time and can hurt your application history.` : ''),
+                + (showsFinancingType ? ` Matching the TYPE to your actual need matters as much as the amount -- a working capital facility and an asset loan solve very different problems even at the same size, and applying for the wrong one wastes time and can hurt your application history.` : ''),
             recommendedSteps: [
                 { text: 'See the full financing readiness breakdown and matched options.', screen: 'credit-worthiness' },
-                topFinancing
-                    ? { text: `Compare ${topFinancing.label} options matched to your real numbers.`, screen: 'financing-marketplace' }
+                showsFinancingType
+                    ? { text: `Compare ${topFinancing!.label} options matched to your real numbers.`, screen: 'financing-marketplace' }
                     : { text: 'Check which specific factor is holding your readiness score back.', screen: 'credit-worthiness' },
             ],
             suggestedGoalType: null,
@@ -650,7 +667,7 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 { text: 'Identify exactly which trend is declining and why.', screen: 'reports', params: { reportSection: 'growth', reportTab: 'quality' } },
                 {
                     text: `Before planning new growth spending, check whether it depends on the ${declining} trend${declining === 1 ? '' : 's'} currently moving the wrong way, or on the ${improving} that's still working.`,
-                    screen: 'reports', params: { reportSection: 'growth', reportTab: 'quality' },
+                    screen: 'reports', params: { reportSection: 'growth', reportTab: 'history' },
                 },
                 { text: "Set a check-in date to confirm whether it's turned around." },
             ],
