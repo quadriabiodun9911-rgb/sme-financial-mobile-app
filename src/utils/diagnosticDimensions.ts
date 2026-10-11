@@ -290,7 +290,7 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 : 'This gives you room to absorb a cost increase or a slow month and stay profitable.')
                 + (m.totalRevenue > 0 && m.revenueRecurringPct < 50 ? ' Most of this revenue is one-off deals rather than repeat business, which makes next month harder to predict from this one.' : ''),
             recommendedSteps: [
-                { text: 'Review your biggest expense categories for quick wins.', screen: 'reports', params: { reportSection: 'statements', reportTab: 'pnl' } },
+                { text: 'Review your biggest expense categories for quick wins.', screen: 'transactions', params: { tab: 'exposure' } },
                 { text: 'Check whether recent pricing still covers your real costs.', screen: 'cashflow', params: { tab: 'breakeven' } },
                 { text: "Compare this month's margin against your own trend, not just an industry benchmark.", screen: 'reports', params: { reportSection: 'growth', reportTab: 'history' } },
             ],
@@ -624,7 +624,7 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             ],
             whyThisMatters: `Revenue of ${fmtMoney(currency, m.totalRevenue)} against ${fmtMoney(currency, m.totalExpenses)} in expenses leaves ${m.netProfit >= 0 ? `only ${fmtMoney(currency, m.netProfit)}` : `a loss of ${fmtMoney(currency, m.netProfit)}`} -- a ${m.profitMargin.toFixed(1)}% margin, ${(INDUSTRY_BENCHMARKS.profitMargin - m.profitMargin).toFixed(1)} points below the 20% benchmark most comparisons use. A small rise in costs or a slow month could erase this entirely, since there's little profit left to absorb the hit.`,
             nextSteps: [
-                { text: 'Review your biggest expense categories for quick wins.', screen: 'reports', params: { reportSection: 'statements', reportTab: 'pnl' } },
+                { text: 'Review your biggest expense categories for quick wins.', screen: 'transactions', params: { tab: 'exposure' } },
                 {
                     text: `Before committing to new costs or a price change, check it against your current ${m.profitMargin.toFixed(1)}% margin -- the 20% benchmark is the line where a small shock stops being survivable.`,
                     screen: 'cashflow', params: { tab: 'breakeven' },
