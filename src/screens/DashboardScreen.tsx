@@ -58,7 +58,7 @@ import { getUninvoicedOverdueTransactions } from '../utils/overdueTransactions';
 import { getTaxDeadlineStatus } from '../utils/taxDeadline';
 import { isRecurringTransactionOverdue, daysUntilRecurringDue, hasRecurringSchedule } from '../utils/recurringTransactions';
 import { isBudgetActiveForPeriod, isBudgetPeriodLapsed, currentPeriodString } from '../utils/budgetPeriod';
-import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyExpenseAverage, computeOneThingInsight, computeRiskScore, computeDSCR, computeFinancingReadinessScore, RISK_BAND_STYLE } from '../utils/finance';
+import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyExpenseAverage, computeOneThingInsight, computeRiskScore, computeDSCR, computeFinancingReadinessScore, RISK_BAND_STYLE, latestTransactionDate } from '../utils/finance';
 import { computeBusinessHealthIntelligence } from '../utils/metricIntelligence';
 import { computeStockVelocity, computeInventoryValue } from '../utils/stockVelocity';
 import { computeExpiringStock } from '../utils/foodExpiry';
@@ -1302,8 +1302,14 @@ export default function DashboardScreen() {
     // down before running out, so it's counted here too -- and in
     // CashFlowScreen's own Runway tab, so "Cash Runway" doesn't show one
     // number on Dashboard and a different one there for the same business.
+    // Anchored to the latest date actually present in the transaction data,
+    // not the real device clock -- an unanchored trailing-30-day window
+    // reads as zero burn (an absurd multi-century runway) for any account
+    // whose data isn't current with real-world today, the same
+    // false-healthy bug already fixed for
+    // computeFinancialResilience/computeRiskScore/ForecastEngine.
     const { dailyBurn: dashboardDailyBurn, runwayDays: computedRunwayDays } = useMemo(
-        () => computeCashRunway(transactions, finance.cashBalance + totalCash),
+        () => computeCashRunway(transactions, finance.cashBalance + totalCash, latestTransactionDate(transactions) ?? new Date()),
         [transactions, finance.cashBalance, totalCash],
     );
     const runwayDays = dashboardDailyBurn > 0 ? computedRunwayDays : null;

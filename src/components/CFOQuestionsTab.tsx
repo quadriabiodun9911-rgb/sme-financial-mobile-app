@@ -4,7 +4,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Shadow } from '../theme/tokens';
 import { computeCashRunway } from '../utils/cashRunway';
-import { computeAgingBuckets, getTaxRatePercent, getMonthlyExpenseAverage } from '../utils/finance';
+import { computeAgingBuckets, getTaxRatePercent, getMonthlyExpenseAverage, latestTransactionDate } from '../utils/finance';
 import { computeInventoryValue } from '../utils/stockVelocity';
 import { totalMonthlyLoanBurden } from '../utils/loanMath';
 import { computeInventoryDecisions } from '../utils/inventoryDecisions';
@@ -114,7 +114,7 @@ export default function CFOQuestionsTab() {
     const [form, setForm] = useState(EMPTY_COMMITMENT_FORM);
     const setField = (field: keyof typeof EMPTY_COMMITMENT_FORM) => (value: string) => setForm(f => ({ ...f, [field]: value }));
 
-    const { dailyBurn } = useMemo(() => computeCashRunway(transactions, finance.cashBalance), [transactions, finance.cashBalance]);
+    const { dailyBurn } = useMemo(() => computeCashRunway(transactions, finance.cashBalance, latestTransactionDate(transactions) ?? new Date()), [transactions, finance.cashBalance]);
 
     const apBuckets = useMemo(() => computeAgingBuckets(transactions, 'expense'), [transactions]);
     const upcoming30dayAP = apBuckets[0]?.total ?? 0;

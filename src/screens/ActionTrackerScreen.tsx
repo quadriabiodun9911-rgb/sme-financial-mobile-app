@@ -17,7 +17,7 @@ import { syncTacticOutcomeSample, loadTacticOutcomeStats, TacticOutcomeStats } f
 import { mergeShownTacticIds, computeRecommendationConversion } from '../utils/recommendationConversion';
 import NextStepLink from '../components/NextStepLink';
 import { computeCashRunway } from '../utils/cashRunway';
-import { getMonthlyExpenseAverage } from '../utils/finance';
+import { getMonthlyExpenseAverage, latestTransactionDate } from '../utils/finance';
 import { showAlert } from '../utils/webAlert';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
@@ -175,7 +175,7 @@ export default function ActionTrackerScreen() {
   // app — this used to divide finance.expense (an all-time cumulative
   // total) by 30, which understated daily burn (and so overstated runway)
   // more the longer a business had been recording transactions.
-  const cashRunwayDays = useMemo(() => computeCashRunway(transactions, finance.cashBalance).runwayDays, [transactions, finance.cashBalance]);
+  const cashRunwayDays = useMemo(() => computeCashRunway(transactions, finance.cashBalance, latestTransactionDate(transactions) ?? new Date()).runwayDays, [transactions, finance.cashBalance]);
 
   const diagnosis = useMemo(() => {
     return performFinancialDiagnosis(

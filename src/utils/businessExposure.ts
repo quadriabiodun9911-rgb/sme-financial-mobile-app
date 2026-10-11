@@ -15,7 +15,7 @@
  */
 
 import { Transaction, Loan, InventoryItem, MacroAssumption, FinanceData } from '../types';
-import { computeCustomerConcentration, computeSupplierConcentration, computeDSCR } from './finance';
+import { computeCustomerConcentration, computeSupplierConcentration, computeDSCR, latestTransactionDate } from './finance';
 import { computeExternalFactorsPanel } from './externalFactorsPanel';
 import { computeCashRunway } from './cashRunway';
 import { computeSlowMovingValue } from './inventoryIntelligence';
@@ -121,7 +121,7 @@ export function computeBusinessExposure(
     // the Dashboard's alert bell separately flags as a critical low-cash
     // warning -- this factor was calling it "low" exposure at the same
     // time).
-    const runway = computeCashRunway(transactions, finance.cashBalance);
+    const runway = computeCashRunway(transactions, finance.cashBalance, latestTransactionDate(transactions) ?? new Date());
     const runwayLevel: ExposureLevel = !Number.isFinite(runway.runwayDays)
         ? (finance.cashBalance > 0 ? 'low' : 'high')
         : runway.runwayDays < 30 ? 'high' : runway.runwayDays < 60 ? 'medium' : 'low';

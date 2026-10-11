@@ -23,7 +23,7 @@ import FooterNav from '../components/FooterNav';
 import { Loan, LoanStatus, Transaction, ReadinessSnapshot } from '../types';
 import DateInput from '../components/DateInput';
 import MerchantFinancingSection from './MerchantFinancingSection';
-import { computeDebtOptimiser, computeDSCR, computeInterestRateShock, DSCRResult, computeUnlinkedLoanRepayments, computeLoanPaymentSplit } from '../utils/finance';
+import { computeDebtOptimiser, computeDSCR, computeInterestRateShock, DSCRResult, computeUnlinkedLoanRepayments, computeLoanPaymentSplit, latestTransactionDate } from '../utils/finance';
 import { computeCashRunway } from '../utils/cashRunway';
 import { analyzeOngoingFinancingToLease, LeaseRefinanceCheck } from '../utils/ongoingFinancingLeaseCheck';
 import { computeDSCRIntelligence } from '../utils/metricIntelligence';
@@ -278,7 +278,7 @@ export default function LoansScreen() {
     // forecast baseline (see computeDSCR's own doc comment). Recomputed the
     // same way Before You Decide's own calculators do: trailing 30 days of
     // paid income minus trailing 30-day burn.
-    const monthlyBurn = computeCashRunway(transactions, finance?.cashBalance ?? 0).dailyBurn * 30;
+    const monthlyBurn = computeCashRunway(transactions, finance?.cashBalance ?? 0, latestTransactionDate(transactions) ?? new Date()).dailyBurn * 30;
     const last30Str = localDateStr(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
     const income30 = transactions
         .filter(t => t.type === 'income' && (t.status ?? 'paid') === 'paid' && t.date >= last30Str)

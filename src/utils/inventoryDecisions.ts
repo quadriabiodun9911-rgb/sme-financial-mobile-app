@@ -17,6 +17,7 @@
 import { InventoryItem, Transaction } from '../types';
 import { computeStockVelocity } from './stockVelocity';
 import { computeCashRunway } from './cashRunway';
+import { latestTransactionDate } from './finance';
 
 export type InventoryDecisionAction = 'reorder' | 'reduce' | 'discontinue';
 
@@ -57,7 +58,7 @@ export function computeInventoryDecisions(
     // not a second, independently-tuned estimate. null (not 0) when there's
     // no measurable burn, so a reorder's runway impact is only ever shown
     // when it's a real, dividable number.
-    const { dailyBurn } = computeCashRunway(transactions, cashBalance);
+    const { dailyBurn } = computeCashRunway(transactions, cashBalance, latestTransactionDate(transactions) ?? new Date());
     const runwayBeforeDays = dailyBurn > 0 ? cashBalance / dailyBurn : null;
 
     for (const item of inventory) {
