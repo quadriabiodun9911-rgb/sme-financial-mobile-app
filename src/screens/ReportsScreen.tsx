@@ -19,7 +19,6 @@ import TaxSummary from '../components/TaxSummary';
 import TaxFilingReadinessTab from '../components/TaxFilingReadinessTab';
 import TaxPlanningTab from '../components/TaxPlanningTab';
 import CashFlowSafety from '../components/CashFlowSafety';
-import LoansAndDebt from '../components/LoansAndDebt';
 import { computeFinancialRatiosDashboard } from '../utils/financialRatiosEngine';
 import RatioReadingRow from '../components/RatioReadingRow';
 import CustomerProfitability from '../components/CustomerProfitability';
@@ -60,7 +59,7 @@ const SECTIONS: { key: SectionKey; label: string; icon: IconName; desc: string }
     { key: 'statements', label: 'Financial Statements',    icon: 'bar-chart-2', desc: 'Balance Sheet, Profit & Loss, Inventory, Cash Flow' },
     { key: 'customers',  label: 'Customers & Collections',  icon: 'dollar-sign', desc: 'Who Owes Me - Unpaid Invoices' },
     { key: 'tax',        label: 'Tax & Compliance',         icon: 'clipboard',   desc: 'Tax Summary and Obligations' },
-    { key: 'planning',   label: 'Planning & Forecasts',     icon: 'trending-up', desc: 'Cash Flow & Safety, Loans & Debt' },
+    { key: 'planning',   label: 'Planning & Forecasts',     icon: 'trending-up', desc: 'Cash Flow & Safety' },
     { key: 'growth',     label: 'Growth Analytics',         icon: 'zap',         desc: 'Growth Trends & Scenarios, Best Customers & Products' },
 ];
 
@@ -68,7 +67,7 @@ type SubTab =
     | 'balancesheet' | 'pnl' | 'inventory' | 'accrual'
     | 'aging'
     | 'tax' | 'tax-filing' | 'tax-planning'
-    | 'cashflow' | 'cashhealth' | 'workingcapitalhealth' | 'cashsafety' | 'debt'
+    | 'cashflow' | 'cashhealth' | 'workingcapitalhealth' | 'cashsafety'
     | 'growth' | 'history' | 'quality' | 'customers' | 'products';
 
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
@@ -91,7 +90,6 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     ],
     planning: [
         { key: 'cashsafety',  label: 'Cash Flow & Safety' },
-        { key: 'debt',        label: 'Loans & Debt' },
     ],
     growth: [
         { key: 'growth',    label: 'Growth Trends & Scenarios' },
@@ -182,7 +180,6 @@ export default function ReportsScreen() {
     );
     const operatingMarginReading = ratiosDashboard.categories.find(c => c.key === 'profitability')?.readings.find(r => r.key === 'operatingMargin');
     const cashRatioReading = ratiosDashboard.categories.find(c => c.key === 'liquidity')?.readings.find(r => r.key === 'cashRatio');
-    const debtToCashFlowReading = ratiosDashboard.categories.find(c => c.key === 'debt')?.readings.find(r => r.key === 'debtToCashFlow');
     const enhPnL     = useMemo(() => computeEnhancedPnL(filteredTx, assets), [filteredTx, assets]);
     // Exactly the transactions enhPnL.revenue was summed from -- see
     // computeEnhancedPnL's own revenue line -- so the P&L's drill-down
@@ -190,12 +187,6 @@ export default function ReportsScreen() {
     const revenueTransactions = useMemo(() => filteredTx.filter(t => t.type === 'income'), [filteredTx]);
     const wcMetrics  = useMemo(() => computeWorkingCapitalMetrics(filteredTx), [filteredTx]);
     const revenueByPaymentMethod = useMemo(() => computeRevenueByPaymentMethod(filteredTx), [filteredTx]);
-    // Unfiltered (all-time, "as of today") AR/AP — the Debt tab's leverage
-    // ratios describe the business's current balance sheet, not a
-    // period-scoped slice, so this must match Reports > "What I Own & Owe"
-    // and Credit-Worthiness's Five C's Capital section rather than wcMetrics
-    // above (which is intentionally scoped to whatever period is selected).
-    const allTimeWcMetrics = useMemo(() => computeWorkingCapitalMetrics(transactions), [transactions]);
     const bizSize    = classifyBusinessSize(enhPnL.revenue);
 
     const prevFinance = useMemo(() => {
@@ -496,13 +487,15 @@ export default function ReportsScreen() {
 
             <DataQualityBadge transactions={transactions} />
 
-            {/* Asset Productivity/Replacement Forecast used to be a third
-                tab here, duplicating the Assets screen. That full analysis
-                now lives only there -- this is the one line pointing to it,
-                not a second copy of the content. */}
+            {/* Asset Productivity/Replacement Forecast and Debt Structure &
+                Leverage Analysis used to be two more tabs here, duplicating
+                the Assets and Loans screens. That full analysis now lives
+                only there -- these are the two lines pointing to it, not a
+                second copy of the content. */}
             {section === 'planning' && (
-                <View style={{ paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm }}>
+                <View style={{ paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm, gap: 4 }}>
                     <NextStepLink text="Looking for Assets? Health score, replacement forecast & recommendations →" onPress={() => setCurrentScreen('assets')} />
+                    <NextStepLink text="Looking for Loans & Debt? DSCR, debt structure, leverage ratios & calculators →" onPress={() => setCurrentScreen('loans')} />
                 </View>
             )}
 
@@ -798,40 +791,6 @@ export default function ReportsScreen() {
                             inventoryValue={inventoryValue}
                             cashPockets={cashPockets}
                         />
-                    )}
-
-                    {/* ── LOANS & DEBT ─────────────────────────────────── */}
-                    {activeTab === 'debt' && (
-                        <View>
-                            {/* Debt-to-Cash-Flow, in plain language -- total
-                                outstanding debt against annualized operating
-                                cash flow (2x/4x mirror the conventional
-                                debt-to-EBITDA caution lines lenders use).
-                                Formerly on Fractional CFO's Finance tab;
-                                moved here since this is literally the "can
-                                the business carry its debt" tab. DSCR below
-                                (inside LoansAndDebt) already answers the
-                                same question a different way -- can monthly
-                                income cover monthly payments -- this is the
-                                total-balance-vs-annual-cash-flow view. */}
-                            {debtToCashFlowReading && (
-                                <View style={styles.card}>
-                                    <Text style={styles.cardTitle}>Debt-to-Cash-Flow — In Plain Language</Text>
-                                    <RatioReadingRow reading={debtToCashFlowReading} />
-                                </View>
-                            )}
-                            <LoansAndDebt
-                                finance={allFinance}
-                                currency={currency}
-                                loans={loansList}
-                                transactions={transactions}
-                                accountsReceivable={allTimeWcMetrics.accountsReceivable}
-                                accountsPayable={allTimeWcMetrics.accountsPayable}
-                                inventoryValue={inventoryValue}
-                                assetsList={assets}
-                                defaultTaxRate={settings.defaultTaxRate}
-                            />
-                        </View>
                     )}
 
                     {/* ── GROWTH OUTLOOK (trends + scenarios) ──────────── */}
