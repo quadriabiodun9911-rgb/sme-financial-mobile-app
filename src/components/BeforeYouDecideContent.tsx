@@ -15,6 +15,7 @@ import CapitalCommitmentTracker, { CommitmentPrefill } from './CapitalCommitment
 import DecisionComparisonTable from './DecisionComparisonTable';
 import DecisionEvidencePanel from './DecisionEvidencePanel';
 import { computeDecisionEvidence } from '../utils/decisionEvidence';
+import { computeDiscretionaryCash } from '../utils/discretionaryCash';
 import { computeCashRunway } from '../utils/cashRunway';
 import { computeRiskScore, loanMonthlyPayment } from '../utils/finance';
 import { computeBreakeven } from '../utils/profitability';
@@ -56,18 +57,37 @@ import { localDateStr } from '../utils/localDate';
  * component duplicated in two places.
  */
 export default function BeforeYouDecideContent() {
-    const { finance, transactions, loans, inventory, assets, settings, navigate, goals, navParams } = useApp();
+    const { finance, transactions, loans, bills, invoices, inventory, assets, settings, navigate, goals, navParams } = useApp();
     const { currency } = settings;
     const [affordabilityMode, setAffordabilityMode] = useState<'quick' | 'detailed'>('quick');
+
+    // "Safe to spend" -- the SAME engine (computeDiscretionaryCash) the
+    // Dashboard's own "Safe to Spend" card and Margin Watch's Discretionary
+    // Cash card already use: nets near-term operating burn, scheduled debt
+    // service and unreviewed vendor bills out of the raw balance, and adds
+    // back receivables already owed and not seriously overdue. Every
+    // calculator below that asks "can the business afford this" is handed
+    // THIS figure as its cash baseline instead of the raw bank balance, so
+    // "can I afford to hire," "buy this asset," "take this loan" etc. all
+    // agree with each other and with the Dashboard -- never eight
+    // calculators on one tab each silently assuming the full balance is
+    // free to spend. The emergency-reserve target is deliberately left at 0
+    // here: AssetAcquisitionCalculator already nets minReserve itself via
+    // its own `minReserve` prop, and netting it twice would understate what
+    // every other calculator shows.
+    const baselineDiscretionary = useMemo(
+        () => computeDiscretionaryCash(transactions, finance.cashBalance, loans, bills, invoices, 0, new Date(), 0),
+        [transactions, finance.cashBalance, loans, bills, invoices]
+    );
     // "Check it against X, not your full bank balance" from the Business
-    // Health Report's cash-health step hands off its already-computed
-    // safe-to-spend figure (bank balance minus known upcoming payments)
-    // here via navParams, rather than falling back to the raw cash
-    // balance -- that figure is exactly what the step told the owner to
-    // compare against, so re-deriving or ignoring it would contradict
-    // what they just read.
+    // Health Report's cash-health step hands off its own already-computed
+    // figure via navParams when it deep-links here -- that specific number
+    // is exactly what the step told the owner to compare against, so it
+    // overrides the live baseline above rather than silently disagreeing
+    // with it. Landing here any other way (not deep-linked) uses the live
+    // discretionary-cash baseline.
     const hasSpendCheckThreshold = typeof navParams?.spendCheckThreshold === 'number';
-    const spendCheckThreshold = hasSpendCheckThreshold ? navParams!.spendCheckThreshold! : finance.cashBalance;
+    const spendCheckThreshold = hasSpendCheckThreshold ? navParams!.spendCheckThreshold! : baselineDiscretionary.discretionaryCash;
     const [plannedSpend, setPlannedSpend] = useState('');
     const plannedSpendNum = parseFloat(plannedSpend) || 0;
     const spendCheckRemaining = spendCheckThreshold - plannedSpendNum;
@@ -141,7 +161,7 @@ export default function BeforeYouDecideContent() {
     // "Can I afford to hire/expand/borrow?" grouped alongside "Can I afford
     // to restock?", not a second, independently-computed affordability
     // check.
-    const inventoryDecisions = computeInventoryDecisions(inventory, transactions, finance.cashBalance, currency);
+    const inventoryDecisions = computeInventoryDecisions(inventory, transactions, spendCheckThreshold, currency);
     const inventorySummary = summarizeInventoryDecisions(inventoryDecisions);
     const reorderDecisions = inventoryDecisions.filter(d => d.action === 'reorder');
     const unaffordableReorders = reorderDecisions.filter(d => d.affordable === false);
@@ -175,7 +195,7 @@ export default function BeforeYouDecideContent() {
                 />
                 <Text style={styles.decisionHelp}>
                     Safe to spend: <Text style={{ fontWeight: '800', color: Colors.textPrimary }}>{currency}{Math.round(spendCheckThreshold).toLocaleString()}</Text>
-                    {hasSpendCheckThreshold ? ' (after known upcoming payments)' : ' (your current cash balance)'}
+                    {hasSpendCheckThreshold ? ' (after known upcoming payments)' : ' (after near-term burn, debt service and unreviewed bills)'}
                 </Text>
                 {plannedSpendNum > 0 && (
                     <Text style={[styles.decisionHelp, { marginTop: 6, fontWeight: '700', color: spendCheckRemaining >= 0 ? Colors.income : Colors.expense }]}>
@@ -194,7 +214,7 @@ export default function BeforeYouDecideContent() {
                 <DecisionComparisonTable
                     currency={currency}
                     transactions={transactions}
-                    currentCashBalance={finance.cashBalance}
+                    currentCashBalance={spendCheckThreshold}
                     onTrackDecision={setCommitmentPrefill}
                 />
             </Collapsible>
@@ -226,9 +246,9 @@ export default function BeforeYouDecideContent() {
                     </TouchableOpacity>
                 </View>
                 {affordabilityMode === 'quick' ? (
-                    <DecisionSimulator currency={currency} transactions={transactions} currentCashBalance={finance.cashBalance} pillars={pillars.pillars} goals={goals} navigate={navigate} />
+                    <DecisionSimulator currency={currency} transactions={transactions} currentCashBalance={spendCheckThreshold} pillars={pillars.pillars} goals={goals} navigate={navigate} />
                 ) : (
-                    <GrowthAffordabilityCalculator currency={currency} currentCashBalance={finance.cashBalance} monthlyBurn={monthlyBurn} currentMonthlySurplus={monthlyProfit} goals={goals} />
+                    <GrowthAffordabilityCalculator currency={currency} currentCashBalance={spendCheckThreshold} monthlyBurn={monthlyBurn} currentMonthlySurplus={monthlyProfit} goals={goals} />
                 )}
             </Collapsible>
 
@@ -237,7 +257,7 @@ export default function BeforeYouDecideContent() {
                 <Text style={styles.decisionHelp}>Paying cash and financing it are both reasonable — see the actual liquidity trade-off first.</Text>
             </View>
             <Collapsible title="Buy vs. Finance">
-                <BuyVsFinanceCalculator currency={currency} currentCashBalance={finance.cashBalance} monthlyBurn={monthlyBurn} currentMonthlySurplus={monthlyProfit} goals={goals} />
+                <BuyVsFinanceCalculator currency={currency} currentCashBalance={spendCheckThreshold} monthlyBurn={monthlyBurn} currentMonthlySurplus={monthlyProfit} goals={goals} />
             </Collapsible>
 
             <View style={styles.decisionCard}>
@@ -247,7 +267,7 @@ export default function BeforeYouDecideContent() {
             <Collapsible title="Buy, Finance, or Lease an Asset">
                 <AssetAcquisitionCalculator
                     currency={currency}
-                    cashBalance={finance.cashBalance}
+                    cashBalance={spendCheckThreshold}
                     monthlyProfit={monthlyProfit}
                     minReserve={parseFloat(settings?.minReserve || '0') || 0}
                     onSeeFullPicture={() => navigate('business-passport')}
@@ -259,7 +279,7 @@ export default function BeforeYouDecideContent() {
                 <Text style={styles.decisionHelp}>A new location or product line usually has both an upfront cost and an ongoing monthly cost — see which funding choice still holds up if revenue drops, not just which is cheaper today.</Text>
             </View>
             <Collapsible title="Take On a New Project">
-                <ProjectDecisionSimulator currency={currency} transactions={transactions} currentCashBalance={finance.cashBalance} />
+                <ProjectDecisionSimulator currency={currency} transactions={transactions} currentCashBalance={spendCheckThreshold} />
             </Collapsible>
 
             <View style={styles.decisionCard}>
@@ -324,8 +344,8 @@ export default function BeforeYouDecideContent() {
                         <Text style={styles.decisionHelp}>
                             {inventorySummary.reorderCount} item{inventorySummary.reorderCount !== 1 ? 's' : ''} at or below reorder level, totalling about {currency}{Math.round(inventorySummary.reorderCost).toLocaleString()} to restock.
                             {unaffordableReorders.length > 0
-                                ? ` ${unaffordableReorders.length} of those would exceed your current cash on hand (${currency}${Math.round(finance.cashBalance).toLocaleString()}).`
-                                : ' Current cash on hand covers all of them.'}
+                                ? ` ${unaffordableReorders.length} of those would exceed what's safe to spend right now (${currency}${Math.round(spendCheckThreshold).toLocaleString()}).`
+                                : ' What\'s safe to spend right now covers all of them.'}
                         </Text>
                         {reorderDecisions.slice(0, 8).map(d => (
                             <Text key={d.itemId} style={[styles.decisionHelp, { marginTop: 6, color: d.affordable ? Colors.textSecondary : Colors.expense }]}>
@@ -346,7 +366,7 @@ export default function BeforeYouDecideContent() {
             <Collapsible title="Loan Affordability Check">
                 <LoanAffordabilityChecker
                     currency={currency}
-                    currentCashBalance={finance.cashBalance}
+                    currentCashBalance={spendCheckThreshold}
                     monthlyProfit={monthlyProfit}
                     existingMonthlyDebtService={existingMonthlyDebtService}
                     monthlyOperatingBurn={monthlyBurn}
