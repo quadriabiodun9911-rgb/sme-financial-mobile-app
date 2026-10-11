@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { computeGrowthAffordability, GrowthAffordabilityVerdict } from '../utils/growthAffordability';
@@ -14,6 +14,13 @@ interface Props {
     // component still answers "can I afford this growth" without that line.
     currentMonthlySurplus?: number;
     goals?: FinancialGoal[];
+    // A one-off amount the owner already typed into "Check a New Spend"
+    // further up the same Decide tab -- opens Upfront Cost pre-filled with
+    // it instead of making them retype the same number. A fresh object each
+    // time (even the same amount) is what re-triggers the fill; see
+    // CapitalCommitmentTracker's own `prefill` prop for the same pattern.
+    prefillAmount?: { amount: number } | null;
+    onPrefillConsumed?: () => void;
 }
 
 function fmt(currency: string, n: number): string {
@@ -42,11 +49,17 @@ const VERDICT_LABEL: Record<GrowthAffordabilityVerdict, string> = {
 // at all. This checks whether cash survives that gap — the actual question
 // behind "should we expand now" — using the same runway math as the rest
 // of the app, not a vague go/no-go feeling.
-export default function GrowthAffordabilityCalculator({ currency, currentCashBalance, monthlyBurn, currentMonthlySurplus, goals }: Props) {
+export default function GrowthAffordabilityCalculator({ currency, currentCashBalance, monthlyBurn, currentMonthlySurplus, goals, prefillAmount, onPrefillConsumed }: Props) {
     const [upfront, setUpfront] = useState('');
     const [addedCost, setAddedCost] = useState('');
     const [addedRevenue, setAddedRevenue] = useState('');
     const [rampUp, setRampUp] = useState('3');
+
+    useEffect(() => {
+        if (!prefillAmount) return;
+        setUpfront(prefillAmount.amount > 0 ? String(Math.round(prefillAmount.amount)) : '');
+        onPrefillConsumed?.();
+    }, [prefillAmount]);
 
     const addedCostNum = parseFloat(addedCost) || 0;
     const addedRevenueNum = parseFloat(addedRevenue) || 0;

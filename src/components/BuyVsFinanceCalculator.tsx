@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { computeBuyVsFinance } from '../utils/buyVsFinance';
@@ -13,6 +13,11 @@ interface Props {
     // the goal-delay line on the Pay Cash option below.
     currentMonthlySurplus?: number;
     goals?: FinancialGoal[];
+    // See GrowthAffordabilityCalculator's own doc comment -- same
+    // "Check a New Spend" hand-off pattern, applied to this calculator's
+    // Equipment Cost field.
+    prefillAmount?: { amount: number } | null;
+    onPrefillConsumed?: () => void;
 }
 
 function fmt(currency: string, n: number): string {
@@ -28,11 +33,17 @@ function fmtMonths(n: number): string {
 // (return vs. interest cost) is a different question from "what does this
 // purchase do to my cash runway either way." Both paths can be reasonable
 // — this shows the actual liquidity trade-off, not just which is cheaper.
-export default function BuyVsFinanceCalculator({ currency, currentCashBalance, monthlyBurn, currentMonthlySurplus, goals }: Props) {
+export default function BuyVsFinanceCalculator({ currency, currentCashBalance, monthlyBurn, currentMonthlySurplus, goals, prefillAmount, onPrefillConsumed }: Props) {
     const [cost, setCost] = useState('');
     const [rate, setRate] = useState('');
     const [term, setTerm] = useState('24');
     const [downPct, setDownPct] = useState('0');
+
+    useEffect(() => {
+        if (!prefillAmount) return;
+        setCost(prefillAmount.amount > 0 ? String(Math.round(prefillAmount.amount)) : '');
+        onPrefillConsumed?.();
+    }, [prefillAmount]);
 
     const result = useMemo(() => {
         const equipmentCost = parseFloat(cost) || 0;

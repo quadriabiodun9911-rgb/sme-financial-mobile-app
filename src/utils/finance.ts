@@ -1956,13 +1956,33 @@ export interface CashFlowForecastWeek {
 // that only ever read cumulativeCash/netCash/alert are unaffected -- pass
 // finance.cashBalance to also get real openingCash/closingCash/runwayWeeks
 // figures, which is what a genuine 13-week cash forecast needs.
+// economicPressure is likewise optional so existing callers that just want
+// the plain historical-average forecast are unaffected. It is NEVER a
+// fabricated economy-wide figure -- the caller is expected to pass in
+// `costStressPctPerMonth`/`demandSwingPctPerMonth` from
+// computeExternalScenarioStress (externalFactorsPanel.ts), the same real,
+// corroborated, owner-entered macro assumptions already used to build the
+// Conservative/Optimistic forecast range elsewhere (scenarioForecast.ts).
+// Only the business's own baseline (ordinary, non-invoiced) spend and
+// income respond to it -- already-dated invoices and already-contracted
+// loan payments are fixed commitments an inflation/demand assumption
+// doesn't change, and the adjustment compounds forward week by week
+// (13 weeks ~= 3 months) rather than landing all at once.
+export interface CashFlowEconomicPressure {
+    costStressPctPerMonth?: number;
+    demandSwingPctPerMonth?: number;
+}
+
 export function computeCashFlowForecast(
     transactions: Transaction[],
     loans: Loan[],
     invoices: Invoice[],
     budgets: Budget[] = [],
     currentCashBalance: number = 0,
+    economicPressure: CashFlowEconomicPressure = {},
 ): CashFlowForecastWeek[] {
+    const costStressPctPerMonth = economicPressure.costStressPctPerMonth ?? 0;
+    const demandSwingPctPerMonth = economicPressure.demandSwingPctPerMonth ?? 0;
     const today = new Date();
     const result: CashFlowForecastWeek[] = [];
 
@@ -2013,17 +2033,27 @@ export function computeCashFlowForecast(
         const weekStart = new Date(today); weekStart.setDate(today.getDate() + w * 7);
         const weekEnd   = new Date(today); weekEnd.setDate(today.getDate() + (w + 1) * 7 - 1);
         const weekKey = `W${w + 1}`;
+        // How far into the compounding window this week sits -- week 1 is
+        // barely adjusted, week 13 (~3 months out) carries the full
+        // quarter's worth of the monthly cost-stress/demand-swing rate.
+        const monthsElapsed = (w + 1) * (12 / 52);
+        const costGrowthFactor = Math.pow(1 + costStressPctPerMonth / 100, monthsElapsed);
+        const demandGrowthFactor = Math.pow(1 + demandSwingPctPerMonth / 100, monthsElapsed);
+
         // Invoiced amounts due this week, plus the ordinary day-to-day
         // sales baseline -- an invoice is a specific, already-committed
-        // future payment; the baseline covers everything else (walk-in
-        // sales, informal payments) that never gets a formal invoice.
-        const inflow  = (invoiceMap.get(weekKey) ?? 0) + weeklyOrdinaryIncomeBase;
+        // future payment (left as-is), while the baseline covers everything
+        // else (walk-in sales, informal payments), which IS what a demand
+        // assumption (stronger/weaker economy) would actually move.
+        const inflow  = (invoiceMap.get(weekKey) ?? 0) + weeklyOrdinaryIncomeBase * demandGrowthFactor;
         // A committed budget only speaks for weeks that actually fall in the
         // period it was set for; use whichever base is higher, since the
         // budget represents a floor on planned spend, not a cap on real spend.
+        // Loan payments are a fixed contractual amount, so they're added
+        // after the cost-stress adjustment rather than inflated with it.
         const weekInCurrentPeriod = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}` === currentPeriod;
         const usedBudget = weekInCurrentPeriod && weeklyBudgetOutflow > weeklyExpenseBase;
-        const outflow = (usedBudget ? weeklyBudgetOutflow : weeklyExpenseBase) + weeklyLoanCost;
+        const outflow = (usedBudget ? weeklyBudgetOutflow : weeklyExpenseBase) * costGrowthFactor + weeklyLoanCost;
         const net = inflow - outflow;
         cumulative += net;
 

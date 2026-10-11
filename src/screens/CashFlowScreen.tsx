@@ -11,6 +11,7 @@ import FocusTaskBanner from '../components/FocusTaskBanner';
 import FooterNav from '../components/FooterNav';
 import RadialGauge from '../components/RadialGauge';
 import { computeCashFlowForecast, computeDSCR } from '../utils/finance';
+import { computeExternalFactorsPanel, computeExternalScenarioStress } from '../utils/externalFactorsPanel';
 import { computeCashRunway } from '../utils/cashRunway';
 import { computeCashRunwayIntelligence } from '../utils/metricIntelligence';
 import { formatRunwayForDisplay } from '../utils/runwayDisplay';
@@ -71,8 +72,27 @@ export default function CashFlowScreen() {
         return (n < 0 ? '-' : '') + sym + s;
     };
 
+    // Real economic pressure on this forecast -- never a fabricated
+    // "inflation is X%" figure. Reuses the exact same corroborated,
+    // revenue-exposure-weighted cost/demand pressure (computeExternalScenarioStress)
+    // that already builds the Conservative/Optimistic forecast range
+    // elsewhere (scenarioForecast.ts) and the "Sensitivity to Economics"
+    // card on Risk & Resilience -- stays at 0 (no adjustment) until the
+    // owner has actually logged an inflation/FX/demand assumption.
+    const externalStress = useMemo(
+        () => computeExternalScenarioStress(computeExternalFactorsPanel(transactions, settings?.macroAssumptions ?? [])),
+        [transactions, settings?.macroAssumptions]
+    );
+    const hasEconomicPressure = externalStress.costStressPct !== 0 || externalStress.demandSwingPct !== 0;
+
     // 90-day weekly cash flow forecast
-    const weeks = useMemo(() => computeCashFlowForecast(transactions, loans, invoices, budgets, finance.cashBalance), [transactions, loans, invoices, budgets, finance.cashBalance]);
+    const weeks = useMemo(
+        () => computeCashFlowForecast(transactions, loans, invoices, budgets, finance.cashBalance, {
+            costStressPctPerMonth: externalStress.costStressPct,
+            demandSwingPctPerMonth: externalStress.demandSwingPct,
+        }),
+        [transactions, loans, invoices, budgets, finance.cashBalance, externalStress]
+    );
     const usesBudget = weeks.some(w => w.usedBudget);
 
     // Cash runway -- cash sitting in a pocket is counted the same way
@@ -254,6 +274,47 @@ export default function CashFlowScreen() {
                 {/* ── FORECAST TAB ── */}
                 {tab === 'forecast' && (
                     <>
+                        {/* Plain-language breakdown up front, before any
+                            numbers -- so "why does it say that" is answered
+                            by reading three short lines, not by reverse-
+                            engineering a chart. Economic conditions (cost
+                            inflation, demand) are stated explicitly: EITHER
+                            the real, owner-logged assumption actually being
+                            applied, OR a clear note that none is logged yet
+                            and this forecast is therefore flat -- never a
+                            silent assumption the owner can't see. */}
+                        <View style={styles.infoCard}>
+                            <Text style={styles.sectionTitle}>How This Forecast Is Built</Text>
+                            <View style={styles.infoRowLine}>
+                                <Icon name="trending-up" size={13} color={Colors.income} />
+                                <Text style={styles.infoRow}>
+                                    <Text style={{ fontWeight: '700' }}>Inflow</Text> = invoices due that week + your average recent sales (last 90 days of ordinary, non-invoiced income).
+                                </Text>
+                            </View>
+                            <View style={styles.infoRowLine}>
+                                <Icon name="trending-down" size={13} color={Colors.expense} />
+                                <Text style={styles.infoRow}>
+                                    <Text style={{ fontWeight: '700' }}>Outflow</Text> = your recurring + average ordinary spending, plus active loan payments{usesBudget ? ", and this month's committed budget where it's higher" : ''}.
+                                </Text>
+                            </View>
+                            <View style={styles.infoRowLine}>
+                                <Icon name={hasEconomicPressure ? 'activity' : 'info'} size={13} color={hasEconomicPressure ? Colors.warning : Colors.muted} />
+                                {hasEconomicPressure ? (
+                                    <Text style={styles.infoRow}>
+                                        <Text style={{ fontWeight: '700' }}>Economic conditions:</Text> adjusted for your own logged assumptions --
+                                        {externalStress.costStressPct !== 0 && ` costs trending up ~${externalStress.costStressPct.toFixed(1)}%/month from inflation/FX pressure already showing in your spending`}
+                                        {externalStress.costStressPct !== 0 && externalStress.demandSwingPct !== 0 && ' and'}
+                                        {externalStress.demandSwingPct !== 0 && ` demand ${externalStress.demandSwingPct > 0 ? 'strengthening' : 'weakening'} ~${Math.abs(externalStress.demandSwingPct).toFixed(1)}%/month`}
+                                        . This compounds further out, so week 13 carries more of the effect than week 1.
+                                    </Text>
+                                ) : (
+                                    <Text style={styles.infoRow}>
+                                        <Text style={{ fontWeight: '700' }}>Economic conditions:</Text> no inflation or demand assumption logged yet, so this forecast assumes your costs and sales pace stay flat. <Text style={{ color: Colors.primary, fontWeight: '700' }} onPress={() => navigate('macro-assumptions')}>Add one</Text> to see its effect here.
+                                    </Text>
+                                )}
+                            </View>
+                        </View>
+
                         {/* Summary cards */}
                         <View style={styles.row3}>
                             <View style={styles.miniCard}>
@@ -375,7 +436,7 @@ export default function CashFlowScreen() {
                         <View style={styles.noteBoxRow}>
                             <Icon name="zap" size={14} color={Colors.primary} />
                             <Text style={styles.noteText}>
-                                Inflows are pending invoice due dates plus your average weekly sales from the last 90 days. Outflows use your recurring expenses, average ordinary spending, active loan payments{usesBudget ? ', and this month\'s committed budget' : ''}. Add more transactions to improve accuracy.
+                                The fuller a trailing 90 days of recorded transactions, the more accurate this forecast gets -- add more transactions to sharpen it.
                             </Text>
                         </View>
 

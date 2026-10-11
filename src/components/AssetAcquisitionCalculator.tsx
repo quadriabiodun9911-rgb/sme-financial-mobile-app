@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Radius, Spacing } from '../theme/tokens';
@@ -13,6 +13,11 @@ interface Props {
     monthlyProfit: number;
     minReserve: number;
     onSeeFullPicture: () => void;
+    // See GrowthAffordabilityCalculator's own doc comment -- same
+    // "Check a New Spend" hand-off pattern, applied to this calculator's
+    // Cost field.
+    prefillAmount?: { amount: number } | null;
+    onPrefillConsumed?: () => void;
 }
 
 // The same Cash / Credit / Lease decision tree Assets > Add Asset already
@@ -28,13 +33,19 @@ function parseNum(value: string): number {
     return parseFloat(value.replace(/,/g, ''));
 }
 
-export default function AssetAcquisitionCalculator({ currency, cashBalance, monthlyProfit, minReserve, onSeeFullPicture }: Props) {
+export default function AssetAcquisitionCalculator({ currency, cashBalance, monthlyProfit, minReserve, onSeeFullPicture, prefillAmount, onPrefillConsumed }: Props) {
     const [cost, setCost] = useState('');
     const [usefulLife, setUsefulLife] = useState('5');
     const [residualValue, setResidualValue] = useState('0');
     const [termMonths, setTermMonths] = useState('24');
     const [aprPercent, setAprPercent] = useState('20');
     const [selectedMethod, setSelectedMethod] = useState<AcquisitionMethod | null>(null);
+
+    useEffect(() => {
+        if (!prefillAmount) return;
+        setCost(prefillAmount.amount > 0 ? String(Math.round(prefillAmount.amount)) : '');
+        onPrefillConsumed?.();
+    }, [prefillAmount]);
 
     const costNum = parseNum(cost);
     // A zero or negative term makes monthlyPayment() return 0 -- credit and

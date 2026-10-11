@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Shadow } from '../theme/tokens';
@@ -14,6 +14,11 @@ interface Props {
     existingMonthlyDebtService: number;
     monthlyOperatingBurn: number;
     transactions: Transaction[];
+    // See GrowthAffordabilityCalculator's own doc comment -- same
+    // "Check a New Spend" hand-off pattern, applied to this calculator's
+    // loan Amount field.
+    prefillAmount?: { amount: number } | null;
+    onPrefillConsumed?: () => void;
 }
 
 const PURPOSES = [
@@ -54,11 +59,18 @@ const VERDICT_ICON: Record<LoanAffordabilityVerdict, IconName> = {
 // would, using the business's own numbers rather than a black-box score.
 export default function LoanAffordabilityChecker({
     currency, currentCashBalance, monthlyProfit, existingMonthlyDebtService, monthlyOperatingBurn, transactions,
+    prefillAmount, onPrefillConsumed,
 }: Props) {
     const [amount, setAmount] = useState('');
     const [rate, setRate] = useState('15');
     const [term, setTerm] = useState('12');
     const [purpose, setPurpose] = useState(PURPOSES[0]);
+
+    useEffect(() => {
+        if (!prefillAmount) return;
+        setAmount(prefillAmount.amount > 0 ? String(Math.round(prefillAmount.amount)) : '');
+        onPrefillConsumed?.();
+    }, [prefillAmount]);
 
     const result = useMemo(() => {
         const loanAmount = parseFloat(amount) || 0;
