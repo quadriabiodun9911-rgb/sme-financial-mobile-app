@@ -383,9 +383,19 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
         // Register), so promising that content there would be a dead end.
         // Route instead to the same loan-affordability tooling the no-debt
         // narrative below already points to.
+        // "Loan size" is a different number from what this destination
+        // actually computes -- the Loan Affordability Check only tells you
+        // whether a SPECIFIC amount you type in is affordable, plus (always
+        // visible, no typing needed) the maximum monthly REPAYMENT your
+        // profit could safely absorb. The actual loan SIZE/principal range
+        // your numbers could qualify for is a different, DSCR/revenue-based
+        // estimate (Estimated Lending Capacity) that only lives on Credit
+        // Worthiness -- see recommendedSteps below. Worded to match the
+        // repayment figure this destination genuinely shows, not a loan
+        // size it never calculates.
         seeFullDetail: m.monthlyDebtService > 0
             ? { text: 'Full DSCR, rate shock & repayment strategy', screen: 'loans' }
-            : { text: 'Check what loan size your cash flow could handle', screen: 'analysis', params: { tab: 'decide', decideFocusTool: 'loanAffordability' } },
+            : { text: 'Check the maximum monthly repayment your cash flow could absorb', screen: 'analysis', params: { tab: 'decide', decideFocusTool: 'loanAffordability' } },
         narrative: m.monthlyDebtService > 0 ? {
             headline: m.dscrStatus === 'danger'
                 ? 'Your debt payments may be more than your cash flow can handle'
@@ -425,7 +435,7 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             // financing types fit -- so it gets its own, separate step.
             recommendedSteps: [
                 { text: "Model what a loan's repayment would do to your monthly cash flow, and the most you could safely absorb, before applying.", screen: 'analysis', params: { tab: 'decide', decideFocusTool: 'loanAffordability' } },
-                { text: 'Check how much you could realistically qualify for and which financing types fit your business.', screen: 'credit-worthiness' },
+                { text: 'Check your Estimated Lending Capacity -- the loan size your numbers could realistically qualify for -- and which financing types fit.', screen: 'credit-worthiness' },
             ],
             suggestedGoalType: null,
         },
