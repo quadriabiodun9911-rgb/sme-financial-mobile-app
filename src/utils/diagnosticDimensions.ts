@@ -394,7 +394,7 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             whyItMatters: "This isn't a current risk, but it's worth modelling before taking on any debt. A loan's repayment becomes a fixed cost that has to be paid whether business is strong or slow that month -- knowing what it would do to your monthly cash flow before you apply means you choose the loan size deliberately instead of discovering it's too much after the first payment is due.",
             recommendedSteps: [
                 { text: "Model what a loan's repayment would do to your monthly cash flow before applying.", screen: 'analysis', params: { tab: 'decide', decideFocusTool: 'loanAffordability' } },
-                { text: 'Decide the maximum monthly repayment your cash flow could absorb without strain.', screen: 'loans' },
+                { text: 'Decide the maximum monthly repayment your cash flow could absorb without strain.', screen: 'analysis', params: { tab: 'decide', decideFocusTool: 'loanAffordability' } },
             ],
             suggestedGoalType: null,
         },
