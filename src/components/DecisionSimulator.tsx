@@ -78,6 +78,16 @@ export default function DecisionSimulator({ currency, transactions, currentCashB
             <Text style={s.subtitle}>
                 Enter one new ongoing monthly cost — a new hire's salary, a second location's added rent and overhead, a new service — and see whether your current cash flow can carry it.
             </Text>
+            {/* This is a recurring MONTHLY cost, so the headline affordability
+                call above is about monthly surplus, not a one-off balance
+                check -- but the reserve/runway math below still draws on the
+                cash balance, and that balance is worth stating plainly here
+                rather than leaving it invisible inside a derived day-count,
+                so this never reads as ignoring the safe-to-spend figure the
+                owner was just shown. */}
+            <Text style={s.balanceNote}>
+                Checked against a safe-to-spend balance of {fmt(currency, currentCashBalance)} (cash after near-term commitments, not your raw bank balance).
+            </Text>
 
             <View style={s.field}>
                 <Text style={s.fieldLabel}>New Monthly Cost</Text>
@@ -152,7 +162,7 @@ export default function DecisionSimulator({ currency, transactions, currentCashB
                             </Text>
                             <Text style={s.downsideText}>
                                 {Number.isFinite(result.monthsOfReserveForAddedCost)
-                                    ? `Your current cash position can support approximately ${result.monthsOfReserveForAddedCost.toFixed(1)} months of this additional fixed cost on its own.`
+                                    ? `Your ${fmt(currency, currentCashBalance)} safe-to-spend balance can support approximately ${result.monthsOfReserveForAddedCost.toFixed(1)} months of this additional fixed cost on its own.`
                                     : 'Enter a new monthly cost above to see how many months your cash reserve would cover it.'}
                                 {' '}Limiting factor: {expansionReadiness.limitingPillar.label} ({Math.round(expansionReadiness.limitingPillar.score)}/100).
                             </Text>
@@ -176,6 +186,7 @@ function Stat({ label, value, negative }: { label: string; value: string; negati
 const s = StyleSheet.create({
     card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12 },
     title: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
+    balanceNote: { fontSize: 11.5, color: Colors.textMuted, fontStyle: 'italic', marginBottom: 12, lineHeight: 16 },
     subtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: 14, lineHeight: 17 },
 
     field: { marginBottom: 12 },
