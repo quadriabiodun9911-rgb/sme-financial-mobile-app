@@ -504,19 +504,40 @@ export default function FinancialAssessmentScreen() {
                   <View style={styles.dimensionBody}>
                     {dim.narrative && (
                       <View style={styles.narrativeBox}>
-                        <Text style={[styles.narrativeHeadline, { color }]}>{dim.narrative.headline}</Text>
-                        <View style={styles.narrativeMetricsRow}>
-                          {dim.narrative.metrics.map((mt, i) => (
-                            <View key={i} style={styles.narrativeMetricTile}>
-                              <Text style={styles.narrativeMetricLabel}>{mt.label}</Text>
-                              <Text style={styles.narrativeMetricValue}>{mt.value}</Text>
+                        {/* When this dimension IS the Business Health
+                            Report's headline finding, its whatThisMeans/
+                            whyItMatters text and metrics are the exact
+                            story already told at the top of the screen --
+                            repeating them here read as the report and this
+                            card "saying the same thing twice." Point back
+                            up to it instead, and keep this card for what
+                            the report doesn't show: the full output list
+                            below, related problems, and (for other
+                            dimensions) their own distinct narrative. */}
+                        {dim.key === businessHealthReport.sourceDimension ? (
+                          <View style={styles.reportCrossRefBox}>
+                            <Icon name="arrow-up" size={13} color={Colors.textMuted} />
+                            <Text style={styles.reportCrossRefText}>
+                              This is the finding behind your Business Health Report above -- see it there for the full story. The numbers below add the rest of the detail.
+                            </Text>
+                          </View>
+                        ) : (
+                          <>
+                            <Text style={[styles.narrativeHeadline, { color }]}>{dim.narrative.headline}</Text>
+                            <View style={styles.narrativeMetricsRow}>
+                              {dim.narrative.metrics.map((mt, i) => (
+                                <View key={i} style={styles.narrativeMetricTile}>
+                                  <Text style={styles.narrativeMetricLabel}>{mt.label}</Text>
+                                  <Text style={styles.narrativeMetricValue}>{mt.value}</Text>
+                                </View>
+                              ))}
                             </View>
-                          ))}
-                        </View>
-                        <Text style={styles.narrativeSectionLabel}>What this means</Text>
-                        <Text style={styles.narrativeText}>{dim.narrative.whatThisMeans}</Text>
-                        <Text style={styles.narrativeSectionLabel}>Why it matters</Text>
-                        <Text style={styles.narrativeText}>{dim.narrative.whyItMatters}</Text>
+                            <Text style={styles.narrativeSectionLabel}>What this means</Text>
+                            <Text style={styles.narrativeText}>{dim.narrative.whatThisMeans}</Text>
+                            <Text style={styles.narrativeSectionLabel}>Why it matters</Text>
+                            <Text style={styles.narrativeText}>{dim.narrative.whyItMatters}</Text>
+                          </>
+                        )}
                         <Text style={styles.narrativeSectionLabel}>Recommended next steps</Text>
                         <Text style={styles.reportStepsHint}>Tap a step to go do it.</Text>
                         {dim.narrative.recommendedSteps.map((step, i) => (
@@ -962,6 +983,8 @@ const styles = StyleSheet.create({
   dimensionStatusText: { fontSize: 10.5, fontWeight: '800' },
   dimensionBody: { marginTop: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border, gap: 8 },
   narrativeBox: { marginBottom: 4, gap: 4 },
+  reportCrossRefBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: Spacing.sm, marginBottom: 4 },
+  reportCrossRefText: { flex: 1, fontSize: 12, fontStyle: 'italic', color: Colors.textMuted, lineHeight: 17 },
   narrativeHeadline: { fontSize: 14, fontWeight: '800', marginBottom: 2 },
   narrativeMetricsRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
   narrativeMetricTile: { flex: 1, backgroundColor: Colors.bg, borderRadius: Radius.sm, padding: Spacing.sm },
