@@ -8,7 +8,7 @@ import FooterNav from '../components/FooterNav';
 import Icon, { IconName } from '../components/ui/Icon';
 import { ChipGroup } from '../components/ui/ChipGroup';
 import { ExpandableCard } from '../components/ui/ExpandableCard';
-import { computeRiskScore, computeDSCR, computeFinancingReadinessScore, RiskScore } from '../utils/finance';
+import { computeRiskScore, computeDSCR, computeFinancingReadinessScore, RiskScore, latestTransactionDate } from '../utils/finance';
 import { buildFinancingFitInput, rankFinancingProducts, FinancingFitResult, FinancingFitVerdict } from '../utils/financingFit';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { assessCapitalNeed, CAPITAL_PURPOSE_PRODUCT_TYPES } from '../utils/capitalNeedAssessment';
@@ -303,7 +303,7 @@ export default function FinancingMarketplaceScreen() {
     // Margin Watch's Discretionary Cash already uses -- so the gap reflects
     // "enough to cover this AND keep operating," not just the bare ask.
     const operatingBuffer = useMemo(
-        () => computeCashRunway(transactions, finance.cashBalance).dailyBurn * 30,
+        () => computeCashRunway(transactions, finance.cashBalance, latestTransactionDate(transactions) ?? new Date()).dailyBurn * 30,
         [transactions, finance.cashBalance],
     );
     const gapDiagnosis = useMemo(

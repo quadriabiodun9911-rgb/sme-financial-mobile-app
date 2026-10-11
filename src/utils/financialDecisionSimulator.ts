@@ -25,6 +25,7 @@
 import { Transaction } from '../types';
 import { computeRevenueStressTest } from './revenueStressTest';
 import { computeCashRunway } from './cashRunway';
+import { latestTransactionDate } from './finance';
 import { FinancialHealthPillar } from './financialHealthPillars';
 
 export type DecisionAffordability = 'affordable' | 'tight' | 'not_affordable';
@@ -123,7 +124,7 @@ export function computeDecisionSimulation(
     // itself uses, so "before" always matches what that tab already shows.
     // "After" adds this decision's monthly cost spread across a 30-day
     // window onto the existing burn rate.
-    const { dailyBurn } = computeCashRunway(transactions, currentCashBalance);
+    const { dailyBurn } = computeCashRunway(transactions, currentCashBalance, latestTransactionDate(transactions) ?? new Date());
     const runwayBeforeDays = dailyBurn > 0 ? currentCashBalance / dailyBurn : null;
     const dailyBurnAfter = dailyBurn + additionalMonthlyCost / 30;
     const runwayAfterDays = dailyBurnAfter > 0 ? currentCashBalance / dailyBurnAfter : null;

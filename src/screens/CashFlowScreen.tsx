@@ -10,7 +10,7 @@ import Header from '../components/Header';
 import FocusTaskBanner from '../components/FocusTaskBanner';
 import FooterNav from '../components/FooterNav';
 import RadialGauge from '../components/RadialGauge';
-import { computeCashFlowForecast, computeDSCR } from '../utils/finance';
+import { computeCashFlowForecast, computeDSCR, latestTransactionDate } from '../utils/finance';
 import { computeExternalFactorsPanel, computeExternalScenarioStress } from '../utils/externalFactorsPanel';
 import { computeCashRunway } from '../utils/cashRunway';
 import { computeCashRunwayIntelligence } from '../utils/metricIntelligence';
@@ -98,9 +98,15 @@ export default function CashFlowScreen() {
     // Cash runway -- cash sitting in a pocket is counted the same way
     // Dashboard's own Vital Signs gauge counts it, so "Cash Runway" doesn't
     // disagree between the two screens showing the identical metric.
+    // Anchored to the latest date actually present in the transaction data,
+    // not the real device clock -- an unanchored trailing-30-day window
+    // reads as zero burn (and an absurd multi-century runway, like 236
+    // years) for any account whose data isn't current with real-world
+    // today, the same false-healthy bug already fixed for
+    // computeFinancialResilience/computeRiskScore/ForecastEngine.
     const pocketsTotal = useMemo(() => cashPockets.reduce((s, p) => s + p.amount, 0), [cashPockets]);
     const { runwayDays, dailyBurn, cashBalance } = useMemo(
-        () => computeCashRunway(transactions, finance.cashBalance + pocketsTotal),
+        () => computeCashRunway(transactions, finance.cashBalance + pocketsTotal, latestTransactionDate(transactions) ?? new Date()),
         [transactions, finance.cashBalance, pocketsTotal]
     );
 

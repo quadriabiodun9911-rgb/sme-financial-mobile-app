@@ -6,7 +6,7 @@ import { FinanceData, Loan, Transaction, Asset } from '../types';
 import { computeLeverageRatios, scoreDebtToAssets, scoreDebtToEquity, scoreEquityRatio, scoreROA, scoreROE, RatioScore } from '../utils/debtRatios';
 import { computeReturnOnInvestedCapital, scoreROICVsBenchmark } from '../utils/returnOnInvestedCapital';
 import { computeCashRunway } from '../utils/cashRunway';
-import { loanMonthlyPayment, getTaxRatePercent } from '../utils/finance';
+import { loanMonthlyPayment, getTaxRatePercent, latestTransactionDate } from '../utils/finance';
 import RadialGauge from './RadialGauge';
 import Collapsible from './Collapsible';
 import LoanROICalculator from './LoanROICalculator';
@@ -112,7 +112,7 @@ export default function LoansAndDebt({
     // Same trailing-30-day paid-expense burn rate CashFlowScreen's Runway
     // tab and the Weekly Dashboard use — one canonical "how much do we
     // spend a month" source, not a separate estimate invented here.
-    const { dailyBurn } = computeCashRunway(transactions, finance.cashBalance);
+    const { dailyBurn } = computeCashRunway(transactions, finance.cashBalance, latestTransactionDate(transactions) ?? new Date());
     const monthlyBurn = dailyBurn * 30;
 
     // Same trailing-30-day window as monthlyBurn, mirrored for paid income,

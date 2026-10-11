@@ -692,7 +692,12 @@ export function computeFinance(
     // of how little actual cash it held. computeCashRunway instead measures
     // against gross 30-day burn — how long cash lasts if revenue stopped —
     // which is what "runway" actually means.
-    const runway = computeCashRunway(transactions, cashBalance).runwayDays;
+    // Anchored to the latest date actually present in the transaction data,
+    // not the real device clock -- see computeFinancialResilience's own
+    // fix for why an unanchored trailing-30-day window silently reads as
+    // zero burn (and an absurd multi-century runway) for any account whose
+    // data isn't current with real-world today.
+    const runway = computeCashRunway(transactions, cashBalance, latestTransactionDate(transactions) ?? new Date()).runwayDays;
 
     return {
         income,
@@ -1324,7 +1329,7 @@ export function computeFinancialRatios(finance: FinanceData, loans: Loan[], tran
     // used to divide finance.expense (an all-time cumulative total) by 12,
     // which doesn't represent a monthly figure and could show a different
     // "Monthly Burn" than the runway shown elsewhere in the app.
-    const burnRate = computeCashRunway(transactions, finance.cashBalance).dailyBurn * 30;
+    const burnRate = computeCashRunway(transactions, finance.cashBalance, latestTransactionDate(transactions) ?? new Date()).dailyBurn * 30;
     const profitMargin = finance.income > 0 ? (finance.profit / finance.income) * 100 : 0;
     const revenueGrowth = 0; // requires historical data — placeholder
     return {
@@ -2270,7 +2275,7 @@ export function computeWeeklyCFOSummary(
     // total) by 365, an unrelated window that made this screen's runway
     // disagree with the canonical figure shown on Dashboard/Cash Runway/
     // Cash Flow Stress Test.
-    const { runwayDays: cashRunwayDays } = computeCashRunway(transactions, finance.cashBalance);
+    const { runwayDays: cashRunwayDays } = computeCashRunway(transactions, finance.cashBalance, latestTransactionDate(transactions) ?? new Date());
 
     const topRisks: string[] = [];
     if (finance.profit < 0) topRisks.push('Business is running at a loss');
