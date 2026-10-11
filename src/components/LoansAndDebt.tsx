@@ -166,12 +166,21 @@ export default function LoansAndDebt({
     );
     const roicScore = roic.roicPct !== null ? scoreROICVsBenchmark(roic.roicPct, benchmarkRate) : 'unscored';
 
-    // Debt health score — a composite of the same three tiers scored above
-    // for debt-to-assets/debt-to-equity (so a ratio scored "concerning"
-    // below always costs this score the same deduction), plus interest
-    // coverage. "unscored" costs nothing (neither a bonus nor a penalty)
-    // rather than being silently read as "strong".
-    const getDebtHealthScore = (): { score: number; status: 'healthy' | 'moderate' | 'concerning'; color: string } => {
+    // Debt STRUCTURE score — deliberately not called "Debt Health" even
+    // though it used to be: the Financial Assessment screen's 8-Dimension
+    // Diagnosis already has a "Debt Health" dimension answering a
+    // different question (can monthly cash flow cover monthly debt
+    // payments -- DSCR), and reusing the same name for this one (balance-
+    // sheet leverage -- how much of the business is debt- vs equity-
+    // financed) meant a business could see "Debt Health: Strong" on one
+    // screen and a very different verdict here, with nothing explaining
+    // why -- two genuinely different questions, not a disagreement about
+    // the same one. A composite of the same three tiers scored above for
+    // debt-to-assets/debt-to-equity (so a ratio scored "concerning" below
+    // always costs this score the same deduction), plus interest coverage.
+    // "unscored" costs nothing (neither a bonus nor a penalty) rather than
+    // being silently read as "strong".
+    const getDebtStructureScore = (): { score: number; status: 'healthy' | 'moderate' | 'concerning'; color: string } => {
         let score = 100;
         score -= debtToAssetsScore === 'concerning' ? 30 : debtToAssetsScore === 'stable' ? 15 : 0;
         score -= debtToEquityScore === 'concerning' ? 25 : debtToEquityScore === 'stable' ? 10 : 0;
@@ -181,7 +190,7 @@ export default function LoansAndDebt({
         const color = status === 'healthy' ? Colors.income : status === 'moderate' ? Colors.warning : Colors.expense;
         return { score: Math.max(0, Math.min(100, score)), status, color };
     };
-    const health = getDebtHealthScore();
+    const health = getDebtStructureScore();
 
     // Consolidated "what this means" action items — combines both
     // components' original trigger conditions, dropping the ones that were
@@ -226,10 +235,20 @@ export default function LoansAndDebt({
             <View style={[s.healthCard, { borderColor: health.color }]}>
                 <RadialGauge displayValue={health.score.toFixed(0)} label="/ 100" progress={health.score / 100} color={health.color} size={84} />
                 <View style={{ flex: 1 }}>
-                    <Text style={s.healthLabel}>Debt Health Score</Text>
+                    <Text style={s.healthLabel}>Debt Structure Score</Text>
                     <Text style={[s.healthStatus, { color: health.color }]}>Status: {health.status.charAt(0).toUpperCase() + health.status.slice(1)}</Text>
                 </View>
             </View>
+            {/* Distinguishes this from the Financial Assessment screen's
+                "Debt Health" dimension (DSCR -- can monthly cash flow cover
+                monthly payments) -- this score is about capital structure
+                instead (how much of the business is debt- vs equity-
+                financed), so the two can legitimately show different
+                verdicts for the same business without contradicting each
+                other. */}
+            <Text style={s.healthClarifyNote}>
+                This measures capital structure -- debt vs. equity, and whether profit covers interest. For whether your cash flow covers monthly loan payments, see the "Debt Health" dimension on the Financial Assessment screen.
+            </Text>
 
             <View style={s.summaryRow}>
                 <SummaryCard label="Total Assets" value={`${currency}${assets.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} color={Colors.asset} />
@@ -465,6 +484,7 @@ const s = StyleSheet.create({
     healthCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 2, flexDirection: 'row', alignItems: 'center', gap: 16, ...Shadow.sm },
     healthLabel: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
     healthStatus: { fontSize: 13, fontWeight: '600' },
+    healthClarifyNote: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', lineHeight: 15, marginBottom: 14 },
 
     warningCard: { borderRadius: 12, padding: 14, marginBottom: 12, borderLeftWidth: 4, borderLeftColor: Colors.expense, backgroundColor: Colors.expense + '15' },
     warningTitle: { fontSize: 13, fontWeight: 'bold', marginBottom: 8, color: Colors.expense },
