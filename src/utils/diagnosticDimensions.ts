@@ -722,13 +722,19 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 { label: 'Net profit', value: `${m.netProfit >= 0 ? '' : '-'}${fmtMoney(currency, m.netProfit)}` },
             ],
             whyThisMatters: `Revenue of ${fmtMoney(currency, m.totalRevenue)} against ${fmtMoney(currency, m.totalExpenses)} in expenses leaves ${m.netProfit >= 0 ? `only ${fmtMoney(currency, m.netProfit)}` : `a loss of ${fmtMoney(currency, m.netProfit)}`} -- a ${m.profitMargin.toFixed(1)}% margin, ${(INDUSTRY_BENCHMARKS.profitMargin - m.profitMargin).toFixed(1)} points below the 20% benchmark most comparisons use. A small rise in costs or a slow month could erase this entirely, since there's little profit left to absorb the hit.`,
+            // "Confirm which costs are fixed and which can flex" used to
+            // point at Budget, which categorizes spend against a plan but
+            // never labels anything fixed vs. variable. That split (Fixed
+            // Costs, Variable Cost Ratio) is shown on the Breakeven tab,
+            // the same destination as the margin-check step above it -- so
+            // rather than a third click to the exact same page, this is now
+            // one step covering both things that page actually shows.
             nextSteps: [
                 { text: 'Review your biggest expense categories for quick wins.', screen: 'transactions', params: { tab: 'exposure' } },
                 {
-                    text: `Before committing to new costs or a price change, check it against your current ${m.profitMargin.toFixed(1)}% margin -- the 20% benchmark is the line where a small shock stops being survivable.`,
+                    text: `See your fixed vs. variable cost split, and check a new cost or price change against your current ${m.profitMargin.toFixed(1)}% margin -- the 20% benchmark is the line where a small shock stops being survivable.`,
                     screen: 'cashflow', params: { tab: 'breakeven' },
                 },
-                { text: 'Confirm which costs are fixed and which can flex if sales slow down.', screen: 'budget' },
             ],
             suggestedGoalType: 'margin_improvement',
         };
