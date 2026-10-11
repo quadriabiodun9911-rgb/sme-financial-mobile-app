@@ -90,6 +90,26 @@ export default function BreakevenAnalysis({ result, currency }: Props) {
                 Based on this period's real revenue and costs. For a what-if calculator on a specific price or product, see Break-Even Calculator under Financial Ratios.
             </Text>
 
+            {/* The plain "does my pricing cover my real costs" answer --
+                the Fixed Costs/Variable Cost Ratio/Contribution Margin rows
+                further down are the same numbers, but as raw labels they
+                don't read as an answer to that question unless you already
+                know what a contribution margin is. costStructureUpsideDown
+                means pricing doesn't even cover the direct cost of a sale
+                before fixed costs are counted, so it gets its own,
+                starker framing instead of this one. */}
+            {!costStructureUpsideDown && (
+                <View style={styles.pricingCallout}>
+                    <Text style={styles.pricingCalloutText}>
+                        For every {currency}1 you charge, about {currency}{variableCostRatio.toFixed(2)} goes to the real cost of delivering it (materials, direct labour, delivery) —
+                        leaving {currency}{(1 - variableCostRatio).toFixed(2)} to help cover fixed costs like rent and salaries, and profit.
+                        {' '}{isAboveBreakeven
+                            ? ` At your current sales volume, your pricing does cover your real costs, with ${fmt(surplusOrGap, currency)}/month to spare.`
+                            : ` At your current sales volume, your pricing doesn't yet cover your real costs -- you're ${fmt(Math.abs(surplusOrGap), currency)}/month short.`}
+                    </Text>
+                </View>
+            )}
+
             {/* Status */}
             <View style={[styles.statusRow, { borderColor: statusColor }]}>
                 <Text style={[styles.statusText, { color: statusColor }]}>{statusText}</Text>
@@ -300,6 +320,17 @@ const styles = StyleSheet.create({
         lineHeight: 15,
         fontStyle: 'italic',
         marginBottom: 12,
+    },
+    pricingCallout: {
+        backgroundColor: Colors.bg,
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 12,
+    },
+    pricingCalloutText: {
+        color: Colors.textPrimary,
+        fontSize: 13,
+        lineHeight: 19,
     },
     statusRow: {
         borderWidth: 1,
