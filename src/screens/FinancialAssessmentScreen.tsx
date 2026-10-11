@@ -346,26 +346,36 @@ export default function FinancialAssessmentScreen() {
           </View>
         </View>
 
-        {/* Overall Health Score */}
-        <View style={[styles.healthCard, { borderLeftColor: getHealthColor(diagnosis.overallHealth) }]}>
+        {/* Overall Health Score -- the SAME canonical computeRiskScore
+            result (`risk`, already computed above and already used by the
+            pillar list and Readiness factor on this screen) that Dashboard,
+            Scoreboard and Credit-Worthiness all show as "the" business
+            health score. Previously showed diagnosis.overallHealth -- a
+            different, this-month-only variant built inside
+            performFinancialDiagnosis for the Diagnostic Engine's own use
+            below -- which could (and did) disagree with the canonical
+            score shown one tap away, reading e.g. "85/100 Strong" here
+            while Dashboard showed "77/100 Strong" for the same account at
+            the same moment. One score, shown consistently everywhere. */}
+        <View style={[styles.healthCard, { borderLeftColor: getHealthColor(risk.score) }]}>
           <View style={styles.healthHeader}>
             <Text style={styles.healthLabel}>Quad360 Financial Health</Text>
-            <View style={[styles.healthBadge, { backgroundColor: getHealthColor(diagnosis.overallHealth) + '22' }]}>
-              <Text style={[styles.healthScore, { color: getHealthColor(diagnosis.overallHealth) }]}>
-                {diagnosis.overallHealth}/100 — {diagnosis.band}
+            <View style={[styles.healthBadge, { backgroundColor: getHealthColor(risk.score) + '22' }]}>
+              <Text style={[styles.healthScore, { color: getHealthColor(risk.score) }]}>
+                {risk.score}/100 — {risk.band}
               </Text>
             </View>
           </View>
           <View style={styles.healthDescriptionRow}>
             <Icon
-              name={diagnosis.healthStatus === 'critical' ? 'alert-triangle' : diagnosis.healthStatus === 'warning' ? 'alert-circle' : 'check-circle'}
+              name={risk.band === 'Critical' || risk.band === 'Weak' ? 'alert-triangle' : risk.band === 'Moderate' ? 'alert-circle' : 'check-circle'}
               size={14}
-              color={diagnosis.healthStatus === 'critical' ? Colors.expense : diagnosis.healthStatus === 'warning' ? Colors.warning : Colors.income}
+              color={risk.band === 'Critical' || risk.band === 'Weak' ? Colors.expense : risk.band === 'Moderate' ? Colors.warning : Colors.income}
             />
             <Text style={styles.healthDescription}>
-              {diagnosis.healthStatus === 'critical'
+              {risk.band === 'Critical' || risk.band === 'Weak'
                 ? 'Immediate action required to improve financial health'
-                : diagnosis.healthStatus === 'warning'
+                : risk.band === 'Moderate'
                 ? 'Address key issues to prevent deterioration'
                 : 'Business in good financial health'}
             </Text>

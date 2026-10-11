@@ -1633,7 +1633,19 @@ export function computeRiskScore(
     // guest account with ₦0 cash scored "88, Strong" on the Scoreboard
     // while the Dashboard alert bell simultaneously flagged that same ₦0 as
     // a critical low-cash warning).
-    const monthlyBurn = computeCashRunway(transactions, finance.cashBalance).dailyBurn * 30;
+    // Anchored to the latest date actually present in the transaction data,
+    // not the real device clock -- computeCashRunway's own trailing-30-day
+    // window otherwise measures "paid expenses in the last 30 REAL calendar
+    // days," which reads as zero burn (falling back to the optimistic
+    // "12 months, good" sentinel just below) for any account whose data
+    // isn't current with real-world today. Same anchor-to-data-not-clock
+    // fix already applied to computeFinancialResilience/ForecastEngine --
+    // this is the exact reason Liquidity could score "good" here while the
+    // Cash Health dimension (financialDiagnosisEngine.ts's own runwayDays,
+    // which was already anchored correctly) reported a critical runway for
+    // the same account at the same moment.
+    const riskScoreReferenceDate = latestTransactionDate(transactions) ?? new Date();
+    const monthlyBurn = computeCashRunway(transactions, finance.cashBalance, riskScoreReferenceDate).dailyBurn * 30;
     const runwayMonths = monthlyBurn > 0 ? finance.cashBalance / monthlyBurn : (finance.cashBalance > 0 ? 12 : 0);
     factors.push({
         name: 'Liquidity',
