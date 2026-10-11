@@ -3,7 +3,8 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow } from '../theme/tokens';
 import { FinanceData, Transaction, Invoice, CashPocket } from '../types';
-import { computeAgingBuckets } from '../utils/finance';
+import { useApp } from '../contexts/AppContext';
+import { computeAgingBuckets, latestTransactionDate } from '../utils/finance';
 import { localDateStr } from '../utils/localDate';
 import { computeCashRunway } from '../utils/cashRunway';
 import { computeFinancialResilience } from '../utils/cashReservePlanning';
@@ -11,9 +12,9 @@ import { generateCashFlowForecast } from '../utils/forecastEngine';
 import { buildForecastInput } from '../utils/alertEngine';
 import { ScenarioProjection, ScenarioType } from '../types/forecast';
 import BarList from './BarList';
-import CashFlowStressTester from './CashFlowStressTester';
 import RainyDayFundPlanner from './RainyDayFundPlanner';
 import Collapsible from './Collapsible';
+import NextStepLink from './NextStepLink';
 
 interface Props {
     finance: FinanceData;
@@ -33,6 +34,7 @@ interface Props {
 // what the engine expects to happen automatically, then optional deeper
 // manual tools for testing your own what-if assumptions.
 export default function CashFlowSafety({ finance, transactions, invoices, currency, minReserve, inventoryValue, cashPockets = [] }: Props) {
+    const { navigate } = useApp();
     const reserve = parseFloat(minReserve) || 0;
     // Cash still sitting in a pocket is real cash toward a rainy-day
     // reserve, same as it's treated in Idle Cash Allocation -- kept scoped
@@ -55,9 +57,12 @@ export default function CashFlowSafety({ finance, transactions, invoices, curren
     const cashAfterObligations = finance.cashBalance - upcomingAP;
 
     // One canonical trailing burn-rate figure, shared with the Runway tab,
-    // Weekly Dashboard, Loans & Debt, the stress tester, and the rainy-day
-    // planner below — not a separate estimate invented here.
-    const { dailyBurn } = computeCashRunway(transactions, finance.cashBalance);
+    // Weekly Dashboard, Loans & Debt, and the rainy-day planner below — not
+    // a separate estimate invented here. Anchored to the latest date
+    // actually present in the transaction data, not the real device clock
+    // -- see computeFinancialResilience/computeRiskScore for the same fix
+    // and why an unanchored window silently reads as zero burn.
+    const { dailyBurn } = computeCashRunway(transactions, finance.cashBalance, latestTransactionDate(transactions) ?? new Date());
 
     // Same volatility-based recommendation Scoreboard's Cash Reserve
     // Resilience metric already shows -- pre-selects the Rainy-Day Fund
@@ -213,15 +218,17 @@ export default function CashFlowSafety({ finance, transactions, invoices, curren
                 Type in your own assumptions to test a specific scenario, or plan a reserve against a shock.
             </Text>
 
-            <Collapsible title="Stress-Test Your Cash">
-                <CashFlowStressTester
-                    currency={currency}
-                    currentCashBalance={finance.cashBalance}
-                    dailyBurn={dailyBurn}
-                    transactions={transactions}
-                    inventoryValue={inventoryValue}
-                />
-            </Collapsible>
+            {/* Stress-Test Your Cash now lives on Analysis & Decisions'
+                Decide tab, alongside the other "pressure-test before you
+                commit" calculators, instead of a second copy filed here --
+                same component, same numbers, one home. */}
+            <View style={styles.card}>
+                <Text style={styles.cardTitle}>Stress-Test Your Cash</Text>
+                <Text style={styles.recDesc}>
+                    Model a cost spike or a delayed payment against your real cash position.
+                </Text>
+                <NextStepLink text="Open the Cash Flow Stress Test on Analysis & Decisions" onPress={() => navigate('analysis', { tab: 'decide' })} />
+            </View>
 
             <Collapsible title="Rainy-Day Fund Planner">
                 <RainyDayFundPlanner
