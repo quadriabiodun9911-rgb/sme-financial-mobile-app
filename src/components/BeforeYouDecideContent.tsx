@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, findNodeHandle } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
@@ -58,7 +58,15 @@ import { localDateStr } from '../utils/localDate';
  * rather than re-rendered, since that one genuinely was the same full
  * component duplicated in two places.
  */
-export default function BeforeYouDecideContent() {
+interface Props {
+    // The parent AnalysisScreen's own ScrollView -- lets this content
+    // scroll itself to a specific calculator (see decideFocusTool below)
+    // instead of only force-opening it somewhere off-screen. Optional so
+    // this component still renders standalone (e.g. in a test) without it.
+    scrollRef?: React.RefObject<ScrollView | null>;
+}
+
+export default function BeforeYouDecideContent({ scrollRef }: Props) {
     const { finance, transactions, loans, bills, invoices, inventory, assets, settings, navigate, goals, navParams } = useApp();
     const { currency } = settings;
     const [affordabilityMode, setAffordabilityMode] = useState<'quick' | 'detailed'>('quick');
@@ -101,6 +109,29 @@ export default function BeforeYouDecideContent() {
     // re-triggers each calculator's own prefill effect; see
     // CapitalCommitmentTracker's own `prefill` prop for the same pattern.
     const [spendPrefill, setSpendPrefill] = useState<{ amount: number } | null>(null);
+
+    // Scrolls straight to Loan Affordability Check when deep-linked here
+    // via navParams.decideFocusTool -- that collapsible already force-opens
+    // (see its own forceOpen prop below), but force-opening a card near the
+    // bottom of ~8 cards is invisible unless the owner happens to scroll
+    // that far. A short delay lets the force-opened Collapsible's own
+    // layout settle (it goes from closed to open on the same mount) before
+    // measuring its position, and collapsable={false} on its wrapper below
+    // stops Android from flattening it out of the measurable view tree.
+    const loanCheckRef = useRef<View>(null);
+    useEffect(() => {
+        if (navParams?.decideFocusTool !== 'loanAffordability' || !scrollRef?.current) return;
+        const timer = setTimeout(() => {
+            const scrollNode = findNodeHandle(scrollRef.current);
+            if (!scrollNode) return;
+            loanCheckRef.current?.measureLayout(
+                scrollNode,
+                (_x, y) => scrollRef.current?.scrollTo({ y: Math.max(0, y - 16), animated: true }),
+                () => {},
+            );
+        }, 150);
+        return () => clearTimeout(timer);
+    }, [navParams?.decideFocusTool, scrollRef]);
     // Hypothetical break-even -- "if I priced a NEW product/service at X,
     // with Y variable cost and Z fixed cost, how many units to break even?"
     // Distinct from `breakeven` below (computeBreakeven), which reads the
@@ -416,22 +447,24 @@ export default function BeforeYouDecideContent() {
                 </>
             )}
 
-            <View style={styles.decisionCard}>
-                <Text style={styles.decisionQuestion}>Taking a loan?</Text>
-                <Text style={styles.decisionHelp}>Checks one specific loan against your real profit and cash flow — the way a lender's own affordability check would.</Text>
+            <View ref={loanCheckRef} collapsable={false}>
+                <View style={styles.decisionCard}>
+                    <Text style={styles.decisionQuestion}>Taking a loan?</Text>
+                    <Text style={styles.decisionHelp}>Checks one specific loan against your real profit and cash flow — the way a lender's own affordability check would.</Text>
+                </View>
+                <Collapsible title="Loan Affordability Check" forceOpen={spendPrefill !== null || navParams?.decideFocusTool === 'loanAffordability'}>
+                    <LoanAffordabilityChecker
+                        currency={currency}
+                        currentCashBalance={spendCheckThreshold}
+                        monthlyProfit={monthlyProfit}
+                        existingMonthlyDebtService={existingMonthlyDebtService}
+                        monthlyOperatingBurn={monthlyBurn}
+                        transactions={transactions}
+                        prefillAmount={spendPrefill}
+                        onPrefillConsumed={() => setSpendPrefill(null)}
+                    />
+                </Collapsible>
             </View>
-            <Collapsible title="Loan Affordability Check" forceOpen={spendPrefill !== null || navParams?.decideFocusTool === 'loanAffordability'}>
-                <LoanAffordabilityChecker
-                    currency={currency}
-                    currentCashBalance={spendCheckThreshold}
-                    monthlyProfit={monthlyProfit}
-                    existingMonthlyDebtService={existingMonthlyDebtService}
-                    monthlyOperatingBurn={monthlyBurn}
-                    transactions={transactions}
-                    prefillAmount={spendPrefill}
-                    onPrefillConsumed={() => setSpendPrefill(null)}
-                />
-            </Collapsible>
 
             <View style={styles.decisionCard}>
                 <Text style={styles.decisionQuestion}>Already committed to something?</Text>

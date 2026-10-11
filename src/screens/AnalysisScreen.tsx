@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TouchableOpacity,
     StyleSheet, TextInput,
@@ -517,6 +517,12 @@ export default function AnalysisScreen() {
     // to Why?.
     const initialTab: Tab = (navParams?.tab === 'scenarios' || navParams?.tab === 'diagnosis' || navParams?.tab === 'decide') ? navParams.tab : 'diagnosis';
     const [tab, setTab]             = useState<Tab>(initialTab);
+    // Lets a deep-link into the Decide tab (e.g. navParams.decideFocusTool)
+    // scroll straight to the one specific calculator it's pointing at,
+    // instead of leaving the owner to find it themselves among ~8 cards --
+    // force-opening a Collapsible further down the page is invisible if
+    // nobody scrolls that far.
+    const decideScrollRef = useRef<ScrollView>(null);
     const [period, setPeriod]       = useState<ReportPeriod>('month');
     const [scenarioType, setScenarioType] = useState<ScenarioType>('combine');
     const [scenarioResults, setScenarioResults] = useState<Partial<Record<ScenarioType, ScenarioResult | CombinedScenarioResult>>>({});
@@ -586,7 +592,7 @@ export default function AnalysisScreen() {
                 ))}
             </View>
 
-            <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
+            <ScrollView ref={decideScrollRef} style={s.scroll} contentContainerStyle={s.pad}>
 
                 {/* ── DIAGNOSIS TAB ─────────────────────────────────────────── */}
                 {tab === 'diagnosis' && (
@@ -847,7 +853,7 @@ export default function AnalysisScreen() {
                     BeforeYouDecideContent's own doc comment for why it moved
                     here instead of staying a separate screen with a
                     cross-link. */}
-                {tab === 'decide' && <BeforeYouDecideContent />}
+                {tab === 'decide' && <BeforeYouDecideContent scrollRef={decideScrollRef} />}
 
             </ScrollView>
             <FooterNav />
