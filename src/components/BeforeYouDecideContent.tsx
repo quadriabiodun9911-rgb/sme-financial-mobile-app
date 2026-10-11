@@ -9,6 +9,7 @@ import BuyVsFinanceCalculator from './BuyVsFinanceCalculator';
 import AssetAcquisitionCalculator from './AssetAcquisitionCalculator';
 import ProjectDecisionSimulator from './ProjectDecisionSimulator';
 import LoanAffordabilityChecker from './LoanAffordabilityChecker';
+import { SAFE_REPAYMENT_CAPACITY_MULTIPLE } from '../utils/loanAffordabilityCheck';
 import NextStepLink from './NextStepLink';
 import DecisionSimulator from './DecisionSimulator';
 import CapitalCommitmentTracker, { CommitmentPrefill } from './CapitalCommitmentTracker';
@@ -191,6 +192,14 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
     const existingMonthlyDebtService = loans
         .filter(l => l.status === 'active')
         .reduce((s, l) => s + loanMonthlyPayment(l.principal, l.interestRate, l.termMonths), 0);
+
+    // "What's the most I could safely add in new monthly repayments" --
+    // the direct answer the Debt Health dimension's "Decide the maximum
+    // monthly repayment..." step asks for, derived using the exact same
+    // "safe" cutoff computeLoanAffordabilityCheck's own verdict already
+    // uses (profit covers total debt service at least 1.5x over), so this
+    // number and that calculator's verdict can never disagree.
+    const maxSafeMonthlyRepayment = Math.max(0, monthlyProfit / SAFE_REPAYMENT_CAPACITY_MULTIPLE - existingMonthlyDebtService);
 
     const breakeven = computeBreakeven(transactions, settings);
     const hypBreakEven = useMemo(() => {
@@ -451,6 +460,15 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
                 <View style={styles.decisionCard}>
                     <Text style={styles.decisionQuestion}>Taking a loan?</Text>
                     <Text style={styles.decisionHelp}>Checks one specific loan against your real profit and cash flow — the way a lender's own affordability check would.</Text>
+                    {/* The direct answer to "what's the maximum monthly
+                        repayment my cash flow could absorb without strain" --
+                        stated up front instead of making the owner
+                        guess-and-check amounts in the calculator below until
+                        the verdict flips from Safe to Caution. */}
+                    <Text style={[styles.decisionHelp, { marginTop: 10, fontWeight: '700', color: Colors.textPrimary }]}>
+                        Based on your average profit, the most you could safely add in new monthly repayments is {currency}{Math.round(maxSafeMonthlyRepayment).toLocaleString()}
+                        {existingMonthlyDebtService > 0 ? ' (on top of what you already pay)' : ''} -- keeping at least a {SAFE_REPAYMENT_CAPACITY_MULTIPLE}x buffer over the repayment.
+                    </Text>
                 </View>
                 <Collapsible title="Loan Affordability Check" forceOpen={spendPrefill !== null || navParams?.decideFocusTool === 'loanAffordability'}>
                     <LoanAffordabilityChecker

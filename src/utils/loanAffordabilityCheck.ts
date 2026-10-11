@@ -23,7 +23,13 @@ export interface LoanAffordabilityResult {
 }
 
 const HIGH_RISK_BELOW = 1;   // repayment exceeds what profit can cover
-const CAUTION_BELOW = 1.5;   // covers it, but with little margin for a slow month
+// Exported so a caller can derive "the most I could safely add in new
+// monthly repayments" (monthlyProfit / SAFE_REPAYMENT_CAPACITY_MULTIPLE -
+// existingMonthlyDebtService) using the exact same "safe" cutoff this
+// engine's own verdict uses, rather than a second, independently-chosen
+// number.
+export const SAFE_REPAYMENT_CAPACITY_MULTIPLE = 1.5;   // covers it, but with little margin for a slow month
+const CAUTION_BELOW = SAFE_REPAYMENT_CAPACITY_MULTIPLE;
 
 // Answers a different question than the other Loans & Debt tools: not "is
 // this loan profitable" (LoanROICalculator) or "roughly what could I
