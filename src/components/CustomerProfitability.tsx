@@ -5,6 +5,8 @@ import { Shadow } from '../theme/tokens';
 import { Invoice, Transaction } from '../types';
 import BarList from './BarList';
 import { computeMarginPct } from '../utils/priceHistory';
+import NextStepLink from './NextStepLink';
+import { useApp } from '../contexts/AppContext';
 
 interface Props {
     invoices: Invoice[];
@@ -25,6 +27,7 @@ interface CustomerData {
 }
 
 export default function CustomerProfitability({ invoices, transactions, currency }: Props) {
+    const { navigate } = useApp();
     const [sortBy, setSortBy] = useState<'revenue' | 'profit' | 'margin'>('profit');
 
     const customerMetrics = useMemo(() => {
@@ -132,6 +135,11 @@ export default function CustomerProfitability({ invoices, transactions, currency
                     color={totals.avgMargin > 30 ? Colors.income : totals.avgMargin > 20 ? Colors.warning : Colors.expense}
                 />
             </View>
+
+            {/* Concentration risk and cost-only "drain" categories aren't
+                shown here -- see Growth Intelligence's Top tab for those,
+                instead of a second, narrower copy of that analysis. */}
+            <NextStepLink text="See concentration risk & cost-only drain categories" onPress={() => navigate('growth', { tab: 'performers' })} />
 
             {/* Sort buttons */}
             <View style={styles.sortRow}>

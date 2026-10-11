@@ -142,6 +142,25 @@ function ScoreTab({ currency }: { currency: string }) {
                 })}
             </View>
 
+            {/* This score is about operating CONSISTENCY (revenue every
+                month, profit every month, above breakeven, spread across
+                customers) -- a different question from Reports > Growth
+                Analytics' "Quality of Growth," which checks whether revenue
+                growth is actually healthy (not outpacing profit, cash,
+                receivables or debt). Both are legitimately different
+                angles on "is growth going well," not two answers to the
+                same question -- named here so they're never mistaken for
+                disagreeing about one number. */}
+            <View style={gs.relatedCard}>
+                <Text style={gs.relatedText}>
+                    This measures how consistently the business is operating -- not whether its revenue growth itself is healthy. For that, see Quality of Growth.
+                </Text>
+                <NextStepLink
+                    text="See Quality of Growth: revenue growth vs. profit, cash, receivables & debt"
+                    onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'quality' })}
+                />
+            </View>
+
             {/* Next steps -- each one tappable into the real tool it's
                 talking about, not just advice left for the owner to act on
                 unassisted. */}
@@ -185,7 +204,7 @@ function ScoreTab({ currency }: { currency: string }) {
 
 // ─── Momentum Tab ─────────────────────────────────────────────────────────────
 function MomentumTab({ currency }: { currency: string }) {
-    const { transactions } = useApp();
+    const { transactions, navigate } = useApp();
     const m = useMemo(() => computeMomentum(transactions), [transactions]);
 
     const hasData = m.months.some(mo => mo.revenue > 0 || mo.expenses > 0);
@@ -308,13 +327,23 @@ function MomentumTab({ currency }: { currency: string }) {
                     )}
                 </View>
             )}
+
+            {/* This is a fixed trailing-6-month window -- for growth rates
+                at multiple horizons (month/quarter/year) and scenario
+                modeling, or the full history at any granularity, see
+                Reports > Growth Analytics instead of a third view of the
+                same revenue data. */}
+            <View style={gs.relatedCard}>
+                <NextStepLink text="See growth rates & scenario modeling" onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'growth' })} />
+                <NextStepLink text="See full history, any time grouping" onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'history' })} />
+            </View>
         </ScrollView>
     );
 }
 
 // ─── Top Performers Tab ───────────────────────────────────────────────────────
 function PerformersTab({ currency }: { currency: string }) {
-    const { transactions } = useApp();
+    const { transactions, navigate } = useApp();
     const p = useMemo(() => computeTopPerformers(transactions), [transactions]);
 
     return (
@@ -414,6 +443,16 @@ function PerformersTab({ currency }: { currency: string }) {
                     ))}
                 </View>
             )}
+
+            {/* This tab is revenue-first (concentration risk, drain
+                categories) -- for margin, payment behaviour and stock-level
+                detail per customer/product, see Reports > Growth Analytics'
+                dedicated tabs instead of a second, shallower copy of them
+                here. */}
+            <View style={gs.relatedCard}>
+                <NextStepLink text="See profit margin & payment behaviour per customer" onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'customers' })} />
+                <NextStepLink text="See profit margin & stock detail per product" onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'products' })} />
+            </View>
         </ScrollView>
     );
 }
@@ -660,6 +699,9 @@ const gs = StyleSheet.create({
     pillarTrack: { height: 7, backgroundColor: Colors.bg, borderRadius: 4, overflow: 'hidden', marginBottom: 3 },
     pillarFill:  { height: 7, borderRadius: 4 },
     pillarNote:  { fontSize: 11, color: Colors.textMuted },
+    relatedCard: { backgroundColor: Colors.bg, borderRadius: 12, padding: 12, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border },
+    relatedText: { fontSize: 11.5, color: Colors.textMuted, lineHeight: 16 },
+
     nextCard:    { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     nextItemRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: Spacing.xs },
     nextItem:    { flex: 1, fontSize: 13, color: Colors.textSecondary, lineHeight: 22 },

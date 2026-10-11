@@ -6,6 +6,8 @@ import { Transaction, Asset, Loan } from '../types';
 import { computeQualityOfGrowth, GrowthSignal, QualityBand } from '../utils/qualityOfGrowth';
 import { computeQualityOfGrowthIntelligence } from '../utils/metricIntelligence';
 import RadialGauge from './RadialGauge';
+import NextStepLink from './NextStepLink';
+import { useApp } from '../contexts/AppContext';
 
 interface Props {
     transactions: Transaction[];
@@ -35,6 +37,7 @@ function fmtPct(n: number | null): string {
 }
 
 export default function QualityOfGrowthTab({ transactions, assets, loans, currency }: Props) {
+    const { navigate } = useApp();
     const result = useMemo(() => computeQualityOfGrowth(transactions, assets, loans), [transactions, assets, loans]);
     // Metric Intelligence pilot -- same Definition/Owner-confidence/Trigger
     // treatment as Business Health/Financing Readiness/Cash Runway/DSCR/
@@ -61,6 +64,14 @@ export default function QualityOfGrowthTab({ transactions, assets, loans, curren
                 against profit, cash, receivables and debt over the same period — {result.periodLabel} — to tell healthy
                 growth from growth that's quietly costing more than it earns.
             </Text>
+            {/* A different question from the Growth Score (More menu >
+                Growth): that one measures operating CONSISTENCY -- this one
+                measures whether growth itself is healthy. Named here so
+                they're never mistaken for disagreeing about one number. */}
+            <NextStepLink
+                text="See your Growth Score: consistency, profitability & breakeven"
+                onPress={() => navigate('growth', { tab: 'score' })}
+            />
 
             {/* Score card */}
             <View style={[s.scoreCard, { borderTopColor: bandColor }]}>

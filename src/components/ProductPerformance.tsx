@@ -6,6 +6,8 @@ import { Transaction, InventoryItem } from '../types';
 import { computeInventoryValue, computeStockVelocity } from '../utils/stockVelocity';
 import { computeMarginPct } from '../utils/priceHistory';
 import BarList from './BarList';
+import NextStepLink from './NextStepLink';
+import { useApp } from '../contexts/AppContext';
 
 interface Props {
     transactions: Transaction[];
@@ -27,6 +29,7 @@ interface ProductMetrics {
 }
 
 export default function ProductPerformance({ transactions, inventory, currency }: Props) {
+    const { navigate } = useApp();
     const [sortBy, setSortBy] = useState<'profit' | 'revenue' | 'margin' | 'turnover'>('profit');
 
     const productMetrics = useMemo(() => {
@@ -158,6 +161,11 @@ export default function ProductPerformance({ transactions, inventory, currency }
                     color={totals.avgMargin > 40 ? Colors.income : totals.avgMargin > 25 ? Colors.warning : Colors.expense}
                 />
             </View>
+
+            {/* Concentration risk and cost-only "drain" categories aren't
+                shown here -- see Growth Intelligence's Top tab for those,
+                instead of a second, narrower copy of that analysis. */}
+            <NextStepLink text="See concentration risk & cost-only drain categories" onPress={() => navigate('growth', { tab: 'performers' })} />
 
             {/* Sort buttons */}
             <View style={styles.sortRow}>
