@@ -291,7 +291,7 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 + (m.totalRevenue > 0 && m.revenueRecurringPct < 50 ? ' Most of this revenue is one-off deals rather than repeat business, which makes next month harder to predict from this one.' : ''),
             recommendedSteps: [
                 { text: 'Review your biggest expense categories for quick wins.', screen: 'reports', params: { reportSection: 'statements', reportTab: 'pnl' } },
-                { text: 'Check whether recent pricing still covers your real costs.', screen: 'analysis', params: { tab: 'decide' } },
+                { text: 'Check whether recent pricing still covers your real costs.', screen: 'cashflow', params: { tab: 'breakeven' } },
                 { text: "Compare this month's margin against your own trend, not just an industry benchmark.", screen: 'reports', params: { reportSection: 'growth', reportTab: 'history' } },
             ],
             suggestedGoalType: 'margin_improvement',
@@ -610,7 +610,7 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 { text: 'Review your biggest expense categories for quick wins.', screen: 'reports', params: { reportSection: 'statements', reportTab: 'pnl' } },
                 {
                     text: `Before committing to new costs or a price change, check it against your current ${m.profitMargin.toFixed(1)}% margin -- the 20% benchmark is the line where a small shock stops being survivable.`,
-                    screen: 'analysis', params: { tab: 'decide' },
+                    screen: 'cashflow', params: { tab: 'breakeven' },
                 },
                 { text: 'Confirm which costs are fixed and which can flex if sales slow down.', screen: 'budget' },
             ],
