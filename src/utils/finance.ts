@@ -1187,7 +1187,13 @@ export function computeLoanAmortizationSplit(loan: Loan, outstandingBalance: num
 // rather than each hardcoding its own copy of 1.25/1.0.
 export const DSCR_THRESHOLDS = { healthy: 1.25, warning: 1.0 };
 
-export function computeDSCR(transactions: Transaction[], loans: Loan[]): DSCRResult {
+// revenueDropPct is optional (default 0, i.e. every existing caller is
+// unaffected) -- lets a caller ask "would income still cover debt service
+// if a slow month cut revenue by X%," the same stress-test shape
+// revenueStressTest.ts/financialDecisionSimulator.ts already apply to
+// runway and monthly surplus, now available for DSCR too without a second,
+// forked copy of this calculation.
+export function computeDSCR(transactions: Transaction[], loans: Loan[], revenueDropPct: number = 0): DSCRResult {
     const cutoff = new Date();
     cutoff.setFullYear(cutoff.getFullYear() - 1);
     const cutoffStr = localDateStr(cutoff);
@@ -1202,7 +1208,8 @@ export function computeDSCR(transactions: Transaction[], loans: Loan[]): DSCRRes
     // records its payments. Excluded entirely (not just principalPortion)
     // so neither the principal nor the interest actually paid double-counts
     // against the theoretical schedule used in the denominator.
-    const income = recent.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount ?? 0), 0);
+    const rawIncome = recent.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount ?? 0), 0);
+    const income = rawIncome * (1 - Math.max(0, Math.min(100, revenueDropPct)) / 100);
     const expense = recent.filter(t => t.type === 'expense' && t.category !== 'Loan Repayment').reduce((s, t) => s + (t.amount ?? 0), 0);
 
     let netOperatingIncome = income - expense;

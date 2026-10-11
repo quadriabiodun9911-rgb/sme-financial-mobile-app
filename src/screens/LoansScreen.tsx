@@ -324,6 +324,18 @@ export default function LoansScreen() {
         [loans, transactions, shockPoints]
     );
 
+    // Revenue Stress on Debt Coverage -- the sales-side counterpart to
+    // Interest Rate Shock above (that one stresses the loan's own rate;
+    // this one stresses the income side of the same DSCR ratio). Reuses
+    // computeDSCR's own optional revenueDropPct param rather than a
+    // second, forked DSCR calculation -- "what if a slow month cut revenue
+    // by X%" is the Debt Health dimension's own "what to do next" step.
+    const [revenueStressPct, setRevenueStressPct] = useState('0');
+    const revenueStress = useMemo(
+        () => computeDSCR(transactions, loans, parseFloat(revenueStressPct) || 0),
+        [transactions, loans, revenueStressPct]
+    );
+
     return (
         <SafeAreaView style={s.safe}>
             <Header />
@@ -474,6 +486,52 @@ export default function LoansScreen() {
                                     <View style={s.dscrDetailRow}>
                                         <Text style={s.dscrDetailLabel}>Extra Cost per Year</Text>
                                         <Text style={[s.dscrDetailVal, { color: Colors.expense }]}>+{currency}{Math.round(rateShock.extraAnnualCost).toLocaleString()}</Text>
+                                    </View>
+                                </>
+                            )}
+                        </View>
+                    )}
+
+                    {/* Revenue Stress on Debt Coverage -- what if sales slow
+                        down, not the loan's rate? */}
+                    {activeLoans.length > 0 && (
+                        <View style={[s.strategyCard, { borderLeftWidth: 3, borderLeftColor: statusColorFor(revenueStress.status) }]}>
+                            <View style={s.strategyTitleRow}>
+                                <Icon name="trending-down" size={14} color={Colors.textPrimary} />
+                                <Text style={s.strategyTitle}>Revenue Stress on Debt Coverage</Text>
+                            </View>
+                            <Text style={s.strategyRecommendation}>What if a slower month cut your revenue? See the effect on your coverage ratio -- same income, same debt payments, just less coming in.</Text>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, marginBottom: 10 }}>
+                                {[10, 20, 30].map(p => (
+                                    <TouchableOpacity
+                                        key={p}
+                                        style={[s.shockChip, revenueStressPct === String(p) && s.shockChipActive]}
+                                        onPress={() => setRevenueStressPct(String(p))}
+                                    >
+                                        <Text style={[s.shockChipText, revenueStressPct === String(p) && s.shockChipTextActive]}>-{p}%</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                            <TextInput
+                                style={s.shockInput}
+                                placeholder="or type a custom revenue drop (%)"
+                                placeholderTextColor={Colors.textMuted}
+                                keyboardType="decimal-pad"
+                                value={revenueStressPct === '0' ? '' : revenueStressPct}
+                                onChangeText={v => setRevenueStressPct(v || '0')}
+                            />
+                            {(parseFloat(revenueStressPct) || 0) > 0 && (
+                                <>
+                                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+                                        <Text style={[s.dscrBigNum, { color: statusColorFor(revenueStress.status) }]}>{revenueStress.dscr > 100 ? '∞' : revenueStress.dscr.toFixed(2)}x</Text>
+                                        <Text style={[s.dscrStatusBadge, { backgroundColor: statusColorFor(revenueStress.status) + '20', color: statusColorFor(revenueStress.status) }]}>
+                                            {revenueStress.status === 'healthy' ? 'HEALTHY' : revenueStress.status === 'warning' ? 'BORDERLINE' : 'AT RISK'}
+                                        </Text>
+                                        <Text style={{ fontSize: 11, color: Colors.textMuted }}>vs. {dscr.dscr > 100 ? '∞' : dscr.dscr.toFixed(2)}x today</Text>
+                                    </View>
+                                    <View style={s.dscrDetailRow}>
+                                        <Text style={s.dscrDetailLabel}>Net Operating Income at -{revenueStressPct}%</Text>
+                                        <Text style={[s.dscrDetailVal, { color: Colors.expense }]}>{currency}{Math.round(revenueStress.netOperatingIncome).toLocaleString()}</Text>
                                     </View>
                                 </>
                             )}
