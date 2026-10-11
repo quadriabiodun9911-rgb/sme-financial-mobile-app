@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Transaction } from '../types';
@@ -8,6 +8,11 @@ interface Props {
     currency: string;
     transactions: Transaction[];
     currentCashBalance: number;
+    // See GrowthAffordabilityCalculator's own doc comment -- same
+    // "Check a New Spend" hand-off pattern, applied to this calculator's
+    // Upfront Cost field.
+    prefillAmount?: { amount: number } | null;
+    onPrefillConsumed?: () => void;
 }
 
 function fmt(currency: string, n: number): string {
@@ -33,12 +38,18 @@ const RECOMMENDATION_META: Record<ProjectFundingRecommendation, { label: string;
 // ongoing monthly cost/benefit, and the choice of how to fund it should
 // survive a bad month, not just look fine today -- see
 // projectDecisionSimulator.ts for the combined math.
-export default function ProjectDecisionSimulator({ currency, transactions, currentCashBalance }: Props) {
+export default function ProjectDecisionSimulator({ currency, transactions, currentCashBalance, prefillAmount, onPrefillConsumed }: Props) {
     const [upfrontCost, setUpfrontCost] = useState('');
     const [monthlyCost, setMonthlyCost] = useState('');
     const [rate, setRate] = useState('');
     const [term, setTerm] = useState('24');
     const [downPct, setDownPct] = useState('0');
+
+    useEffect(() => {
+        if (!prefillAmount) return;
+        setUpfrontCost(prefillAmount.amount > 0 ? String(Math.round(prefillAmount.amount)) : '');
+        onPrefillConsumed?.();
+    }, [prefillAmount]);
 
     const result = useMemo(() => {
         const cost = parseFloat(upfrontCost) || 0;

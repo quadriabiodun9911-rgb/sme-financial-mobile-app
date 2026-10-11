@@ -91,6 +91,14 @@ export default function BeforeYouDecideContent() {
     const [plannedSpend, setPlannedSpend] = useState('');
     const plannedSpendNum = parseFloat(plannedSpend) || 0;
     const spendCheckRemaining = spendCheckThreshold - plannedSpendNum;
+    // "Use this amount in the calculators below" -- carries the planned
+    // spend just checked above into whichever of the calculators further
+    // down this tab takes a one-off cost, so it's one shared number instead
+    // of a figure that only ever lived in its own isolated card. A fresh
+    // object on every press (even re-pressing the same amount) is what
+    // re-triggers each calculator's own prefill effect; see
+    // CapitalCommitmentTracker's own `prefill` prop for the same pattern.
+    const [spendPrefill, setSpendPrefill] = useState<{ amount: number } | null>(null);
     // Hypothetical break-even -- "if I priced a NEW product/service at X,
     // with Y variable cost and Z fixed cost, how many units to break even?"
     // Distinct from `breakeven` below (computeBreakeven), which reads the
@@ -198,11 +206,29 @@ export default function BeforeYouDecideContent() {
                     {hasSpendCheckThreshold ? ' (after known upcoming payments)' : ' (after near-term burn, debt service and unreviewed bills)'}
                 </Text>
                 {plannedSpendNum > 0 && (
-                    <Text style={[styles.decisionHelp, { marginTop: 6, fontWeight: '700', color: spendCheckRemaining >= 0 ? Colors.income : Colors.expense }]}>
-                        {spendCheckRemaining >= 0
-                            ? `This fits, leaving ${currency}${Math.round(spendCheckRemaining).toLocaleString()} after.`
-                            : `This exceeds what's safe to spend by ${currency}${Math.round(Math.abs(spendCheckRemaining)).toLocaleString()}.`}
-                    </Text>
+                    <>
+                        <Text style={[styles.decisionHelp, { marginTop: 6, fontWeight: '700', color: spendCheckRemaining >= 0 ? Colors.income : Colors.expense }]}>
+                            {spendCheckRemaining >= 0
+                                ? `This fits, leaving ${currency}${Math.round(spendCheckRemaining).toLocaleString()} after.`
+                                : `This exceeds what's safe to spend by ${currency}${Math.round(Math.abs(spendCheckRemaining)).toLocaleString()}.`}
+                        </Text>
+                        {/* The actual point of asking "how much" up here --
+                            this same figure carries straight into the cost
+                            field of every calculator below that takes a
+                            one-off amount (Can I Afford This Growth, Buy vs.
+                            Finance, Buy/Finance/Lease an Asset, Take On a
+                            New Project, Loan Affordability), so the owner
+                            doesn't retype the number they just checked. Not
+                            offered to "Can I Afford This Decision?" (Quick
+                            mode), since that one's input is a recurring
+                            MONTHLY cost, a different unit from this one-off
+                            amount. */}
+                        <TouchableOpacity onPress={() => setSpendPrefill({ amount: plannedSpendNum })} style={{ marginTop: 8 }}>
+                            <Text style={{ fontSize: 12.5, fontWeight: '700', color: Colors.primary }}>
+                                Use {currency}{Math.round(plannedSpendNum).toLocaleString()} in the calculators below ↓
+                            </Text>
+                        </TouchableOpacity>
+                    </>
                 )}
             </Collapsible>
 
@@ -230,7 +256,7 @@ export default function BeforeYouDecideContent() {
                 complexity, not two different tools. See
                 financialDecisionSimulator.ts / growthAffordability.ts
                 for why the math itself stays two separate engines. */}
-            <Collapsible title="Can I Afford This? (Hire, Expand, or New Cost)">
+            <Collapsible title="Can I Afford This? (Hire, Expand, or New Cost)" forceOpen={spendPrefill !== null && affordabilityMode === 'detailed'}>
                 <View style={styles.modeToggleRow}>
                     <TouchableOpacity
                         style={[styles.modeToggleBtn, affordabilityMode === 'quick' && styles.modeToggleBtnActive]}
@@ -248,7 +274,7 @@ export default function BeforeYouDecideContent() {
                 {affordabilityMode === 'quick' ? (
                     <DecisionSimulator currency={currency} transactions={transactions} currentCashBalance={spendCheckThreshold} pillars={pillars.pillars} goals={goals} navigate={navigate} />
                 ) : (
-                    <GrowthAffordabilityCalculator currency={currency} currentCashBalance={spendCheckThreshold} monthlyBurn={monthlyBurn} currentMonthlySurplus={monthlyProfit} goals={goals} />
+                    <GrowthAffordabilityCalculator currency={currency} currentCashBalance={spendCheckThreshold} monthlyBurn={monthlyBurn} currentMonthlySurplus={monthlyProfit} goals={goals} prefillAmount={spendPrefill} onPrefillConsumed={() => setSpendPrefill(null)} />
                 )}
             </Collapsible>
 
@@ -256,21 +282,23 @@ export default function BeforeYouDecideContent() {
                 <Text style={styles.decisionQuestion}>Making a big purchase?</Text>
                 <Text style={styles.decisionHelp}>Paying cash and financing it are both reasonable — see the actual liquidity trade-off first.</Text>
             </View>
-            <Collapsible title="Buy vs. Finance">
-                <BuyVsFinanceCalculator currency={currency} currentCashBalance={spendCheckThreshold} monthlyBurn={monthlyBurn} currentMonthlySurplus={monthlyProfit} goals={goals} />
+            <Collapsible title="Buy vs. Finance" forceOpen={spendPrefill !== null}>
+                <BuyVsFinanceCalculator currency={currency} currentCashBalance={spendCheckThreshold} monthlyBurn={monthlyBurn} currentMonthlySurplus={monthlyProfit} goals={goals} prefillAmount={spendPrefill} onPrefillConsumed={() => setSpendPrefill(null)} />
             </Collapsible>
 
             <View style={styles.decisionCard}>
                 <Text style={styles.decisionQuestion}>Buying a vehicle, equipment, or machinery?</Text>
                 <Text style={styles.decisionHelp}>Cash, a loan, and a lease all come out differently on total cost, cash flow, and ownership — see all three side by side before you commit to any of them.</Text>
             </View>
-            <Collapsible title="Buy, Finance, or Lease an Asset">
+            <Collapsible title="Buy, Finance, or Lease an Asset" forceOpen={spendPrefill !== null}>
                 <AssetAcquisitionCalculator
                     currency={currency}
                     cashBalance={spendCheckThreshold}
                     monthlyProfit={monthlyProfit}
                     minReserve={parseFloat(settings?.minReserve || '0') || 0}
                     onSeeFullPicture={() => navigate('business-passport')}
+                    prefillAmount={spendPrefill}
+                    onPrefillConsumed={() => setSpendPrefill(null)}
                 />
             </Collapsible>
 
@@ -278,8 +306,8 @@ export default function BeforeYouDecideContent() {
                 <Text style={styles.decisionQuestion}>Taking on a bigger project — self-fund or borrow?</Text>
                 <Text style={styles.decisionHelp}>A new location or product line usually has both an upfront cost and an ongoing monthly cost — see which funding choice still holds up if revenue drops, not just which is cheaper today.</Text>
             </View>
-            <Collapsible title="Take On a New Project">
-                <ProjectDecisionSimulator currency={currency} transactions={transactions} currentCashBalance={spendCheckThreshold} />
+            <Collapsible title="Take On a New Project" forceOpen={spendPrefill !== null}>
+                <ProjectDecisionSimulator currency={currency} transactions={transactions} currentCashBalance={spendCheckThreshold} prefillAmount={spendPrefill} onPrefillConsumed={() => setSpendPrefill(null)} />
             </Collapsible>
 
             <View style={styles.decisionCard}>
@@ -363,7 +391,7 @@ export default function BeforeYouDecideContent() {
                 <Text style={styles.decisionQuestion}>Taking a loan?</Text>
                 <Text style={styles.decisionHelp}>Checks one specific loan against your real profit and cash flow — the way a lender's own affordability check would.</Text>
             </View>
-            <Collapsible title="Loan Affordability Check">
+            <Collapsible title="Loan Affordability Check" forceOpen={spendPrefill !== null}>
                 <LoanAffordabilityChecker
                     currency={currency}
                     currentCashBalance={spendCheckThreshold}
@@ -371,6 +399,8 @@ export default function BeforeYouDecideContent() {
                     existingMonthlyDebtService={existingMonthlyDebtService}
                     monthlyOperatingBurn={monthlyBurn}
                     transactions={transactions}
+                    prefillAmount={spendPrefill}
+                    onPrefillConsumed={() => setSpendPrefill(null)}
                 />
             </Collapsible>
 
