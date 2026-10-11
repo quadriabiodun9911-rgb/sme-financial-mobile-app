@@ -9,6 +9,7 @@ import NextStepLink from './NextStepLink';
 import GroupedBarChart from './GroupedBarChart';
 import TrendSparkline from './TrendSparkline';
 import Collapsible from './Collapsible';
+import { useApp } from '../contexts/AppContext';
 
 interface Props {
     finance: FinanceData;
@@ -27,6 +28,7 @@ interface Props {
 // actually been doing, what it could look like under different automatic
 // assumptions, then an optional manual tool for testing your own target.
 export default function GrowthOutlook({ finance, transactions, currency, targetMargin, onSeeBudget }: Props) {
+    const { navigate } = useApp();
     // ── Section 1: actual revenue history (was GrowthMetrics) ───────────
     const monthlyRevenue = useMemo(() => {
         const months = new Map<string, number>();
@@ -257,6 +259,13 @@ export default function GrowthOutlook({ finance, transactions, currency, targetM
                             <InsightRow type="warning" text={`Revenue is variable (${coefficientOfVariation.toFixed(0)}% volatility). Work on predictability.`} />
                         )}
                     </View>
+
+                    {/* Revenue only, at monthly/quarterly/annual horizons --
+                        for profit and expenses alongside revenue in one
+                        trailing-6-month view, see Growth Intelligence's
+                        Momentum tab instead of a fourth view of the same
+                        revenue data. */}
+                    <NextStepLink text="See revenue, profit & expenses together (Momentum)" onPress={() => navigate('growth', { tab: 'momentum' })} />
                 </>
             )}
 

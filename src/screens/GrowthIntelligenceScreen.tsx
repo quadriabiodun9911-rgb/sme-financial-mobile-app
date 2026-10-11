@@ -69,9 +69,29 @@ function PillarBar({ pct, color }: { pct: number; color: string }) {
     );
 }
 
+// A "how to improve your score" suggestion -- tappable straight into the
+// real tool for it when one applies, matching the same tap-to-act pattern
+// every other diagnosis/suggestion surface in the app uses (the 8-Dimension
+// Diagnosis, Business Health Report, etc.). text-only (no onPress) only for
+// the couple of items with no single matching screen ("log transactions
+// consistently," general praise at a high score).
+function NextItem({ text, onPress }: { text: string; onPress?: () => void }) {
+    const content = (
+        <>
+            <Text style={gs.nextItem}>→ {text}</Text>
+            {onPress && <Icon name="chevron-right" size={14} color={Colors.textMuted} />}
+        </>
+    );
+    return onPress ? (
+        <TouchableOpacity style={gs.nextItemRow} onPress={onPress} activeOpacity={0.7}>{content}</TouchableOpacity>
+    ) : (
+        <View style={gs.nextItemRow}>{content}</View>
+    );
+}
+
 // ─── Growth Score Tab ─────────────────────────────────────────────────────────
 function ScoreTab({ currency }: { currency: string }) {
-    const { transactions, settings } = useApp();
+    const { transactions, settings, navigate } = useApp();
     const result = useMemo(() => computeGrowthScore(transactions, settings), [transactions, settings]);
     const momentum = useMemo(() => computeMomentum(transactions), [transactions]);
     const breakeven = useMemo(() => computeBreakeven(transactions, settings), [transactions, settings]);
@@ -122,32 +142,61 @@ function ScoreTab({ currency }: { currency: string }) {
                 })}
             </View>
 
-            {/* Next steps */}
+            {/* This score is about operating CONSISTENCY (revenue every
+                month, profit every month, above breakeven, spread across
+                customers) -- a different question from Reports > Growth
+                Analytics' "Quality of Growth," which checks whether revenue
+                growth is actually healthy (not outpacing profit, cash,
+                receivables or debt). Both are legitimately different
+                angles on "is growth going well," not two answers to the
+                same question -- named here so they're never mistaken for
+                disagreeing about one number. */}
+            <View style={gs.relatedCard}>
+                <Text style={gs.relatedText}>
+                    This measures how consistently the business is operating -- not whether its revenue growth itself is healthy. For that, see Quality of Growth.
+                </Text>
+                <NextStepLink
+                    text="See Quality of Growth: revenue growth vs. profit, cash, receivables & debt"
+                    onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'quality' })}
+                />
+            </View>
+
+            {/* Next steps -- each one tappable into the real tool it's
+                talking about, not just advice left for the owner to act on
+                unassisted. */}
             <View style={gs.nextCard}>
                 <Text style={gs.sectionTitle}>HOW TO IMPROVE YOUR SCORE</Text>
-                {result.score < 25 && <Text style={gs.nextItem}>→ Log transactions consistently for 3+ months</Text>}
+                {result.score < 25 && (
+                    <NextItem text="Log transactions consistently for 3+ months" onPress={() => navigate('transactions')} />
+                )}
                 {(result.pillars[2]?.score ?? 100) < 25 && (
-                    <Text style={gs.nextItem}>
-                        → Grow monthly revenue — even 5% MoM compounds fast
-                        {result.label !== 'Not Enough Data' && ` (you're at ${momentum.revenueGrowthPct >= 0 ? '+' : ''}${momentum.revenueGrowthPct.toFixed(0)}% right now)`}
-                    </Text>
+                    <NextItem
+                        text={`Grow monthly revenue — even 5% MoM compounds fast${result.label !== 'Not Enough Data' ? ` (you're at ${momentum.revenueGrowthPct >= 0 ? '+' : ''}${momentum.revenueGrowthPct.toFixed(0)}% right now)` : ''}`}
+                        onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'growth' })}
+                    />
                 )}
                 {(result.pillars[3]?.score ?? 100) < 20 && (
-                    <Text style={gs.nextItem}>
-                        → {result.label === 'Not Enough Data'
+                    <NextItem
+                        text={result.label === 'Not Enough Data'
                             ? 'Reach breakeven by cutting your top expense category'
                             : breakeven.costStructureUpsideDown
                                 ? "Fix pricing or cost-per-sale first — right now every sale's variable cost alone exceeds what it brings in, so more volume makes it worse, not better"
                                 : `Close the ${fmt(Math.abs(breakeven.surplusOrGap), currency)}/mo gap to breakeven: cut ~${fmt(breakeven.pathsToProfitability.costReductionNeeded, currency)} in costs, or add ~${fmt(breakeven.pathsToProfitability.revenueIncreaseNeeded, currency)} in revenue`}
-                    </Text>
+                        onPress={() => navigate('cashflow', { tab: 'breakeven' })}
+                    />
                 )}
                 {(result.pillars[4]?.score ?? 100) < 10 && performers.topCustomers[0] && (
-                    <Text style={gs.nextItem}>
-                        → {performers.topCustomers[0].name} is {Math.round(performers.topCustomers[0].sharePct)}% of revenue ({fmt(performers.topCustomers[0].revenue, currency)}) — reduce concentration by adding 2+ new clients of similar size
-                    </Text>
+                    <NextItem
+                        text={`${performers.topCustomers[0].name} is ${Math.round(performers.topCustomers[0].sharePct)}% of revenue (${fmt(performers.topCustomers[0].revenue, currency)}) — reduce concentration by adding 2+ new clients of similar size`}
+                        onPress={() => navigate('risk-management', { tab: 'concentration' })}
+                    />
                 )}
-                {(result.pillars[1]?.score ?? 100) < 20 && <Text style={gs.nextItem}>→ Turn loss months profitable — review costs when revenue dips</Text>}
-                {result.score >= 75 && <Text style={gs.nextItem}>→ You're doing great. Reinvest profit into growth channels.</Text>}
+                {(result.pillars[1]?.score ?? 100) < 20 && (
+                    <NextItem text="Turn loss months profitable — review costs when revenue dips" onPress={() => navigate('transactions', { tab: 'exposure' })} />
+                )}
+                {result.score >= 75 && (
+                    <NextItem text="You're doing great. Pressure-test reinvesting profit into growth before committing." onPress={() => navigate('analysis', { tab: 'decide' })} />
+                )}
             </View>
         </ScrollView>
     );
@@ -155,7 +204,7 @@ function ScoreTab({ currency }: { currency: string }) {
 
 // ─── Momentum Tab ─────────────────────────────────────────────────────────────
 function MomentumTab({ currency }: { currency: string }) {
-    const { transactions } = useApp();
+    const { transactions, navigate } = useApp();
     const m = useMemo(() => computeMomentum(transactions), [transactions]);
 
     const hasData = m.months.some(mo => mo.revenue > 0 || mo.expenses > 0);
@@ -278,13 +327,23 @@ function MomentumTab({ currency }: { currency: string }) {
                     )}
                 </View>
             )}
+
+            {/* This is a fixed trailing-6-month window -- for growth rates
+                at multiple horizons (month/quarter/year) and scenario
+                modeling, or the full history at any granularity, see
+                Reports > Growth Analytics instead of a third view of the
+                same revenue data. */}
+            <View style={gs.relatedCard}>
+                <NextStepLink text="See growth rates & scenario modeling" onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'growth' })} />
+                <NextStepLink text="See full history, any time grouping" onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'history' })} />
+            </View>
         </ScrollView>
     );
 }
 
 // ─── Top Performers Tab ───────────────────────────────────────────────────────
 function PerformersTab({ currency }: { currency: string }) {
-    const { transactions } = useApp();
+    const { transactions, navigate } = useApp();
     const p = useMemo(() => computeTopPerformers(transactions), [transactions]);
 
     return (
@@ -384,6 +443,16 @@ function PerformersTab({ currency }: { currency: string }) {
                     ))}
                 </View>
             )}
+
+            {/* This tab is revenue-first (concentration risk, drain
+                categories) -- for margin, payment behaviour and stock-level
+                detail per customer/product, see Reports > Growth Analytics'
+                dedicated tabs instead of a second, shallower copy of them
+                here. */}
+            <View style={gs.relatedCard}>
+                <NextStepLink text="See profit margin & payment behaviour per customer" onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'customers' })} />
+                <NextStepLink text="See profit margin & stock detail per product" onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'products' })} />
+            </View>
         </ScrollView>
     );
 }
@@ -630,8 +699,12 @@ const gs = StyleSheet.create({
     pillarTrack: { height: 7, backgroundColor: Colors.bg, borderRadius: 4, overflow: 'hidden', marginBottom: 3 },
     pillarFill:  { height: 7, borderRadius: 4 },
     pillarNote:  { fontSize: 11, color: Colors.textMuted },
+    relatedCard: { backgroundColor: Colors.bg, borderRadius: 12, padding: 12, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border },
+    relatedText: { fontSize: 11.5, color: Colors.textMuted, lineHeight: 16 },
+
     nextCard:    { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
-    nextItem:    { fontSize: 13, color: Colors.textSecondary, lineHeight: 22, marginBottom: Spacing.xs },
+    nextItemRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: Spacing.xs },
+    nextItem:    { flex: 1, fontSize: 13, color: Colors.textSecondary, lineHeight: 22 },
 
     // Momentum tab
     momCard:     { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
