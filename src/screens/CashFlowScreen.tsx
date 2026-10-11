@@ -466,6 +466,53 @@ export default function CashFlowScreen() {
                 {/* ── RUNWAY TAB ── */}
                 {tab === 'runway' && (
                     <>
+                        {/* "What It Costs To Run Your Business" is deliberately
+                            FIRST on this tab -- it's the literal answer to
+                            "calculate how much cash is needed to keep
+                            operating" (the step that deep-links here), and
+                            used to sit below the generic Cash Runway gauge,
+                            so landing here showed an unrelated metric before
+                            the thing actually promised. The gauge is useful
+                            context, not the answer to that specific question. */}
+                        <View style={[styles.runwayCard, { borderColor: horizonGap >= 0 ? Colors.income : Colors.expense, alignItems: 'stretch' }]}>
+                            <Text style={[styles.runwayLabel, { textAlign: 'center' }]}>What It Costs To Run Your Business</Text>
+                            <Text style={[styles.card2Val, { fontSize: 24, textAlign: 'center', marginBottom: 2 }]}>
+                                {fmt(monthlyOperatingCost)}<Text style={styles.card2Sub}> /month</Text>
+                            </Text>
+                            <Text style={[styles.runwaySub, { marginBottom: Spacing.md }]}>
+                                Your trailing average monthly operating expense — rent, wages, supplies, recurring bills and loan payments — regardless of how much comes in.
+                            </Text>
+
+                            <Text style={styles.card2Label}>Forecast cash needed for the next:</Text>
+                            <View style={styles.horizonRow}>
+                                {([1, 3, 6] as const).map(m => (
+                                    <TouchableOpacity
+                                        key={m}
+                                        style={[styles.horizonBtn, costHorizonMonths === m && styles.horizonBtnActive]}
+                                        onPress={() => setCostHorizonMonths(m)}
+                                    >
+                                        <Text style={[styles.horizonBtnText, costHorizonMonths === m && styles.horizonBtnTextActive]}>
+                                            {m} {m === 1 ? 'Month' : 'Months'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            <View style={styles.runwaySubRow}>
+                                <Icon name={horizonGap >= 0 ? 'check-circle' : 'alert-circle'} size={13} color={horizonGap >= 0 ? Colors.income : Colors.expense} />
+                                <Text style={[styles.runwaySub, { textAlign: 'left', flex: 1 }]}>
+                                    Running the business for {costHorizonMonths} month{costHorizonMonths > 1 ? 's' : ''} needs {fmt(cashNeededForHorizon)}.
+                                    {horizonGap >= 0
+                                        ? ` Your ${fmt(cashBalance)} balance covers this, leaving ${fmt(horizonGap)}.`
+                                        : ` Your ${fmt(cashBalance)} balance falls short by ${fmt(Math.abs(horizonGap))}.`}
+                                </Text>
+                            </View>
+
+                            <Text style={styles.runwayRangeText}>
+                                Of that, {fmt(upcomingPayments4wk)} is already contractually committed in the next 4 weeks (bills, loans, this month's budget).
+                            </Text>
+                        </View>
+
                         <View style={[styles.runwayCard, { borderColor: runwayColor }]}>
                             <Text style={styles.runwayLabel}>Cash Runway</Text>
                             <RadialGauge
@@ -530,45 +577,6 @@ export default function CashFlowScreen() {
                                     <Text style={[styles.runwayWhyText, { color: Colors.warning, fontWeight: '700' }]}>⚠️ {runwayIntelligence.trigger}</Text>
                                 </View>
                             )}
-                        </View>
-
-                        <View style={[styles.runwayCard, { borderColor: horizonGap >= 0 ? Colors.income : Colors.expense, alignItems: 'stretch' }]}>
-                            <Text style={[styles.runwayLabel, { textAlign: 'center' }]}>What It Costs To Run Your Business</Text>
-                            <Text style={[styles.card2Val, { fontSize: 24, textAlign: 'center', marginBottom: 2 }]}>
-                                {fmt(monthlyOperatingCost)}<Text style={styles.card2Sub}> /month</Text>
-                            </Text>
-                            <Text style={[styles.runwaySub, { marginBottom: Spacing.md }]}>
-                                Your trailing average monthly operating expense — rent, wages, supplies, recurring bills and loan payments — regardless of how much comes in.
-                            </Text>
-
-                            <Text style={styles.card2Label}>Forecast cash needed for the next:</Text>
-                            <View style={styles.horizonRow}>
-                                {([1, 3, 6] as const).map(m => (
-                                    <TouchableOpacity
-                                        key={m}
-                                        style={[styles.horizonBtn, costHorizonMonths === m && styles.horizonBtnActive]}
-                                        onPress={() => setCostHorizonMonths(m)}
-                                    >
-                                        <Text style={[styles.horizonBtnText, costHorizonMonths === m && styles.horizonBtnTextActive]}>
-                                            {m} {m === 1 ? 'Month' : 'Months'}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-
-                            <View style={styles.runwaySubRow}>
-                                <Icon name={horizonGap >= 0 ? 'check-circle' : 'alert-circle'} size={13} color={horizonGap >= 0 ? Colors.income : Colors.expense} />
-                                <Text style={[styles.runwaySub, { textAlign: 'left', flex: 1 }]}>
-                                    Running the business for {costHorizonMonths} month{costHorizonMonths > 1 ? 's' : ''} needs {fmt(cashNeededForHorizon)}.
-                                    {horizonGap >= 0
-                                        ? ` Your ${fmt(cashBalance)} balance covers this, leaving ${fmt(horizonGap)}.`
-                                        : ` Your ${fmt(cashBalance)} balance falls short by ${fmt(Math.abs(horizonGap))}.`}
-                                </Text>
-                            </View>
-
-                            <Text style={styles.runwayRangeText}>
-                                Of that, {fmt(upcomingPayments4wk)} is already contractually committed in the next 4 weeks (bills, loans, this month's budget).
-                            </Text>
                         </View>
 
                         <View style={styles.row2}>

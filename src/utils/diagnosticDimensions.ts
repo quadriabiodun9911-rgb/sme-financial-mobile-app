@@ -361,7 +361,15 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             { label: 'Repayment capacity', value: m.monthlyDebtService > 0 ? (m.dscrStatus === 'healthy' ? 'Comfortable' : m.dscrStatus === 'warning' ? 'Tight' : 'Insufficient') : 'No debt to service' },
         ],
         relatedProblems: problemsFor(diagnosis.diagnoses, ['debt']),
-        seeFullDetail: { text: 'Full DSCR, rate shock & repayment strategy', screen: 'loans' },
+        // The DSCR/rate-shock/repayment-strategy cards on Loans are all
+        // gated on having active loans to analyze -- for a debt-free
+        // business they render nothing at all (just the bare Loan
+        // Register), so promising that content there would be a dead end.
+        // Route instead to the same loan-affordability tooling the no-debt
+        // narrative below already points to.
+        seeFullDetail: m.monthlyDebtService > 0
+            ? { text: 'Full DSCR, rate shock & repayment strategy', screen: 'loans' }
+            : { text: 'Check what loan size your cash flow could handle', screen: 'analysis', params: { tab: 'decide', decideFocusTool: 'loanAffordability' } },
         narrative: m.monthlyDebtService > 0 ? {
             headline: m.dscrStatus === 'danger'
                 ? 'Your debt payments may be more than your cash flow can handle'
