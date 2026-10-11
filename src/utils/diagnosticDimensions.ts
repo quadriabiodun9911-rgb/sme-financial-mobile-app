@@ -280,7 +280,14 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             { label: 'Profit margin', value: `${m.profitMargin.toFixed(1)}%` },
         ],
         relatedProblems: problemsFor(diagnosis.diagnoses, ['profitability', 'efficiency']),
-        seeFullDetail: { text: 'Full margin & cost breakdown', screen: 'reports', params: { reportSection: 'statements', reportTab: 'pnl' } },
+        // The destination (ProfitAndLossStatement.tsx) genuinely does break
+        // revenue, COGS and operating expenses down by category with gross/
+        // operating/net margin noted at each stage -- real content, not a
+        // dead end. But both the tab and the statement itself are titled
+        // "Profit & Loss," so a step promising "margin & cost breakdown"
+        // read as landing somewhere else entirely. Worded to match what's
+        // actually on screen instead of a name that doesn't appear there.
+        seeFullDetail: { text: 'Full Profit & Loss statement — revenue, cost and margin by category', screen: 'reports', params: { reportSection: 'statements', reportTab: 'pnl' } },
         narrative: {
             headline: m.netProfit < 0
                 ? 'Your business is currently losing money'
