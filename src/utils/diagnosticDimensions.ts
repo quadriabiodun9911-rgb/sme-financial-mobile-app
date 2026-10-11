@@ -334,7 +334,7 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                     : m.accountsReceivable > 0 ? ` Right now customers owe you more (${fmtMoney(currency, m.accountsReceivable)}) than you owe suppliers (${fmtMoney(currency, m.accountsPayable)}), so you're effectively financing that gap yourself.` : ''),
             recommendedSteps: [
                 { text: 'Follow up on outstanding customer invoices.', screen: 'invoices' },
-                { text: 'Review supplier payment terms for room to extend them.', screen: 'bills' },
+                { text: 'Review your upcoming bills by due date for room to pay any of them later without penalty.', screen: 'bills' },
                 ...(m.inventoryValue > 0 ? [{ text: 'Check which stock is moving slowly and tying up cash.', screen: 'inventory' as Screen }] : []),
             ],
             // 'reduce_overdue_ar' specifically tracks OVERDUE receivables, a
@@ -685,8 +685,8 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             nextSteps: [
                 { text: 'Keep tracking upcoming payments and recent trends so you catch pressure early.', screen: 'scoreboard' },
                 {
-                    text: `If you're considering a new investment or expansion, test it against your current ${fmtMoney(currency, m.cashBalance)} balance and ${m.profitMargin.toFixed(1)}% margin before committing.`,
-                    screen: 'analysis', params: { tab: 'decide' },
+                    text: `If you're considering a new investment or expansion, test it against ${fmtMoney(currency, Math.max(0, cashAfterCommitments))} -- what's safe to spend after known upcoming payments, not your full ${fmtMoney(currency, m.cashBalance)} balance -- and your ${m.profitMargin.toFixed(1)}% margin before committing.`,
+                    screen: 'analysis', params: { tab: 'decide', spendCheckThreshold: Math.max(0, cashAfterCommitments) },
                 },
                 { text: "Revisit this report after your next few transactions to confirm it's holding." },
             ],

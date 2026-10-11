@@ -42,6 +42,18 @@ export default function MultiYearTrends() {
     const trend = useMemo(() => analyzeTrend(transactions), [transactions]);
     const yoyRevenueDirection = useMemo(() => classifyRevenueGrowth(trend.yoyRevenueGrowthPct), [trend.yoyRevenueGrowthPct]);
     const marginTrendDirection = useMemo(() => computeMarginTrendDirection(trend.monthly), [trend.monthly]);
+    // "Compare THIS month's margin against your own trend" -- the headline
+    // Avg Profit Margin stat above is all-time, and the margin-trend word
+    // further down only ever said "Improving/Stable/Declining" without
+    // stating either number, so a business with only 1-2 months of history
+    // landed here and saw nothing that actually named this month's margin.
+    // Always shows the latest month's real figure; the trailing-average
+    // comparison only appears once there's a prior month to compare it to.
+    const latestMonth = trend.monthly.length > 0 ? trend.monthly[trend.monthly.length - 1] : null;
+    const priorMonths = trend.monthly.slice(0, -1);
+    const priorAvgMargin = priorMonths.length > 0
+        ? priorMonths.reduce((s, m) => s + m.profitMargin, 0) / priorMonths.length
+        : null;
     // Recency-bias corrector: a bad month in isolation reads as a crisis --
     // this puts it next to a longer baseline in the same sentence. See
     // recencyContext.ts.
@@ -104,6 +116,46 @@ export default function MultiYearTrends() {
                             <Text style={s.statLabel}>Avg profit margin</Text>
                         </View>
                     </View>
+
+                    {/* This Month's Margin vs. Your Own Trend -- always
+                        names the actual current-month figure, not just a
+                        direction word, and is honest about needing a
+                        second month before "trend" means anything. */}
+                    {latestMonth && (
+                        <View style={s.card}>
+                            <Text style={s.cardTitle}>This Month's Margin vs. Your Own Trend</Text>
+                            <View style={s.yoyRow}>
+                                <View style={s.yoyBox}>
+                                    <Text style={s.yoyLabel}>{MONTH_LABEL(latestMonth.month)}</Text>
+                                    <Text style={[s.yoyVal, { color: latestMonth.profitMargin >= 0 ? Colors.income : Colors.expense }]}>
+                                        {latestMonth.profitMargin.toFixed(1)}%
+                                    </Text>
+                                </View>
+                                {priorAvgMargin !== null && (
+                                    <View style={s.yoyBox}>
+                                        <Text style={s.yoyLabel}>Avg of prior {priorMonths.length} month{priorMonths.length === 1 ? '' : 's'}</Text>
+                                        <Text style={[s.yoyVal, { color: priorAvgMargin >= 0 ? Colors.income : Colors.expense }]}>
+                                            {priorAvgMargin.toFixed(1)}%
+                                        </Text>
+                                    </View>
+                                )}
+                            </View>
+                            {priorAvgMargin !== null ? (
+                                <Text style={[s.cardSub, { marginTop: 10, marginBottom: 0 }]}>
+                                    {marginTrendDirection === 'improving'
+                                        ? `Trending up -- this month's margin is ${(latestMonth.profitMargin - priorAvgMargin).toFixed(1)} points above your own trailing average.`
+                                        : marginTrendDirection === 'declining'
+                                        ? `Trending down -- this month's margin is ${Math.abs(latestMonth.profitMargin - priorAvgMargin).toFixed(1)} points below your own trailing average.`
+                                        : `Holding roughly steady against your own trailing average (${(latestMonth.profitMargin - priorAvgMargin >= 0 ? '+' : '')}${(latestMonth.profitMargin - priorAvgMargin).toFixed(1)} points).`}
+                                    {' '}<Text style={{ color: MARGIN_TREND_COLOR[marginTrendDirection], fontWeight: '700' }}>{MARGIN_TREND_LABEL[marginTrendDirection]}</Text>
+                                </Text>
+                            ) : (
+                                <Text style={[s.cardSub, { marginTop: 10, marginBottom: 0 }]}>
+                                    Only 1 month of data so far, so there's no prior month yet to compare this against -- this will fill in automatically once a second month of transactions is recorded.
+                                </Text>
+                            )}
+                        </View>
+                    )}
 
                     {/* Year-over-year */}
                     {trend.yearly.length >= 2 && (
@@ -184,11 +236,6 @@ export default function MultiYearTrends() {
                     {trend.yearly.length > 0 && (
                         <View style={s.card}>
                             <Text style={s.cardTitle}>By Year</Text>
-                            {trend.monthly.length >= 2 && (
-                                <Text style={s.cardSub}>
-                                    Margin trend (last 3 months): <Text style={{ color: MARGIN_TREND_COLOR[marginTrendDirection], fontWeight: '700' }}>{MARGIN_TREND_LABEL[marginTrendDirection]}</Text>
-                                </Text>
-                            )}
                             {recencyContext.available && recencyContext.narrative !== '' && (
                                 <Text style={s.recencyNote}>{recencyContext.narrative}</Text>
                             )}
