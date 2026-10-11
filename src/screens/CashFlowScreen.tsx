@@ -772,7 +772,7 @@ export default function CashFlowScreen() {
                         <BreakevenAnalysis result={breakeven} currency={sym} />
                         <NextStepLink
                             text="Planning a new price or product? Use the unit-economics Break-Even Calculator instead"
-                            onPress={() => navigate('analysis', { tab: 'decide' })}
+                            onPress={() => navigate('analysis', { tab: 'decide', decideFocusTool: 'breakEvenCalc' })}
                         />
                         <NextStepLink
                             text="See profit by category and customer"

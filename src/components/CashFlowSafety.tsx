@@ -227,7 +227,7 @@ export default function CashFlowSafety({ finance, transactions, invoices, curren
                 <Text style={styles.recDesc}>
                     Model a cost spike or a delayed payment against your real cash position.
                 </Text>
-                <NextStepLink text="Open the Cash Flow Stress Test on Analysis & Decisions" onPress={() => navigate('analysis', { tab: 'decide' })} />
+                <NextStepLink text="Open the Cash Flow Stress Test on Analysis & Decisions" onPress={() => navigate('analysis', { tab: 'decide', decideFocusTool: 'stressTest' })} />
             </View>
 
             <Collapsible title="Rainy-Day Fund Planner">
