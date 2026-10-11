@@ -18,7 +18,6 @@ import StockSalesComparisonTable from '../components/StockSalesComparisonTable';
 import TaxSummary from '../components/TaxSummary';
 import TaxFilingReadinessTab from '../components/TaxFilingReadinessTab';
 import TaxPlanningTab from '../components/TaxPlanningTab';
-import CashFlowSafety from '../components/CashFlowSafety';
 import { computeFinancialRatiosDashboard } from '../utils/financialRatiosEngine';
 import RatioReadingRow from '../components/RatioReadingRow';
 import CustomerProfitability from '../components/CustomerProfitability';
@@ -53,13 +52,12 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { localDateStr } from '../utils/localDate';
 
 // ─── Section groups ────────────────────────────────────────────────────────────
-type SectionKey = 'statements' | 'customers' | 'tax' | 'planning' | 'growth';
+type SectionKey = 'statements' | 'customers' | 'tax' | 'growth';
 
 const SECTIONS: { key: SectionKey; label: string; icon: IconName; desc: string }[] = [
     { key: 'statements', label: 'Financial Statements',    icon: 'bar-chart-2', desc: 'Balance Sheet, Profit & Loss, Inventory, Cash Flow' },
     { key: 'customers',  label: 'Customers & Collections',  icon: 'dollar-sign', desc: 'Who Owes Me - Unpaid Invoices' },
     { key: 'tax',        label: 'Tax & Compliance',         icon: 'clipboard',   desc: 'Tax Summary and Obligations' },
-    { key: 'planning',   label: 'Planning & Forecasts',     icon: 'trending-up', desc: 'Cash Flow & Safety' },
     { key: 'growth',     label: 'Growth Analytics',         icon: 'zap',         desc: 'Growth Trends & Scenarios, Best Customers & Products' },
 ];
 
@@ -67,7 +65,7 @@ type SubTab =
     | 'balancesheet' | 'pnl' | 'inventory' | 'accrual'
     | 'aging'
     | 'tax' | 'tax-filing' | 'tax-planning'
-    | 'cashflow' | 'cashhealth' | 'workingcapitalhealth' | 'cashsafety'
+    | 'cashflow' | 'cashhealth' | 'workingcapitalhealth'
     | 'growth' | 'history' | 'quality' | 'customers' | 'products';
 
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
@@ -87,9 +85,6 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
         { key: 'tax',          label: 'Tax Summary' },
         { key: 'tax-filing',   label: 'Filing Readiness' },
         { key: 'tax-planning', label: 'Tax Planning' },
-    ],
-    planning: [
-        { key: 'cashsafety',  label: 'Cash Flow & Safety' },
     ],
     growth: [
         { key: 'growth',    label: 'Growth Trends & Scenarios' },
@@ -111,8 +106,8 @@ const PERIODS: { key: ReportPeriod; label: string }[] = [
 ];
 
 export default function ReportsScreen() {
-    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate, user, isDemoMode, cashPockets } = useApp();
-    const { currency, minReserve, targetMargin } = settings;
+    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate, user, isDemoMode } = useApp();
+    const { currency, targetMargin } = settings;
     const businessName = user?.businessName || 'Your Business';
 
     const [showLanding, setShowLanding] = useState(false);
@@ -407,6 +402,34 @@ export default function ReportsScreen() {
                         <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                     </TouchableOpacity>
 
+                    {/* ── PLANNING Section ────────────────────────────────── —
+                        used to be its own "Planning & Forecasts" Reports
+                        section duplicating three More-menu screens (Cash
+                        Flow Safety & Reserve, Loans & Debt structure, Asset
+                        productivity/replacement). These link straight to
+                        the one real home each now has, instead of a second,
+                        duplicate copy living here. */}
+                    <View style={styles.sectionTitleRow}>
+                        <Icon name="trending-up" size={13} color={Colors.textMuted} />
+                        <Text style={styles.reportGroupHeader}>PLANNING</Text>
+                    </View>
+                    {[
+                        { icon: 'shield' as IconName, label: 'Cash Flow Safety & Reserve', sub: 'Reserve coverage, aging, scenario forecast, rainy-day fund', onPress: () => navigate('cashflow', { tab: 'safety' }) },
+                        { icon: 'percent' as IconName, label: 'Loans & Debt', sub: 'DSCR, debt structure, leverage ratios & calculators', onPress: () => setCurrentScreen('loans') },
+                        { icon: 'briefcase' as IconName, label: 'Assets', sub: 'Productivity, health score & replacement forecast', onPress: () => setCurrentScreen('assets') },
+                    ].map(item => (
+                        <TouchableOpacity key={item.label} style={styles.landingCard} onPress={item.onPress}>
+                            <View style={styles.landingCardIconBadge}>
+                                <Icon name={item.icon} size={18} color={Colors.primary} />
+                            </View>
+                            <View style={styles.landingCardText}>
+                                <Text style={styles.landingCardLabel}>{item.label}</Text>
+                                <Text style={styles.landingCardSub}>{item.sub}</Text>
+                            </View>
+                            <Icon name="chevron-right" size={18} color={Colors.textMuted} />
+                        </TouchableOpacity>
+                    ))}
+
                     {/* ── TAX Section ────────────────────────────────────── */}
                     <View style={styles.sectionTitleRow}>
                         <Icon name="clipboard" size={13} color={Colors.textMuted} />
@@ -486,18 +509,6 @@ export default function ReportsScreen() {
             </ScrollView>
 
             <DataQualityBadge transactions={transactions} />
-
-            {/* Asset Productivity/Replacement Forecast and Debt Structure &
-                Leverage Analysis used to be two more tabs here, duplicating
-                the Assets and Loans screens. That full analysis now lives
-                only there -- these are the two lines pointing to it, not a
-                second copy of the content. */}
-            {section === 'planning' && (
-                <View style={{ paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm, gap: 4 }}>
-                    <NextStepLink text="Looking for Assets? Health score, replacement forecast & recommendations →" onPress={() => setCurrentScreen('assets')} />
-                    <NextStepLink text="Looking for Loans & Debt? DSCR, debt structure, leverage ratios & calculators →" onPress={() => setCurrentScreen('loans')} />
-                </View>
-            )}
 
             {/* ── Period filter ─────────────────────────────────────── */}
             {periodActive && (
@@ -780,18 +791,6 @@ export default function ReportsScreen() {
                         </View>
                     )}
 
-                    {/* ── CASH FLOW & SAFETY ───────────────────────────── */}
-                    {activeTab === 'cashsafety' && (
-                        <CashFlowSafety
-                            finance={allFinance}
-                            transactions={transactions}
-                            invoices={invoices}
-                            currency={currency}
-                            minReserve={minReserve}
-                            inventoryValue={inventoryValue}
-                            cashPockets={cashPockets}
-                        />
-                    )}
 
                     {/* ── GROWTH OUTLOOK (trends + scenarios) ──────────── */}
                     {activeTab === 'growth' && (
