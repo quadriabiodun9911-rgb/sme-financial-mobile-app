@@ -204,7 +204,7 @@ const T = {
         myBusinesses: 'My Businesses', addBusiness: '+ Add a Business', newBusinessNamePlaceholder: 'Business name', creatingBusiness: 'Creating...',
 
         // Footer nav — tab bar & More menu
-        tabHome: 'Home', tabPassport: 'Passport', tabTransactions: 'Transactions', moreLabel: 'More',
+        tabHome: 'Home', tabScoreboard: 'Score', tabTransactions: 'Transactions', moreLabel: 'More',
         myBusinessFallback: 'My Business', allDataSynced: 'All data synced',
         pendingSyncSuffixSingular: 'change pending sync', pendingSyncSuffixPlural: 'changes pending sync',
         statActiveGoals: 'Active Goals', statUnpaidInv: 'Unpaid Inv.', statProfit: 'Profit',
@@ -432,7 +432,7 @@ const T = {
         myBusinesses: '我的企业', addBusiness: '+ 添加企业', newBusinessNamePlaceholder: '企业名称', creatingBusiness: '创建中...',
 
         // Footer nav — tab bar & More menu
-        tabHome: '首页', tabPassport: '护照', tabTransactions: '交易', moreLabel: '更多',
+        tabHome: '首页', tabScoreboard: '评分', tabTransactions: '交易', moreLabel: '更多',
         myBusinessFallback: '我的企业', allDataSynced: '数据已全部同步',
         pendingSyncSuffixSingular: '项更改待同步', pendingSyncSuffixPlural: '项更改待同步',
         statActiveGoals: '进行中的目标', statUnpaidInv: '未付发票', statProfit: '利润',
@@ -660,7 +660,7 @@ const T = {
         myBusinesses: 'Kasuwancina', addBusiness: '+ Ƙara Kasuwanci', newBusinessNamePlaceholder: 'Sunan kasuwanci', creatingBusiness: 'Ana ƙirƙira...',
 
         // Footer nav — tab bar & More menu
-        tabHome: 'Gida', tabPassport: 'Fasfo', tabTransactions: 'Ciniki', moreLabel: 'Ƙari',
+        tabHome: 'Gida', tabScoreboard: 'Maki', tabTransactions: 'Ciniki', moreLabel: 'Ƙari',
         myBusinessFallback: 'Kasuwancina', allDataSynced: 'An daidaita duk bayanai',
         pendingSyncSuffixSingular: 'canji yana jira daidaitawa', pendingSyncSuffixPlural: 'canje-canje suna jira daidaitawa',
         statActiveGoals: 'Manufofin da ke Gudana', statUnpaidInv: 'Takardun da ba a Biya ba', statProfit: 'Riba',
@@ -888,7 +888,7 @@ const T = {
         myBusinesses: 'Àwọn Iṣẹ́ Mi', addBusiness: '+ Fi Iṣẹ́ Kún', newBusinessNamePlaceholder: 'Orúkọ iṣẹ́', creatingBusiness: 'Ń dá...',
 
         // Footer nav — tab bar & More menu
-        tabHome: 'Ilé', tabPassport: 'Páàsípọ̀tù', tabTransactions: 'Àwọn Ìṣòwò', moreLabel: 'Sí i',
+        tabHome: 'Ilé', tabScoreboard: 'Àmì', tabTransactions: 'Àwọn Ìṣòwò', moreLabel: 'Sí i',
         myBusinessFallback: 'Iṣẹ́ Òwò Mi', allDataSynced: 'Gbogbo dátà ti bá ara wọn mu',
         pendingSyncSuffixSingular: 'ìyípadà ń dúró de ìbáradọ́gba', pendingSyncSuffixPlural: 'àwọn ìyípadà ń dúró de ìbáradọ́gba',
         statActiveGoals: 'Àwọn Èròngbà tí ń Ṣiṣẹ́', statUnpaidInv: 'Owó tí a Kò Tíì Sanwó', statProfit: 'Èrè',
@@ -1116,7 +1116,7 @@ const T = {
         myBusinesses: 'Azụmahịa M', addBusiness: '+ Tinye Azụmahịa', newBusinessNamePlaceholder: 'Aha azụmahịa', creatingBusiness: 'Na-eke...',
 
         // Footer nav — tab bar & More menu
-        tabHome: 'Ụlọ', tabPassport: 'Paspọtu', tabTransactions: 'Azụmahịa', moreLabel: 'Ọzọ',
+        tabHome: 'Ụlọ', tabScoreboard: 'Akara', tabTransactions: 'Azụmahịa', moreLabel: 'Ọzọ',
         myBusinessFallback: 'Azụmahịa M', allDataSynced: "Edobeela data niile n'otu",
         pendingSyncSuffixSingular: 'mgbanwe na-echere nhazi', pendingSyncSuffixPlural: 'mgbanwe na-echere nhazi',
         statActiveGoals: 'Ebumnuche Na-arụ Ọrụ', statUnpaidInv: 'Akwụkwọ Ụgwọ a na-akwụghị', statProfit: 'Uru',
