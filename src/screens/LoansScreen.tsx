@@ -469,13 +469,14 @@ export default function LoansScreen() {
                         </View>
                     )}
 
-                    {/* Interest Rate Shock -- what if rates rose? */}
+                    {/* Interest Rate Shock -- what if rates rose? A manual
+                        what-if tool, not automatic headline status (that's
+                        the DSCR card above), so it's tucked behind a tap
+                        like Refinance to Lease? / Debt Structure & Leverage
+                        below -- three of these calculators stacked open by
+                        default was the dense screen this collapses. */}
                     {activeLoans.length > 0 && (
-                        <View style={[s.strategyCard, { borderLeftWidth: 3, borderLeftColor: statusColorFor(rateShock.newStatus) }]}>
-                            <View style={s.strategyTitleRow}>
-                                <Icon name="trending-up" size={14} color={Colors.textPrimary} />
-                                <Text style={s.strategyTitle}>Interest Rate Shock</Text>
-                            </View>
+                        <Collapsible title="Interest Rate Shock">
                             <Text style={s.strategyRecommendation}>What if your loans repriced higher? Model a rate rise and see the effect on repayments and coverage.</Text>
                             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, marginBottom: 10 }}>
                                 {[1, 2, 3, 5].map(p => (
@@ -514,17 +515,15 @@ export default function LoansScreen() {
                                     </View>
                                 </>
                             )}
-                        </View>
+                        </Collapsible>
                     )}
 
                     {/* Revenue Stress on Debt Coverage -- what if sales slow
-                        down, not the loan's rate? */}
+                        down, not the loan's rate? Same manual what-if
+                        reasoning as Interest Rate Shock above -- collapsed
+                        by default. */}
                     {activeLoans.length > 0 && (
-                        <View style={[s.strategyCard, { borderLeftWidth: 3, borderLeftColor: statusColorFor(revenueStress.status) }]}>
-                            <View style={s.strategyTitleRow}>
-                                <Icon name="trending-down" size={14} color={Colors.textPrimary} />
-                                <Text style={s.strategyTitle}>Revenue Stress on Debt Coverage</Text>
-                            </View>
+                        <Collapsible title="Revenue Stress on Debt Coverage">
                             <Text style={s.strategyRecommendation}>What if a slower month cut your revenue? See the effect on your coverage ratio -- same income, same debt payments, just less coming in.</Text>
                             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, marginBottom: 10 }}>
                                 {[10, 20, 30].map(p => (
@@ -560,17 +559,16 @@ export default function LoansScreen() {
                                     </View>
                                 </>
                             )}
-                        </View>
+                        </Collapsible>
                     )}
 
                     {/* Debt Payoff Strategy — which loan to attack first and why,
-                        with real interest saved, not just a flat list of loans. */}
+                        with real interest saved, not just a flat list of loans.
+                        Collapsed by default along with the other secondary
+                        analysis tools above -- the DSCR card already answers
+                        the headline "can you afford this" question. */}
                     {showDebtStrategy && (
-                        <View style={s.strategyCard}>
-                            <View style={s.strategyTitleRow}>
-                                <Icon name="target" size={14} color={Colors.textPrimary} />
-                                <Text style={s.strategyTitle}>{t(language, 'debtPayoffStrategyTitle')}</Text>
-                            </View>
+                        <Collapsible title={t(language, 'debtPayoffStrategyTitle')}>
                             <Text style={s.strategyRecommendation}>{debtOpt.recommendation}</Text>
 
                             <View style={s.strategyMethodRow}>
@@ -597,7 +595,7 @@ export default function LoansScreen() {
                                     <Text style={s.strategyOrderItem}>{t(language, 'clearsSmallestFirst')}</Text>
                                 </View>
                             </View>
-                        </View>
+                        </Collapsible>
                     )}
 
                     {/* Ongoing Financing: Lease Check -- unlike Debt Payoff
