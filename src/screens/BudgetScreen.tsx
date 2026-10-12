@@ -575,6 +575,17 @@ export default function BudgetScreen() {
                         <Text style={[s.overviewActual, { color: Colors.income }]}>{currency}{Math.round(revenueActualThisMonth).toLocaleString()}</Text>
                         <EditableTargetField value={selectedRevenue} currency={currency} onCommit={(v) => saveReservedTarget(RESERVED_CATEGORY.revenue, v)} />
                     </View>
+                    {/* A large gap here is expected, not a bug, when the
+                        target hasn't been set yet -- it's Quad360's own
+                        {selectedScenario}-case suggestion (a trailing
+                        average, not this month's number), same disclaimer
+                        the Budget Strategy card below already carries for
+                        this exact figure. Without it, an auto-suggested
+                        number sitting right next to a real "Actual" column
+                        reads as if the two should already be close. */}
+                    {!(manualRevenueTarget && manualRevenueTarget > 0) && smartRevenue.available && (
+                        <Text style={s.overviewHint}>↳ suggested {selectedScenario}-case revenue (a 6-month average, not a figure you've set) — type your own above, or see Budget Strategy below</Text>
+                    )}
 
                     <View style={s.overviewRow}>
                         <Text style={[s.overviewLabel, { flex: 1.3 }]}>Cost of Goods Sold</Text>
