@@ -130,7 +130,7 @@ const ACCOUNT_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; co
 // ─── Footer tabs ─────────────────────────────────────────────────────────────
 const TABS: { label: TranslationKey; screen: Screen; icon: IconName }[] = [
     { label: 'tabHome',      screen: 'dashboard',        icon: 'home' },
-    { label: 'tabPassport',  screen: 'business-passport', icon: 'shield' },
+    { label: 'tabScoreboard', screen: 'scoreboard', icon: 'award' },
     { label: 'tabTransactions', screen: 'transactions',   icon: 'list' },
     { label: 'invoices',  screen: 'invoices',          icon: 'file-text' },
     { label: 'reports',   screen: 'reports',           icon: 'bar-chart-2' },

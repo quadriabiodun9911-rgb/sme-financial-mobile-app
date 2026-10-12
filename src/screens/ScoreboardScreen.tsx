@@ -7,6 +7,7 @@ import Header from '../components/Header';
 import FocusTaskBanner from '../components/FocusTaskBanner';
 import FooterNav from '../components/FooterNav';
 import LowDataNotice from '../components/LowDataNotice';
+import NextStepLink from '../components/NextStepLink';
 import Icon, { IconName } from '../components/ui/Icon';
 import RadialGauge from '../components/RadialGauge';
 import { computeRiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage, computeWeeklyCFOSummary } from '../utils/finance';
@@ -346,6 +347,13 @@ export default function ScoreboardScreen() {
                 <Text style={s.subtitle}>
                     Everything Quad360 already knows about your business, in one glance — updated live, nothing to prepare.
                 </Text>
+
+                {/* Scoreboard is the in-app "how am I doing" view; Business
+                    Passport is the shareable version of the same identity --
+                    a PDF a lender or investor can actually read, with its
+                    own export flow. One link out instead of a second bottom
+                    tab, now that Scoreboard is the tab. */}
+                <NextStepLink text="Export this as your Business Passport (PDF)" onPress={() => navigate('business-passport')} />
 
                 <LowDataNotice transactionCount={transactions.length} label="your Scoreboard" />
 

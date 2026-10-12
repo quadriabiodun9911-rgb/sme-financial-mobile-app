@@ -384,7 +384,7 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
                     cashBalance={spendCheckThreshold}
                     monthlyProfit={monthlyProfit}
                     minReserve={parseFloat(settings?.minReserve || '0') || 0}
-                    onSeeFullPicture={() => navigate('business-passport')}
+                    onSeeFullPicture={() => navigate('scoreboard')}
                     prefillAmount={spendPrefill}
                     onPrefillConsumed={() => setSpendPrefill(null)}
                 />

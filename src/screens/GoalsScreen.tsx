@@ -366,7 +366,7 @@ export default function GoalsScreen() {
     const handlePlanGoal = useCallback((id: string) => { setPlanGoalId(id); setPlanTab('bridge'); }, []);
     const handleExecute = useCallback(() => setCurrentScreen('action-tracker'), [setCurrentScreen]);
     const handleCollect = useCallback(() => navigate('transactions', { filter: 'collect' }), [navigate]);
-    const handleSeeFullPicture = useCallback(() => setCurrentScreen('business-passport'), [setCurrentScreen]);
+    const handleSeeFullPicture = useCallback(() => setCurrentScreen('scoreboard'), [setCurrentScreen]);
 
     const handleEditSave = () => {
         if (!editGoal) return;

@@ -960,7 +960,7 @@ export default function LoansScreen() {
                                             impact={computeProfitCashImpact(monthlyProfit, finance?.cashBalance ?? 0, -mPay)}
                                             source="loan"
                                             currency={currency}
-                                            onSeeFullPicture={() => navigate('business-passport')}
+                                            onSeeFullPicture={() => navigate('scoreboard')}
                                         />
                                     </View>
                                 );

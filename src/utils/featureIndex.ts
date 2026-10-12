@@ -207,9 +207,15 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'reports', navParams: { reportSection: 'tax', reportTab: 'tax-filing' },
     },
     {
+        id: 'scoreboard', label: 'Scoreboard', icon: '🏆',
+        description: 'Business Health Score, this week\'s performance, cash reserve resilience, risk radar and goals — the main bottom-tab home for "how is my business doing"',
+        keywords: ['score', 'scoreboard', 'health score', 'business health', 'dashboard'],
+        screen: 'scoreboard',
+    },
+    {
         id: 'business-passport', label: 'Business Passport', icon: '🛂',
-        description: 'The continuously-updating financial identity of the business — identity, health, risk, credit readiness, investment readiness, growth, and what to do next',
-        keywords: ['position', 'strategy', 'biggest lever', 'action plan', 'passport', 'identity', 'clarity'],
+        description: 'A shareable financial identity document — export a PDF summary for lenders or investors. Reached from the Scoreboard\'s own "Export" link',
+        keywords: ['position', 'strategy', 'passport', 'identity', 'clarity', 'export', 'pdf', 'share with lender'],
         screen: 'business-passport',
     },
     {
