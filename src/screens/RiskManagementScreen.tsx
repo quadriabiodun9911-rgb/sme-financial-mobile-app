@@ -548,7 +548,7 @@ export default function RiskManagementScreen() {
                                     </Text>
                                 </View>
                             )}
-                            <NextStepLink text="See the full forward cost trajectory → Sales" onPress={() => navigate('transactions', { tab: 'exposure' })} />
+                            <NextStepLink text="See the full forward cost trajectory → Cost Exposure" onPress={() => navigate('transactions', { tab: 'exposure' })} />
                         </View>
                     </>
                 )}
