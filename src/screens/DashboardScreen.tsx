@@ -21,7 +21,7 @@ import { validateAmount, validateDescription } from '../utils/validation';
 import { Language, Screen } from '../types';
 import OnboardingWizard from '../components/OnboardingWizard';
 import ProfitShareCard from '../components/ProfitShareCard';
-import RetentionNudges from '../components/RetentionNudges';
+import RetentionNudges, { StreakBadge } from '../components/RetentionNudges';
 import FirstRunWizard from '../components/FirstRunWizard';
 import GlobalSearch from '../components/GlobalSearch';
 import DailyTargetCard from '../components/DailyTargetCard';
@@ -1579,6 +1579,12 @@ export default function DashboardScreen() {
                     this row/col wrapping is unstyled (no flexDirection set),
                     so mobile stacking is completely unchanged from before. */}
                 {canViewFinancials && <CelebrationBanner celebration={celebration} />}
+
+                {/* Streak badge -- moved up from the bottom of this same
+                    scroll (where RetentionNudges renders its other nudges)
+                    so the "keep your streak alive" loss-aversion cue is
+                    actually seen on a daily open, not scrolled past. */}
+                {!isDemoMode && <StreakBadge transactions={transactions} onAddTransaction={() => openFab()} />}
 
                 <View style={isWideDashboard && styles.dashboardRow}>
                 {/* BUSINESS HEALTH -- the single "how is my business doing"
