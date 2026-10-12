@@ -1,10 +1,11 @@
-import { SwotAnalysis, SwotItem, FinanceData, Transaction, BusinessSettings } from '../types';
+import { SwotAnalysis, SwotItem, FinanceData, Transaction, BusinessSettings, Invoice } from '../types';
 import { getTopCategories, computeAgingBuckets } from './finance';
 
 export function generateSwot(
     finance: FinanceData,
     transactions: Transaction[],
     settings: BusinessSettings,
+    invoices: Invoice[] = [],
 ): SwotAnalysis {
     const { currency, minReserve, targetMargin } = settings;
     const reserve = parseFloat(minReserve) || 0;
@@ -17,7 +18,13 @@ export function generateSwot(
 
     const topExpenses = getTopCategories(transactions, 'expense', 3);
     const topIncome = getTopCategories(transactions, 'income', 3);
-    const arBuckets = computeAgingBuckets(transactions, 'income');
+    // Unpaid invoices that haven't generated a transaction yet are real
+    // outstanding receivables too -- the Aging Report and Cash Flow Safety
+    // both include them (computeAgingBuckets(transactions, 'income',
+    // invoices)); omitting `invoices` here was silently undercounting every
+    // "overdue AR" figure below against what those other screens show for
+    // the exact same business.
+    const arBuckets = computeAgingBuckets(transactions, 'income', invoices);
     const apBuckets = computeAgingBuckets(transactions, 'expense');
     const overdueAR = arBuckets.reduce((s, b) => s + b.total, 0);
     const overdueAP = apBuckets.reduce((s, b) => s + b.total, 0);

@@ -46,11 +46,11 @@ const QUADRANTS = [
 ];
 
 export default function SwotAnalysis() {
-    const { finance, transactions, settings } = useApp();
+    const { finance, transactions, settings, invoices } = useApp();
 
     const swot = useMemo(
-        () => generateSwot(finance, transactions, settings),
-        [finance, transactions, settings]
+        () => generateSwot(finance, transactions, settings, invoices),
+        [finance, transactions, settings, invoices]
     );
 
     const generatedTime = new Date(swot.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
