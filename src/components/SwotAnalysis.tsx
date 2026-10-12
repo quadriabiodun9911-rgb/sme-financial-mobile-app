@@ -1,10 +1,13 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { generateSwot } from '../utils/swot';
 import { Colors } from '../theme/colors';
 import { Shadow } from '../theme/tokens';
 import { SwotItem } from '../types';
+import Icon from './ui/Icon';
+
+type QuadrantKey = 'strengths' | 'weaknesses' | 'opportunities' | 'threats';
 
 const QUADRANTS = [
     {
@@ -53,6 +56,28 @@ export default function SwotAnalysis() {
         [finance, transactions, settings, invoices]
     );
 
+    // Weaknesses/Threats open by default, Strengths/Opportunities
+    // collapsed -- loss aversion (Kahneman & Tversky: a potential loss
+    // looms larger than an equivalent gain) means what's putting the
+    // business at risk is what actually drives a reader to act, so that's
+    // what earns the default screen space on a page that already stacks a
+    // Business Health Report and an 8-Dimension Diagnosis above this.
+    // Every item is still real, computed from this business's own data --
+    // this only changes what's shown first, never invents urgency that
+    // isn't there (both lists fall back to a plain "nothing detected" item
+    // when genuinely empty, which stays exactly as understated collapsed
+    // or expanded).
+    const [expandedQuadrants, setExpandedQuadrants] = useState<Set<QuadrantKey>>(
+        new Set<QuadrantKey>(['weaknesses', 'threats'])
+    );
+    const toggleQuadrant = (key: QuadrantKey) => {
+        setExpandedQuadrants(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key); else next.add(key);
+            return next;
+        });
+    };
+
     const generatedTime = new Date(swot.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const generatedDate = new Date(swot.generatedAt).toLocaleDateString();
 
@@ -70,42 +95,59 @@ export default function SwotAnalysis() {
                 <Text style={styles.timestamp}>Last updated: {generatedDate} at {generatedTime}</Text>
             </View>
 
-            {/* 2×2 SWOT Grid summary */}
+            {/* 2×2 SWOT Grid summary -- tapping a cell jumps straight to
+                that quadrant's detail below, so the count shown here is
+                never a dead end. */}
             <View style={styles.grid}>
                 {QUADRANTS.map(q => (
-                    <View key={q.key} style={[styles.gridCell, { backgroundColor: q.bg, borderColor: q.border }]}>
+                    <TouchableOpacity
+                        key={q.key}
+                        style={[styles.gridCell, { backgroundColor: q.bg, borderColor: q.border }]}
+                        onPress={() => setExpandedQuadrants(prev => new Set(prev).add(q.key))}
+                        activeOpacity={0.75}
+                    >
                         <Text style={styles.gridIcon}>{q.icon}</Text>
                         <Text style={[styles.gridLabel, { color: q.color }]}>{q.label}</Text>
                         <Text style={styles.gridCount}>{swot[q.key].length} item{swot[q.key].length !== 1 ? 's' : ''}</Text>
-                    </View>
+                    </TouchableOpacity>
                 ))}
             </View>
 
-            {/* Full quadrant detail */}
-            {QUADRANTS.map(q => (
-                <View key={q.key} style={[styles.quadrantCard, { borderTopColor: q.color, borderColor: q.border }]}>
-                    <View style={styles.quadrantHeader}>
-                        <Text style={styles.quadrantIcon}>{q.icon}</Text>
-                        <View>
-                            <Text style={[styles.quadrantLabel, { color: q.color }]}>{q.label}</Text>
-                            <Text style={styles.quadrantSub}>{q.subtitle}</Text>
-                        </View>
-                    </View>
-                    {swot[q.key].map((item: SwotItem, i: number) => (
-                        <View key={i} style={styles.item}>
-                            <View style={[styles.bullet, { backgroundColor: q.color }]} />
-                            <View style={styles.itemContent}>
-                                <Text style={styles.itemText}>{item.text}</Text>
-                                {item.metric && (
-                                    <View style={[styles.metricPill, { backgroundColor: q.bg, borderColor: q.border }]}>
-                                        <Text style={[styles.metricText, { color: q.color }]}>{item.metric}</Text>
-                                    </View>
-                                )}
+            {/* Full quadrant detail -- Weaknesses/Threats expanded by
+                default, Strengths/Opportunities collapsed (see the state
+                comment above for why). */}
+            {QUADRANTS.map(q => {
+                const isOpen = expandedQuadrants.has(q.key);
+                return (
+                    <View key={q.key} style={[styles.quadrantCard, { borderTopColor: q.color, borderColor: q.border }]}>
+                        <TouchableOpacity
+                            style={styles.quadrantHeader}
+                            onPress={() => toggleQuadrant(q.key)}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={styles.quadrantIcon}>{q.icon}</Text>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.quadrantLabel, { color: q.color }]}>{q.label}</Text>
+                                <Text style={styles.quadrantSub}>{q.subtitle}</Text>
                             </View>
-                        </View>
-                    ))}
-                </View>
-            ))}
+                            <Icon name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
+                        </TouchableOpacity>
+                        {isOpen && swot[q.key].map((item: SwotItem, i: number) => (
+                            <View key={i} style={styles.item}>
+                                <View style={[styles.bullet, { backgroundColor: q.color }]} />
+                                <View style={styles.itemContent}>
+                                    <Text style={styles.itemText}>{item.text}</Text>
+                                    {item.metric && (
+                                        <View style={[styles.metricPill, { backgroundColor: q.bg, borderColor: q.border }]}>
+                                            <Text style={[styles.metricText, { color: q.color }]}>{item.metric}</Text>
+                                        </View>
+                                    )}
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+                );
+            })}
 
             {/* Interpretation guide */}
             <View style={styles.guideCard}>
