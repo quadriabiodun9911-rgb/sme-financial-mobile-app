@@ -8,7 +8,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FocusTaskBanner from '../components/FocusTaskBanner';
 import FooterNav from '../components/FooterNav';
-import { computeBudgetVsActual, getMonthlyExpenseAverage } from '../utils/finance';
+import { computeBudgetVsActual, getMonthlyExpenseAverage, computeEnhancedPnL } from '../utils/finance';
 import { totalMonthlyLoanBurden } from '../utils/loanMath';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateExpenseReductionActions } from '../utils/actionRecommendationEngine';
@@ -51,9 +51,55 @@ const EXPENSE_CATEGORIES = [
     'Supplies', 'Maintenance', 'Travel', 'Training', 'Other',
 ];
 
+// Financial Overview's revenue/COGS/asset targets are stored the exact
+// same way any other category budget is (a Budget row, matched by
+// category name) rather than a new data shape -- same pattern the
+// "Loan Repayments" synthesized row already uses to recognize a
+// category by name. Reserved so they never collide with a real
+// user-named expense category.
+const RESERVED_CATEGORY = {
+    revenue: 'Revenue Target',
+    cogs: 'Cost of Goods Budget',
+    asset: 'Asset Purchase Budget',
+} as const;
+const RESERVED_CATEGORY_SET = new Set<string>(Object.values(RESERVED_CATEGORY));
+
+// One editable target cell in the Financial Overview card -- local text
+// state so typing isn't fought by the parent re-rendering on every
+// keystroke, committed (via onCommit -> saveReservedTarget) on blur rather
+// than per-keystroke so partial input while typing never gets saved as a
+// real budget value.
+function EditableTargetField({ value, currency, onCommit }: { value: number; currency: string; onCommit: (v: string) => void }) {
+    const [text, setText] = useState(value > 0 ? String(Math.round(value)) : '');
+    useEffect(() => { setText(value > 0 ? String(Math.round(value)) : ''); }, [value]);
+    return (
+        <View style={s.overviewInputWrap}>
+            <Text style={s.overviewInputPrefix}>{currency}</Text>
+            <TextInput
+                style={s.overviewInput}
+                value={text}
+                onChangeText={setText}
+                onEndEditing={() => onCommit(text)}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                placeholderTextColor={Colors.textMuted}
+            />
+        </View>
+    );
+}
+
 export default function BudgetScreen() {
-    const { transactions, budgets, addBudget, updateBudget, deleteBudget, settings, navigate, navParams, finance, loans, invoices, inventory, goals, assets, forecastHistory } = useApp();
+    const { transactions, budgets: allBudgets, addBudget, updateBudget, deleteBudget, settings, navigate, navParams, finance, loans, invoices, inventory, goals, assets, forecastHistory } = useApp();
     const { currency } = settings;
+
+    // Financial Overview's Revenue/COGS/Asset targets live in the same
+    // Budget[] list (see RESERVED_CATEGORY above), but every pre-existing
+    // consumer below -- the per-category table, the Adjust & Simulate list,
+    // totalBudgeted, empty-state checks -- expects `budgets` to mean real,
+    // user-named expense categories only. Filtering them out here once
+    // keeps all of that code unchanged instead of threading an exclusion
+    // check through every call site.
+    const budgets = useMemo(() => allBudgets.filter(b => !RESERVED_CATEGORY_SET.has(b.category)), [allBudgets]);
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
     // see FooterNav.tsx for the reference fix. Applied here to the bottom
@@ -85,12 +131,16 @@ export default function BudgetScreen() {
     const bva = useMemo(() => computeBudgetVsActual(transactions, budgets, currentMonth), [transactions, budgets, currentMonth]);
 
     // Smart Budget Builder's revenue half -- see smartBudget.ts's own doc
-    // comment. No revenue-budget UI exists yet, so the selected scenario
-    // also doubles as the revenue figure Budget Intelligence below measures
-    // actual revenue against, unless/until an owner-set revenue target
-    // exists elsewhere in the app.
+    // comment. The Financial Overview card below now gives revenue a real,
+    // owner-set target (stored the same way any other budget line is, under
+    // a reserved category name); once set, that overrides the auto-picked
+    // scenario here so Budget Intelligence measures actual revenue against
+    // what the owner actually said they're aiming for, not a guess.
     const smartRevenue = useMemo(() => computeSmartBudgetRevenue(transactions, currency), [transactions, currency]);
-    const selectedRevenue = smartRevenue.available ? smartRevenue.scenarios[selectedScenario] : 0;
+    const manualRevenueTarget = allBudgets.find(b => b.category === RESERVED_CATEGORY.revenue)?.monthlyAmount;
+    const selectedRevenue = manualRevenueTarget && manualRevenueTarget > 0
+        ? manualRevenueTarget
+        : smartRevenue.available ? smartRevenue.scenarios[selectedScenario] : 0;
     const budgetIntel = useMemo(
         () => computeBudgetIntelligence(transactions, budgets, currentMonth, selectedRevenue, currency),
         [transactions, budgets, currentMonth, selectedRevenue, currency],
@@ -158,6 +208,42 @@ export default function BudgetScreen() {
     const loanActualThisMonth = transactions
         .filter(t => t.type === 'expense' && t.category === 'Loan Repayment' && (t.date || '').startsWith(currentMonth))
         .reduce((s, t) => s + (t.amount ?? 0), 0);
+
+    // Financial Overview's real actuals -- revenue and cost-of-goods scoped
+    // to this period only (not finance.income/.expense, which are
+    // all-time cumulative totals), and asset purchases from the real Asset
+    // register rather than a guess.
+    const monthTransactions = useMemo(
+        () => transactions.filter(t => (t.date || '').startsWith(currentMonth)),
+        [transactions, currentMonth]
+    );
+    const revenueActualThisMonth = useMemo(
+        () => monthTransactions.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount ?? 0), 0),
+        [monthTransactions]
+    );
+    const monthPnL = useMemo(() => computeEnhancedPnL(monthTransactions, assets), [monthTransactions, assets]);
+    const cogsActualThisMonth = monthPnL.cogs;
+    const assetPurchasesActualThisMonth = useMemo(
+        () => (assets ?? []).filter(a => (a.purchaseDate || '').startsWith(currentMonth)).reduce((s, a) => s + (a.purchaseCost ?? 0), 0),
+        [assets, currentMonth]
+    );
+    const cogsTargetBudget = allBudgets.find(b => b.category === RESERVED_CATEGORY.cogs)?.monthlyAmount ?? 0;
+    const assetTargetBudget = allBudgets.find(b => b.category === RESERVED_CATEGORY.asset)?.monthlyAmount ?? 0;
+
+    // Shared save path for the three editable Financial Overview targets --
+    // same addBudget/updateBudget calls any other category budget uses, just
+    // keyed by the reserved category name instead of a user-picked one.
+    const saveReservedTarget = (category: string, valueStr: string) => {
+        const amt = parseFloat(valueStr);
+        if (isNaN(amt) || amt < 0) return;
+        const existing = allBudgets.find(b => b.category === category);
+        if (existing) {
+            if (existing.monthlyAmount !== amt) updateBudget(existing.id, { monthlyAmount: amt, period: currentMonth });
+        } else if (amt > 0) {
+            addBudget({ id: '', category, monthlyAmount: amt, period: currentMonth });
+        }
+    };
+
     const displayBva = useMemo(() => {
         if (hasManualLoanBudget || loanBurden <= 0) return bva;
         const variance = loanBurden - loanActualThisMonth;
@@ -461,6 +547,60 @@ export default function BudgetScreen() {
                             <Text style={s.overAlert}>{displayOverCount} categor{displayOverCount > 1 ? 'ies' : 'y'} over budget by {currency}{displayOverAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })} combined</Text>
                         </View>
                     )}
+                </View>
+
+                {/* Financial Overview -- the business's major money lines
+                    (Revenue, Cost of Goods, Operating Expenses, Loan
+                    Repayments, Asset Purchases) in one place, actual next to
+                    target, so a target can be set or adjusted right where
+                    it's compared instead of hunting through separate
+                    screens for each one. Revenue/COGS/Asset targets are
+                    genuinely discretionary -- editable right here. Operating
+                    Expenses is a derived total of the per-category budgets
+                    in the table below (editing it here would be ambiguous
+                    about which category absorbs the change), and Loan
+                    Repayments is a real contractual obligation, not
+                    something to budget down -- both shown for the same
+                    at-a-glance comparison, just not editable from this row. */}
+                <View style={s.summaryCard}>
+                    <Text style={s.overviewTitle}>Financial Overview — {monthLabel}</Text>
+                    <View style={s.overviewHeaderRow}>
+                        <Text style={[s.overviewHeaderCell, { flex: 1.3 }]}>Line</Text>
+                        <Text style={s.overviewHeaderCell}>Actual</Text>
+                        <Text style={s.overviewHeaderCell}>Target</Text>
+                    </View>
+
+                    <View style={s.overviewRow}>
+                        <Text style={[s.overviewLabel, { flex: 1.3 }]}>Revenue</Text>
+                        <Text style={[s.overviewActual, { color: Colors.income }]}>{currency}{Math.round(revenueActualThisMonth).toLocaleString()}</Text>
+                        <EditableTargetField value={selectedRevenue} currency={currency} onCommit={(v) => saveReservedTarget(RESERVED_CATEGORY.revenue, v)} />
+                    </View>
+
+                    <View style={s.overviewRow}>
+                        <Text style={[s.overviewLabel, { flex: 1.3 }]}>Cost of Goods Sold</Text>
+                        <Text style={[s.overviewActual, { color: Colors.expense }]}>{currency}{Math.round(cogsActualThisMonth).toLocaleString()}</Text>
+                        <EditableTargetField value={cogsTargetBudget} currency={currency} onCommit={(v) => saveReservedTarget(RESERVED_CATEGORY.cogs, v)} />
+                    </View>
+
+                    <View style={s.overviewRow}>
+                        <Text style={[s.overviewLabel, { flex: 1.3 }]}>Operating Expenses</Text>
+                        <Text style={[s.overviewActual, { color: Colors.expense }]}>{currency}{Math.round(displayTotalActual - loanActualThisMonth).toLocaleString()}</Text>
+                        <Text style={s.overviewFixedVal}>{currency}{Math.round(totalBudgeted).toLocaleString()}</Text>
+                    </View>
+                    <Text style={s.overviewHint}>↳ edit per category in the table below</Text>
+
+                    <View style={s.overviewRow}>
+                        <Text style={[s.overviewLabel, { flex: 1.3 }]}>Loan Repayments</Text>
+                        <Text style={[s.overviewActual, { color: Colors.expense }]}>{currency}{Math.round(loanActualThisMonth).toLocaleString()}</Text>
+                        <Text style={s.overviewFixedVal}>{currency}{Math.round(loanBurden).toLocaleString()}</Text>
+                    </View>
+                    {loanBurden > 0 && <Text style={s.overviewHint}>↳ from your Loan Register — a fixed obligation, not something to budget down</Text>}
+
+                    <View style={s.overviewRow}>
+                        <Text style={[s.overviewLabel, { flex: 1.3 }]}>Asset Purchases</Text>
+                        <Text style={[s.overviewActual, { color: Colors.expense }]}>{currency}{Math.round(assetPurchasesActualThisMonth).toLocaleString()}</Text>
+                        <EditableTargetField value={assetTargetBudget} currency={currency} onCommit={(v) => saveReservedTarget(RESERVED_CATEGORY.asset, v)} />
+                    </View>
                 </View>
 
                 {/* Budget Strategy — revenue, cash, and profit impact of the plan.
@@ -1061,6 +1201,18 @@ const s = StyleSheet.create({
     overAlertRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, marginTop: 10 },
     overAlert:     { fontSize: 13, color: Colors.expense, fontWeight: '600', textAlign: 'center' },
     loanIncludedNote: { marginTop: Spacing.sm, fontSize: 11, color: Colors.textMuted, textAlign: 'center' },
+
+    overviewTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: Spacing.md },
+    overviewHeaderRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 6, marginBottom: 4 },
+    overviewHeaderCell: { flex: 1, fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
+    overviewRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+    overviewLabel: { flex: 1, fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
+    overviewActual: { flex: 1, fontSize: 13, fontWeight: '700' },
+    overviewFixedVal: { flex: 1, fontSize: 13, fontWeight: '700', color: Colors.textSecondary },
+    overviewHint: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: -4, marginBottom: 6, marginLeft: 2 },
+    overviewInputWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: 8, paddingVertical: 4 },
+    overviewInputPrefix: { fontSize: 12, color: Colors.textMuted, marginRight: 2 },
+    overviewInput: { flex: 1, fontSize: 13, fontWeight: '700', color: Colors.textPrimary, padding: 0 },
 
     strategyCard:  { backgroundColor: Colors.surface, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.lg, borderLeftWidth: 3, borderLeftColor: Colors.primary, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     strategyHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
