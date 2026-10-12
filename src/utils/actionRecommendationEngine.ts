@@ -4,7 +4,7 @@
  */
 
 import { DiagnosisResult, FinancialMetrics } from './financialDiagnosisEngine';
-import { PrimaryGoal } from '../types';
+import { PrimaryGoal, Screen } from '../types';
 
 export interface ActionTactic {
   id: string;
@@ -27,6 +27,17 @@ export interface ActionTactic {
   // this is what lets Quad360 "understand the business even better" on the
   // next pass instead of recommending the same thing blind every time.
   pastAttempt?: { succeeded: boolean; impactPercentage: number; completionDate: string };
+  // Where to actually DO this -- a recommendation with no path to act on
+  // it is just a list item. Same {screen, params} + reason-text deep-link
+  // convention diagnosticDimensions.ts's seeFullDetail/steps already use,
+  // so a tactic card's CTA behaves identically to every other "do this
+  // next" link in the app. Omitted only when no screen in the app
+  // actually lets the owner act on this tactic yet (e.g. building a
+  // subscription offering, running an acquisition campaign) -- never
+  // pointed at a screen that can't do the thing the label promises.
+  screen?: Screen;
+  screenParams?: Record<string, any>;
+  actionLabel?: string;
 }
 
 // A minimal, decoupled shape of a past tactic outcome — deliberately not
@@ -90,6 +101,8 @@ export function generateCrisisActions(
         'Days to payment',
         'Runway impact',
       ],
+      screen: 'invoices',
+      actionLabel: 'Open Invoices to send reminders',
     });
   }
 
@@ -117,6 +130,9 @@ export function generateCrisisActions(
       'Set pause end date (30 days) for review',
     ],
     metrics: ['Weekly cash burn', 'Expense reduction %', 'Runway extension days'],
+    screen: 'transactions',
+    screenParams: { tab: 'exposure' },
+    actionLabel: 'Review your biggest expense categories',
   });
 
   // CRISIS TACTIC 3: Secure credit line
@@ -145,6 +161,8 @@ export function generateCrisisActions(
     ],
     metrics: ['Funds received', 'Credit cost (interest %)', 'Runway days post-funding'],
     blockers: ['Poor credit score', 'Limited collateral'],
+    screen: 'financing-marketplace',
+    actionLabel: 'Browse financing options',
   });
 
   return actions;
@@ -193,6 +211,9 @@ export function generateExpenseReductionActions(
         'Vendor retention',
       ],
       blockers: ['Vendor refusal', 'Contract lock-ins'],
+      screen: 'transactions',
+      screenParams: { search: category },
+      actionLabel: `See every ${category} transaction`,
     });
 
     actionIndex++;
@@ -236,6 +257,9 @@ export function generateRevenueActions(
     ],
     metrics: ['Revenue increase %', 'Customer churn %', 'Profit margin %'],
     prerequisite: 'crisis-collections', // Stabilize crisis first
+    screen: 'inventory',
+    screenParams: { tab: 'pricing' },
+    actionLabel: 'Set your new price and see the profit impact',
   });
 
   // REVENUE TACTIC 2: Improve recurring revenue
@@ -333,6 +357,8 @@ export function generateDebtActions(
       ],
       metrics: ['DSCR', 'Monthly debt service', 'Operating income'],
       blockers: ['Lender unwilling to restructure'],
+      screen: 'loans',
+      actionLabel: 'Open your Loan Register',
     });
   }
 
@@ -368,6 +394,8 @@ export function generateInventoryActions(
         'Reallocate freed-up cash to fast movers or debt paydown',
       ],
       metrics: ['Slow-moving stock value', 'Inventory turnover', 'Cash freed up'],
+      screen: 'inventory',
+      actionLabel: 'See which stock is moving slowly',
     });
   }
 
@@ -400,6 +428,9 @@ export function generateConcentrationActions(
         'Formalize the terms of the concentrated relationship (contract, notice period) to reduce downside risk',
       ],
       metrics: ['Top customer % of revenue', 'Number of active customers'],
+      screen: 'reports',
+      screenParams: { reportSection: 'growth', reportTab: 'customers' },
+      actionLabel: 'See customer concentration detail',
     });
   }
 
@@ -423,6 +454,8 @@ export function generateConcentrationActions(
         'Negotiate better terms with the primary supplier using the alternative as leverage',
       ],
       metrics: ['Top supplier % of spend', 'Number of qualified suppliers per critical input'],
+      screen: 'bills',
+      actionLabel: 'Open Vendor Bills',
     });
   }
 
