@@ -155,6 +155,55 @@ export async function detectMilestones(
     return unseen;
 }
 
+// ─── Streak badge ───────────────────────────────────────────────────────────
+
+// Pulled out as its own component (rendered near the top of Dashboard,
+// right by the other "first thing an owner should see" content) rather
+// than left inline in RetentionNudges below, which renders at the very
+// bottom of Dashboard's scroll. A loss-aversion nudge ("don't break your
+// streak") only works if it's actually seen before the user leaves the
+// screen -- buried under everything else, most owners opening the app
+// for their daily glance would never scroll far enough to find it.
+interface StreakBadgeProps {
+    transactions: Transaction[];
+    onAddTransaction: () => void;
+}
+
+export function StreakBadge({ transactions, onAddTransaction }: StreakBadgeProps) {
+    const [streak, setStreak]           = useState(0);
+    const [loggedToday, setLoggedToday] = useState(false);
+
+    useEffect(() => {
+        if (transactions.length === 0) return;
+        updateStreak(transactions).then(({ count, loggedToday: lt }) => {
+            setStreak(count);
+            setLoggedToday(lt);
+        });
+    }, [transactions.length]);
+
+    if (streak < 1) return null;
+    return (
+        <View style={styles.streakBanner}>
+            <Text style={styles.streakFire}>🔥</Text>
+            <View style={{ flex: 1 }}>
+                <Text style={styles.streakText}>
+                    {streak === 1 ? 'Day 1 — streak started!' : `${streak}-day logging streak!`}
+                </Text>
+                <Text style={styles.streakSub}>
+                    {loggedToday
+                        ? streak === 1 ? 'Great start — come back tomorrow to keep it going' : 'Logged today — keep it going tomorrow'
+                        : 'Log a transaction today to keep your streak alive'}
+                </Text>
+            </View>
+            {!loggedToday && (
+                <TouchableOpacity style={styles.streakBtn} onPress={onAddTransaction}>
+                    <Text style={styles.streakBtnText}>Log now</Text>
+                </TouchableOpacity>
+            )}
+        </View>
+    );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface Props {
@@ -169,8 +218,6 @@ export default function RetentionNudges({ transactions, currency, profit, onAddT
     const [weekSummary, setWeekSummary]         = useState<{ thisWeek: number; lastWeek: number } | null>(null);
     const [milestone, setMilestone]             = useState<Milestone | null>(null);
     const [showMilestone, setShowMilestone]     = useState(false);
-    const [streak, setStreak]                   = useState(0);
-    const [loggedToday, setLoggedToday]         = useState(false);
     const scaleAnim                             = useRef(new Animated.Value(0.8)).current;
 
     useEffect(() => {
@@ -180,12 +227,6 @@ export default function RetentionNudges({ transactions, currency, profit, onAddT
 
         // ── Update last-seen timestamp ──────────────────────────────────────
         AsyncStorage.setItem(KEYS.lastSeen, today);
-
-        // ── Streak ─────────────────────────────────────────────────────────
-        updateStreak(transactions).then(({ count, loggedToday: lt }) => {
-            setStreak(count);
-            setLoggedToday(lt);
-        });
 
         // ── Inactivity: find last transaction date ──────────────────────────
         const dates = transactions.map(t => t.date).sort().reverse();
@@ -222,28 +263,6 @@ export default function RetentionNudges({ transactions, currency, profit, onAddT
 
     return (
         <>
-            {/* ── Streak badge ─────────────────────────────────────────── */}
-            {streak >= 1 && (
-                <View style={styles.streakBanner}>
-                    <Text style={styles.streakFire}>🔥</Text>
-                    <View style={{ flex: 1 }}>
-                        <Text style={styles.streakText}>
-                            {streak === 1 ? 'Day 1 — streak started!' : `${streak}-day logging streak!`}
-                        </Text>
-                        <Text style={styles.streakSub}>
-                            {loggedToday
-                                ? streak === 1 ? 'Great start — come back tomorrow to keep it going' : 'Logged today — keep it going tomorrow'
-                                : 'Log a transaction today to keep your streak alive'}
-                        </Text>
-                    </View>
-                    {!loggedToday && (
-                        <TouchableOpacity style={styles.streakBtn} onPress={onAddTransaction}>
-                            <Text style={styles.streakBtnText}>Log now</Text>
-                        </TouchableOpacity>
-                    )}
-                </View>
-            )}
-
             {/* ── Inactivity nudge ─────────────────────────────────────── */}
             {inactivityDays !== null && inactivityDays >= 3 && (
                 <TouchableOpacity style={styles.inactivityBanner} onPress={onAddTransaction}>
