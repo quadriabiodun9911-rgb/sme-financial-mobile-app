@@ -293,6 +293,19 @@ export default function ActionTrackerScreen() {
     strategic: { actions: actionPlan.strategicActions, label: 'This Quarter' },
   };
 
+  // A tactic's `prerequisite` field is just another tactic's internal id
+  // (e.g. 'crisis-collections') -- this resolves it to the real tactic
+  // (for its title) and which tab it lives under, so the Prerequisite
+  // panel can show a human-readable name and jump straight to it instead
+  // of printing the raw id as if it were the instruction itself.
+  const prereqLookup = useMemo(() => {
+    const map = new Map<string, { tactic: ActionTactic; tab: 'immediate' | 'shortterm' | 'strategic' }>();
+    (['immediate', 'shortterm', 'strategic'] as const).forEach(tabKey => {
+      for (const tactic of tabData[tabKey].actions) map.set(tactic.id, { tactic, tab: tabKey });
+    });
+    return map;
+  }, [actionPlan]);
+
   const currentTabData = tabData[activeTab];
   const executionList = Object.values(executions);
   const inProgressCount = executionList.filter(e => e.status === 'in-progress').length;
@@ -627,15 +640,24 @@ export default function ActionTrackerScreen() {
                       </View>
                     )}
 
-                    {action.prerequisite && (
-                      <View style={[styles.detailSection, { backgroundColor: Colors.primary + '12', borderLeftWidth: 3, borderLeftColor: Colors.primary }]}>
-                        <View style={styles.detailLabelRow}>
-                          <Icon name="link" size={11} color={Colors.primary} />
-                          <Text style={[styles.detailLabel, { color: Colors.primary }]}>Prerequisite</Text>
+                    {action.prerequisite && (() => {
+                      const prereq = prereqLookup.get(action.prerequisite);
+                      return (
+                        <View style={[styles.detailSection, { backgroundColor: Colors.primary + '12', borderLeftWidth: 3, borderLeftColor: Colors.primary }]}>
+                          <View style={styles.detailLabelRow}>
+                            <Icon name="link" size={11} color={Colors.primary} />
+                            <Text style={[styles.detailLabel, { color: Colors.primary }]}>Prerequisite</Text>
+                          </View>
+                          <Text style={styles.detailText}>Complete this first: {prereq?.tactic.title || action.prerequisite}</Text>
+                          {prereq && (
+                            <NextStepLink
+                              text={`Go to "${prereq.tactic.title}"`}
+                              onPress={() => { setActiveTab(prereq.tab); setExpandedActionId(prereq.tactic.id); }}
+                            />
+                          )}
                         </View>
-                        <Text style={styles.detailText}>Complete this first: {action.prerequisite}</Text>
-                      </View>
-                    )}
+                      );
+                    })()}
 
                     {action.screen && (
                       <NextStepLink
