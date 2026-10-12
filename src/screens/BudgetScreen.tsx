@@ -25,7 +25,7 @@ import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
 import { Budget } from '../types';
 import { showAlert, confirmAction } from '../utils/webAlert';
-import Icon from '../components/ui/Icon';
+import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 
 const BUDGET_HEALTH_FACTOR_LABEL: Record<BudgetHealthFactorKey, string> = {
@@ -49,6 +49,20 @@ const EXPENSE_CATEGORIES = [
     'Office & Admin', 'Salaries', 'Marketing', 'Equipment', 'Software',
     'Rent', 'Utilities', 'Transport', 'Insurance', 'Professional Fees',
     'Supplies', 'Maintenance', 'Travel', 'Training', 'Other',
+];
+
+// Budget Strategy (the planning/adjust-and-simulate tool) and Budget
+// Intelligence (the narrative/health-score analysis layer) each restate
+// revenue/commitments/profit the Overview tab's own Financial Overview
+// card and per-category table already show at a glance -- same
+// tab-gated-not-stacked pattern Risk Management and Cash Flow already use
+// for their own secondary analysis, rather than three overlapping
+// "how's my revenue doing" sections stacked in one scroll.
+type Tab = 'overview' | 'strategy' | 'intelligence';
+const TABS: { key: Tab; icon: IconName; label: string }[] = [
+    { key: 'overview',     icon: 'list',         label: 'Overview' },
+    { key: 'strategy',     icon: 'bar-chart-2',  label: 'Strategy' },
+    { key: 'intelligence', icon: 'zap',          label: 'Intelligence' },
 ];
 
 // Financial Overview's revenue/COGS/asset targets are stored the exact
@@ -110,6 +124,10 @@ export default function BudgetScreen() {
     const now = new Date();
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const monthLabel   = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+    const [tab, setTab] = useState<Tab>(
+        (['overview', 'strategy', 'intelligence'] as Tab[]).includes(navParams?.tab as Tab) ? (navParams!.tab as Tab) : 'overview'
+    );
 
     const [showForm,    setShowForm]    = useState(false);
     const [editingId,   setEditingId]   = useState<string | null>(null);
@@ -332,10 +350,10 @@ export default function BudgetScreen() {
         budgets.forEach(b => { seed[b.id] = String(b.monthlyAmount); });
         setAdjustedAmounts(seed);
         setAdjustMode(true);
-        // The adjust panel lives inside the Budget Strategy card near the
-        // top of the scroll — jump there so triggering it from the sticky
-        // header (reachable from anywhere on the page) doesn't leave users
-        // staring at whatever section they'd scrolled down to.
+        // The adjust panel lives inside the Budget Strategy card, now its
+        // own tab -- switch there (reachable from the sticky header's
+        // "Adjust" button on any tab) and jump to the top of its content.
+        setTab('strategy');
         scrollRef.current?.scrollTo({ y: 0, animated: true });
     };
     const cancelAdjustMode = () => { setAdjustMode(false); setAdjustedAmounts({}); };
@@ -490,7 +508,18 @@ export default function BudgetScreen() {
                 </View>
             )}
 
+            <View style={s.tabBar}>
+                {TABS.map(t => (
+                    <TouchableOpacity key={t.key} style={[s.tab, tab === t.key && s.tabActive]} onPress={() => setTab(t.key)}>
+                        <Icon name={t.icon} size={13} color={tab === t.key ? Colors.primary : Colors.textMuted} />
+                        <Text style={[s.tabText, tab === t.key && s.tabTextActive]}>{t.label}</Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+
             <ScrollView ref={scrollRef} style={s.scroll} contentContainerStyle={s.pad}>
+                {tab === 'overview' && (
+                <>
                 {budgetPeriodLapsed && (
                     <TouchableOpacity style={s.lapsedBanner} onPress={openAutoGen} activeOpacity={0.8}>
                         <Icon name="calendar" size={16} color={Colors.warning} />
@@ -614,6 +643,13 @@ export default function BudgetScreen() {
                     </View>
                 </View>
 
+                <NextStepLink text="See the full plan — Budget Strategy, Adjust & Simulate" onPress={() => setTab('strategy')} />
+                <NextStepLink text="See the narrative, revenue/cash-flow variance & health score — Budget Intelligence" onPress={() => setTab('intelligence')} />
+                </>
+                )}
+
+                {tab === 'strategy' && (
+                <>
                 {/* Budget Strategy — revenue, cash, and profit impact of the plan.
                     Show whenever there's something meaningful to assess: a budget,
                     an active loan (so its repayment burden is visible), or revenue. */}
@@ -782,7 +818,11 @@ export default function BudgetScreen() {
                         ))}
                     </View>
                 )}
+                </>
+                )}
 
+                {tab === 'intelligence' && (
+                <>
                 {/* Budget Intelligence -- Revenue vs. target, Net Cash Flow,
                     a synthesized narrative, a WHY explanation per over
                     -budget category, and (folded in below, not a second
@@ -885,7 +925,11 @@ export default function BudgetScreen() {
                         )}
                     </View>
                 )}
+                </>
+                )}
 
+                {tab === 'overview' && (
+                <>
                 {/* Budget vs actual table */}
                 {budgets.length === 0 && displayBva.length === 0 ? (
                     <View style={s.emptyState}>
@@ -971,6 +1015,8 @@ export default function BudgetScreen() {
                         </View>
                     );
                 })}
+                </>
+                )}
             </ScrollView>
 
             {/* Add/Edit modal */}
@@ -1194,6 +1240,12 @@ const s = StyleSheet.create({
     // 320-375px CSS width with even just 2 of the 3 buttons showing.
     headerRow:    { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', rowGap: Spacing.sm, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, gap: Spacing.md },
     backBtn:      { color: Colors.primary, fontSize: 14 },
+
+    tabBar:       { flexDirection: 'row', backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    tab:          { flex: 1, paddingVertical: 12, alignItems: 'center', gap: 3, flexDirection: 'row', justifyContent: 'center' },
+    tabActive:    { borderBottomWidth: 3, borderBottomColor: Colors.primary },
+    tabText:      { fontSize: 11.5, color: Colors.textMuted, fontWeight: '600' },
+    tabTextActive:{ color: Colors.primary },
     screenTitle:  { flex: 1, fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
     addBtn:       { backgroundColor: Colors.primary, borderRadius: Radius.sm, paddingHorizontal: 14, paddingVertical: 7 },
     addBtnText:   { color: '#fff', fontSize: 13, fontWeight: '700' },
