@@ -136,7 +136,7 @@ const PRIORITY_TIER_META: Record<PriorityTier, { emoji: string; label: string; c
     opportunity: { emoji: '🟢', label: 'Opportunity', color: Colors.primary, tinted: false },
 };
 
-const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen }> = {
+const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen; params?: Record<string, any> }> = {
     overdue_invoices:     { icon: 'dollar-sign',    screen: 'invoices' },
     overdue_loan_payments: { icon: 'alert-triangle', screen: 'loans' },
     overdue_transactions:  { icon: 'dollar-sign',    screen: 'transactions' },
@@ -148,15 +148,19 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen 
     financing_opportunity:  { icon: 'trending-up',    screen: 'financing-marketplace' },
     payroll_overdue:        { icon: 'users',           screen: 'payroll' },
     payroll_due_soon:       { icon: 'users',           screen: 'payroll' },
-    tax_deadline_overdue:   { icon: 'alert-triangle',  screen: 'reports' },
-    tax_deadline_due_soon:  { icon: 'alert-circle',    screen: 'reports' },
+    // 'reports' alone (no params) lands on the default Financial
+    // Statements > Balance Sheet tab, not anything tax-related -- these
+    // three point straight at the actual Tax Analytics tab each finding is
+    // about instead of the generic Reports home.
+    tax_deadline_overdue:   { icon: 'alert-triangle',  screen: 'reports', params: { reportSection: 'tax', reportTab: 'tax-filing' } },
+    tax_deadline_due_soon:  { icon: 'alert-circle',    screen: 'reports', params: { reportSection: 'tax', reportTab: 'tax-filing' } },
     goal_deadline_passed:   { icon: 'target',           screen: 'goals' },
     goal_off_track:         { icon: 'flag',             screen: 'goals' },
     recurring_transaction_overdue: { icon: 'repeat',    screen: 'transactions' },
     budget_period_lapsed:   { icon: 'calendar',        screen: 'budget' },
     asset_nearing_replacement: { icon: 'briefcase',    screen: 'assets' },
     inventory_stockout_risk:   { icon: 'zap',          screen: 'inventory' },
-    tax_ability_to_pay_shortfall: { icon: 'alert-triangle', screen: 'reports' },
+    tax_ability_to_pay_shortfall: { icon: 'alert-triangle', screen: 'reports', params: { reportSection: 'tax', reportTab: 'tax' } },
     inventory_slow_moving:     { icon: 'package',      screen: 'inventory' },
     inventory_expired:         { icon: 'alert-triangle', screen: 'inventory' },
     inventory_expiring_soon:   { icon: 'alert-circle', screen: 'inventory' },
@@ -1915,7 +1919,10 @@ export default function DashboardScreen() {
                 {canViewFinancials && monthlyMission && (
                   <TouchableOpacity
                     style={styles.missionCard}
-                    onPress={() => setCurrentScreen(PRIORITY_KIND_META[monthlyMission.kind]?.screen ?? 'transactions')}
+                    onPress={() => {
+                      const meta = PRIORITY_KIND_META[monthlyMission.kind];
+                      navigate(meta?.screen ?? 'transactions', meta?.params);
+                    }}
                     activeOpacity={0.85}
                   >
                     <View style={styles.sectionTitleRow}>
@@ -1962,7 +1969,7 @@ export default function DashboardScreen() {
                         <TouchableOpacity
                           key={item.id}
                           style={[styles.topPriorityRow, i < arr.length - 1 && styles.topPriorityRowBorder]}
-                          onPress={() => setCurrentScreen(kindMeta.screen)}
+                          onPress={() => navigate(kindMeta.screen, kindMeta.params)}
                           activeOpacity={0.75}
                         >
                           <Text style={styles.topPriorityNumber}>{NUMBER_EMOJI[i]}</Text>
@@ -2030,7 +2037,7 @@ export default function DashboardScreen() {
                               <TouchableOpacity
                                 key={item.id}
                                 style={[styles.priorityCard, tierMeta.tinted && { borderLeftColor: tierMeta.color, backgroundColor: tierMeta.color + '08' }]}
-                                onPress={() => setCurrentScreen(kindMeta.screen)}
+                                onPress={() => navigate(kindMeta.screen, kindMeta.params)}
                               >
                                 <View style={[styles.priorityIconBadge, { backgroundColor: tierMeta.color + '22' }]}>
                                   <Icon name={kindMeta.icon} size={16} color={tierMeta.color} />
