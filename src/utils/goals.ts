@@ -78,6 +78,80 @@ export function refreshGoal(
     return { ...updated, progress, status };
 }
 
+// True for goal types where LOWER is progress (cost, overdue AR,
+// concentration) -- same direction computeGoalProgress already uses, kept
+// here as one named check instead of repeating the same four-type list
+// wherever a goal's direction matters.
+export function isReductionGoal(type: GoalType): boolean {
+    return type === 'cost_reduction' || type === 'reduce_overdue_ar'
+        || type === 'customer_concentration' || type === 'supplier_concentration';
+}
+
+// ─── Goal checkpoints -- calendar-anchored progress tracking ─────────────────
+//
+// The Goal Bridge's own "Milestones" are deliberately a forward-looking
+// "what to aim for from today" plan, recomputed fresh every time it's
+// viewed -- which means their month numbers are relative to "now," not
+// fixed calendar dates, so there's nothing to check a past one against.
+// This is the other half: FIXED checkpoints anchored to the goal's real
+// createdAt/deadline (set once, never shifting), so a checkpoint whose date
+// has already passed can honestly be compared against where the goal
+// actually stands today -- "ahead of this checkpoint" / "behind this
+// checkpoint" -- not just a list of future targets with no feedback.
+//
+// Deliberately NOT a claim about what the goal's value WAS on that past
+// date (this app keeps no historical snapshot of goal.currentValue over
+// time) -- every checkpoint still compares against TODAY's real
+// currentValue, worded as "as of today" rather than implying a historical
+// read it doesn't have.
+export interface GoalCheckpoint {
+    month: number;           // months since goal.createdAt
+    date: string;            // ISO date this checkpoint falls on
+    targetValue: number;     // interpolated baseline -> target at this fraction of the timeline
+    isFinal: boolean;
+    state: 'upcoming' | 'ahead' | 'behind';
+    // How far today's real currentValue is from this checkpoint's target --
+    // 0 for 'upcoming' (nothing to compare yet).
+    varianceValue: number;
+}
+
+export function computeGoalCheckpoints(goal: FinancialGoal): GoalCheckpoint[] {
+    const created = new Date(goal.createdAt);
+    const due = new Date(goal.deadline);
+    const totalDays = Math.max(1, (due.getTime() - created.getTime()) / 86400000);
+    const totalMonths = Math.max(1, totalDays / 30);
+    // Same "~4-5 checkpoints" cadence calculateGoalBridge's own milestones
+    // use, so the two never disagree about how granular a goal's plan
+    // should feel.
+    const stepSize = Math.max(1, Math.ceil(totalMonths / 4));
+    const todayDays = (Date.now() - created.getTime()) / 86400000;
+    const reducing = isReductionGoal(goal.type);
+
+    const checkpointAt = (month: number, isFinal: boolean): GoalCheckpoint => {
+        const frac = Math.min(1, month / totalMonths);
+        const targetValue = goal.baselineValue + (goal.targetValue - goal.baselineValue) * frac;
+        const date = new Date(created);
+        date.setDate(date.getDate() + Math.round(month * 30));
+        const hasPassed = todayDays >= month * 30;
+        const met = reducing ? goal.currentValue <= targetValue : goal.currentValue >= targetValue;
+        return {
+            month,
+            date: date.toISOString().slice(0, 10),
+            targetValue: Math.round(targetValue * 100) / 100,
+            isFinal,
+            state: !hasPassed ? 'upcoming' : met ? 'ahead' : 'behind',
+            varianceValue: hasPassed ? Math.abs(goal.currentValue - targetValue) : 0,
+        };
+    };
+
+    const checkpoints: GoalCheckpoint[] = [];
+    for (let month = stepSize; month < totalMonths; month += stepSize) {
+        checkpoints.push(checkpointAt(month, false));
+    }
+    checkpoints.push(checkpointAt(totalMonths, true));
+    return checkpoints;
+}
+
 // ─── Strategy generation ──────────────────────────────────────────────────────
 
 export function generateStrategy(

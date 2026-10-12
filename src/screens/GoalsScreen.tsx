@@ -12,7 +12,7 @@ import DateInput from '../components/DateInput';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { GoalType, FinancialGoal, Transaction } from '../types';
-import { generateStrategy, goalDefaults, buildNewGoal } from '../utils/goals';
+import { generateStrategy, goalDefaults, buildNewGoal, computeGoalCheckpoints, GoalCheckpoint } from '../utils/goals';
 import NextStepLink from '../components/NextStepLink';
 import { calculateGoalBridge, mapSavedGoalToBridge, formatGoalMetric } from '../utils/goalBridgeEngine';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
@@ -181,6 +181,26 @@ export default function GoalsScreen() {
         const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
         return calculateGoalBridge(mapSavedGoalToBridge(planGoal), planDiagnosis.metrics, allTactics, settings.currency);
     }, [planGoal, planDiagnosis, settings.currency]);
+
+    // Fixed, calendar-anchored checkpoints (createdAt -> deadline) for the
+    // Milestones list below -- distinct from planBridge.milestones above,
+    // which regenerate relative to "now" every time the plan is opened and
+    // so have nothing to check a past one against. These don't move, which
+    // is what lets a passed checkpoint be compared against where the goal
+    // actually stands today. See computeGoalCheckpoints's own doc comment.
+    const planCheckpoints = useMemo(
+        () => planGoal ? computeGoalCheckpoints(planGoal) : [],
+        [planGoal]
+    );
+    // Same unit convention GoalCard's own fmtUnit uses (currency/%/days by
+    // goal.unit), kept in sync with it rather than routed through
+    // formatGoalMetric's narrower bridge-engine goal type.
+    const fmtCheckpointValue = (value: number) => {
+        if (!planGoal) return '';
+        return planGoal.unit === '%' ? `${value.toFixed(1)}%`
+            : planGoal.unit === 'days' ? `${Math.round(value)} days`
+            : `${currency}${Math.round(value).toLocaleString()}`;
+    };
 
     // "What could stop me from reaching THIS goal" — filters the same real
     // diagnosis root-causes and Risk Radar categories shown elsewhere down
@@ -671,20 +691,43 @@ export default function GoalsScreen() {
                                                 <Icon name="flag" size={15} color={Colors.textPrimary} />
                                                 <Text style={[styles.sectionTitle, styles.sectionTitleInRow]}>Milestones</Text>
                                             </View>
-                                            {planBridge.milestones.map((milestone, idx) => (
-                                                <View key={idx} style={styles.milestoneCard}>
-                                                    <View style={styles.milestoneLeft}>
-                                                        <View style={[styles.milestoneDot, { backgroundColor: idx === planBridge.milestones.length - 1 ? Colors.income : Colors.primary }]} />
-                                                        <View style={styles.milestoneContent}>
-                                                            <Text style={styles.milestoneMonth}>Month {milestone.month}</Text>
-                                                            <Text style={styles.milestoneDescription}>{milestone.description}</Text>
+                                            <Text style={styles.strategyFooter}>
+                                                Fixed checkpoints from when you set this goal to your deadline -- once a checkpoint's date has passed, it's checked against where you actually stand today.
+                                            </Text>
+                                            {planCheckpoints.map((checkpoint, idx) => {
+                                                const dotColor = checkpoint.state === 'behind' ? Colors.expense : checkpoint.state === 'ahead' ? Colors.income : Colors.primary;
+                                                const varianceText = checkpoint.state === 'upcoming'
+                                                    ? `Due ${checkpoint.date}`
+                                                    : checkpoint.state === 'ahead'
+                                                    ? `✓ Past checkpoint — ${fmtCheckpointValue(checkpoint.varianceValue)} ahead of target`
+                                                    : `⚠ Past checkpoint — ${fmtCheckpointValue(checkpoint.varianceValue)} behind target`;
+                                                return (
+                                                    <View key={idx} style={[styles.milestoneCard, { borderLeftColor: dotColor }]}>
+                                                        <View style={styles.milestoneLeft}>
+                                                            <View style={[styles.milestoneDot, { backgroundColor: dotColor }]} />
+                                                            <View style={styles.milestoneContent}>
+                                                                <Text style={styles.milestoneMonth}>Month {checkpoint.month}{checkpoint.isFinal ? ' (deadline)' : ''}</Text>
+                                                                <Text style={styles.milestoneDescription}>
+                                                                    {checkpoint.isFinal ? 'Goal achieved: ' : 'Reach '}{fmtCheckpointValue(checkpoint.targetValue)}
+                                                                </Text>
+                                                                <Text style={[styles.milestoneVariance, { color: dotColor }]}>{varianceText}</Text>
+                                                            </View>
                                                         </View>
                                                     </View>
-                                                    <Text style={styles.milestoneValue}>{formatGoalMetric(milestone.targetValue, planBridge.goal.type, currency)}</Text>
-                                                </View>
-                                            ))}
+                                                );
+                                            })}
 
-                                            <TouchableOpacity style={styles.ctaButton} onPress={() => { setPlanGoalId(null); setCurrentScreen('action-tracker'); }}>
+                                            {/* Not setPlanGoalId(null) first -- this Plan view is a
+                                                Modal, and closing it with a slide-out animation in
+                                                the same tick as the screen switch races the Modal's
+                                                own unmount against the navigation, which on some
+                                                devices left the closing Modal visually on top of the
+                                                freshly-mounted Action Tracker (reads as "nothing
+                                                happened, still on the plan"). GoalsScreen unmounts
+                                                entirely on screen change anyway, so planGoalId resets
+                                                to its initial value on its own -- no manual reset
+                                                needed. */}
+                                            <TouchableOpacity style={styles.ctaButton} onPress={() => setCurrentScreen('action-tracker')}>
                                                 <Text style={styles.ctaButtonText}>Start Executing This Plan →</Text>
                                             </TouchableOpacity>
                                         </>
@@ -797,7 +840,7 @@ export default function GoalsScreen() {
                                                             <Text style={styles.actionDetail}>{gap.note}</Text>
                                                         </View>
                                                     ))}
-                                                    <NextStepLink text="Add your economic assumptions in Settings" onPress={() => { setPlanGoalId(null); setCurrentScreen('settings'); }} />
+                                                    <NextStepLink text="Add your economic assumptions in Settings" onPress={() => setCurrentScreen('settings')} />
                                                 </>
                                             )}
 
@@ -827,7 +870,7 @@ export default function GoalsScreen() {
                                                         <Text style={styles.readinessNarrative}>{planBudgetAlignment.message}</Text>
                                                     </View>
                                                     {planBudgetAlignment.status !== 'aligned' && (
-                                                        <NextStepLink text="Review your budget" onPress={() => { setPlanGoalId(null); setCurrentScreen('budget'); }} />
+                                                        <NextStepLink text="Review your budget" onPress={() => setCurrentScreen('budget')} />
                                                     )}
                                                 </>
                                             )}
@@ -850,7 +893,7 @@ export default function GoalsScreen() {
                                                         <Text style={styles.readinessNarrative}>{planForecastAlignment.message}</Text>
                                                     </View>
                                                     {!planForecastAlignment.onPace && (
-                                                        <NextStepLink text="See the full cash flow forecast" onPress={() => { setPlanGoalId(null); setCurrentScreen('cashflow'); }} />
+                                                        <NextStepLink text="See the full cash flow forecast" onPress={() => setCurrentScreen('cashflow')} />
                                                     )}
                                                 </>
                                             )}
@@ -873,7 +916,7 @@ export default function GoalsScreen() {
                                                         <Text style={styles.readinessNarrative}>{planRevenueMarginForecastAlignment.message}</Text>
                                                     </View>
                                                     {!planRevenueMarginForecastAlignment.onPace && (
-                                                        <NextStepLink text="See the full revenue forecast" onPress={() => { setPlanGoalId(null); navigate('future-statements'); }} />
+                                                        <NextStepLink text="See the full revenue forecast" onPress={() => navigate('future-statements')} />
                                                     )}
                                                 </>
                                             )}
@@ -1289,6 +1332,7 @@ const styles = StyleSheet.create({
     milestoneMonth: { fontSize: 10, color: Colors.textMuted, fontWeight: '600', marginBottom: 2 },
     milestoneDescription: { fontSize: 12, fontWeight: '700', color: Colors.textPrimary },
     milestoneValue: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary },
+    milestoneVariance: { fontSize: 11, fontWeight: '700', marginTop: 3 },
 
     ctaButton: { backgroundColor: Colors.income, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: Spacing.sm, marginBottom: Spacing.sm },
     ctaButtonText: { fontSize: 14, fontWeight: '700', color: '#fff' },

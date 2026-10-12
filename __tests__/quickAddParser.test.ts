@@ -48,4 +48,25 @@ describe('parseQuickAddText', () => {
         expect(result.description.toLowerCase()).not.toContain('15000');
         expect(result.description.toLowerCase()).toContain('rice');
     });
+
+    it('reads "[Name] bought" as a sale, not a purchase by the business', () => {
+        const result = parseQuickAddText('Mr Seun bought 200 bags of rice for 40000');
+        expect(result.type).toBe('income');
+        expect(result.confidentType).toBe(true);
+    });
+
+    it('reads "customer bought" as a sale', () => {
+        const result = parseQuickAddText('Customer bought 3 phones for 90000');
+        expect(result.type).toBe('income');
+    });
+
+    it('still reads a bare "Bought" (no third-party subject) as the business buying', () => {
+        const result = parseQuickAddText('Bought fuel for 5000');
+        expect(result.type).toBe('expense');
+    });
+
+    it('still reads "bought from [Name]" as the business buying, not a sale', () => {
+        const result = parseQuickAddText('Bought rice from Mr Seun for 40000');
+        expect(result.type).toBe('expense');
+    });
 });

@@ -47,6 +47,29 @@ const EXPENSE_WORDS = [
     'salary', 'salaries', 'wage', 'wages', 'bill', 'fee', 'repair',
 ];
 
+// "Mr Seun bought 200 bags of rice for 40000" is a SALE -- a customer
+// buying FROM the business -- even though "bought" is normally an expense
+// signal ("Bought fuel 5000", the business doing the buying with no stated
+// subject). Distinguished by who's doing the buying: a title
+// (Mr/Mrs/Ms/Miss/Dr) or "customer"/"client"/"buyer" sitting directly
+// before the verb means a third party is the buyer, i.e. a sale. "I bought
+// from Mr Seun" doesn't match this -- there the marker falls AFTER the
+// verb, so the business is still the one buying.
+const BUY_VERBS = ['bought', 'purchased', 'buys', 'buy'];
+const THIRD_PARTY_BUYER_MARKERS = ['mr ', 'mrs ', 'ms ', 'miss ', 'dr ', 'customer', 'client', 'buyer'];
+
+function isThirdPartyPurchase(lower: string): boolean {
+    for (const verb of BUY_VERBS) {
+        const verbIdx = lower.indexOf(verb);
+        if (verbIdx === -1) continue;
+        for (const marker of THIRD_PARTY_BUYER_MARKERS) {
+            const markerIdx = lower.indexOf(marker);
+            if (markerIdx !== -1 && markerIdx < verbIdx && verbIdx - markerIdx < 20) return true;
+        }
+    }
+    return false;
+}
+
 export function parseQuickAddText(text: string): ParsedQuickAdd {
     const trimmed = text.trim();
     const lower = trimmed.toLowerCase();
@@ -60,9 +83,12 @@ export function parseQuickAddText(text: string): ParsedQuickAdd {
     // happens to have more overlapping stems.
     const incomePresent = INCOME_WORDS.some(w => lower.includes(w));
     const expensePresent = EXPENSE_WORDS.some(w => lower.includes(w));
+    const thirdPartyPurchase = isThirdPartyPurchase(lower);
 
-    const type: 'income' | 'expense' = incomePresent && !expensePresent ? 'income' : 'expense';
-    const confidentType = incomePresent !== expensePresent;
+    const type: 'income' | 'expense' = thirdPartyPurchase
+        ? 'income'
+        : incomePresent && !expensePresent ? 'income' : 'expense';
+    const confidentType = thirdPartyPurchase || incomePresent !== expensePresent;
 
     const description = stripSpanAndClean(trimmed, { start, end });
 
