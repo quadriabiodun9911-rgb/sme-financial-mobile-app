@@ -169,6 +169,13 @@ export default function LoansScreen() {
     };
 
     const openAdd = () => { resetForm(); setShowForm(true); };
+    // Same entry point as openAdd, but for the "Add the loan first" prompt
+    // on an unlinked repayment -- principal/rate/term can't be guessed from
+    // a single repayment transaction, so only the purpose is prefilled, from
+    // the transaction's own description, as an honest hint of what the loan
+    // this repayment belongs to is for. The repayment still has to be
+    // applied to the new loan afterward via "Apply to loan" below.
+    const openAddForRepayment = (description: string) => { resetForm(); setPurpose(description); setShowForm(true); };
 
     const handleQaTextChange = (text: string) => {
         setQaText(text);
@@ -695,7 +702,9 @@ export default function LoansScreen() {
                                         )}
                                     </View>
                                     {activeLoans.length === 0 ? (
-                                        <Text style={s.unlinkedMeta}>Add the loan first</Text>
+                                        <TouchableOpacity onPress={() => openAddForRepayment(r.description)}>
+                                            <Text style={s.unlinkedAdd}>Add the loan first →</Text>
+                                        </TouchableOpacity>
                                     ) : activeLoans.length === 1 ? (
                                         <TouchableOpacity onPress={() => applyRepaymentToLoan(r.transactionId, activeLoans[0].id)}>
                                             <Text style={s.unlinkedAdd}>Apply to {activeLoans[0].lenderName || 'loan'} →</Text>
