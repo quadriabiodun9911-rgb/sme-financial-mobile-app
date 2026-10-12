@@ -229,38 +229,51 @@ export function generateRevenueActions(
 ): ActionTactic[] {
   const actions: ActionTactic[] = [];
 
-  // REVENUE TACTIC 1: Price increase
-  const priceIncreasePercent = 5;
-  const priceIncreaseImpact = (metrics.totalRevenue * priceIncreasePercent) / 100;
-  const churnRisk = 0.05; // 5% customer churn risk
+  // REVENUE TACTIC 1: Price increase -- only when a real margin gap was
+  // actually diagnosed (the 'low-profit-margin' root cause,
+  // financialDiagnosisEngine.ts), not unconditionally for every business
+  // regardless of their real numbers. This used to fire -- and claim
+  // "Profit margin is below industry standard" -- even for a business
+  // with an excellent margin; a false claim used to justify a
+  // recommendation breaks trust in every other recommendation on the
+  // same screen, which defeats the persuasion it was going for. The
+  // rationale now quotes that diagnosis's own real problem/impact
+  // figures (already loss-framed -- "Losing ₦X potential profit
+  // monthly" -- see low-profit-margin's own `impact` text) instead of an
+  // unverified generic claim.
+  const marginDiagnosis = diagnosis.diagnoses.find(d => d.id === 'low-profit-margin');
+  if (marginDiagnosis) {
+    const priceIncreasePercent = 5;
+    const priceIncreaseImpact = (metrics.totalRevenue * priceIncreasePercent) / 100;
+    const churnRisk = 0.05; // 5% customer churn risk
 
-  actions.push({
-    id: 'revenue-price-increase',
-    title: `Increase Prices by ${priceIncreasePercent}%`,
-    description: `Raise prices to improve margins. Expected: ${currency}${priceIncreaseImpact.toLocaleString()} additional monthly revenue (5% churn adjustment).`,
-    category: 'revenue',
-    priority: 7,
-    timeframe: 'month',
-    timelineWeeks: 4,
-    expectedImpact: priceIncreaseImpact * (1 - churnRisk),
-    impactType: 'revenue',
-    difficulty: 'medium',
-    successProbability: 0.8,
-    rationale:
-      'Profit margin is below industry standard. Small price increases with minimal churn improve margins significantly.',
-    steps: [
-      'Analyze competitive pricing',
-      'Segment customers by sensitivity',
-      'Prepare value communication',
-      'Announce to customers (with notice period)',
-      'Implement new pricing',
-    ],
-    metrics: ['Revenue increase %', 'Customer churn %', 'Profit margin %'],
-    prerequisite: 'crisis-collections', // Stabilize crisis first
-    screen: 'inventory',
-    screenParams: { tab: 'pricing' },
-    actionLabel: 'Set your new price and see the profit impact',
-  });
+    actions.push({
+      id: 'revenue-price-increase',
+      title: `Increase Prices by ${priceIncreasePercent}%`,
+      description: `Raise prices to improve margins. Expected: ${currency}${priceIncreaseImpact.toLocaleString()} additional monthly revenue (5% churn adjustment).`,
+      category: 'revenue',
+      priority: 7,
+      timeframe: 'month',
+      timelineWeeks: 4,
+      expectedImpact: priceIncreaseImpact * (1 - churnRisk),
+      impactType: 'revenue',
+      difficulty: 'medium',
+      successProbability: 0.8,
+      rationale: `${marginDiagnosis.problem}. ${marginDiagnosis.impact} -- a 5% price increase with minimal churn closes most of that gap.`,
+      steps: [
+        'Analyze competitive pricing',
+        'Segment customers by sensitivity',
+        'Prepare value communication',
+        'Announce to customers (with notice period)',
+        'Implement new pricing',
+      ],
+      metrics: ['Revenue increase %', 'Customer churn %', 'Profit margin %'],
+      prerequisite: 'crisis-collections', // Stabilize crisis first
+      screen: 'inventory',
+      screenParams: { tab: 'pricing' },
+      actionLabel: 'Set your new price and see the profit impact',
+    });
+  }
 
   // REVENUE TACTIC 2: Improve recurring revenue
   const nonRecurringRevenue = metrics.totalRevenue * (1 - metrics.revenueRecurringPct / 100);
