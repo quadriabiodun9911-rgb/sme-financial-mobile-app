@@ -82,7 +82,7 @@ function ProbabilityBar({ pct, color }: { pct: number; color: string }) {
 }
 
 export default function ActionTrackerScreen() {
-  const { transactions, invoices, finance, settings, setCurrentScreen, loans, inventory, assets } = useApp();
+  const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory, assets } = useApp();
   const [activeTab, setActiveTab] = useState<'immediate' | 'shortterm' | 'strategic'>('immediate');
   const [expandedActionId, setExpandedActionId] = useState<string | null>(null);
 
@@ -635,6 +635,14 @@ export default function ActionTrackerScreen() {
                         </View>
                         <Text style={styles.detailText}>Complete this first: {action.prerequisite}</Text>
                       </View>
+                    )}
+
+                    {action.screen && (
+                      <NextStepLink
+                        text={action.actionLabel || 'Go do this'}
+                        emphasis="button"
+                        onPress={() => navigate(action.screen!, { ...action.screenParams, focusTask: action.title })}
+                      />
                     )}
 
                     {!executions[action.id] ? (
