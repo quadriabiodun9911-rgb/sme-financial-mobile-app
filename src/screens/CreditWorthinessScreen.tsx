@@ -815,32 +815,35 @@ export default function CreditWorthinessScreen() {
                         utilization the canonical score doesn't capture),
                         just at the individual-factor level instead of
                         grouped by C, so it belongs in the same card as
-                        supporting detail, not a second scroll away. */}
-                    <Text style={[s.visibilitySub, { marginTop: Spacing.md, marginBottom: Spacing.sm }]}>
-                        The individual signals behind the Five C's above:
-                    </Text>
-                    {creditFactors.map((factor, idx) => (
-                        <View key={idx} style={s.factorCard}>
-                            <View style={s.factorHeader}>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={s.factorName}>{factor.name}</Text>
-                                    <Text style={s.factorDescription}>{factor.description}</Text>
+                        supporting detail, not a second scroll away. Tucked
+                        behind a tap (info-density audit flagged this as two
+                        full enumerated lists stacked with no disclosure) --
+                        the Five C's above already gives the grouped summary
+                        most owners need; this is the detail underneath it. */}
+                    <Collapsible title="See the individual signals behind the Five C's →">
+                        {creditFactors.map((factor, idx) => (
+                            <View key={idx} style={s.factorCard}>
+                                <View style={s.factorHeader}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={s.factorName}>{factor.name}</Text>
+                                        <Text style={s.factorDescription}>{factor.description}</Text>
+                                    </View>
+                                    <View style={{ alignItems: 'flex-end' }}>
+                                        <Text style={[s.factorScore, { color: factor.score >= 70 ? Colors.income : Colors.warning }]}>
+                                            {Math.round(factor.score)}
+                                        </Text>
+                                        <Text style={s.factorStatus}>{factor.status}</Text>
+                                    </View>
                                 </View>
-                                <View style={{ alignItems: 'flex-end' }}>
-                                    <Text style={[s.factorScore, { color: factor.score >= 70 ? Colors.income : Colors.warning }]}>
-                                        {Math.round(factor.score)}
-                                    </Text>
-                                    <Text style={s.factorStatus}>{factor.status}</Text>
-                                </View>
+                                <AnimatedBar
+                                    pct={factor.score}
+                                    color={factor.score >= 70 ? Colors.income : Colors.warning}
+                                    trackStyle={s.progressBar}
+                                    fillStyle={s.progressFill}
+                                />
                             </View>
-                            <AnimatedBar
-                                pct={factor.score}
-                                color={factor.score >= 70 ? Colors.income : Colors.warning}
-                                trackStyle={s.progressBar}
-                                fillStyle={s.progressFill}
-                            />
-                        </View>
-                    ))}
+                        ))}
+                    </Collapsible>
                 </View>
 
                 {/* Visibility Score */}

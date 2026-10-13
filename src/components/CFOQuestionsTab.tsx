@@ -26,6 +26,7 @@ import { buildAdvisorContext } from '../utils/aiAdvisor';
 import { buildBehavioralProfile } from '../utils/behavioralProfile';
 import { computeReadinessDelta } from '../utils/readinessHistory';
 import AIAdvisorCard from './AIAdvisorCard';
+import Collapsible from './Collapsible';
 import CashConversionCycleVisual from './CashConversionCycleVisual';
 import { computeRevenueStressTest, StressRiskTier } from '../utils/revenueStressTest';
 import { localDateStr } from '../utils/localDate';
@@ -307,10 +308,10 @@ export default function CFOQuestionsTab() {
                 </Text>
             </View>
 
-            {/* Q3 */}
-            <View style={s.card}>
-                <Text style={s.qLabel}>Q3</Text>
-                <Text style={s.qTitle}>What's already spoken for over the next four quarters?</Text>
+            {/* Q3 -- detail-heavy and rarely the first thing an owner needs
+                to see, unlike Q1/Q2 right above (see the info-density audit
+                that flagged this page's 9-cards-in-one-scroll problem). */}
+            <Collapsible title="Q3 — What's already spoken for over the next four quarters?">
                 {waterfall.quarters.map(q => (
                     <View key={q.label} style={s.quarterRow}>
                         <Text style={s.quarterLabel}>{q.label}</Text>
@@ -324,7 +325,7 @@ export default function CFOQuestionsTab() {
                 ))}
                 <Row label="Total committed (4Q)" value={fmt(currency, waterfall.totalCommitted)} bold />
                 <Text style={s.qNote}>Loan payments count only while each loan is still within its term. Tax is a flat estimate from your default tax rate — not a filing.</Text>
-            </View>
+            </Collapsible>
 
             {/* Q4 */}
             <View style={s.card}>
@@ -380,10 +381,7 @@ export default function CFOQuestionsTab() {
                 historical report: several revenue-decline scenarios side by
                 side, plus the exact tipping point into vulnerability. */}
             {revenueStress.available && (
-                <View style={s.card}>
-                    <Text style={s.qLabel}>Stress Test</Text>
-                    <Text style={s.qTitle}>What happens if sales suddenly slow down?</Text>
-
+                <Collapsible title="Stress Test — What happens if sales suddenly slow down?">
                     <View style={s.tableHeader}>
                         <Text style={[s.th, { flex: 1.2 }]}>Scenario</Text>
                         <Text style={s.th}>Cash</Text>
@@ -402,13 +400,14 @@ export default function CFOQuestionsTab() {
                     <View style={[s.verdictBox, { borderColor: revenueStress.vulnerabilityThresholdPct !== null ? '#fb923c' : Colors.income }]}>
                         <Text style={s.verdictText}>{revenueStress.insight}</Text>
                     </View>
-                </View>
+                </Collapsible>
             )}
 
-            {/* Q7 */}
-            <View style={s.card}>
-                <Text style={s.qLabel}>Q7</Text>
-                <Text style={s.qTitle}>Is each investment delivering what we approved it for?</Text>
+            {/* Q7 -- the most detail-heavy card on this page (full commitment
+                list, per-KPI rows, a multi-field add form), and the least
+                urgent to see by default: nothing here is a live financial
+                reading, just a self-kept record. */}
+            <Collapsible title="Q7 — Is each investment delivering what we approved it for?" forceOpen={capitalCommitments.length > 0}>
                 <Text style={s.qNote}>Track a capital commitment and check its real numbers against what was approved — no auto-detection, this is a record you keep yourself.</Text>
 
                 {capitalCommitments.map(c => (
@@ -460,7 +459,7 @@ export default function CFOQuestionsTab() {
                         </View>
                     </View>
                 )}
-            </View>
+            </Collapsible>
         </ScrollView>
     );
 }

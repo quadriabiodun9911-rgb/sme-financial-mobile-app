@@ -8,6 +8,7 @@ import FooterNav from '../components/FooterNav';
 import Icon, { IconName } from '../components/ui/Icon';
 import { ChipGroup } from '../components/ui/ChipGroup';
 import { ExpandableCard } from '../components/ui/ExpandableCard';
+import Collapsible from '../components/Collapsible';
 import { computeRiskScore, computeDSCR, computeFinancingReadinessScore, RiskScore, latestTransactionDate } from '../utils/finance';
 import { buildFinancingFitInput, rankFinancingProducts, FinancingFitResult, FinancingFitVerdict } from '../utils/financingFit';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
@@ -706,8 +707,17 @@ export default function FinancingMarketplaceScreen() {
                 ))}
 
                 {canPublishToLenders && (
-                    <View style={s.visibilityBox}>
-                        <Text style={s.visibilityTitle}>Be Visible to Lenders</Text>
+                    // This was a single always-open block bundling six
+                    // sub-sections (share/don't-share grid, factor
+                    // breakdown, type picker, readiness nudge, publish
+                    // button, active listings) -- the info-density audit
+                    // flagged it as the heaviest always-open section on
+                    // this screen. It's an opt-in publishing action, not
+                    // something every visitor needs open by default --
+                    // except an owner who already has active listings,
+                    // who should see their own published status without
+                    // an extra tap.
+                    <Collapsible title="Be Visible to Lenders" forceOpen={pipelineListings.filter(l => l.status !== 'inactive').length > 0}>
                         <Text style={s.visibilitySubtitle}>
                             Publish a summary of your readiness — not your raw financial data — so Quad360's
                             lending partners can find businesses that fit their financing criteria.
@@ -807,7 +817,7 @@ export default function FinancingMarketplaceScreen() {
                             summary so it's ready the moment they are. Listings expire automatically after 90 days;
                             republish any time your numbers change.
                         </Text>
-                    </View>
+                    </Collapsible>
                 )}
 
                 <View style={s.footerNote}>
@@ -921,8 +931,6 @@ const s = StyleSheet.create({
     footerNote: { marginTop: Spacing.sm, marginBottom: 20 },
     footerNoteText: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, textAlign: 'center' },
 
-    visibilityBox: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg, marginTop: Spacing.sm, marginBottom: 20, borderWidth: 1, borderColor: Colors.equity + '40', ...Shadow.sm },
-    visibilityTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
     visibilitySubtitle: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 17, marginBottom: 14 },
 
     shareGrid: { flexDirection: 'row', gap: Spacing.md, marginBottom: 14 },
