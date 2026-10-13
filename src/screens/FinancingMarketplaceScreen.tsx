@@ -247,6 +247,13 @@ export default function FinancingMarketplaceScreen() {
 
     const risk: RiskScore = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
     const dscr = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
+    // The single biggest lever for the "Be Visible to Lenders" nudge below --
+    // lowest-scoring factor, not just the first 'danger' one, so it always
+    // points at the thing most worth fixing first.
+    const weakestFactor = useMemo(
+        () => risk.factors.length > 0 ? [...risk.factors].sort((a, b) => a.score - b.score)[0] : null,
+        [risk.factors],
+    );
 
     const requestedAmount = useMemo(() => {
         const n = parseFloat(amountText.replace(/[^0-9.]/g, ''));
@@ -751,6 +758,28 @@ export default function FinancingMarketplaceScreen() {
                             onChange={next => setSelectedTypes(new Set(next))}
                         />
 
+                        {/* A soft nudge, never a block -- visibility stays the
+                            owner's call either way (a business with messy
+                            numbers may still want early visibility, same
+                            reasoning the "sample marketplace" disclosure
+                            above already respects). This just makes sure a
+                            weak score is published on purpose, not by
+                            default, by naming the single biggest lever
+                            right where the decision is made. */}
+                        {(risk.band === 'Weak' || risk.band === 'Critical') && weakestFactor && (
+                            <View style={s.readinessNudgeBox}>
+                                <Icon name="alert-triangle" size={14} color={Colors.warning} />
+                                <View style={{ flex: 1 }}>
+                                    <Text style={s.readinessNudgeTitle}>
+                                        Your score is {risk.band.toLowerCase()} right now ({Math.round(risk.score)}/100) — lenders will see it as-is.
+                                    </Text>
+                                    <Text style={s.readinessNudgeText}>
+                                        Biggest lever: {weakestFactor.name}. {weakestFactor.explanation} You can still publish now for early visibility, or fix this first and republish.
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+
                         <TouchableOpacity style={s.publishBtn} onPress={handlePublish} disabled={publishing}>
                             <Text style={s.publishBtnText}>{publishing ? 'Publishing…' : 'Publish to Lenders'}</Text>
                         </TouchableOpacity>
@@ -783,7 +812,7 @@ export default function FinancingMarketplaceScreen() {
 
                 <View style={s.footerNote}>
                     <Text style={s.footerNoteText}>
-                        Quad360 helps you understand what financing you're realistically suited for — it does not lend, guarantee approval, or make the lending decision. Each financial institution independently evaluates and approves any application.
+                        Quad360 helps you understand what financing you're realistically suited for. {LENDING_DECISION_DISCLAIMER}
                     </Text>
                 </View>
             </ScrollView>
@@ -923,4 +952,8 @@ const s = StyleSheet.create({
     revokeLink: { fontSize: 12, color: Colors.expense, fontWeight: '600' },
 
     visibilityFootnote: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 14, lineHeight: 15 },
+
+    readinessNudgeBox: { flexDirection: 'row', gap: 10, backgroundColor: Colors.warning + '14', borderWidth: 1, borderColor: Colors.warning + '40', borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.md },
+    readinessNudgeTitle: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
+    readinessNudgeText: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16 },
 });
