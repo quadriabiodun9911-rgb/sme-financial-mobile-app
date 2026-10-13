@@ -4,6 +4,7 @@ import { Colors } from '../theme/colors';
 import { Radius, Spacing } from '../theme/tokens';
 import Icon, { IconName } from './ui/Icon';
 import { computeCostSwitch, CostSwitchVerdict } from '../utils/costSwitchEngine';
+import NextStepLink from './NextStepLink';
 
 interface Props {
     currency: string;
@@ -16,6 +17,11 @@ interface Props {
     // instead of asking the owner to retype a number they already saw.
     prefill?: { label: string; monthlyAmount: number } | null;
     onPrefillConsumed?: () => void;
+    // Shown once there's a real upfront figure to finance, so a switch that
+    // isn't affordable in cash (or that the owner would rather finance
+    // outright) can go straight to Financing Marketplace with the category
+    // and amount already filled in, instead of making them retype both.
+    onSeeFinancing?: (upfrontCost: number, costLabel: string) => void;
 }
 
 const HORIZON_MONTHS = 36;
@@ -38,7 +44,7 @@ function parseNum(value: string): number {
 // question than the existing Buy/Finance/Lease and Growth Affordability
 // calculators, which both assume a NEW cost, not a replacement for one
 // already being paid.
-export default function CostSwitchCalculator({ currency, cashBalance, minReserve, prefill, onPrefillConsumed }: Props) {
+export default function CostSwitchCalculator({ currency, cashBalance, minReserve, prefill, onPrefillConsumed, onSeeFinancing }: Props) {
     const [costLabel, setCostLabel] = useState('');
     const [currentMonthlyCost, setCurrentMonthlyCost] = useState('');
     const [upfrontCost, setUpfrontCost] = useState('');
@@ -163,6 +169,13 @@ export default function CostSwitchCalculator({ currency, cashBalance, minReserve
                                 ? `✓ Cash after: ${currency}${Math.round(result.cashAfterUpfront).toLocaleString()} (reserve kept)`
                                 : `⚠ Paying cash now would leave you below your minimum reserve (${currency}${Math.round(result.cashAfterUpfront).toLocaleString()} after) — consider financing instead`}
                         </Text>
+                    )}
+
+                    {onSeeFinancing && result.verdict !== 'increases-cost' && (financed || !result.affordableNow) && (
+                        <NextStepLink
+                            text="Need to finance this? See matching lenders"
+                            onPress={() => onSeeFinancing(upfrontCostNum, costLabel)}
+                        />
                     )}
                 </>
             )}
