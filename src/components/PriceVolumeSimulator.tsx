@@ -13,7 +13,7 @@ interface Props {
     // so tapping "Test your own volume assumption" there lands here
     // pre-filled instead of asking the owner to retype numbers already on
     // screen.
-    prefill?: { label: string; unitsSoldPerMonth: number; currentPrice: number; costPerUnit: number; currentStockUnits?: number } | null;
+    prefill?: { label: string; unitsSoldPerMonth: number; currentPrice: number; costPerUnit: number; currentStockUnits?: number; priceChangePct?: number } | null;
     onPrefillConsumed?: () => void;
 }
 
@@ -51,6 +51,20 @@ export default function PriceVolumeSimulator({ currency, prefill, onPrefillConsu
         setCurrentPrice(prefill.currentPrice > 0 ? String(prefill.currentPrice) : '');
         setCostPerUnit(prefill.costPerUnit >= 0 ? String(prefill.costPerUnit) : '');
         setCurrentStockUnits(prefill.currentStockUnits != null ? String(Math.round(prefill.currentStockUnits)) : '');
+        // Lets a hand-off carry the actual direction/size under
+        // consideration (e.g. a recommended price INCREASE) instead of
+        // always opening on the generic -5% default, which would silently
+        // contradict a price-rise recommendation the owner just came from.
+        if (prefill.priceChangePct != null) {
+            setPriceChangePct(prefill.priceChangePct.toFixed(1));
+            // The generic +15% volume-change default assumes a cut winning
+            // volume -- left as-is for a price INCREASE it would silently
+            // assume raising the price also drives MORE sales, an
+            // optimistic assumption with no basis. Default to a volume
+            // LOSS instead, the downside this hand-off is actually meant
+            // to stress-test; still just a starting point to edit.
+            if (prefill.priceChangePct > 0) setAssumedVolumeChangePct('-5');
+        }
         onPrefillConsumed?.();
     }, [prefill]);
 
