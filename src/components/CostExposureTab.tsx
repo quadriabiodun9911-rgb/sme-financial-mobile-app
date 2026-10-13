@@ -8,6 +8,7 @@ import { computeCostDecisions, CostDecisionAction } from '../utils/costDecisions
 import { computeCostExposureForecast } from '../utils/costExposureForecast';
 import { computeExternalRiskInsights, ExternalRiskInsight } from '../utils/externalRiskInsights';
 import { computeLaborProductivity } from '../utils/laborProductivity';
+import NextStepLink from './NextStepLink';
 import { computeExpenseLeaks, ExpenseLeakResult } from '../utils/expenseLeakDetection';
 import { computeUnusualSpending, UnusualSpendingResult } from '../utils/unusualSpending';
 import { computeExpenseIntelligence, ExpenseIntelligenceResult, ExpenseTier } from '../utils/expenseIntelligence';
@@ -121,6 +122,10 @@ export default function CostExposureTab() {
                             </Text>
                         </View>
                     ))}
+                    <NextStepLink
+                        text="Thinking of a fix that costs money upfront? Check if it pays for itself"
+                        onPress={() => navigate('analysis', { tab: 'decide', decideFocusTool: 'costSwitchCalc' })}
+                    />
                 </View>
             )}
 
