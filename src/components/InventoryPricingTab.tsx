@@ -255,6 +255,12 @@ export default function InventoryPricingTab() {
                                                     label: rec.item.name, unitsSoldPerMonth,
                                                     currentPrice: rec.item.sellingPrice, costPerUnit: rec.item.costPrice,
                                                     currentStockUnits: rec.item.quantity,
+                                                    // This list only ever recommends a price INCREASE (see
+                                                    // inventoryPriceRecommendations.ts) -- carry the actual
+                                                    // recommended size through instead of letting the
+                                                    // simulator open on its generic -5% discount default,
+                                                    // which would contradict the recommendation just shown.
+                                                    priceChangePct: rec.priceIncreasePct,
                                                 },
                                             })}
                                         />

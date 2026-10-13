@@ -97,9 +97,17 @@ export function computePriceVolumeImpact(input: PriceVolumeInput): PriceVolumeRe
         verdict = 'marginal';
         rationale = `This works under your assumption, but there's not enough information to say how much room for error it has.`;
     } else {
-        const buffer = priceChangePct < 0
-            ? assumedVolumeChangePct - breakEvenVolumeChangePct   // price cut: need volume to rise at least this much
-            : breakEvenVolumeChangePct - assumedVolumeChangePct;  // price rise: can afford to lose volume down to this point
+        // Sign of grossProfitChange always matches sign of (assumed -
+        // breakEven) -- newGrossProfit - currentGrossProfit factors to
+        // unitsSoldPerMonth * contributionNew * (assumed - breakEven) / 100,
+        // and contributionNew/unitsSoldPerMonth are both positive here (the
+        // branches above already ruled out sellsBelowCost and a negative
+        // change). So the margin-of-safety buffer is this same difference
+        // regardless of which direction the price moved -- a price-rise
+        // buffer computed the other way around always came out <= 0
+        // whenever profit genuinely improved, misclassifying every strong
+        // price increase as marginal.
+        const buffer = assumedVolumeChangePct - breakEvenVolumeChangePct;
         if (buffer >= SAFETY_MARGIN_PP) {
             verdict = 'strong';
             rationale = priceChangePct < 0

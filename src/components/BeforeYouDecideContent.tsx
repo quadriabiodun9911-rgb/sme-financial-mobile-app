@@ -136,7 +136,7 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
     // -consumed pattern FinancingMarketplaceScreen's own prefill uses --
     // the ref stops a later re-render (e.g. switching tabs and back) from
     // re-applying a prefill the owner already edited or cleared.
-    const [priceVolumePrefill, setPriceVolumePrefill] = useState<{ label: string; unitsSoldPerMonth: number; currentPrice: number; costPerUnit: number; currentStockUnits?: number } | null>(null);
+    const [priceVolumePrefill, setPriceVolumePrefill] = useState<{ label: string; unitsSoldPerMonth: number; currentPrice: number; costPerUnit: number; currentStockUnits?: number; priceChangePct?: number } | null>(null);
     const consumedPriceVolumePrefill = useRef(false);
     useEffect(() => {
         if (consumedPriceVolumePrefill.current || !navParams?.priceVolumePrefill) return;
