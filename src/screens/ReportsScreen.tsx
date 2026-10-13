@@ -998,8 +998,31 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
     const [openingLoans,      setOpeningLoans]       = useState(settings.openingLoans || '0');
     const [openingOtherAssets,setOpeningOtherAssets]= useState(settings.openingOtherAssets || '0');
     const [editing, setEditing] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
 
+    // These four fields are also editable on Settings (Business Profile),
+    // which validates them (non-numeric / negative rejected) before saving
+    // -- this editor saved whatever was typed straight through with no
+    // check at all, so a stray non-numeric string silently became 0
+    // everywhere downstream that reads it via parseFloat(x) || 0.
     const save = () => {
+        const fields: [string, string][] = [
+            ['Equipment & Property', openingAssets],
+            ['Other Assets', openingOtherAssets],
+            ['Other Amounts Owed', openingLiabilities],
+        ];
+        // openingLoans is excluded once a Loan Register exists -- its field
+        // is read-only in that case (see the input row below) and always
+        // holds the live register total, never a typed value to validate.
+        if (loanRegister.length === 0) fields.push(['Bank Loans & Debt', openingLoans]);
+
+        for (const [label, value] of fields) {
+            if (value && (isNaN(parseFloat(value)) || parseFloat(value) < 0)) {
+                setSaveError(`${label} must be a non-negative number, or left blank.`);
+                return;
+            }
+        }
+        setSaveError(null);
         updateSettings({ ...settings, openingAssets, openingLiabilities, openingLoans, openingOtherAssets });
         setEditing(false);
     };
@@ -1056,7 +1079,7 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
                 </Text>
 
                 {canWrite && (
-                    <TouchableOpacity style={bsStyles.editBtn} onPress={() => setEditing(e => !e)}>
+                    <TouchableOpacity style={bsStyles.editBtn} onPress={() => { setSaveError(null); setEditing(e => !e); }}>
                         <Text style={bsStyles.editBtnText}>{editing ? 'Cancel' : 'Edit Manual Values'}</Text>
                     </TouchableOpacity>
                 )}
@@ -1088,6 +1111,7 @@ function BalanceSheetTab({ finance, wcMetrics, assets, settings, updateSettings,
                             value={openingLiabilities}
                             onChange={setOpeningLiabilities}
                         />
+                        {saveError && <Text style={bsStyles.saveErrorText}>{saveError}</Text>}
                         <TouchableOpacity style={bsStyles.saveBtn} onPress={save}>
                             <Text style={bsStyles.saveBtnText}>Save Changes</Text>
                         </TouchableOpacity>
@@ -1121,6 +1145,7 @@ const bsStyles = StyleSheet.create({
     input:        { flex: 1, paddingVertical: 10, fontSize: 14, color: Colors.textPrimary },
     saveBtn:      { backgroundColor: Colors.primary, borderRadius: Radius.sm, paddingVertical: 12, alignItems: 'center', marginTop: 4, marginBottom: 8 },
     saveBtnText:  { fontSize: 14, color: '#fff', fontWeight: 'bold' },
+    saveErrorText:{ fontSize: 12, color: Colors.expense, fontWeight: '600', marginTop: 4, marginBottom: 6 },
     editNote:     { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', lineHeight: 16 },
 });
 

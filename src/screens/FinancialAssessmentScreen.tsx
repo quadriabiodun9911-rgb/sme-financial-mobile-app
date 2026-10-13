@@ -523,6 +523,9 @@ export default function FinancialAssessmentScreen() {
             const isOpen = expandedDimension === dim.key;
             const color = dim.status === 'info' ? Colors.textMuted : categoryStatusColor(dim.status);
             const badgeWord = dim.status === 'info' ? 'Info' : categoryStatusLabel(dim.status);
+            // Computed once per dimension (was filtered twice below -- once
+            // for the length check, once for the map over the same result).
+            const extraOutputs = dim.outputs.filter(o => !dim.narrative?.metrics.some(mt => mt.value === o.value));
             return (
               <TouchableOpacity
                 key={dim.key}
@@ -664,10 +667,10 @@ export default function FinancialAssessmentScreen() {
                         metric tiles above (same value, e.g. Cash on hand ==
                         Bank balance) are skipped here rather than printed
                         twice in one card. */}
-                    {dim.outputs.filter(o => !dim.narrative?.metrics.some(mt => mt.value === o.value)).length > 0 && (
+                    {extraOutputs.length > 0 && (
                       <Text style={styles.narrativeSectionLabel}>{dim.narrative ? 'More detail' : 'The numbers'}</Text>
                     )}
-                    {dim.outputs.filter(o => !dim.narrative?.metrics.some(mt => mt.value === o.value)).map((o, i) => (
+                    {extraOutputs.map((o, i) => (
                       <View key={i} style={styles.dimensionOutputRow}>
                         <Text style={styles.dimensionOutputLabel}>{o.label}</Text>
                         <Text style={styles.dimensionOutputValue}>{o.value}</Text>
