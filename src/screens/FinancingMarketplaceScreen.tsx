@@ -26,6 +26,7 @@ import { SAMPLE_FINANCING_PRODUCTS } from '../utils/financingProducts';
 import { loadActiveFinancingProducts } from '../utils/financingAdmin';
 import { bandRevenue, loadMyPipelineListings, publishPipelineListing, revokePipelineListing } from '../utils/financingPipeline';
 import { FinancingProduct, FinancingProductType, LenderType, PipelineListing } from '../types';
+import { LENDING_DECISION_DISCLAIMER } from '../utils/legalDisclaimers';
 
 const INDUSTRY_LABEL: Record<string, string> = {
     general: 'General Business',
@@ -551,8 +552,8 @@ export default function FinancingMarketplaceScreen() {
                 <View style={s.disclosureBox}>
                     <Text style={s.disclosureText}>
                         {usingLiveProducts
-                            ? "These are real financing products published by Quad360's lending partners. Fit scores are estimates based on each lender's published criteria and your recorded data — Quad360 does not make lending decisions. Each lender independently evaluates and approves any application."
-                            : "Sample marketplace — Quad360 doesn't have live lending partners yet. These are illustrative example listings that show how the fit-matching engine works once real lenders are onboarded. Fit scores are estimates based on published criteria and your recorded data — Quad360 does not make lending decisions, and no lender here is a real, currently-applyable offer."}
+                            ? `These are real financing products published by Quad360's lending partners. Fit scores are estimates based on each lender's published criteria and your recorded data — ${LENDING_DECISION_DISCLAIMER}`
+                            : `Sample marketplace — Quad360 doesn't have live lending partners yet. These are illustrative example listings that show how the fit-matching engine works once real lenders are onboarded. Fit scores are estimates based on published criteria and your recorded data — ${LENDING_DECISION_DISCLAIMER} No lender here is a real, currently-applyable offer.`}
                     </Text>
                 </View>
 

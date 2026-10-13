@@ -3,6 +3,7 @@ import { FundingReadinessPack } from './fundingReadiness';
 import { BusinessPassport } from './businessPassport';
 import { Loan } from '../types';
 import { PostFinancingMonitor } from './postFinancingMonitor';
+import { LENDING_DECISION_DISCLAIMER } from './legalDisclaimers';
 
 export interface LenderSummaryFactor {
     name: string;
@@ -29,6 +30,12 @@ export interface LenderSummaryInput {
     avgMonthlyRevenue: number;
     daysActive: number;
     generatedAt: Date;
+    // One-line plain-language confidence summary (computeDataQuality) --
+    // how much of the record behind this score is bank-verified/imported
+    // vs. self-reported. Optional since not every caller of this function
+    // necessarily has it computed; when present, shown right under the
+    // score it qualifies.
+    dataConfidenceSummary?: string;
 }
 
 function fmtCurrency(currency: string, n: number): string {
@@ -44,6 +51,7 @@ export function buildLenderSummaryExport(input: LenderSummaryInput): ExportData 
     const {
         businessName, currency, overallCreditScore, creditRatingLabel,
         factors, checkpoints, runwayDays, avgMonthlyRevenue, daysActive, generatedAt,
+        dataConfidenceSummary,
     } = input;
 
     return {
@@ -51,6 +59,7 @@ export function buildLenderSummaryExport(input: LenderSummaryInput): ExportData 
         date: generatedAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
         summary: [
             { label: 'Overall Credit Score', value: `${Math.round(overallCreditScore)} / 100 (${creditRatingLabel})` },
+            ...(dataConfidenceSummary ? [{ label: 'Data Confidence', value: dataConfidenceSummary }] : []),
             { label: 'Monthly Revenue', value: fmtCurrency(currency, avgMonthlyRevenue) },
             // Infinite runway (no burn recorded, e.g. a brand new account)
             // must never render as the literal string "Infinity days" in a
@@ -101,6 +110,14 @@ export function buildBusinessPassportExport(passport: BusinessPassport, currency
         date: new Date(passport.generatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
         summary: [
             { label: 'Recorded History', value: `${passport.trackRecord.monthsOfRecordedHistory} month(s) — ${passport.trackRecord.dataMaturity}` },
+            // The one thing every figure below is only as good as: how much
+            // of this record is bank-verified/imported vs. manually typed,
+            // and how confidently it was classified. Was already computed
+            // (computeDataQuality) but never reached this document before --
+            // a lender reading self-reported numbers should see this
+            // alongside them, not have to take the rest on faith.
+            { label: 'Data Confidence', value: passport.trackRecord.dataQuality.summary },
+            { label: 'Transaction Classification', value: passport.trackRecord.dataQuality.classificationSummary },
             { label: 'Avg. Monthly Revenue', value: fmt(passport.financialIdentity.avgMonthlyRevenue) },
             { label: 'Avg. Profit Margin', value: `${passport.financialIdentity.avgMonthlyProfitMargin.toFixed(1)}%` },
             { label: 'Health / Credit Readiness Score', value: `${passport.health.score} / 100 (${passport.health.band})` },
@@ -206,6 +223,11 @@ export function buildFundingReadinessPackExport(pack: FundingReadinessPack, curr
         date: new Date(pack.generatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
         summary: [
             { label: 'Funding Readiness', value: `${pack.score} / 100 (${pack.band})` },
+            // Previously only reachable buried in the "Bank statements"
+            // document-readiness row below -- surfaced as its own headline
+            // figure so it's seen alongside the numbers it qualifies, not
+            // after them.
+            { label: 'Data Confidence', value: pack.dataQuality.summary },
             { label: 'Revenue (trailing 12 months)', value: fmt(pack.profile.revenue) },
             { label: 'Net Profit (trailing 12 months)', value: fmt(pack.profile.netProfit) },
             { label: 'Cash on hand', value: fmt(pack.profile.cash) },
@@ -303,7 +325,7 @@ export function buildPostFinancingShareExport(
                 name: 'What This Is',
                 data: [
                     { label: 'Scope', value: 'A coarse status signal only — no transaction data, exact revenue figures, or account details are included.' },
-                    { label: 'Not a credit reference', value: "Quad360 doesn't make lending decisions, and this isn't a credit report, a repayment guarantee, or a request for any action." },
+                    { label: 'Not a credit reference', value: `${LENDING_DECISION_DISCLAIMER} This isn't a credit report, a repayment guarantee, or a request for any action.` },
                     { label: 'Shared with consent', value: 'The business shared this directly and can revoke that consent at any time.' },
                 ],
             },

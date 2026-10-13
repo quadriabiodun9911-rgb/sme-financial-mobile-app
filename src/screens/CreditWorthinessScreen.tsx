@@ -38,6 +38,7 @@ import { computeFinancialChangeExplanation } from '../utils/financialChangeExpla
 import { computeFinancingReadinessIntelligence, computeLendingCapacityIntelligence } from '../utils/metricIntelligence';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { ESTIMATE_NOT_GUARANTEE, RANGE_NOT_OFFER } from '../utils/legalDisclaimers';
 
 const READINESS_DIRECTION_LABEL: Record<ReadinessDirection, string> = {
     improving: 'Improving',
@@ -519,6 +520,7 @@ export default function CreditWorthinessScreen() {
                 avgMonthlyRevenue: user?.avgMonthlyRevenue || 0,
                 daysActive: user?.daysActive || 0,
                 generatedAt: new Date(),
+                dataConfidenceSummary: dataQuality.summary,
             });
             const filePath = await generatePDF(exportData);
             await sharePDF(filePath, exportData.title);
@@ -822,9 +824,7 @@ export default function CreditWorthinessScreen() {
                 {/* Estimated Lending Capacity */}
                 <View style={[s.capacityCard, lendingCapacity.tier === 'not-yet-bankable' && s.capacityCardMuted]}>
                     <Text style={s.sectionTitle}>💰 Estimated Lending Capacity</Text>
-                    <Text style={s.capacitySub}>
-                        An illustrative range based on your own numbers — not an offer from any lender, and not a guarantee. Actual terms depend on the lender you approach.
-                    </Text>
+                    <Text style={s.capacitySub}>{RANGE_NOT_OFFER}</Text>
                     {lendingCapacity.maxAmount > 0 ? (
                         <>
                             <Text style={s.capacityRange}>
@@ -1183,9 +1183,7 @@ export default function CreditWorthinessScreen() {
                                     </Text>
                                     <Text style={fp.improvementProjectedBand}>({pack.improvementProjection.projectedBand})</Text>
                                 </View>
-                                <Text style={fp.improvementCaveat}>
-                                    An illustrative estimate based on your own recorded numbers, not a guarantee.
-                                </Text>
+                                <Text style={fp.improvementCaveat}>{ESTIMATE_NOT_GUARANTEE}</Text>
                             </View>
                         )}
                     </View>
