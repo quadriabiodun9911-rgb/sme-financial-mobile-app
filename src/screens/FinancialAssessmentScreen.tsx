@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useApp } from '../contexts/AppContext';
+import { useDiagnosis } from '../contexts/OptimizedContexts';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FooterNav from '../components/FooterNav';
@@ -70,7 +71,19 @@ export default function FinancialAssessmentScreen() {
     loadDismissedDiagnosisIds().then(setDismissedIds);
   }, []);
 
+  // sharedDiagnosis (DiagnosisContext, computed once by DiagnosisProvider
+  // in App.tsx -- see its own comment) covers the overwhelming majority
+  // of real usage; the local computation below is only a fallback for
+  // the <5-transaction case DiagnosisContext deliberately returns null
+  // for. dismissedIds is passed through to the fallback for parity, but
+  // note it has no actual effect on anything this screen reads from the
+  // result (diagnoses/metrics/overallHealth are all computed from the
+  // FULL, undismissed list -- see performFinancialDiagnosis' own return
+  // statement) -- the "Marked as intentional" styling below reads
+  // dismissedIds directly, not through the diagnosis object.
+  const sharedDiagnosis = useDiagnosis();
   const diagnosis = useMemo(() => {
+    if (sharedDiagnosis) return sharedDiagnosis;
     return performFinancialDiagnosis(
       transactions,
       invoices,
@@ -83,7 +96,7 @@ export default function FinancialAssessmentScreen() {
       settings.industry,
       dismissedIds
     );
-  }, [transactions, invoices, finance, settings, loans, inventory, assets, dismissedIds]);
+  }, [sharedDiagnosis, transactions, invoices, finance, settings, loans, inventory, assets, dismissedIds]);
 
   // Follow-up: "how will Quad360 determine whether this improved" made
   // concrete, not just a static `trigger` sentence. Weekly snapshots of

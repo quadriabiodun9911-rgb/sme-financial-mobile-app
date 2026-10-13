@@ -4,7 +4,7 @@ import { Colors } from './src/theme/colors';
 import * as Updates from 'expo-updates';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from './src/contexts/ThemeContext';
-import { AuthProvider, SettingsProvider, FinanceProvider, GoalProvider, InvoiceProvider, BillProvider, useAuth, useAppReady, useFinance, useInvoices, useSettings } from './src/contexts/OptimizedContexts';
+import { AuthProvider, SettingsProvider, FinanceProvider, GoalProvider, InvoiceProvider, BillProvider, useAuth, useAppReady, useFinance, useInvoices, useSettings, DiagnosisContext } from './src/contexts/OptimizedContexts';
 import { performFinancialDiagnosis } from './src/utils/financialDiagnosisEngine';
 import { getMonthlyExpenseAverage } from './src/utils/finance';
 import { trackScreenViewed, trackAppOpened } from './src/utils/analytics';
@@ -316,15 +316,25 @@ function OfflineSyncWatcher() {
     return null;
 }
 
-// Records a Health Score History snapshot (healthScoreHistory.ts) so the
-// one number Quad360's own stated measure of success points at --
-// "SMEs improving their financial resilience" -- has a real trend to show,
-// the same way Financing Readiness already does via readinessHistory.
+// The one shared live diagnosis (performFinancialDiagnosis), computed
+// here ONCE and handed down via DiagnosisContext so every one of the
+// ~80+ useApp() call sites (Header, FooterNav, every screen) reads the
+// same value instead of each independently re-running the full engine on
+// every transaction/invoice/loan/inventory/asset change -- see
+// DiagnosisContext's own comment in OptimizedContexts.tsx. Also records a
+// Health Score History snapshot (healthScoreHistory.ts) from the same
+// computation, so the one number Quad360's own stated measure of success
+// points at -- "SMEs improving their financial resilience" -- has a real
+// trend to show, the same way Financing Readiness already does via
+// readinessHistory.
+//
 // Lives here, below InvoiceProvider, rather than inside FinanceProvider
 // itself, because performFinancialDiagnosis needs `invoices`, which
 // belongs to a sibling provider FinanceProvider can't reach (see
-// recordHealthScoreSnapshot's own comment in OptimizedContexts.tsx).
-function HealthScoreSnapshotWatcher() {
+// recordHealthScoreSnapshot's own comment in OptimizedContexts.tsx) --
+// and wraps `children` (unlike a plain watcher) so the context it
+// provides actually reaches NavigatorContent and everything under it.
+function DiagnosisProvider({ children }: { children: React.ReactNode }) {
     const { transactions, loans, inventory, assets, finance, recordHealthScoreSnapshot } = useFinance();
     const { invoices } = useInvoices();
     const { settings } = useSettings();
@@ -342,7 +352,7 @@ function HealthScoreSnapshotWatcher() {
         if (diagnosis) recordHealthScoreSnapshot(diagnosis);
     }, [diagnosis, recordHealthScoreSnapshot]);
 
-    return null;
+    return <DiagnosisContext.Provider value={diagnosis}>{children}</DiagnosisContext.Provider>;
 }
 
 function OtaUpdater() {
@@ -380,10 +390,11 @@ export default function App() {
                                         <BillProvider>
                                             <OtaUpdater />
                                             <OfflineSyncWatcher />
-                                            <HealthScoreSnapshotWatcher />
-                                            <ErrorBoundary>
-                                                <NavigatorContent />
-                                            </ErrorBoundary>
+                                            <DiagnosisProvider>
+                                                <ErrorBoundary>
+                                                    <NavigatorContent />
+                                                </ErrorBoundary>
+                                            </DiagnosisProvider>
                                             <AlertHost />
                                             <SyncStatusBanner />
                                         </BillProvider>
