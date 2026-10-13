@@ -1313,6 +1313,24 @@ export default function DashboardScreen() {
     const hasGoal        = goals.length > 0;
     const showOnboarding = (!hasTransaction || !hasGoal) && !onboardingDismissed;
 
+    // The loss-guidance "biggest cost" callout below -- was an inline IIFE
+    // in JSX, unmemoized, so it re-scanned every expense transaction and
+    // re-sorted categories on every unrelated re-render while the business
+    // was in a loss (FAB open/close, any other context update), unlike
+    // virtually everything else on this screen.
+    const biggestLossCategory = useMemo(() => {
+        const cats: Record<string, number> = {};
+        transactions.filter(t => t.type === 'expense').forEach(t => {
+            const c = t.category || 'Other';
+            // Loan principal isn't a cuttable cost (only interest is) --
+            // excluded so this "biggest cost" callout can't point at a
+            // loan repayment and suggest reducing it, matching finance.profit above.
+            cats[c] = (cats[c] || 0) + (Number(t.amount) || 0) - (t.principalPortion || 0);
+        });
+        const top = Object.entries(cats).sort((a, b) => b[1] - a[1])[0];
+        return top ?? null;
+    }, [transactions]);
+
     const dismissOnboarding = () => {
         AsyncStorage.setItem('@quad360/onboarding_dismissed', '1');
         setOnboardingDismissed(true);
@@ -2535,25 +2553,14 @@ export default function DashboardScreen() {
                 {finance.profit < 0 && hasTransaction && (
                     <View style={styles.lossGuide}>
                         <Text style={styles.lossGuideTitle}>💡 Recommended Action</Text>
-                        {(() => {
-                            const cats: Record<string, number> = {};
-                            transactions.filter(t => t.type === 'expense').forEach(t => {
-                                const c = t.category || 'Other';
-                                // Loan principal isn't a cuttable cost (only interest is) --
-                                // excluded so this "biggest cost" callout can't point at a
-                                // loan repayment and suggest reducing it, matching finance.profit above.
-                                cats[c] = (cats[c] || 0) + (Number(t.amount) || 0) - (t.principalPortion || 0);
-                            });
-                            const top = Object.entries(cats).sort((a, b) => b[1] - a[1])[0];
-                            return top ? (
-                                <Text style={styles.lossGuideText}>
-                                    Your biggest cost is <Text style={styles.lossGuideHighlight}>{top[0]} ({currency}{top[1].toLocaleString()})</Text>.{'\n'}
-                                    Can you increase prices or reduce this expense?
-                                </Text>
-                            ) : (
-                                <Text style={styles.lossGuideText}>Log all expenses to identify where money goes.</Text>
-                            );
-                        })()}
+                        {biggestLossCategory ? (
+                            <Text style={styles.lossGuideText}>
+                                Your biggest cost is <Text style={styles.lossGuideHighlight}>{biggestLossCategory[0]} ({currency}{biggestLossCategory[1].toLocaleString()})</Text>.{'\n'}
+                                Can you increase prices or reduce this expense?
+                            </Text>
+                        ) : (
+                            <Text style={styles.lossGuideText}>Log all expenses to identify where money goes.</Text>
+                        )}
                         <TouchableOpacity onPress={() => setCurrentScreen('transactions')} style={styles.lossGuideBtn}>
                             <Text style={styles.lossGuideBtnText}>See expenses →</Text>
                         </TouchableOpacity>

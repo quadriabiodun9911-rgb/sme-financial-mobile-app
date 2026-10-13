@@ -250,11 +250,11 @@ export default function SettingsScreen() {
         if (isNaN(taxRate) || taxRate < 0 || taxRate > 100) {
             showAlert('Invalid value', 'Default tax rate must be between 0 and 100.'); return;
         }
-        if (form.openingAssets && isNaN(parseFloat(form.openingAssets))) {
-            showAlert('Invalid value', 'Opening assets must be a number.'); return;
+        if (form.openingAssets && (isNaN(parseFloat(form.openingAssets)) || parseFloat(form.openingAssets) < 0)) {
+            showAlert('Invalid value', 'Opening assets must be a non-negative number.'); return;
         }
-        if (form.openingLiabilities && isNaN(parseFloat(form.openingLiabilities))) {
-            showAlert('Invalid value', 'Opening liabilities must be a number.'); return;
+        if (form.openingLiabilities && (isNaN(parseFloat(form.openingLiabilities)) || parseFloat(form.openingLiabilities) < 0)) {
+            showAlert('Invalid value', 'Opening liabilities must be a non-negative number.'); return;
         }
         if (form.billFlagThreshold && (isNaN(parseFloat(form.billFlagThreshold)) || parseFloat(form.billFlagThreshold) < 0)) {
             showAlert('Invalid value', 'Bill flag threshold must be a non-negative number, or left blank.'); return;
