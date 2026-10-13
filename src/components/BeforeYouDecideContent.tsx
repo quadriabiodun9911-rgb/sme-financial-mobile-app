@@ -7,6 +7,7 @@ import Collapsible from './Collapsible';
 import GrowthAffordabilityCalculator from './GrowthAffordabilityCalculator';
 import BuyVsFinanceCalculator from './BuyVsFinanceCalculator';
 import AssetAcquisitionCalculator from './AssetAcquisitionCalculator';
+import CostSwitchCalculator from './CostSwitchCalculator';
 import ProjectDecisionSimulator from './ProjectDecisionSimulator';
 import LoanAffordabilityChecker from './LoanAffordabilityChecker';
 import { SAFE_REPAYMENT_CAPACITY_MULTIPLE } from '../utils/loanAffordabilityCheck';
@@ -110,6 +111,12 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
     // re-triggers each calculator's own prefill effect; see
     // CapitalCommitmentTracker's own `prefill` prop for the same pattern.
     const [spendPrefill, setSpendPrefill] = useState<{ amount: number } | null>(null);
+    // No in-screen source for this one yet (unlike spendPrefill above) --
+    // reserved for a future hand-off from Cost Exposure's biggest-cost-
+    // driver list ("Simulate reducing this →"). The Collapsible below still
+    // force-opens via navParams.decideFocusTool today even without a value
+    // to prefill.
+    const [costSwitchPrefill, setCostSwitchPrefill] = useState<{ label: string; monthlyAmount: number } | null>(null);
 
     // Scrolls straight to whichever calculator Decision Readiness's own
     // launcher deep-linked here for (see navParams.decideFocusTool) -- that
@@ -387,6 +394,20 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
                     onSeeFullPicture={() => navigate('scoreboard')}
                     prefillAmount={spendPrefill}
                     onPrefillConsumed={() => setSpendPrefill(null)}
+                />
+            </Collapsible>
+
+            <View style={styles.decisionCard}>
+                <Text style={styles.decisionQuestion}>Considering replacing an ongoing cost — generator fuel, delivery, rented equipment?</Text>
+                <Text style={styles.decisionHelp}>Paying upfront to cut a cost you're already paying monthly is a different question than buying something new — see the real payback period, not just whether it's affordable.</Text>
+            </View>
+            <Collapsible title="Will Switching This Cost Pay For Itself?" forceOpen={navParams?.decideFocusTool === 'costSwitchCalc'}>
+                <CostSwitchCalculator
+                    currency={currency}
+                    cashBalance={spendCheckThreshold}
+                    minReserve={parseFloat(settings?.minReserve || '0') || 0}
+                    prefill={costSwitchPrefill}
+                    onPrefillConsumed={() => setCostSwitchPrefill(null)}
                 />
             </Collapsible>
 
