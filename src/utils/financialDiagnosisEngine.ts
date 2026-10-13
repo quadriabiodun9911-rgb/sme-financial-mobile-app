@@ -126,6 +126,34 @@ export interface RootCauseAnalysis {
   // revenue mix) -- proposing a "goal" for those would either misuse an
   // unrelated type or create one nothing can track progress against.
   suggestedGoalType?: GoalType;
+  // The "twin stat tile" format: 1-2 concrete figures this diagnosis is
+  // actually built from, each with what it's being compared against --
+  // e.g. "Expenses +22% / Compared with prior period" next to "Revenue
+  // -12% / Compared with prior period". Every value here is read straight
+  // off `metrics`/`benchmarks`, never a second estimate invented for
+  // display -- optional because a few diagnoses (data-quality ones,
+  // mostly) have no natural "two comparable figures" to show.
+  metrics?: DiagnosisMetric[];
+  // "What the owner can investigate" -- specific, checkable questions a
+  // business owner could actually go verify (a route, a supplier, a
+  // customer's payment pattern), not generic advice restating the
+  // opportunity field. Deliberately short (3-5) so this reads as a
+  // starting checklist, not a second wall of text.
+  investigate?: string[];
+}
+
+export interface DiagnosisMetric {
+  label: string;
+  // Pre-formatted with its own direction arrow where one applies (e.g.
+  // "↑ 22%"), matching the ↑/↓/→ convention Business Performance's own
+  // outputs already use (diagnosticDimensions.ts) -- never a separate
+  // icon enum that could drift out of sync with the arrow printed here.
+  value: string;
+  // What this figure is being measured against -- "Compared with prior
+  // period", "vs 20% target", "vs 1.25x target" -- so a bare number never
+  // appears without the comparison that makes it meaningful.
+  compareLabel: string;
+  tone: 'negative' | 'positive' | 'neutral';
 }
 
 export interface ActionImpact {
@@ -548,6 +576,15 @@ export function diagnoseProfitability(
       trigger: metrics.profitMargin < 10
         ? `Resolves once margin recovers above the ${benchmarks.profitMargin}% target.`
         : 'Becomes critical if margin falls below 10%.',
+      metrics: [
+        { label: 'Your profit margin', value: `${metrics.profitMargin.toFixed(1)}%`, compareLabel: 'This period', tone: 'negative' },
+        { label: 'Industry target', value: `${benchmarks.profitMargin}%`, compareLabel: 'What similar businesses run', tone: 'neutral' },
+      ],
+      investigate: [
+        'Which products or services carry the thinnest margin — are they still priced the way they were a year ago?',
+        'Have supplier or input costs risen faster than prices have been adjusted?',
+        'Is discounting (manual price cuts, promotions) eating into margin in a way that is not obvious deal by deal?',
+      ],
     });
   }
 
@@ -563,6 +600,14 @@ export function diagnoseProfitability(
       opportunity: 'Launch customer acquisition or win-back campaign',
       suggestedGoalType: 'revenue_growth',
       dimension: 'profitability',
+      metrics: [
+        { label: 'Revenue', value: `↓ ${Math.abs(metrics.monthOverMonthGrowth).toFixed(1)}%`, compareLabel: 'Compared with prior period', tone: 'negative' },
+      ],
+      investigate: [
+        'Has one specific customer or order type dropped off, or is the decline spread evenly across the business?',
+        'Did a competitor, a price change, or a seasonal pattern coincide with the drop?',
+        'Are existing customers buying less, or are fewer new customers coming in at all?',
+      ],
     });
   }
 
@@ -577,6 +622,14 @@ export function diagnoseProfitability(
       financialImpact: 0,
       opportunity: 'Convert one-off customers to subscriptions/retainers',
       dimension: 'profitability',
+      metrics: [
+        { label: 'Recurring revenue', value: `${metrics.revenueRecurringPct.toFixed(0)}%`, compareLabel: 'vs 40% target for predictable cash flow', tone: 'negative' },
+      ],
+      investigate: [
+        'Which current customers buy repeatedly, and could they be moved onto a standing order or retainer?',
+        'Is pricing structured in a way that rewards a customer for committing to repeat business?',
+        'Would a simple subscription or maintenance package fit any of what you already sell?',
+      ],
     });
   }
 
@@ -604,6 +657,14 @@ export function diagnoseLiquidity(
       suggestedGoalType: 'cash_reserve',
       dimension: 'liquidity',
       trigger: `Resolves once runway rebuilds above the ${INDUSTRY_BENCHMARKS.runwayDaysSafe}-day safe buffer.`,
+      metrics: [
+        { label: 'Cash runway', value: `${metrics.runwayDays || 0} days`, compareLabel: `vs ${INDUSTRY_BENCHMARKS.runwayDaysCritical}-day critical floor`, tone: 'negative' },
+      ],
+      investigate: [
+        'Which overdue customer invoices could realistically be collected this week?',
+        'Which upcoming expenses are truly essential, and which could be delayed a few weeks?',
+        'Is there a single large, avoidable cost due soon that could be postponed or renegotiated?',
+      ],
     });
   } else if (metrics.runwayDays < INDUSTRY_BENCHMARKS.runwayDaysSafe) {
     diagnoses.push({
@@ -617,6 +678,14 @@ export function diagnoseLiquidity(
       suggestedGoalType: 'cash_reserve',
       dimension: 'liquidity',
       trigger: 'Becomes critical if runway falls below 30 days.',
+      metrics: [
+        { label: 'Cash runway', value: `${metrics.runwayDays} days`, compareLabel: `vs ${INDUSTRY_BENCHMARKS.runwayDaysSafe}-day safe buffer`, tone: 'negative' },
+      ],
+      investigate: [
+        'How much of this month\'s cash came from one-off income rather than regular sales?',
+        'Is there a predictable slow period coming up that this buffer would need to absorb?',
+        'Could a small, consistent weekly saving rebuild this buffer without disrupting operations?',
+      ],
     });
   }
 
@@ -643,6 +712,14 @@ export function diagnoseLiquidity(
       trigger: severity === 'critical'
         ? `Resolves once average collection time returns under ${benchmarks.daysOutstandingTarget} days.`
         : `Becomes critical if average collection time exceeds ${benchmarks.daysOutstandingTarget * 2} days.`,
+      metrics: [
+        { label: 'Average collection time', value: `${metrics.daysOutstanding} days`, compareLabel: `vs ${benchmarks.daysOutstandingTarget}-day target`, tone: 'negative' },
+      ],
+      investigate: [
+        'Is one customer consistently slower to pay than the rest, or is this spread across most of them?',
+        'Are invoices going out promptly with clear due dates, or does the delay start before the customer even sees one?',
+        'Would a deposit, shorter terms, or an early-payment discount change behaviour for your slowest payers?',
+      ],
     });
   }
 
@@ -667,6 +744,14 @@ export function diagnoseWorkingCapital(
       trigger: metrics.cashConversionCycleDays > 75
         ? 'Resolves once the cycle shortens under 45 days.'
         : 'Becomes critical if the cycle exceeds 75 days.',
+      metrics: [
+        { label: 'Cash conversion cycle', value: `${metrics.cashConversionCycleDays} days`, compareLabel: 'vs 45-day healthy benchmark', tone: 'negative' },
+      ],
+      investigate: [
+        'Is the delay mostly on the collection side (customers paying slowly) or the inventory side (stock sitting before it sells)?',
+        'Could supplier payment terms be extended without damaging the relationship?',
+        'Are there specific customers or stock categories driving most of the cycle length, rather than it being spread evenly?',
+      ],
     });
   }
 
@@ -694,6 +779,14 @@ export function diagnoseDebt(
       trigger: metrics.dscrStatus === 'danger'
         ? 'Resolves once DSCR recovers above 1.25x, Quad360\'s healthy threshold.'
         : 'Becomes critical if DSCR falls below 1.0x — income would no longer cover debt payments at all.',
+      metrics: [
+        { label: 'Coverage ratio', value: `${metrics.dscr.toFixed(2)}x`, compareLabel: 'vs 1.25x healthy target', tone: 'negative' },
+      ],
+      investigate: [
+        'Could any upcoming repayment be restructured or refinanced to lower the monthly amount?',
+        'Is a specific cost or a slow sales period behind the current income level, rather than debt itself being the problem?',
+        'Would pausing new borrowing until coverage improves avoid making this tighter?',
+      ],
     });
   }
 
@@ -746,6 +839,15 @@ export function diagnoseCashFlow(
       financialImpact: Math.abs(metrics.operatingCashFlow),
       opportunity: 'Collect overdue invoices, delay non-essential spending, or revisit pricing until operations generate cash again',
       dimension: 'cashFlow',
+      metrics: [
+        { label: 'Net profit on paper', value: `${currency}${Math.round(metrics.netProfit).toLocaleString()}`, compareLabel: 'This period', tone: metrics.netProfit >= 0 ? 'neutral' : 'negative' },
+        { label: 'Actual operating cash flow', value: `${currency}${Math.round(metrics.operatingCashFlow).toLocaleString()}`, compareLabel: 'This period', tone: 'negative' },
+      ],
+      investigate: [
+        'Is reported profit mostly sitting in unpaid customer invoices rather than cash in the bank?',
+        'Has a large one-off purchase (stock, equipment) consumed cash without yet showing up as an expense?',
+        'Are supplier payments going out faster than customer payments are coming in right now?',
+      ],
     });
   } else if (metrics.cashFlowConversionPct !== null && metrics.cashFlowConversionPct < 90) {
     const uncertainCash = metrics.netProfit - metrics.operatingCashFlow;
@@ -764,6 +866,14 @@ export function diagnoseCashFlow(
       trigger: metrics.cashFlowConversionPct >= 50
         ? 'Watch closely if conversion drops below 50% — at that point, most of this month\'s profit wouldn\'t be reaching the bank at all.'
         : undefined,
+      metrics: [
+        { label: 'Profit converted to cash', value: `${metrics.cashFlowConversionPct.toFixed(0)}%`, compareLabel: 'vs 90% healthy conversion', tone: 'negative' },
+      ],
+      investigate: [
+        'Which outstanding invoices are oldest, and could they be collected this week?',
+        'Are current payment terms longer than they need to be for most customers?',
+        'Is the gap concentrated in a few large unpaid invoices, or spread across many small ones?',
+      ],
     });
   }
 
@@ -790,6 +900,14 @@ export function diagnoseInventory(
       trigger: metrics.slowMovingValuePct > 50
         ? 'Resolves once the slow-moving share drops under 25% of inventory value.'
         : 'Becomes critical if the slow-moving share exceeds 50% of inventory value.',
+      metrics: [
+        { label: 'Slow-moving stock', value: `${metrics.slowMovingValuePct.toFixed(0)}%`, compareLabel: 'vs 25% healthy threshold', tone: 'negative' },
+      ],
+      investigate: [
+        'Which specific items have barely sold in the last 30-60 days?',
+        'Were these overordered, or has demand for them genuinely dropped?',
+        'Would a discount, bundle, or return to the supplier free up more cash than holding and hoping they sell?',
+      ],
     });
   }
 
@@ -815,6 +933,14 @@ export function diagnoseConcentration(
         ? 'Resolves once this customer\'s share drops under 40% of revenue.'
         : 'Becomes critical if this customer\'s share reaches 60% of revenue.',
       suggestedGoalType: 'customer_concentration',
+      metrics: [
+        { label: 'Top customer share', value: `${metrics.topCustomerConcentrationPct.toFixed(0)}%`, compareLabel: 'vs 40% concentration threshold', tone: 'negative' },
+      ],
+      investigate: [
+        'What would happen to cash flow in the first month if this customer paused or left?',
+        'Is this relationship on a contract, or could it end with little notice?',
+        'Which other customers or market segments could realistically be grown to reduce reliance on this one?',
+      ],
     });
   }
 
@@ -832,6 +958,14 @@ export function diagnoseConcentration(
         ? 'Resolves once this supplier\'s share drops under 40% of spend.'
         : 'Becomes critical if this supplier\'s share reaches 60% of spend.',
       suggestedGoalType: 'supplier_concentration',
+      metrics: [
+        { label: 'Top supplier share', value: `${metrics.topSupplierConcentrationPct.toFixed(0)}%`, compareLabel: 'vs 40% concentration threshold', tone: 'negative' },
+      ],
+      investigate: [
+        'What would a sudden price increase or stockout from this supplier cost you in the first month?',
+        'Is there a second, qualified supplier you could switch to quickly if needed?',
+        'Could ordering from more than one supplier, even at a slightly higher cost, be worth the reduced risk?',
+      ],
     });
   }
 
@@ -862,6 +996,17 @@ export function diagnoseEfficiency(
       trigger: growthGap > 25
         ? 'Resolves once expense growth is back within 10 points of revenue growth.'
         : 'Becomes critical if expenses outgrow revenue by more than 25 points.',
+      metrics: [
+        { label: 'Expenses', value: `${metrics.expenseGrowthPct >= 0 ? '↑' : '↓'} ${Math.abs(metrics.expenseGrowthPct).toFixed(0)}%`, compareLabel: 'Compared with prior period', tone: 'negative' },
+        { label: 'Revenue', value: `${metrics.monthOverMonthGrowth >= 0 ? '↑' : '↓'} ${Math.abs(metrics.monthOverMonthGrowth).toFixed(0)}%`, compareLabel: 'Compared with prior period', tone: metrics.monthOverMonthGrowth >= 0 ? 'neutral' : 'negative' },
+      ],
+      investigate: [
+        'Which expense category grew the fastest this period, and is that growth tied to more sales or just higher unit cost?',
+        'Can current selling prices still cover today\'s costs, or has margin quietly eroded underneath them?',
+        'Are customers paying late, making cash feel tighter than the numbers above already show?',
+        'Would consolidating orders, renegotiating a supplier, or changing a delivery/operating arrangement reduce this cost?',
+        'Is this a one-period spike or a sustained trend — check Cost Exposure for the category-by-category breakdown.',
+      ],
     });
   }
 
@@ -885,6 +1030,14 @@ export function diagnoseEfficiency(
         opportunity: `Negotiate better rates or reduce ${topCategory[0]} usage`,
         suggestedGoalType: 'cost_reduction',
         dimension: 'efficiency',
+        metrics: [
+          { label: topCategory[0], value: `${categoryPercentage.toFixed(0)}%`, compareLabel: 'vs 40% concentration threshold', tone: 'negative' },
+        ],
+        investigate: [
+          `Is ${topCategory[0]} spend driven by volume (more usage) or by rate (a higher price per unit)?`,
+          `Could usage be reduced without affecting output — fewer trips, less waste, better scheduling?`,
+          `Is there a second supplier or provider for ${topCategory[0]} worth getting a quote from?`,
+        ],
       });
     }
   }
@@ -1198,6 +1351,14 @@ export function diagnoseRecordKeeping(
       financialImpact: 0,
       opportunity: 'Log at least the recurring expenses (rent, supplies, salaries) for a typical month to make the diagnosis trustworthy',
       dimension: 'cashFlow',
+      metrics: [
+        { label: 'Months missing expenses', value: `${monthsWithIncomeNoExpense.length} of ${monthsWithIncome.length}`, compareLabel: 'Months with income but no expense logged', tone: 'negative' },
+      ],
+      investigate: [
+        'Are regular cash purchases (fuel, small supplies, informal labor) being recorded at all, or only bank/transfer payments?',
+        'Is there one typical month that could be fully reconstructed from receipts to fill the gap?',
+        'Would logging just the recurring fixed costs (rent, salaries) for every month already close most of the gap?',
+      ],
     });
   }
 
@@ -1212,6 +1373,15 @@ export function diagnoseRecordKeeping(
       financialImpact: 0,
       opportunity: 'Double-check that all recurring costs -- rent, supplies, transport, informal payments -- are being logged',
       dimension: 'cashFlow',
+      metrics: [
+        { label: 'Your margin', value: `${metrics.profitMargin.toFixed(1)}%`, compareLabel: 'This period', tone: 'neutral' },
+        { label: 'Industry typical', value: `${benchmarks.profitMargin}%`, compareLabel: 'What similar businesses run', tone: 'neutral' },
+      ],
+      investigate: [
+        'Are all recurring costs — rent, transport, informal payments, owner withdrawals — actually entered as expenses?',
+        'Is any personal spending or owner drawing being left out of the books, inflating what looks like profit?',
+        'Would a side-by-side check against a bank statement for one month confirm the real figure?',
+      ],
     });
   }
 

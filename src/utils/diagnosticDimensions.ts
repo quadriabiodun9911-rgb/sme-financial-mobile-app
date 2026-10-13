@@ -35,6 +35,13 @@ export type DiagnosticStatus = 'strong' | 'watch' | 'high-risk' | 'info';
 export interface DiagnosticOutput {
     label: string;
     value: string;
+    // Optional "twin stat tile" framing -- what this figure is being
+    // compared against, and whether that comparison is bad/good/neutral.
+    // Left undefined for plain snapshot figures (e.g. "Stock on hand")
+    // that aren't a trend or a vs-benchmark comparison -- never invented
+    // just to force every output into this shape.
+    compareLabel?: string;
+    tone?: 'negative' | 'positive' | 'neutral';
 }
 
 // A "what you should do next" step that's actually actionable -- tapping
@@ -63,6 +70,13 @@ export interface DiagnosticNarrative {
     metrics: DiagnosticOutput[]; // exactly the 2 figures the headline math is built from
     whatThisMeans: string;
     whyItMatters: string;
+    // Same "what you can investigate" checklist as BusinessHealthReport's
+    // own field above -- specific, checkable questions, not a restatement
+    // of recommendedSteps (those are actions to take; these are things to
+    // check first). Empty array where a dimension's own finding doesn't
+    // lend itself to a checklist (e.g. Decision Readiness has no
+    // narrative at all, see below).
+    investigate: string[];
     recommendedSteps: DiagnosticActionStep[];
     // Which trackable GoalType (goals.ts) this dimension's finding maps to,
     // if any -- same "one tap into a pre-filled, still-editable goal, then
@@ -95,6 +109,13 @@ export interface BusinessHealthReport {
     // actually a decision (comparing a number against a real baseline)
     // IS the link into Analysis & Decisions, not a second button after.
     nextSteps: DiagnosticActionStep[];
+    // Specific, checkable questions the owner can go verify themselves --
+    // same "what you can investigate" checklist every Early Warning
+    // Signal now carries (financialDiagnosisEngine.ts's RootCauseAnalysis.
+    // investigate), restated for whichever dimension is this report's
+    // headline finding. Empty for the "nothing's flashing a warning"
+    // fallback -- there's nothing to investigate when nothing's wrong.
+    investigate: string[];
     // Which trackable GoalType (goals.ts) "What you should do next" above
     // actually corresponds to, if any -- lets the screen offer a one-tap
     // "set this up as a goal" straight into a pre-filled, still-editable
@@ -240,8 +261,13 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? 'Your cash position needs attention'
                 : 'Your cash position looks healthy',
             metrics: [
-                { label: 'Bank balance', value: fmtMoney(currency, m.cashBalance) },
-                { label: 'Known upcoming payments', value: fmtMoney(currency, upcomingPayments) },
+                { label: 'Bank balance', value: fmtMoney(currency, m.cashBalance), compareLabel: 'What you have now', tone: 'neutral' },
+                { label: 'Known upcoming payments', value: fmtMoney(currency, upcomingPayments), compareLabel: 'Already committed', tone: cashAfterCommitments < 0 ? 'negative' : 'neutral' },
+            ],
+            investigate: [
+                'Which of these upcoming payments could be delayed a few days without a penalty?',
+                'Are there overdue customer invoices that could be collected before these payments are due?',
+                'Is this a one-off tight month, or does the same pattern repeat most months?',
             ],
             whatThisMeans: (cashAfterCommitments >= 0
                 ? `Your bank balance is ${fmtMoney(currency, m.cashBalance)}, but after the known ${fmtMoney(currency, upcomingPayments)} in upcoming payments, only ${fmtMoney(currency, cashAfterCommitments)} remains before other expenses, reserves and obligations.`
@@ -295,8 +321,13 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? 'Your profit margin may be slipping'
                 : 'Your profitability looks solid',
             metrics: [
-                { label: 'Revenue', value: fmtMoney(currency, m.totalRevenue) },
-                { label: 'Net profit', value: `${m.netProfit >= 0 ? '' : '-'}${fmtMoney(currency, m.netProfit)}` },
+                { label: 'Revenue', value: fmtMoney(currency, m.totalRevenue), compareLabel: 'This period', tone: 'neutral' },
+                { label: 'Net profit', value: `${m.netProfit >= 0 ? '' : '-'}${fmtMoney(currency, m.netProfit)}`, compareLabel: 'This period', tone: m.netProfit < 0 ? 'negative' : 'neutral' },
+            ],
+            investigate: [
+                'Which products or services carry the thinnest margin right now?',
+                'Have supplier or input costs risen since prices were last reviewed?',
+                'Is revenue growing mostly from existing customers buying more, or from one-off deals that may not repeat?',
             ],
             whatThisMeans: `Your revenue is ${fmtMoney(currency, m.totalRevenue)} against ${fmtMoney(currency, m.totalExpenses)} in expenses, leaving ${m.netProfit >= 0 ? `a net profit of ${fmtMoney(currency, m.netProfit)}` : `a net loss of ${fmtMoney(currency, m.netProfit)}`} -- a ${m.profitMargin.toFixed(1)}% margin. ${m.totalRevenue > 0 ? `For every ${currency}1 you bring in, about ${currency}${Math.min(1, m.totalExpenses / m.totalRevenue).toFixed(2)} goes straight back out in costs.` : ''}`,
             whyItMatters: (m.netProfit < 0
@@ -336,8 +367,13 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? 'Your cash conversion cycle is longer than ideal'
                 : 'Your working capital cycle looks healthy',
             metrics: [
-                { label: 'Customers owe you', value: fmtMoney(currency, m.accountsReceivable) },
-                { label: 'Cash conversion cycle', value: `${Math.round(m.cashConversionCycleDays)} days` },
+                { label: 'Customers owe you', value: fmtMoney(currency, m.accountsReceivable), compareLabel: 'Outstanding now', tone: 'neutral' },
+                { label: 'Cash conversion cycle', value: `${Math.round(m.cashConversionCycleDays)} days`, compareLabel: `vs ${INDUSTRY_BENCHMARKS.daysOutstandingTarget}-day target`, tone: m.cashConversionCycleDays > INDUSTRY_BENCHMARKS.daysOutstandingTarget ? 'negative' : 'neutral' },
+            ],
+            investigate: [
+                'Which customers are consistently the slowest to pay?',
+                'Is stock sitting unsold longer than it used to, tying up cash before it even reaches the receivables stage?',
+                'Could supplier payment terms be extended without straining the relationship?',
             ],
             whatThisMeans: `Customers owe you ${fmtMoney(currency, m.accountsReceivable)} and you owe suppliers ${fmtMoney(currency, m.accountsPayable)}, with ${fmtMoney(currency, m.inventoryValue)} tied up in stock. On average, it takes about ${Math.round(m.dso)} days to collect from a customer and you get about ${Math.round(m.dpo)} days before you have to pay a supplier -- together with however long stock sits before it sells, that nets out to roughly ${Math.round(m.cashConversionCycleDays)} days between spending cash and getting it back.`,
             whyItMatters: (m.cashConversionCycleDays > 75
@@ -403,8 +439,13 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? "Your debt is manageable now, but there's little room to spare"
                 : 'Your business comfortably covers what it owes',
             metrics: [
-                { label: 'Monthly debt payments', value: fmtMoney(currency, m.monthlyDebtService) },
-                { label: 'Coverage ratio', value: `${m.dscr.toFixed(2)}x` },
+                { label: 'Monthly debt payments', value: fmtMoney(currency, m.monthlyDebtService), compareLabel: 'This month', tone: 'neutral' },
+                { label: 'Coverage ratio', value: `${m.dscr.toFixed(2)}x`, compareLabel: 'vs 1.25x healthy target', tone: m.dscrStatus === 'healthy' ? 'neutral' : 'negative' },
+            ],
+            investigate: [
+                'Could any upcoming repayment be restructured or refinanced to lower the monthly amount?',
+                'Is a specific cost or a slow sales period behind current income, rather than the debt itself being the problem?',
+                'Would pausing new borrowing until coverage improves avoid making this tighter?',
             ],
             whatThisMeans: `Your monthly debt payments are ${fmtMoney(currency, m.monthlyDebtService)}, covered ${m.dscr.toFixed(2)}x by operating cash flow -- a ratio below 1.25x means thin coverage, and below 1.0x means cash flow alone doesn't cover the payment. That leaves ${m.operatingCashFlow > m.monthlyDebtService ? `${fmtMoney(currency, m.operatingCashFlow - m.monthlyDebtService)} of cushion` : `a ${fmtMoney(currency, Math.abs(m.operatingCashFlow - m.monthlyDebtService))} gap`} between what operations generate and what the debt actually costs each month.`,
             whyItMatters: m.dscrStatus === 'danger'
@@ -421,8 +462,12 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
         } : {
             headline: 'You currently have no active debt to service',
             metrics: [
-                { label: 'Monthly debt payments', value: fmtMoney(currency, 0) },
-                { label: 'Coverage ratio', value: 'N/A' },
+                { label: 'Monthly debt payments', value: fmtMoney(currency, 0), compareLabel: 'Currently', tone: 'neutral' },
+                { label: 'Coverage ratio', value: 'N/A', compareLabel: 'No obligation to cover', tone: 'neutral' },
+            ],
+            investigate: [
+                'If you did take on a loan, what repayment amount would still leave comfortable room in a slow month?',
+                'What would the financing actually be used for -- growth, or covering a gap that borrowing wouldn\'t fix?',
             ],
             whatThisMeans: "You're not carrying any active loan repayments right now, so there's no fixed monthly obligation competing with rent, stock, wages or anything else you spend on.",
             whyItMatters: "This isn't a current risk, but it's worth modelling before taking on any debt. A loan's repayment becomes a fixed cost that has to be paid whether business is strong or slow that month -- knowing what it would do to your monthly cash flow before you apply means you choose the loan size deliberately instead of discovering it's too much after the first payment is due.",
@@ -462,8 +507,15 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? 'Mostly positive, but something is slipping'
                 : 'The business is trending in the right direction',
             metrics: [
-                { label: 'Improving', value: `${improving}` },
-                { label: 'Declining', value: `${declining}` },
+                { label: 'Improving', value: `${improving}`, compareLabel: 'Trends moving the right way', tone: 'neutral' },
+                { label: 'Declining', value: `${declining}`, compareLabel: 'Trends moving the wrong way', tone: declining > 0 ? 'negative' : 'neutral' },
+            ],
+            investigate: declining > 0 ? [
+                `Is ${directionVsStatus.rows.filter(r => r.direction === 'deteriorating')[0]?.label ?? 'the declining trend'} a one-off dip or a sustained pattern over several months?`,
+                'Does this calendar month have a history of being a slow one for this business?',
+                'Did a specific event (a customer lost, a price change, a cost increase) coincide with when this started?',
+            ] : [
+                'Is the current pace of improvement likely to hold, or does it rely on something temporary (a big one-off order, a seasonal peak)?',
             ],
             whatThisMeans: `Of the trends being tracked, ${improving} are improving and ${declining} are getting worse right now.`
                 + (declining > 0 ? ` Specifically: ${directionVsStatus.rows.filter(r => r.direction === 'deteriorating').map(r => r.label).join(', ')}.` : '')
@@ -527,8 +579,15 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? "There's a risk worth watching"
                 : 'No major risks are standing out right now',
             metrics: [
-                { label: 'Biggest risk', value: riskRadar.topRisks[0]?.label ?? 'None identified' },
-                { label: 'Shock resilience', value: `${resilience.score}/100` },
+                { label: 'Biggest risk', value: riskRadar.topRisks[0]?.label ?? 'None identified', compareLabel: 'Highest-ranked exposure', tone: riskRadar.topRisks.length > 0 ? 'negative' : 'neutral' },
+                { label: 'Shock resilience', value: `${resilience.score}/100`, compareLabel: resilience.band, tone: resilience.score < 50 ? 'negative' : 'neutral' },
+            ],
+            investigate: riskRadar.topRisks.length > 0 ? [
+                `What would it cost the business in the first month if ${riskRadar.topRisks[0].label.toLowerCase()} actually happened?`,
+                'Is there a specific, affordable step that would reduce this exposure rather than just monitoring it?',
+                ...(resilience.topConcerns.length > 0 ? [`Is ${resilience.topConcerns[0].detail.toLowerCase()} something that can be addressed directly, or only absorbed?`] : []),
+            ] : [
+                'Which single risk, if it happened, would be hardest to absorb right now?',
             ],
             whatThisMeans: (riskRadar.topRisks.length > 0
                 ? `${riskRadar.topRisks[0].summary} Your shock resilience score is ${resilience.score}/100 (${resilience.band}) -- ${resilience.band.toLowerCase()} ability to absorb an unexpected setback.`
@@ -641,8 +700,17 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? 'Borrowing right now would add real risk'
                 : 'Not enough data yet to assess this confidently',
             metrics: [
-                { label: 'Readiness score', value: `${Math.round(financingReadinessScore)}/100` },
-                { label: 'Best-fit type', value: showsFinancingType ? topFinancing!.label : 'N/A' },
+                { label: 'Readiness score', value: `${Math.round(financingReadinessScore)}/100`, compareLabel: lendingCapacity.tierLabel, tone: lendingCapacity.conclusion === 'risk' ? 'negative' : lendingCapacity.conclusion === 'ready' ? 'positive' : 'neutral' },
+                { label: 'Best-fit type', value: showsFinancingType ? topFinancing!.label : 'N/A', compareLabel: 'Matched to your real numbers', tone: 'neutral' },
+            ],
+            investigate: lendingCapacity.conclusion === 'risk' ? [
+                'Would fixing the underlying cash or margin issue solve this without borrowing at all?',
+                'Which specific factor is dragging the readiness score down the most -- see Credit-Worthiness for the full breakdown.',
+            ] : lendingCapacity.conclusion === 'improve' ? [
+                'Which single factor, if improved, would move the readiness score the most?',
+                'Is now the right time to borrow, or would waiting a few months of stronger numbers get meaningfully better terms?',
+            ] : [
+                'What is the financing actually for -- growth that pays for itself, or a gap that borrowing only delays?',
             ],
             whatThisMeans: (hasCapacityRange
                 ? `Based on your real cash flow, profitability and debt position, Quad360 estimates you could responsibly take on ${fmtMoney(currency, lendingCapacity.minAmount)}–${fmtMoney(currency, lendingCapacity.maxAmount)} in financing -- the lower end reflects a conservative lender's view, the higher end a more generous one. Your overall readiness score is ${Math.round(financingReadinessScore)}/100, putting you in the "${lendingCapacity.tierLabel}" tier. ${lendingCapacity.reason}`
@@ -692,8 +760,13 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? "Your business has cash in the bank, but known upcoming payments already exceed what's currently available -- putting pressure on your ability to restock and meet everyday expenses."
                 : "Your business has cash in the bank, but upcoming payments could put pressure on your ability to restock and meet everyday expenses.",
             metrics: [
-                { label: 'Current bank balance', value: fmtMoney(currency, m.cashBalance) },
-                { label: 'Known upcoming payments', value: fmtMoney(currency, upcomingPayments) },
+                { label: 'Current bank balance', value: fmtMoney(currency, m.cashBalance), compareLabel: 'What you have now', tone: 'neutral' },
+                { label: 'Known upcoming payments', value: fmtMoney(currency, upcomingPayments), compareLabel: 'Already committed', tone: cashAfterCommitments < 0 ? 'negative' : 'neutral' },
+            ],
+            investigate: [
+                'Which of these upcoming payments could be delayed a few days without a penalty?',
+                'Are there overdue customer invoices that could be collected before these payments are due?',
+                'Is this a one-off tight month, or does the same pattern repeat most months?',
             ],
             whyThisMatters: (cashAfterCommitments >= 0
                 ? `After those known payments, ${fmtMoney(currency, cashAfterCommitments)} remains before other expenses and reserves. Your bank balance therefore does not represent the amount you can safely spend -- it includes money that's already spoken for.`
@@ -718,8 +791,13 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? 'Your business is spending more than it earns, and the gap is coming straight out of cash.'
                 : 'Your margins are thinner than they look once real costs are accounted for, leaving little room for error.',
             metrics: [
-                { label: 'Revenue', value: fmtMoney(currency, m.totalRevenue) },
-                { label: 'Net profit', value: `${m.netProfit >= 0 ? '' : '-'}${fmtMoney(currency, m.netProfit)}` },
+                { label: 'Revenue', value: fmtMoney(currency, m.totalRevenue), compareLabel: 'This period', tone: 'neutral' },
+                { label: 'Net profit', value: `${m.netProfit >= 0 ? '' : '-'}${fmtMoney(currency, m.netProfit)}`, compareLabel: 'This period', tone: m.netProfit < 0 ? 'negative' : 'neutral' },
+            ],
+            investigate: [
+                'Which products or services carry the thinnest margin right now?',
+                'Have supplier or input costs risen since prices were last reviewed?',
+                'Is any discounting (manual or promotional) eating into margin in a way that is not obvious deal by deal?',
             ],
             whyThisMatters: `Revenue of ${fmtMoney(currency, m.totalRevenue)} against ${fmtMoney(currency, m.totalExpenses)} in expenses leaves ${m.netProfit >= 0 ? `only ${fmtMoney(currency, m.netProfit)}` : `a loss of ${fmtMoney(currency, m.netProfit)}`} -- a ${m.profitMargin.toFixed(1)}% margin, ${(INDUSTRY_BENCHMARKS.profitMargin - m.profitMargin).toFixed(1)} points below the 20% benchmark most comparisons use. A small rise in costs or a slow month could erase this entirely, since there's little profit left to absorb the hit.`,
             // "Confirm which costs are fixed and which can flex" used to
@@ -745,8 +823,12 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? 'Your monthly debt payments are higher than your cash flow can comfortably support.'
                 : "Your debt payments are manageable today, but there's little room to absorb a slow month.",
             metrics: [
-                { label: 'Monthly debt payments', value: fmtMoney(currency, m.monthlyDebtService) },
-                { label: 'Coverage ratio', value: `${m.dscr.toFixed(2)}x` },
+                { label: 'Monthly debt payments', value: fmtMoney(currency, m.monthlyDebtService), compareLabel: 'This month', tone: 'neutral' },
+                { label: 'Coverage ratio', value: `${m.dscr.toFixed(2)}x`, compareLabel: 'vs 1.25x healthy target', tone: 'negative' },
+            ],
+            investigate: [
+                'Could any upcoming repayment be restructured or refinanced to lower the monthly amount?',
+                'Is a specific cost or a slow sales period behind current income, rather than the debt itself being the problem?',
             ],
             whyThisMatters: `Monthly debt payments of ${fmtMoney(currency, m.monthlyDebtService)} are covered ${m.dscr.toFixed(2)}x by operating cash flow. A ratio below 1.25x means thin coverage, and a slower month could put a repayment at risk -- not just a late fee, but a mark against you with the lender that makes future borrowing harder and more expensive.`,
             nextSteps: [
@@ -764,8 +846,13 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             status: reportStatus, statusLabel: reportStatusLabel, sourceDimension: 'businessPerformance',
             whatWeFound: 'More of your business is trending in the wrong direction than the right one right now.',
             metrics: [
-                { label: 'Improving', value: `${improving}` },
-                { label: 'Declining', value: `${declining}` },
+                { label: 'Improving', value: `${improving}`, compareLabel: 'Trends moving the right way', tone: 'neutral' },
+                { label: 'Declining', value: `${declining}`, compareLabel: 'Trends moving the wrong way', tone: 'negative' },
+            ],
+            investigate: [
+                `Is ${directionVsStatus.rows.find(r => r.direction === 'deteriorating')?.label ?? 'the declining trend'} a one-off dip or a sustained pattern over several months?`,
+                'Does this calendar month have a history of being a slow one for this business?',
+                'Did a specific event (a customer lost, a price change, a cost increase) coincide with when this started?',
             ],
             whyThisMatters: `${declining} of the trends being tracked are getting worse, against ${improving} improving: ${directionVsStatus.rows.filter(r => r.direction === 'deteriorating').map(r => r.label).join(', ')}. Left unaddressed, this usually shows up in cash and profit within a few months, since these trends feed into each other rather than staying contained.`,
             nextSteps: [
@@ -783,9 +870,10 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             status: 'healthy', statusLabel: 'Looking good', sourceDimension: 'cashHealth',
             whatWeFound: 'Across cash, profitability, debt and recent trends, nothing is currently flashing a warning.',
             metrics: [
-                { label: 'Current bank balance', value: fmtMoney(currency, m.cashBalance) },
-                { label: 'Known upcoming payments', value: fmtMoney(currency, upcomingPayments) },
+                { label: 'Current bank balance', value: fmtMoney(currency, m.cashBalance), compareLabel: 'What you have now', tone: 'neutral' },
+                { label: 'Known upcoming payments', value: fmtMoney(currency, upcomingPayments), compareLabel: 'Already committed', tone: 'neutral' },
             ],
+            investigate: [],
             whyThisMatters: `This is a good position to plan from -- you have room to consider growth, not just defend what you have. Your cash runway is ${fmtRunway(m.runwayDays)} and your margin is ${m.profitMargin.toFixed(1)}%, both ahead of where this report typically raises a flag, so this is as much about staying disciplined as it is about finding the next opportunity.`,
             nextSteps: [
                 { text: 'Keep tracking upcoming payments and recent trends so you catch pressure early.', screen: 'scoreboard' },

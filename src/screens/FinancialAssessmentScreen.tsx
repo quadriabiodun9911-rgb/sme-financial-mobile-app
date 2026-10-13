@@ -414,13 +414,23 @@ export default function FinancialAssessmentScreen() {
             {businessHealthReport.metrics.map((mt, i) => (
               <View key={i} style={styles.narrativeMetricTile}>
                 <Text style={styles.narrativeMetricLabel}>{mt.label}</Text>
-                <Text style={styles.narrativeMetricValue}>{mt.value}</Text>
+                <Text style={[styles.narrativeMetricValue, mt.tone === 'negative' ? { color: Colors.expense } : mt.tone === 'positive' ? { color: Colors.income } : null]}>{mt.value}</Text>
+                {mt.compareLabel && <Text style={styles.diagnosisMetricCompareLabel}>{mt.compareLabel}</Text>}
               </View>
             ))}
           </View>
 
           <Text style={styles.reportSectionLabel}>Why this matters</Text>
           <Text style={styles.reportText}>{businessHealthReport.whyThisMatters}</Text>
+
+          {businessHealthReport.investigate.length > 0 && (
+            <View style={styles.investigateBox}>
+              <Text style={styles.reportSectionLabel}>What you can investigate</Text>
+              {businessHealthReport.investigate.map((q, i) => (
+                <Text key={i} style={styles.investigateItem}>• {q}</Text>
+              ))}
+            </View>
+          )}
 
           <Text style={styles.reportSectionLabel}>What you should do next</Text>
           <Text style={styles.reportStepsHint}>Tap a step to go do it.</Text>
@@ -538,7 +548,8 @@ export default function FinancialAssessmentScreen() {
                               {dim.narrative.metrics.map((mt, i) => (
                                 <View key={i} style={styles.narrativeMetricTile}>
                                   <Text style={styles.narrativeMetricLabel}>{mt.label}</Text>
-                                  <Text style={styles.narrativeMetricValue}>{mt.value}</Text>
+                                  <Text style={[styles.narrativeMetricValue, mt.tone === 'negative' ? { color: Colors.expense } : mt.tone === 'positive' ? { color: Colors.income } : null]}>{mt.value}</Text>
+                                  {mt.compareLabel && <Text style={styles.diagnosisMetricCompareLabel}>{mt.compareLabel}</Text>}
                                 </View>
                               ))}
                             </View>
@@ -546,6 +557,14 @@ export default function FinancialAssessmentScreen() {
                             <Text style={styles.narrativeText}>{dim.narrative.whatThisMeans}</Text>
                             <Text style={styles.narrativeSectionLabel}>Why it matters</Text>
                             <Text style={styles.narrativeText}>{dim.narrative.whyItMatters}</Text>
+                            {dim.narrative.investigate.length > 0 && (
+                              <View style={styles.investigateBox}>
+                                <Text style={styles.narrativeSectionLabel}>What you can investigate</Text>
+                                {dim.narrative.investigate.map((q, i) => (
+                                  <Text key={i} style={styles.investigateItem}>• {q}</Text>
+                                ))}
+                              </View>
+                            )}
                           </>
                         )}
                         <Text style={styles.narrativeSectionLabel}>Recommended next steps</Text>
@@ -726,6 +745,18 @@ export default function FinancialAssessmentScreen() {
                 </View>
               </View>
 
+              {diagnosis.diagnoses[selectedDiagnosis].metrics && diagnosis.diagnoses[selectedDiagnosis].metrics!.length > 0 && (
+                <View style={styles.narrativeMetricsRow}>
+                  {diagnosis.diagnoses[selectedDiagnosis].metrics!.map((mt, i) => (
+                    <View key={i} style={styles.narrativeMetricTile}>
+                      <Text style={styles.narrativeMetricLabel}>{mt.label}</Text>
+                      <Text style={[styles.narrativeMetricValue, { color: mt.tone === 'negative' ? Colors.expense : mt.tone === 'positive' ? Colors.income : Colors.textPrimary }]}>{mt.value}</Text>
+                      <Text style={styles.diagnosisMetricCompareLabel}>{mt.compareLabel}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
               <Text style={styles.diagnosisLabel}>Root Cause</Text>
               <Text style={styles.diagnosisText}>
                 {diagnosis.diagnoses[selectedDiagnosis].rootCause}
@@ -758,6 +789,21 @@ export default function FinancialAssessmentScreen() {
               <Text style={[styles.diagnosisText, { color: Colors.income, fontWeight: '600' }]}>
                 → {diagnosis.diagnoses[selectedDiagnosis].opportunity}
               </Text>
+
+              {/* "What the owner can investigate" -- specific, checkable
+                  questions distinct from the single "Opportunity" line
+                  above: that's Quad360's recommended action, this is the
+                  owner's own starting checklist for understanding WHY
+                  before acting, same spirit as Quad360's "estimate the
+                  impact of feasible changes" promise. */}
+              {diagnosis.diagnoses[selectedDiagnosis].investigate && diagnosis.diagnoses[selectedDiagnosis].investigate!.length > 0 && (
+                <View style={styles.investigateBox}>
+                  <Text style={styles.diagnosisLabel}>What you can investigate</Text>
+                  {diagnosis.diagnoses[selectedDiagnosis].investigate!.map((q, i) => (
+                    <Text key={i} style={styles.investigateItem}>• {q}</Text>
+                  ))}
+                </View>
+              )}
 
               {/* Follow-up -- "how will Quad360 determine whether this
                   improved," made concrete with an actual before/after
@@ -1075,6 +1121,9 @@ const styles = StyleSheet.create({
   severityText: { fontSize: 9, fontWeight: '700' },
   diagnosisLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, marginTop: Spacing.xs },
   diagnosisText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+  diagnosisMetricCompareLabel: { fontSize: 9.5, color: Colors.textMuted, marginTop: 2 },
+  investigateBox: { marginTop: 2 },
+  investigateItem: { fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginTop: 3 },
 
   markIntentionalBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
