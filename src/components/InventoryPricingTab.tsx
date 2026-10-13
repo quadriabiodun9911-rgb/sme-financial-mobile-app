@@ -8,6 +8,7 @@ import { computeRequiredPriceIncrease } from '../utils/priceAdjustment';
 import { computeInventoryPricingInsights } from '../utils/inventoryPricingInsights';
 import { computeInventoryDecisions, InventoryDecisionAction } from '../utils/inventoryDecisions';
 import { computeInventoryPriceRecommendations } from '../utils/inventoryPriceRecommendations';
+import NextStepLink from './NextStepLink';
 
 function fmt(currency: string, n: number): string {
     return `${currency}${Math.round(n).toLocaleString()}`;
@@ -31,7 +32,7 @@ const DECISION_LABEL: Record<InventoryDecisionAction, string> = {
 // rather than Reports so pricing decisions sit next to the stock they're
 // actually about.
 export default function InventoryPricingTab() {
-    const { inventory, transactions, settings, finance } = useApp();
+    const { inventory, transactions, settings, finance, navigate } = useApp();
     const currency = settings.currency || '₦';
 
     const [priceOverrides, setPriceOverrides] = useState<Record<string, string>>({});
@@ -235,20 +236,37 @@ export default function InventoryPricingTab() {
                     <Text style={s.disc}>
                         {priceRecommendations.length} item{priceRecommendations.length > 1 ? 's are' : ' is'} priced below your {parseFloat(settings.targetMargin)}% target margin — here's the exact price that closes the gap for each.
                     </Text>
-                    {priceRecommendations.map(rec => (
-                        <View key={rec.item.id} style={s.prRow}>
-                            <View style={s.flex1}>
-                                <Text style={s.productName}>{rec.item.name}</Text>
-                                <Text style={s.productCategory}>
-                                    {rec.currentMarginPct.toFixed(0)}% margin now → {rec.targetMarginPct.toFixed(0)}% at {currency}{rec.recommendedPrice.toFixed(2)}
-                                </Text>
+                    {priceRecommendations.map(rec => {
+                        const velocityRow = scenario.rows.find(r => r.itemId === rec.item.id);
+                        const unitsSoldPerMonth = velocityRow?.avgDailyUnitsSold ? velocityRow.avgDailyUnitsSold * 30 : 0;
+                        return (
+                            <View key={rec.item.id} style={s.prRow}>
+                                <View style={s.flex1}>
+                                    <Text style={s.productName}>{rec.item.name}</Text>
+                                    <Text style={s.productCategory}>
+                                        {rec.currentMarginPct.toFixed(0)}% margin now → {rec.targetMarginPct.toFixed(0)}% at {currency}{rec.recommendedPrice.toFixed(2)}
+                                    </Text>
+                                    {unitsSoldPerMonth > 0 && (
+                                        <NextStepLink
+                                            text="Test your own volume assumption"
+                                            onPress={() => navigate('analysis', {
+                                                tab: 'decide', decideFocusTool: 'priceVolumeSim',
+                                                priceVolumePrefill: {
+                                                    label: rec.item.name, unitsSoldPerMonth,
+                                                    currentPrice: rec.item.sellingPrice, costPerUnit: rec.item.costPrice,
+                                                    currentStockUnits: rec.item.quantity,
+                                                },
+                                            })}
+                                        />
+                                    )}
+                                </View>
+                                <View style={s.prRight}>
+                                    <Text style={s.prIncrease}>+{rec.priceIncreasePct.toFixed(0)}%</Text>
+                                    <Text style={s.prGain}>+{fmt(currency, rec.profitGainPerUnit)}/unit</Text>
+                                </View>
                             </View>
-                            <View style={s.prRight}>
-                                <Text style={s.prIncrease}>+{rec.priceIncreasePct.toFixed(0)}%</Text>
-                                <Text style={s.prGain}>+{fmt(currency, rec.profitGainPerUnit)}/unit</Text>
-                            </View>
-                        </View>
-                    ))}
+                        );
+                    })}
                 </View>
             )}
 
