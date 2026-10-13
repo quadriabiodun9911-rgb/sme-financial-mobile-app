@@ -1096,6 +1096,28 @@ export interface DataConfidenceSnapshot {
     confidencePct: number;
 }
 
+export interface HealthCategorySnapshot {
+    key: string; // HealthCategory['key'] -- e.g. 'profitability', 'liquidity'
+    label: string;
+    score: number;
+}
+
+// A periodic snapshot of performFinancialDiagnosis's own headline
+// overallHealth score (0-100) and its per-category breakdown -- the one
+// number Quad360's own stated measure of success ("are SMEs improving
+// their financial resilience") actually is, with no memory of where it
+// was before this. Financing Readiness (ReadinessSnapshot above) and
+// individual diagnoses (diagnosisHistory.ts) already get this trend
+// treatment; the aggregate score they both roll up from did not, until
+// now -- see healthScoreHistory.ts.
+export interface HealthScoreSnapshot {
+    id: string;
+    date: string; // ISO date (YYYY-MM-DD)
+    overallHealth: number;
+    healthStatus: 'critical' | 'warning' | 'healthy';
+    categories: HealthCategorySnapshot[];
+}
+
 // A live FX rate recorded on this device (see macroFeed.ts / storage.ts's
 // saveFxSnapshots) -- the only way to derive a real "% change over N months"
 // from a spot-rate API that doesn't offer historical data.

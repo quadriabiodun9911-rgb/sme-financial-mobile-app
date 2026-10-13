@@ -10,7 +10,7 @@
 
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Platform } from 'react-native';
-import { User, Invoice, InvoiceStatus, Bill, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CurrencyAccount, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, UserRole, Screen, Account, JournalEntry, JournalLine } from '../types';
+import { User, Invoice, InvoiceStatus, Bill, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CurrencyAccount, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, HealthScoreSnapshot, UserRole, Screen, Account, JournalEntry, JournalLine } from '../types';
 import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore, computeLoanPaymentSplit } from '../utils/finance';
 import { buildDefaultChartOfAccounts } from '../utils/chartOfAccounts';
 import {
@@ -23,6 +23,8 @@ import { buildForecastSnapshot, shouldRecordForecastSnapshot, appendForecastSnap
 import { computeForecastSummary } from '../utils/forecastSummary';
 import { computeDataQuality } from '../utils/dataQuality';
 import { buildDataConfidenceSnapshot, shouldRecordDataConfidenceSnapshot, appendDataConfidenceSnapshot } from '../utils/dataConfidenceHistory';
+import { buildHealthScoreSnapshot, shouldRecordHealthScoreSnapshot, appendHealthScoreSnapshot } from '../utils/healthScoreHistory';
+import { DiagnosisResult } from '../utils/financialDiagnosisEngine';
 import { trackTransactionAdded, trackInventoryItemAdded, trackAssetAdded, trackLoanAdded, trackGoalCreated, trackAppOpened, trackUserRegistered, trackUserLoggedOut, trackDemoStarted } from '../utils/analytics';
 import { auditEvents } from '../utils/auditLog';
 import { sanitizeStoredGoals, refreshGoal } from '../utils/goals';
@@ -48,6 +50,7 @@ import {
   loadReadinessHistory, saveReadinessHistory,
   loadForecastHistory, saveForecastHistory,
   loadDataConfidenceHistory, saveDataConfidenceHistory,
+  loadHealthScoreHistory, saveHealthScoreHistory,
   clearLocalFinancialCache,
   syncFinancingToSupabase,
   saveProfile, loadProfile, savePin, loadPin, verifyPin as verifyPinStored,
@@ -201,6 +204,11 @@ interface FinanceContextValue {
   readinessHistory: ReadinessSnapshot[];
   forecastHistory: ForecastSnapshot[];
   dataConfidenceHistory: DataConfidenceSnapshot[];
+  healthScoreHistory: HealthScoreSnapshot[];
+  // Called once per diagnosis recompute by HealthScoreSnapshotWatcher
+  // (App.tsx) -- see its own comment on why this provider can't compute
+  // the diagnosis itself.
+  recordHealthScoreSnapshot: (diagnosis: DiagnosisResult) => void;
 
   // General Ledger: the Chart of Accounts every business is seeded with
   // (see chartOfAccounts.ts) and every journal entry posted against it --
@@ -251,6 +259,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [readinessHistory, setReadinessHistory] = useState<ReadinessSnapshot[]>([]);
   const [forecastHistory, setForecastHistory] = useState<ForecastSnapshot[]>([]);
   const [dataConfidenceHistory, setDataConfidenceHistory] = useState<DataConfidenceSnapshot[]>([]);
+  const [healthScoreHistory, setHealthScoreHistory] = useState<HealthScoreSnapshot[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [financing, setFinancing] = useState<FinancingContextData>({
@@ -388,13 +397,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (l) setLoans(l.map((x) => ({ ...x, payments: x.payments ?? [] })));
         if (b) setBudgets(b);
         if (inv) setInventory(inv);
-        const [st, pr, cp, ca, cc, rh, fh, dch] = await Promise.all([
+        const [st, pr, cp, ca, cc, rh, fh, dch, hsh] = await Promise.all([
           isStaffRole ? Promise.resolve(null) : loadStaff(),
           isStaffRole ? Promise.resolve(null) : loadPayrollRuns(),
           isStaffRole ? Promise.resolve(null) : loadCashPockets(),
           isStaffRole ? Promise.resolve(null) : loadCurrencyAccounts(),
           isStaffRole ? Promise.resolve(null) : loadCapitalCommitments(),
-          loadReadinessHistory(), loadForecastHistory(), loadDataConfidenceHistory(),
+          loadReadinessHistory(), loadForecastHistory(), loadDataConfidenceHistory(), loadHealthScoreHistory(),
         ]);
         if (st) setStaff(st);
         if (pr) setPayrollRuns(pr);
@@ -404,6 +413,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (rh) setReadinessHistory(rh);
         if (fh) setForecastHistory(fh);
         if (dch) setDataConfidenceHistory(dch);
+        if (hsh) setHealthScoreHistory(hsh);
 
         // Chart of Accounts: seed the default set the first time this
         // business ever hydrates (no accounts row yet, anywhere) so the
@@ -585,6 +595,27 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     if (!hydrated || isDemoMode || transactions.length === 0) return;
     setDataConfidenceHistory(prev => shouldRecordDataConfidenceSnapshot(prev) ? appendDataConfidenceSnapshot(prev, buildDataConfidenceSnapshot(dataQuality)) : prev);
   }, [hydrated, isDemoMode, transactions.length, dataQuality]);
+
+  // Health Score History -- same weekly-snapshot pattern as the three
+  // above, but for performFinancialDiagnosis's own overallHealth score
+  // (healthScoreHistory.ts) rather than Risk/Forecast/Data-Confidence.
+  // Unlike those three, the diagnosis needs `invoices`, which belongs to
+  // a sibling provider FinanceProvider can't reach (InvoiceProvider is a
+  // DESCENDANT of this one in App.tsx's tree, not an ancestor) -- so this
+  // can't compute the diagnosis itself the way the effects above do.
+  // Instead this exposes a plain callback the app calls once, from a
+  // single-mount component below InvoiceProvider in the tree (see
+  // HealthScoreSnapshotWatcher in App.tsx) that CAN see both. The
+  // hydrated/demo/history gating that would otherwise live in a useEffect
+  // here lives inside the callback instead, so the caller doesn't have to
+  // know or duplicate those rules.
+  const recordHealthScoreSnapshot = useCallback((diagnosis: DiagnosisResult) => {
+    if (!hydrated || isDemoMode || transactions.length === 0) return;
+    setHealthScoreHistory(prev => shouldRecordHealthScoreSnapshot(prev) ? appendHealthScoreSnapshot(prev, buildHealthScoreSnapshot(diagnosis)) : prev);
+  }, [hydrated, isDemoMode, transactions.length]);
+  useEffect(() => {
+    if (hydrated && !isDemoMode) saveHealthScoreHistory(healthScoreHistory).catch(() => {});
+  }, [healthScoreHistory, hydrated, isDemoMode]);
 
   // The one place a system-generated journal entry actually reaches
   // journalEntries state -- called alongside every write path below that
@@ -935,6 +966,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       readinessHistory,
       forecastHistory,
       dataConfidenceHistory,
+      healthScoreHistory,
+      recordHealthScoreSnapshot,
 
       financing,
       // Was a no-op stub (`() => Promise.resolve()`) that silently ignored
@@ -1039,7 +1072,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         });
       },
     }),
-    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, currencyAccounts, capitalCommitments, readinessHistory, forecastHistory, dataConfidenceHistory, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency, hydrated, accounts, journalEntries]
+    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, currencyAccounts, capitalCommitments, readinessHistory, forecastHistory, dataConfidenceHistory, healthScoreHistory, recordHealthScoreSnapshot, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency, hydrated, accounts, journalEntries]
   );
 
   return (
@@ -3026,6 +3059,8 @@ export function useApp() {
     readinessHistory: finance?.readinessHistory ?? [],
     forecastHistory: finance?.forecastHistory ?? [],
     dataConfidenceHistory: finance?.dataConfidenceHistory ?? [],
+    healthScoreHistory: finance?.healthScoreHistory ?? [],
+    recordHealthScoreSnapshot: finance?.recordHealthScoreSnapshot || (() => {}),
     // Explicit return type on the fallback so it matches auth.changePin's
     // signature exactly instead of TypeScript inferring a narrower
     // `{ok:false}` literal and unioning the two into an undiscriminated
@@ -3050,6 +3085,7 @@ export function useApp() {
       capitalCommitments: finance?.capitalCommitments ?? [], readinessHistory: finance?.readinessHistory ?? [],
       forecastHistory: finance?.forecastHistory ?? [],
       dataConfidenceHistory: finance?.dataConfidenceHistory ?? [],
+      healthScoreHistory: finance?.healthScoreHistory ?? [],
     }),
     recordConsent,
     enterDemo: auth.enterDemo || (() => {}),
