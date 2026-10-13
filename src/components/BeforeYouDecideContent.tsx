@@ -8,6 +8,7 @@ import GrowthAffordabilityCalculator from './GrowthAffordabilityCalculator';
 import BuyVsFinanceCalculator from './BuyVsFinanceCalculator';
 import AssetAcquisitionCalculator from './AssetAcquisitionCalculator';
 import CostSwitchCalculator from './CostSwitchCalculator';
+import PriceVolumeSimulator from './PriceVolumeSimulator';
 import ProjectDecisionSimulator from './ProjectDecisionSimulator';
 import LoanAffordabilityChecker from './LoanAffordabilityChecker';
 import { SAFE_REPAYMENT_CAPACITY_MULTIPLE } from '../utils/loanAffordabilityCheck';
@@ -128,6 +129,20 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
     // force-opens via navParams.decideFocusTool today even without a value
     // to prefill.
     const [costSwitchPrefill, setCostSwitchPrefill] = useState<{ label: string; monthlyAmount: number } | null>(null);
+    // Handed off from Inventory Pricing's own per-item list (see
+    // InventoryPricingTab.tsx's "Test your own volume assumption" link),
+    // via navParams rather than in-screen state like spendPrefill above,
+    // since that link lives on a different screen entirely. Same one-time
+    // -consumed pattern FinancingMarketplaceScreen's own prefill uses --
+    // the ref stops a later re-render (e.g. switching tabs and back) from
+    // re-applying a prefill the owner already edited or cleared.
+    const [priceVolumePrefill, setPriceVolumePrefill] = useState<{ label: string; unitsSoldPerMonth: number; currentPrice: number; costPerUnit: number; currentStockUnits?: number } | null>(null);
+    const consumedPriceVolumePrefill = useRef(false);
+    useEffect(() => {
+        if (consumedPriceVolumePrefill.current || !navParams?.priceVolumePrefill) return;
+        consumedPriceVolumePrefill.current = true;
+        setPriceVolumePrefill(navParams.priceVolumePrefill);
+    }, [navParams]);
 
     // Scrolls straight to whichever calculator Decision Readiness's own
     // launcher deep-linked here for (see navParams.decideFocusTool) -- that
@@ -422,6 +437,18 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
                     onSeeFinancing={(upfrontCost, costLabel) => navigate('financing-marketplace', {
                         prefill: { category: costSwitchFinancingCategory(costLabel), amount: upfrontCost },
                     })}
+                />
+            </Collapsible>
+
+            <View style={styles.decisionCard}>
+                <Text style={styles.decisionQuestion}>Thinking of discounting a product, or raising its price?</Text>
+                <Text style={styles.decisionHelp}>A discount only pays for itself if it brings in enough extra sales to cover the margin given up — enter your own volume assumption and see the real break-even point and how much room it has for error.</Text>
+            </View>
+            <Collapsible title="Would This Price Change Pay Off?" forceOpen={navParams?.decideFocusTool === 'priceVolumeSim'}>
+                <PriceVolumeSimulator
+                    currency={currency}
+                    prefill={priceVolumePrefill}
+                    onPrefillConsumed={() => setPriceVolumePrefill(null)}
                 />
             </Collapsible>
 
