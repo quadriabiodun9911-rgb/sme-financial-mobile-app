@@ -38,6 +38,7 @@ import { computeFinancialChangeExplanation } from '../utils/financialChangeExpla
 import { computeFinancingReadinessIntelligence, computeLendingCapacityIntelligence } from '../utils/metricIntelligence';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { ESTIMATE_NOT_GUARANTEE, RANGE_NOT_OFFER } from '../utils/legalDisclaimers';
 
 const READINESS_DIRECTION_LABEL: Record<ReadinessDirection, string> = {
     improving: 'Improving',
@@ -418,6 +419,47 @@ export default function CreditWorthinessScreen() {
     // downstream calculation (how much could this business realistically
     // borrow) where that distinction actually matters.
     const financingReadiness = useMemo(() => computeFinancingReadinessScore(risk.factors), [risk.factors]);
+
+    // The two scores on this screen answer genuinely different questions --
+    // Financing Readiness: is the business actually healthy? Visibility
+    // Score: can that health be PROVEN from the records on file? A business
+    // can be strong on one and weak on the other, and reading just one
+    // number in isolation hides which situation it's actually in. This
+    // synthesizes both into the one sentence a reader needs first.
+    const readinessWeakestFactor = useMemo(
+        () => risk.factors.length > 0 ? [...risk.factors].sort((a, b) => a.score - b.score)[0] : null,
+        [risk.factors],
+    );
+    const readinessSituation = useMemo(() => {
+        const businessHealthy = financingReadiness.band !== 'Weak' && financingReadiness.band !== 'Critical';
+        const evidenceClear = dataQuality.confidence === 'strong' || dataQuality.confidence === 'partial';
+        if (businessHealthy && evidenceClear) {
+            return {
+                icon: 'check-circle' as IconName, color: Colors.income,
+                title: `You're in a strong position, and can prove it`,
+                text: `Your financing readiness (${financingReadiness.band.toLowerCase()}) and your records (${dataQuality.summary.toLowerCase()}) both hold up. This is a reasonable time to explore financing if you need it.`,
+            };
+        }
+        if (businessHealthy && !evidenceClear) {
+            return {
+                icon: 'eye' as IconName, color: Colors.warning,
+                title: `Your business looks healthy — but you can't prove it yet`,
+                text: `Financing readiness is ${financingReadiness.band.toLowerCase()}, but your records are thin (${dataQuality.summary.toLowerCase()}). A lender can't trust a picture it can't verify. Keep logging consistently — this is usually the faster of the two things to fix.`,
+            };
+        }
+        if (!businessHealthy && evidenceClear) {
+            return {
+                icon: 'alert-triangle' as IconName, color: Colors.expense,
+                title: `Your records are clear — and they show real strain`,
+                text: `Your data is detailed enough for a lender to trust it, and what it shows is ${financingReadiness.band.toLowerCase()} financing readiness${readinessWeakestFactor ? `, mainly from ${readinessWeakestFactor.name.toLowerCase()}` : ''}. Worth addressing before pursuing new financing, not after.`,
+            };
+        }
+        return {
+            icon: 'help-circle' as IconName, color: Colors.textMuted,
+            title: `Not enough is known yet to say either way`,
+            text: `There's too little recorded history to judge your financial health or how a lender would read your records. Keep logging transactions — both pictures get clearer together.`,
+        };
+    }, [financingReadiness.band, dataQuality.confidence, dataQuality.summary, readinessWeakestFactor]);
     // Dynamic Financing Readiness -- the score above, plus which way it's
     // moving and the real evidence behind that, instead of a flat number.
     // growthQuality and topDiagnosis are each computed once here (not
@@ -519,6 +561,7 @@ export default function CreditWorthinessScreen() {
                 avgMonthlyRevenue: user?.avgMonthlyRevenue || 0,
                 daysActive: user?.daysActive || 0,
                 generatedAt: new Date(),
+                dataConfidenceSummary: dataQuality.summary,
             });
             const filePath = await generatePDF(exportData);
             await sharePDF(filePath, exportData.title);
@@ -563,6 +606,16 @@ export default function CreditWorthinessScreen() {
 
                 <Text style={s.title}>💳 Credit-Worthiness</Text>
                 <Text style={s.subtitle}>How your business looks against what lenders evaluate — not a loan decision, and not a guarantee.</Text>
+
+                {dataQuality.confidence !== 'none' && (
+                    <View style={[s.situationCard, { borderLeftColor: readinessSituation.color }]}>
+                        <View style={s.situationHeaderRow}>
+                            <Icon name={readinessSituation.icon} size={16} color={readinessSituation.color} />
+                            <Text style={[s.situationTitle, { color: readinessSituation.color }]}>{readinessSituation.title}</Text>
+                        </View>
+                        <Text style={s.situationText}>{readinessSituation.text}</Text>
+                    </View>
+                )}
 
                 <View style={s.tabRow}>
                     <TouchableOpacity style={[s.tabBtn, tab === 'profile' && s.tabBtnActive]} onPress={() => setTab('profile')}>
@@ -822,9 +875,7 @@ export default function CreditWorthinessScreen() {
                 {/* Estimated Lending Capacity */}
                 <View style={[s.capacityCard, lendingCapacity.tier === 'not-yet-bankable' && s.capacityCardMuted]}>
                     <Text style={s.sectionTitle}>💰 Estimated Lending Capacity</Text>
-                    <Text style={s.capacitySub}>
-                        An illustrative range based on your own numbers — not an offer from any lender, and not a guarantee. Actual terms depend on the lender you approach.
-                    </Text>
+                    <Text style={s.capacitySub}>{RANGE_NOT_OFFER}</Text>
                     {lendingCapacity.maxAmount > 0 ? (
                         <>
                             <Text style={s.capacityRange}>
@@ -1183,9 +1234,7 @@ export default function CreditWorthinessScreen() {
                                     </Text>
                                     <Text style={fp.improvementProjectedBand}>({pack.improvementProjection.projectedBand})</Text>
                                 </View>
-                                <Text style={fp.improvementCaveat}>
-                                    An illustrative estimate based on your own recorded numbers, not a guarantee.
-                                </Text>
+                                <Text style={fp.improvementCaveat}>{ESTIMATE_NOT_GUARANTEE}</Text>
                             </View>
                         )}
                     </View>
@@ -1265,6 +1314,10 @@ const s = StyleSheet.create({
     pad: { padding: 16, paddingBottom: 80 },
     title: { fontSize: 28, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
     subtitle: { fontSize: 14, color: Colors.textSecondary, marginBottom: 16 },
+    situationCard: { backgroundColor: Colors.card, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: Colors.border, borderLeftWidth: 4, ...Shadow.sm },
+    situationHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+    situationTitle: { fontSize: 14.5, fontWeight: '800', flex: 1 },
+    situationText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
     tabRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
     tabBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
     tabBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },

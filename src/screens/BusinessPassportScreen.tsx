@@ -14,6 +14,7 @@ import { computeRevenueConcentrationAlert } from '../utils/revenueConcentrationA
 import { showAlert } from '../utils/webAlert';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
+import { ESTIMATE_NOT_GUARANTEE } from '../utils/legalDisclaimers';
 
 const STATUS_LABEL: Record<string, string> = { good: 'Strong', warning: 'Watch', danger: 'High risk' };
 const STATUS_COLOR: Record<string, string> = { good: Colors.income, warning: Colors.warning, danger: Colors.expense };
@@ -462,9 +463,7 @@ export default function BusinessPassportScreen() {
                                 </Text>
                             </View>
                         </View>
-                        <Text style={s.improvementCaveat}>
-                            An illustrative estimate based on your own recorded numbers, not a guarantee.
-                        </Text>
+                        <Text style={s.improvementCaveat}>{ESTIMATE_NOT_GUARANTEE}</Text>
                     </View>
                 )}
 

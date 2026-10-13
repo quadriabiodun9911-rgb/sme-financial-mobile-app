@@ -10,7 +10,7 @@
 import { Transaction, Invoice, Loan, InventoryItem, Asset, FinanceData, BusinessSettings } from '../types';
 import { computeRiskScore, computeFinancingReadinessScore, computeImprovementProjection, getMonthlyExpenseAverage, RiskFactor, RiskScore, computeEnhancedPnL, computeWorkingCapitalMetrics, computeLoanAmortizationSplit } from './finance';
 import { computeAllTimeMonthlyBuckets, MonthlyTrendPoint } from './trendAnalysis';
-import { computeDataQuality } from './dataQuality';
+import { computeDataQuality, DataQuality } from './dataQuality';
 import { computeTaxFilingReadiness } from './taxFilingReadiness';
 import { performFinancialDiagnosis, factorNamesForDimensions, ActionImpact } from './financialDiagnosisEngine';
 import { localDateStr } from './localDate';
@@ -51,6 +51,12 @@ export interface FundingReadinessPack {
     score: number;
     band: RiskScore['band'];
     documents: DocumentReadiness[];
+    // Was already computed for the "Bank statements" document-readiness
+    // check below, but only reachable there, buried in one checklist row's
+    // detail text -- a lender reading the exported pack never saw it as
+    // its own signal. Exposed directly so buildFundingReadinessPackExport
+    // can surface it as a headline figure.
+    dataQuality: DataQuality;
     // Same top-3 prioritized fixes performFinancialDiagnosis surfaces
     // elsewhere in the app (e.g. the Business Passport's Actions section) --
     // reused here, not a second independent list.
@@ -212,6 +218,7 @@ export function buildFundingReadinessPack(
         score: financingReadiness.score,
         band: financingReadiness.band,
         documents,
+        dataQuality,
         topActions,
         topActionImpacts,
         improvementProjection,

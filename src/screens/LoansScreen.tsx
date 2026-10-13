@@ -1102,8 +1102,16 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
     const overdue = isOverdue(loan);
     const statusColor = loan.status === 'paid_off' ? Colors.income : loan.status === 'defaulted' ? Colors.expense : overdue ? Colors.warning : Colors.textMuted;
 
+    // Previously gated on loan.fromMarketplace -- but computePostFinancingMonitor
+    // only needs startDate/principal/payments/termMonths, fields every loan has
+    // regardless of where it came from. A loan taken out at a bank, with a
+    // family member, or anywhere outside Quad360's own marketplace deserves the
+    // exact same "is this loan on pace" self-monitoring (Phase 1) a
+    // marketplace-originated one gets -- gating it to fromMarketplace meant
+    // most businesses' real loans got none of this. Gated on 'active' instead:
+    // a paid-off or defaulted loan has nothing ongoing left to monitor.
     const monitor = useMemo(
-        () => loan.fromMarketplace ? computePostFinancingMonitor(loan, transactions, readinessHistory, dscr) : null,
+        () => loan.status === 'active' ? computePostFinancingMonitor(loan, transactions, readinessHistory, dscr) : null,
         [loan, transactions, readinessHistory, dscr],
     );
     const MONITOR_STATUS_STYLE: Record<PostFinancingStatus, { label: string; color: string }> = {
