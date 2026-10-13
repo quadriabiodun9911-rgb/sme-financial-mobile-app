@@ -38,6 +38,7 @@ export function buildHealthScoreSnapshot(diagnosis: DiagnosisResult, now: Date =
         date: localDateStr(now),
         overallHealth: Math.round(diagnosis.overallHealth),
         healthStatus: diagnosis.healthStatus,
+        band: diagnosis.band,
         categories,
     };
 }
