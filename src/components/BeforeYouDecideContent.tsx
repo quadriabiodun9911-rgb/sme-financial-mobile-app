@@ -68,6 +68,17 @@ interface Props {
     scrollRef?: React.RefObject<ScrollView | null>;
 }
 
+// Deliberately simple keyword check, not true NLU -- matches the same
+// philosophy as quickAddParser.ts. Only steers which Financing Marketplace
+// category tab opens pre-selected; the user can always change it there.
+function costSwitchFinancingCategory(costLabel: string): string {
+    const label = costLabel.toLowerCase();
+    if (['generator', 'solar', 'power', 'electric', 'diesel', 'fuel'].some(kw => label.includes(kw))) {
+        return 'energy_solar';
+    }
+    return 'asset_equipment';
+}
+
 export default function BeforeYouDecideContent({ scrollRef }: Props) {
     const { finance, transactions, loans, bills, invoices, inventory, assets, settings, navigate, goals, navParams } = useApp();
     const { currency } = settings;
@@ -408,6 +419,9 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
                     minReserve={parseFloat(settings?.minReserve || '0') || 0}
                     prefill={costSwitchPrefill}
                     onPrefillConsumed={() => setCostSwitchPrefill(null)}
+                    onSeeFinancing={(upfrontCost, costLabel) => navigate('financing-marketplace', {
+                        prefill: { category: costSwitchFinancingCategory(costLabel), amount: upfrontCost },
+                    })}
                 />
             </Collapsible>
 
