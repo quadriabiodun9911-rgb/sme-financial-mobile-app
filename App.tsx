@@ -1,10 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, ActivityIndicator, Platform, BackHandler, Alert, useWindowDimensions, StyleSheet } from 'react-native';
 import { Colors } from './src/theme/colors';
 import * as Updates from 'expo-updates';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from './src/contexts/ThemeContext';
-import { AuthProvider, SettingsProvider, FinanceProvider, GoalProvider, InvoiceProvider, BillProvider, useAuth, useAppReady } from './src/contexts/OptimizedContexts';
+import { AuthProvider, SettingsProvider, FinanceProvider, GoalProvider, InvoiceProvider, BillProvider, useAuth, useAppReady, useFinance, useInvoices, useSettings } from './src/contexts/OptimizedContexts';
+import { performFinancialDiagnosis } from './src/utils/financialDiagnosisEngine';
+import { getMonthlyExpenseAverage } from './src/utils/finance';
 import { trackScreenViewed, trackAppOpened } from './src/utils/analytics';
 import { initSentry, setSentryUser } from './src/utils/sentry';
 import ErrorBoundary from './src/components/ErrorBoundary';
@@ -314,6 +316,35 @@ function OfflineSyncWatcher() {
     return null;
 }
 
+// Records a Health Score History snapshot (healthScoreHistory.ts) so the
+// one number Quad360's own stated measure of success points at --
+// "SMEs improving their financial resilience" -- has a real trend to show,
+// the same way Financing Readiness already does via readinessHistory.
+// Lives here, below InvoiceProvider, rather than inside FinanceProvider
+// itself, because performFinancialDiagnosis needs `invoices`, which
+// belongs to a sibling provider FinanceProvider can't reach (see
+// recordHealthScoreSnapshot's own comment in OptimizedContexts.tsx).
+function HealthScoreSnapshotWatcher() {
+    const { transactions, loans, inventory, assets, finance, recordHealthScoreSnapshot } = useFinance();
+    const { invoices } = useInvoices();
+    const { settings } = useSettings();
+
+    const diagnosis = useMemo(() => {
+        if (transactions.length < 5) return null;
+        const expenseAvg = getMonthlyExpenseAverage(finance?.expense ?? 0, transactions);
+        return performFinancialDiagnosis(
+            transactions, invoices, finance?.cashBalance ?? 0, expenseAvg,
+            settings?.currency ?? '₦', loans, inventory, assets, settings?.industry,
+        );
+    }, [transactions, invoices, finance, settings?.currency, settings?.industry, loans, inventory, assets]);
+
+    useEffect(() => {
+        if (diagnosis) recordHealthScoreSnapshot(diagnosis);
+    }, [diagnosis, recordHealthScoreSnapshot]);
+
+    return null;
+}
+
 function OtaUpdater() {
     useEffect(() => {
         // OTA updates only apply to native builds, not web or Expo Go dev mode
@@ -349,6 +380,7 @@ export default function App() {
                                         <BillProvider>
                                             <OtaUpdater />
                                             <OfflineSyncWatcher />
+                                            <HealthScoreSnapshotWatcher />
                                             <ErrorBoundary>
                                                 <NavigatorContent />
                                             </ErrorBoundary>

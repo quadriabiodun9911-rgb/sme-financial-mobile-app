@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CryptoJS from 'crypto-js';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, Bill, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CurrencyAccount, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, FxRateSnapshot, Account, JournalEntry } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, Bill, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CurrencyAccount, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, HealthScoreSnapshot, FxRateSnapshot, Account, JournalEntry } from '../types';
 import { supabase } from './supabase';
 import {
     savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData, saveAuthSecretSecurely, loadAuthSecretSecurely, clearAuthSecretSecurely,
@@ -1365,7 +1365,21 @@ export async function loadDataConfidenceHistory(): Promise<DataConfidenceSnapsho
     return safeParse<DataConfidenceSnapshot[]>(raw);
 }
 
-// Every local-only snapshot-history key above, in one place. All three
+// ─── Health Score History ────────────────────────────────────────────────────
+// Same local-only pattern as Readiness History above -- the aggregate
+// overallHealth score (healthScoreHistory.ts) this app otherwise
+// recomputes fresh on every render, with no memory of where it was last
+// month.
+export const HEALTH_SCORE_HISTORY_KEY = '@quad360/healthScoreHistory';
+export async function saveHealthScoreHistory(history: HealthScoreSnapshot[]): Promise<void> {
+    await AsyncStorage.setItem(HEALTH_SCORE_HISTORY_KEY, JSON.stringify(history));
+}
+export async function loadHealthScoreHistory(): Promise<HealthScoreSnapshot[] | null> {
+    const raw = await AsyncStorage.getItem(HEALTH_SCORE_HISTORY_KEY);
+    return safeParse<HealthScoreSnapshot[]>(raw);
+}
+
+// Every local-only snapshot-history key above, in one place. All four
 // share the exact trait that makes them dangerous to forget clearing: no
 // Supabase table backs them (see each section's own comment), and they
 // carry no per-account namespacing, so a second identity on this device
@@ -1381,6 +1395,7 @@ export const SNAPSHOT_HISTORY_KEYS = [
     READINESS_HISTORY_KEY,
     FORECAST_HISTORY_KEY,
     DATA_CONFIDENCE_HISTORY_KEY,
+    HEALTH_SCORE_HISTORY_KEY,
 ] as const;
 
 // ─── FX Rate Snapshots (local only) ───────────────────────────────────────────
@@ -1761,6 +1776,7 @@ export interface AppBackup {
     readinessHistory?: ReadinessSnapshot[];
     forecastHistory?: ForecastSnapshot[];
     dataConfidenceHistory?: DataConfidenceSnapshot[];
+    healthScoreHistory?: HealthScoreSnapshot[];
     auditLogs?: unknown[];
     consents?: unknown[];
 }
@@ -1782,6 +1798,7 @@ export interface ExportInput {
     readinessHistory: ReadinessSnapshot[];
     forecastHistory: ForecastSnapshot[];
     dataConfidenceHistory: DataConfidenceSnapshot[];
+    healthScoreHistory: HealthScoreSnapshot[];
 }
 
 export async function exportAllData(input: ExportInput): Promise<string> {
@@ -1838,6 +1855,7 @@ export async function importAllData(json: string): Promise<AppBackup> {
     if (parsed.readinessHistory) restores.push(saveReadinessHistory(parsed.readinessHistory));
     if (parsed.forecastHistory) restores.push(saveForecastHistory(parsed.forecastHistory));
     if (parsed.dataConfidenceHistory) restores.push(saveDataConfidenceHistory(parsed.dataConfidenceHistory));
+    if (parsed.healthScoreHistory) restores.push(saveHealthScoreHistory(parsed.healthScoreHistory));
     await Promise.all(restores);
     return parsed;
 }

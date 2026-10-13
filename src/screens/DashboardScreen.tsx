@@ -44,6 +44,7 @@ import NextStepLink from '../components/NextStepLink';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
+import { computeHealthScoreDelta } from '../utils/healthScoreHistory';
 import { notifyFinancingOpportunity, notifyFinancingQualificationProgress, notifyOverdueRemindersDue, notifyLoanPaymentDueSoon, notifyPayrollDue, notifyOverdueTransactionsFound, notifyTaxDeadline, notifyGoalAlerts, notifyRecurringTransactionAlerts, notifyBudgetPeriodLapsed, notifyAssetsNearingReplacement, notifyStockoutRisk, notifyTaxAbilityToPayShortfall, notifySlowMovingStock, notifyExpiringInventory, notifyLowCashRunway, notifyRisingCostCategory, requestNotificationPermission, scheduleWeeklySummaryReminder, scheduleDailyReminder, scheduleMorningBriefing, scheduleEveningRecap, scheduleMonthlyBrief } from '../utils/notifications';
 import { computeWeekdayPattern } from '../utils/weekdayPattern';
 import { buildDailyBriefing } from '../utils/dailyBriefing';
@@ -167,7 +168,7 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen;
 };
 
 export default function DashboardScreen() {
-    const { finance, settings, goals, transactions, invoices, assets, loans, staff, payrollRuns, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, demoBusinessId, cashPockets, addGoal, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory, markInvoiceStatus, userRole, bills } = useApp();
+    const { finance, settings, goals, transactions, invoices, assets, loans, staff, payrollRuns, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, demoBusinessId, cashPockets, addGoal, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory, healthScoreHistory, markInvoiceStatus, userRole, bills } = useApp();
     // 'viewer'/'external_accountant' can open the dashboard but are
     // documented (rolePermissions.ts) as never writing anywhere -- Quick
     // Add had no role check at all before this, on any of its several
@@ -409,6 +410,23 @@ export default function DashboardScreen() {
         }
         return null;
     }, [readinessDelta]);
+
+    // The aggregate counterpart to readinessDelta above -- "is this
+    // business's overall financial resilience improving," not just its
+    // financing readiness. See healthScoreHistory.ts: this is the one
+    // number Quad360's own stated measure of success points at, and
+    // until now it had no trend of its own, only a live snapshot.
+    const healthScoreDelta = useMemo(() => computeHealthScoreDelta(healthScoreHistory), [healthScoreHistory]);
+    const healthScoreTopMover = useMemo(() => {
+        if (!healthScoreDelta) return null;
+        if (healthScoreDelta.trend === 'improving') {
+            return healthScoreDelta.improvedCategories.reduce((best, c) => (!best || c.to - c.from > best.to - best.from) ? c : best, healthScoreDelta.improvedCategories[0] ?? null);
+        }
+        if (healthScoreDelta.trend === 'declining') {
+            return healthScoreDelta.worsenedCategories.reduce((worst, c) => (!worst || c.to - c.from < worst.to - worst.from) ? c : worst, healthScoreDelta.worsenedCategories[0] ?? null);
+        }
+        return null;
+    }, [healthScoreDelta]);
 
     // Surface a financing opportunity on the dashboard itself, not just
     // when the owner happens to visit Financing — but only the strongest
@@ -1878,6 +1896,38 @@ export default function DashboardScreen() {
                         <>Your readiness dropped <Text style={{ color: Colors.expense, fontWeight: '800' }}>{Math.abs(readinessDelta.scoreDelta)} points</Text> over {readinessDelta.periodLabel}{readinessTopMover ? ` — ${readinessTopMover.name} needs attention.` : '.'}</>
                       ) : (
                         <>Your readiness has held steady over {readinessDelta.periodLabel}.</>
+                      )}
+                    </Text>
+                    <Icon name="chevron-right" size={16} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                )}
+
+                {/* Business Health Trend -- the aggregate counterpart to
+                    the readiness card above: "is this business's overall
+                    financial resilience improving," not just its financing
+                    readiness. Same hidden-in-demo-mode/staff-account gate,
+                    same tap-through pattern, but points at the Business
+                    Health Report (Financial Assessment) where the full
+                    diagnosis behind this trend actually lives. */}
+                {canViewFinancials && !isDemoMode && healthScoreDelta && healthScoreDelta.trend !== 'stable' && (
+                  <TouchableOpacity
+                    style={[
+                      styles.progressCard,
+                      { borderColor: healthScoreDelta.trend === 'improving' ? Colors.income : Colors.expense },
+                    ]}
+                    onPress={() => setCurrentScreen('financial-assessment')}
+                    activeOpacity={0.8}
+                  >
+                    <Icon
+                      name={healthScoreDelta.trend === 'improving' ? 'trending-up' : 'trending-down'}
+                      size={16}
+                      color={healthScoreDelta.trend === 'improving' ? Colors.income : Colors.expense}
+                    />
+                    <Text style={styles.progressCardText}>
+                      {healthScoreDelta.trend === 'improving' ? (
+                        <>Your overall Business Health improved <Text style={{ color: Colors.income, fontWeight: '800' }}>{healthScoreDelta.scoreDelta} points</Text> over {healthScoreDelta.periodLabel}{healthScoreTopMover ? ` — ${healthScoreTopMover.label} is the biggest driver.` : '.'}</>
+                      ) : (
+                        <>Your overall Business Health dropped <Text style={{ color: Colors.expense, fontWeight: '800' }}>{Math.abs(healthScoreDelta.scoreDelta)} points</Text> over {healthScoreDelta.periodLabel}{healthScoreTopMover ? ` — ${healthScoreTopMover.label} needs attention.` : '.'}</>
                       )}
                     </Text>
                     <Icon name="chevron-right" size={16} color={Colors.textMuted} />

@@ -36,6 +36,7 @@ import { buildFinancingFitInput } from '../utils/financingFit';
 import { computeInventoryValue } from '../utils/stockVelocity';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
+import { computeHealthScoreDelta } from '../utils/healthScoreHistory';
 import { buildDiagnosticDimensions } from '../utils/diagnosticDimensions';
 import { GoalStatus } from '../types';
 
@@ -50,9 +51,13 @@ const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
 };
 
 export default function FinancialAssessmentScreen() {
-  const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory, assets, budgets, dataConfidenceHistory, user, goals, readinessHistory } = useApp();
+  const { transactions, invoices, finance, settings, setCurrentScreen, navigate, loans, inventory, assets, budgets, dataConfidenceHistory, user, goals, readinessHistory, healthScoreHistory } = useApp();
   const [selectedDiagnosis, setSelectedDiagnosis] = useState<number>(0);
   const dataConfidenceTrend = useMemo(() => describeDataConfidenceTrend(dataConfidenceHistory), [dataConfidenceHistory]);
+  // "Is this business's overall financial resilience improving" -- the
+  // aggregate counterpart to readinessDelta, shown right on the Business
+  // Health Report since that's the one headline number this trend tracks.
+  const healthScoreDelta = useMemo(() => computeHealthScoreDelta(healthScoreHistory), [healthScoreHistory]);
 
   // "Mark as intentional" -- see diagnosisDismissal.ts for why this exists
   // (the engine's template rules can't tell a deliberate business choice
@@ -406,6 +411,23 @@ export default function FinancialAssessmentScreen() {
               </Text>
             </View>
           </View>
+
+          {/* "Is this getting better" -- the trend behind the score above,
+              not just today's snapshot. Same healthScoreHistory.ts trend
+              the Dashboard's own progress card teases; the category
+              attribution (which dimension moved) only shows here, where
+              there's room for it. Null until a second snapshot exists
+              (roughly a week after the first real activity). */}
+          {healthScoreDelta && healthScoreDelta.trend !== 'stable' && (
+            <View style={[styles.trendSummaryBox, { borderColor: healthScoreDelta.trend === 'improving' ? Colors.income : Colors.expense }]}>
+              <Icon name={healthScoreDelta.trend === 'improving' ? 'trending-up' : 'trending-down'} size={14} color={healthScoreDelta.trend === 'improving' ? Colors.income : Colors.expense} />
+              <Text style={[styles.trendSummaryText, { color: healthScoreDelta.trend === 'improving' ? Colors.income : Colors.expense }]}>
+                {healthScoreDelta.trend === 'improving'
+                  ? `Overall health improved ${healthScoreDelta.fromScore}→${healthScoreDelta.toScore} over ${healthScoreDelta.periodLabel}${healthScoreDelta.improvedCategories.length > 0 ? ` — ${healthScoreDelta.improvedCategories.map(c => c.label).join(', ')} led the way.` : '.'}`
+                  : `Overall health dropped ${healthScoreDelta.fromScore}→${healthScoreDelta.toScore} over ${healthScoreDelta.periodLabel}${healthScoreDelta.worsenedCategories.length > 0 ? ` — ${healthScoreDelta.worsenedCategories.map(c => c.label).join(', ')} needs attention.` : '.'}`}
+              </Text>
+            </View>
+          )}
 
           <Text style={styles.reportSectionLabel}>What we found</Text>
           <Text style={styles.reportText}>{businessHealthReport.whatWeFound}</Text>
@@ -1022,6 +1044,8 @@ const styles = StyleSheet.create({
   reportStatusText: { fontSize: 12, fontWeight: '800' },
   reportSectionLabel: { fontSize: 10.5, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 8 },
   reportText: { fontSize: 13, color: Colors.textPrimary, lineHeight: 19, marginTop: 2 },
+  trendSummaryBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, borderWidth: 1, borderRadius: Radius.sm, padding: 10, marginTop: 10 },
+  trendSummaryText: { flex: 1, fontSize: 12, fontWeight: '600', lineHeight: 17 },
   reportStep: { flex: 1, fontSize: 13, color: Colors.textPrimary, lineHeight: 19 },
   reportDecisionBox: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
   stepRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
