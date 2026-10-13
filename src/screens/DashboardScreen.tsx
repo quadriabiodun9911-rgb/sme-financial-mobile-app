@@ -801,10 +801,14 @@ export default function DashboardScreen() {
 
     // Celebrating improvement -- see celebrationEngine.ts for why this is a
     // separate, positive-reinforcement moment rather than a duplicate of the
-    // readiness-trend line already on this screen.
+    // health-score-trend line already on this screen. Reads healthScoreHistory
+    // (Business Health, matching this celebration's own copy), not
+    // readinessHistory (Financing Readiness, a different score with its own
+    // trend line further up this screen) -- see celebrationEngine.ts's own
+    // comment for why that was wrong before healthScoreHistory existed.
     const celebration = useMemo(
-        () => computeCelebration(readinessHistory, transactions, settings?.currency ?? '₦'),
-        [readinessHistory, transactions, settings?.currency]
+        () => computeCelebration(healthScoreHistory, transactions, settings?.currency ?? '₦'),
+        [healthScoreHistory, transactions, settings?.currency]
     );
 
     // This month's one focused target -- the highest-impact "reduce this to

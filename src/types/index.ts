@@ -1115,6 +1115,12 @@ export interface HealthScoreSnapshot {
     date: string; // ISO date (YYYY-MM-DD)
     overallHealth: number;
     healthStatus: 'critical' | 'warning' | 'healthy';
+    // Same 5-tier band RiskScore/ReadinessSnapshot use (DiagnosisResult.band
+    // is computed from the identical bandForScore cutoffs) -- lets a real
+    // Business Health band upgrade (e.g. Moderate -> Strong) be celebrated
+    // with the same BAND_RANK logic celebrationEngine.ts already has,
+    // instead of the coarser 3-state healthStatus.
+    band: 'Excellent' | 'Strong' | 'Moderate' | 'Weak' | 'Critical';
     categories: HealthCategorySnapshot[];
 }
 

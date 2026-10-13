@@ -14,13 +14,18 @@
  *  - A Business Health BAND upgrade (e.g. Moderate -> Strong) between the
  *    two most recent snapshots -- a genuine threshold crossing, the same
  *    bands this app and lenders both already use, not just the score
- *    ticking up a couple of points.
+ *    ticking up a couple of points. Reads healthScoreHistory.ts's own
+ *    band field (DiagnosisResult.band -- the actual Business Health score
+ *    this celebration's copy names), not readinessHistory's Financing
+ *    Readiness band, which this previously, incorrectly, read instead --
+ *    a different score with its own home (Credit-Worthiness/Scoreboard)
+ *    and its own continuous trend line already shown there.
  *  - A month that turned a real loss into a real profit compared to the
  *    month before -- reuses the exact same monthly buckets buildMonthlyBrief
  *    and MonthlyReview already use.
  */
 
-import { Transaction, ReadinessSnapshot } from '../types';
+import { Transaction, HealthScoreSnapshot } from '../types';
 import { RISK_BAND_CUTOFFS, RiskScore } from './finance';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
 
@@ -45,15 +50,15 @@ function monthLabel(month: string): string {
     return new Date(y, m - 1, 1).toLocaleString('default', { month: 'long' });
 }
 
-function bandCelebration(readinessHistory: ReadinessSnapshot[]): Celebration | null {
-    if (readinessHistory.length < 2) return null;
-    const latest = readinessHistory[readinessHistory.length - 1];
-    const prior = readinessHistory[readinessHistory.length - 2];
+function bandCelebration(healthScoreHistory: HealthScoreSnapshot[]): Celebration | null {
+    if (healthScoreHistory.length < 2) return null;
+    const latest = healthScoreHistory[healthScoreHistory.length - 1];
+    const prior = healthScoreHistory[healthScoreHistory.length - 2];
     if (BAND_RANK[latest.band] <= BAND_RANK[prior.band]) return null;
     return {
         key: `band:${prior.band}->${latest.band}:${latest.date}`,
         title: 'Your business leveled up 🎉',
-        message: `Your Business Health moved from ${prior.band} to ${latest.band} (${latest.score}/100). Whatever you changed recently, it's working.`,
+        message: `Your Business Health moved from ${prior.band} to ${latest.band} (${latest.overallHealth}/100). Whatever you changed recently, it's working.`,
     };
 }
 
@@ -74,9 +79,9 @@ function profitTurnaroundCelebration(transactions: Transaction[], currency: stri
 // it's the rarer, higher-signal event, not because a profit turnaround
 // matters less.
 export function computeCelebration(
-    readinessHistory: ReadinessSnapshot[],
+    healthScoreHistory: HealthScoreSnapshot[],
     transactions: Transaction[],
     currency: string = '₦',
 ): Celebration | null {
-    return bandCelebration(readinessHistory) ?? profitTurnaroundCelebration(transactions, currency);
+    return bandCelebration(healthScoreHistory) ?? profitTurnaroundCelebration(transactions, currency);
 }
