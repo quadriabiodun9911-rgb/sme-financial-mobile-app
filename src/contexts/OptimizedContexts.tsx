@@ -205,9 +205,9 @@ interface FinanceContextValue {
   forecastHistory: ForecastSnapshot[];
   dataConfidenceHistory: DataConfidenceSnapshot[];
   healthScoreHistory: HealthScoreSnapshot[];
-  // Called once per diagnosis recompute by HealthScoreSnapshotWatcher
-  // (App.tsx) -- see its own comment on why this provider can't compute
-  // the diagnosis itself.
+  // Called once per diagnosis recompute by DiagnosisProvider (App.tsx) --
+  // see its own comment on why this provider can't compute the diagnosis
+  // itself.
   recordHealthScoreSnapshot: (diagnosis: DiagnosisResult) => void;
 
   // General Ledger: the Chart of Accounts every business is seeded with
@@ -244,6 +244,21 @@ interface FinanceContextValue {
 }
 
 const FinanceContext = createContext<FinanceContextValue | undefined>(undefined);
+
+// A single, shared live diagnosis (performFinancialDiagnosis), computed
+// once by DiagnosisProvider (App.tsx) rather than independently inside
+// every one of the ~80+ call sites of useApp() -- see that provider's own
+// comment for why it has to live below InvoiceProvider rather than inside
+// FinanceProvider itself. null before enough transactions exist to run it
+// (same >=5 gate performFinancialDiagnosis' callers already use) or before
+// DiagnosisProvider has mounted (never true in the real app tree, but
+// keeps this safe for anything that renders useApp() without it, e.g. a
+// future test).
+const DiagnosisContext = createContext<DiagnosisResult | null>(null);
+export function useDiagnosis(): DiagnosisResult | null {
+  return useContext(DiagnosisContext);
+}
+export { DiagnosisContext };
 
 export function FinanceProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -605,7 +620,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // can't compute the diagnosis itself the way the effects above do.
   // Instead this exposes a plain callback the app calls once, from a
   // single-mount component below InvoiceProvider in the tree (see
-  // HealthScoreSnapshotWatcher in App.tsx) that CAN see both. The
+  // DiagnosisProvider in App.tsx) that CAN see both. The
   // hydrated/demo/history gating that would otherwise live in a useEffect
   // here lives inside the callback instead, so the caller doesn't have to
   // know or duplicate those rules.
@@ -2753,19 +2768,28 @@ export function useApp() {
   // transaction/invoice/loan/inventory history (DSCR, concentration,
   // category breakdowns, trend, root-cause diagnoses). useApp() is called
   // by ~everything (Header, FooterNav, GlobalSearch, every screen, every
-  // list-row card), so without memoization this full engine re-ran on
-  // every one of those renders — including Header/FooterNav, which never
-  // even read financialHealthScore. Memoizing against its actual inputs
-  // means it now only recomputes when the underlying data genuinely
-  // changes, not on every unrelated re-render (a nav change, a keystroke
-  // in search, an unrelated context update).
+  // list-row card) -- memoizing here only stops ONE call site from
+  // re-running the engine on every unrelated render; it can't stop the
+  // other ~80 call sites from each independently re-running it on the
+  // SAME underlying data change. sharedDiagnosis (DiagnosisContext, see
+  // DiagnosisProvider in App.tsx) is the one real fix -- computed exactly
+  // once per data change, shared by every consumer. The local computation
+  // below is kept only as a fallback for the (never true in the real app
+  // tree) case where DiagnosisContext isn't mounted, using the exact same
+  // inputs DiagnosisProvider itself feeds performFinancialDiagnosis, so
+  // the fallback can never disagree with the shared value when both are
+  // available.
+  const sharedDiagnosis = useContext(DiagnosisContext);
   const expenseAvg = getMonthlyExpenseAverage(financeData?.expense ?? 0, transactions);
   const currencyForHealth = settings?.settings?.currency ?? '₦';
   const financialHealthScore = useMemo(
-    () => (transactions.length >= 5 && financeData
-      ? performFinancialDiagnosis(transactions, invoicesArray, financeData.cashBalance, expenseAvg, currencyForHealth, loans, inventory, assets, settings?.settings?.industry).overallHealth
-      : 0),
-    [transactions, invoicesArray, financeData, expenseAvg, currencyForHealth, loans, inventory, assets, settings?.settings?.industry]
+    () => {
+      if (sharedDiagnosis) return sharedDiagnosis.overallHealth;
+      return transactions.length >= 5 && financeData
+        ? performFinancialDiagnosis(transactions, invoicesArray, financeData.cashBalance, expenseAvg, currencyForHealth, loans, inventory, assets, settings?.settings?.industry).overallHealth
+        : 0;
+    },
+    [sharedDiagnosis, transactions, invoicesArray, financeData, expenseAvg, currencyForHealth, loans, inventory, assets, settings?.settings?.industry]
   );
 
   // Memoized so `user` is referentially stable across renders where nothing

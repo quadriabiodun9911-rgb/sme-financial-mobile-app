@@ -164,6 +164,14 @@ export default function InventoryScreen() {
     );
     const [modalOpen, setModalOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
+    // The Stock tab renders every item as its own heavy card (6 action
+    // buttons, a metrics grid, a velocity row) inside one plain ScrollView
+    // with no virtualization -- fine for a few dozen SKUs, but a catalog
+    // in the hundreds mounts all of them at once on every screen open.
+    // Capping the initial render and letting the owner reveal more is a
+    // much smaller change than restructuring this screen's single
+    // ScrollView (shared with the Analytics/Pricing tabs) into a FlatList.
+    const [visibleItemCount, setVisibleItemCount] = useState(50);
     const [form, setForm] = useState<FormState>(EMPTY_FORM);
     const [sellModal, setSellModal] = useState<{ item: InventoryItem } | null>(null);
     const [sellQty, setSellQty] = useState('');
@@ -730,8 +738,9 @@ export default function InventoryScreen() {
                             </View>
                         )}
 
-                        {/* Item list */}
-                        {inventory.map(item => {
+                        {/* Item list -- capped to visibleItemCount, see its
+                            own comment above for why. */}
+                        {inventory.slice(0, visibleItemCount).map(item => {
                             const margin = computeMarginPct(item.sellingPrice ?? 0, item.costPrice ?? 0);
                             const stockVal = item.quantity * (item.costPrice ?? 0);
                             const velocity = velocityByItemId.get(item.id)!;
@@ -821,6 +830,12 @@ export default function InventoryScreen() {
                                 </View>
                             );
                         })}
+
+                        {inventory.length > visibleItemCount && (
+                            <TouchableOpacity style={styles.showMoreBtn} onPress={() => setVisibleItemCount(n => n + 50)}>
+                                <Text style={styles.showMoreBtnText}>Show {Math.min(50, inventory.length - visibleItemCount)} more items ({inventory.length - visibleItemCount} remaining)</Text>
+                            </TouchableOpacity>
+                        )}
                     </>
                 )}
 
@@ -1839,6 +1854,8 @@ const styles = StyleSheet.create({
     title:    { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary },
     addBtn:   { backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: Spacing.sm, borderRadius: Radius.sm, ...Shadow.sm },
     addBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
+    showMoreBtn: { alignItems: 'center', paddingVertical: 12, marginTop: 4, marginBottom: 12, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+    showMoreBtnText: { color: Colors.primary, fontWeight: '700', fontSize: 13 },
 
     summaryRow:  { flexDirection: 'row', gap: 10, marginBottom: Spacing.md },
     summaryCard: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md, alignItems: 'center' },

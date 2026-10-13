@@ -15,6 +15,14 @@ export interface MonthlyCustomerMetrics {
     // the same population cac/churn already use, so AOV never disagrees
     // with them about which sales count.
     avgOrderValue: number;
+    // monthSales.length / active.size -- how many times, on average, each
+    // active customer bought this month. Already computed internally to
+    // derive avgMonthlyGrossProfitPerCustomer below, just not previously
+    // exposed on its own -- the direct "repeat purchase frequency" signal
+    // diagnoseCustomerBehavior needs that neither AOV nor churn alone
+    // shows (a customer can keep buying the same-size order, just less
+    // often, well before they actually churn).
+    ordersPerActiveCustomer: number;
     // Blended gross margin % for the month (computeEnhancedPnL, finance.ts)
     // -- the business's own realized margin rate, not a per-sale COGS
     // trace (Transaction carries no per-sale cost field), the same proxy
@@ -180,7 +188,7 @@ export function computeCustomerMetrics(transactions: Transaction[]): CustomerMet
 
         monthly.push({
             month, activeCustomers: active.size, newCustomers, returningCustomers, churnedCustomers, churnRate,
-            marketingSpend, cac, avgOrderValue, grossMarginPct, estGrossProfitPerOrder,
+            marketingSpend, cac, avgOrderValue, ordersPerActiveCustomer, grossMarginPct, estGrossProfitPerOrder,
             avgMonthlyGrossProfitPerCustomer, cacExceedsFirstPurchaseProfit, paybackMonths, ltv,
         });
         prevActive = active;

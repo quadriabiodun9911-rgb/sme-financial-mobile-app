@@ -7,6 +7,7 @@ import { Transaction, Invoice, Loan, InventoryItem, Asset, GoalType, Industry } 
 import { computeDSCR, computeWorkingCapitalMetrics, computeCustomerConcentration, computeSupplierConcentration, computeRiskScore, computeImprovementProjection, computeProperCashFlow, RiskScore, DSCRResult } from './finance';
 import { computeStockVelocity } from './stockVelocity';
 import { computeBalanceSheetTrend } from './balanceSheetTrend';
+import { computeCustomerMetrics } from './customerMetrics';
 import { pctChange } from './cashFlowHealth';
 import { localDateStr, localMonthStr } from './localDate';
 
@@ -972,6 +973,76 @@ export function diagnoseConcentration(
   return diagnoses;
 }
 
+// Repeat-purchase behavior -- a signal distinct from declining-revenue
+// (diagnoseProfitability above) and customer-concentration (above): a
+// business's existing customers can keep buying the same-size order from
+// the same spread of names, just less often, for a month or two before
+// that shows up as a revenue decline at all, and before churn (a customer
+// stopping entirely) would catch it either. Built on computeCustomerMetrics
+// (customerMetrics.ts), which already computes ordersPerActiveCustomer and
+// avgOrderValue per month for CAC/LTV -- reused here, not a second
+// customer-behavior model.
+const CUSTOMER_FREQUENCY_WINDOW_MONTHS = 3;
+const CUSTOMER_FREQUENCY_DECLINE_THRESHOLD_PCT = -15;
+
+export function diagnoseCustomerBehavior(
+  transactions: Transaction[],
+): RootCauseAnalysis[] {
+  const diagnoses: RootCauseAnalysis[] = [];
+  const customerMetrics = computeCustomerMetrics(transactions);
+  // Needs a real prior window to compare against, not just "enough data"
+  // for computeCustomerMetrics' own (looser) 2-month minimum.
+  if (!customerMetrics.hasEnoughData || customerMetrics.monthly.length < CUSTOMER_FREQUENCY_WINDOW_MONTHS * 2) return diagnoses;
+
+  const months = customerMetrics.monthly;
+  const recent = months.slice(-CUSTOMER_FREQUENCY_WINDOW_MONTHS);
+  const prior = months.slice(-CUSTOMER_FREQUENCY_WINDOW_MONTHS * 2, -CUSTOMER_FREQUENCY_WINDOW_MONTHS);
+
+  const avg = (vals: number[]) => vals.length > 0 ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
+  const recentFreq = avg(recent.map(m => m.ordersPerActiveCustomer));
+  const priorFreq = avg(prior.map(m => m.ordersPerActiveCustomer));
+  const recentAOV = avg(recent.map(m => m.avgOrderValue));
+  const priorAOV = avg(prior.map(m => m.avgOrderValue));
+
+  const freqChangePct = priorFreq > 0 ? ((recentFreq - priorFreq) / priorFreq) * 100 : 0;
+  const aovChangePct = priorAOV > 0 ? ((recentAOV - priorAOV) / priorAOV) * 100 : 0;
+  const freqDeclining = priorFreq > 0 && freqChangePct <= CUSTOMER_FREQUENCY_DECLINE_THRESHOLD_PCT;
+  const aovDeclining = priorAOV > 0 && aovChangePct <= CUSTOMER_FREQUENCY_DECLINE_THRESHOLD_PCT;
+
+  if (freqDeclining || aovDeclining) {
+    const parts: string[] = [];
+    if (freqDeclining) parts.push(`buying ${Math.abs(freqChangePct).toFixed(0)}% less often`);
+    if (aovDeclining) parts.push(`spending ${Math.abs(aovChangePct).toFixed(0)}% less per order`);
+    diagnoses.push({
+      id: 'customer-frequency-decline',
+      problem: `Returning customers are ${parts.join(' and ')}`,
+      severity: (freqDeclining && aovDeclining) ? 'critical' : 'warning',
+      rootCause: freqDeclining && aovDeclining
+        ? 'Customers are both visiting less often and spending less per visit when they do'
+        : freqDeclining
+        ? 'The same customers are returning less often than they used to'
+        : 'Customers are still returning, but each purchase is smaller than it used to be',
+      // No honest $ estimate for a behavioral shift like this -- same
+      // reasoning customer-concentration/low-recurring-revenue above use.
+      impact: 'A quieter repeat-customer base usually shows up as slower revenue growth a month or two before it is obvious in the top-line number',
+      financialImpact: 0,
+      opportunity: 'Test a win-back offer, a bundle, or a smaller pack size for your repeat customers before assuming the drop is permanent',
+      dimension: 'profitability',
+      metrics: [
+        ...(freqDeclining ? [{ label: 'Orders per returning customer', value: `↓ ${Math.abs(freqChangePct).toFixed(0)}%`, compareLabel: `vs the ${CUSTOMER_FREQUENCY_WINDOW_MONTHS} months before`, tone: 'negative' as const }] : []),
+        ...(aovDeclining ? [{ label: 'Average order size', value: `↓ ${Math.abs(aovChangePct).toFixed(0)}%`, compareLabel: `vs the ${CUSTOMER_FREQUENCY_WINDOW_MONTHS} months before`, tone: 'negative' as const }] : []),
+      ],
+      investigate: [
+        'Is this concentrated in a few customers, or spread across most of your regulars?',
+        'Did a price change, a stockout, or a competitor coincide with when this started?',
+        'Would a smaller pack size, a bundle, or a loyalty offer fit how customers seem to be buying now?',
+      ],
+    });
+  }
+
+  return diagnoses;
+}
+
 export function diagnoseEfficiency(
   metrics: FinancialMetrics,
   currency: string = '₦'
@@ -1435,6 +1506,7 @@ export function performFinancialDiagnosis(
     ...diagnoseEfficiency(metrics, currency),
     ...diagnoseInventory(metrics, currency),
     ...diagnoseConcentration(metrics),
+    ...diagnoseCustomerBehavior(transactions),
     ...diagnoseRecordKeeping(transactions, metrics, industry),
   ]
     .sort((a, b) => {
