@@ -68,7 +68,9 @@ export default function AlertsWidget({ alerts, currency = '₦', onAlertPress, o
       <TouchableOpacity
         style={styles.bellButton}
         onPress={() => setShowModal(true)}
-        activeOpacity={0.7}>
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={alerts.length > 0 ? `Alerts, ${alerts.length} ${alerts.length === 1 ? 'alert' : 'alerts'}${criticalCount > 0 ? `, ${criticalCount} critical` : ''}` : 'Alerts, none'}>
         <Icon name="bell" size={16} color={Colors.textSecondary} />
         {alerts.length > 0 && (
           <View style={[styles.badge, criticalCount > 0 && styles.badgeCritical]}>
@@ -84,7 +86,7 @@ export default function AlertsWidget({ alerts, currency = '₦', onAlertPress, o
             {/* Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>🔔 Alerts</Text>
-              <TouchableOpacity onPress={() => setShowModal(false)}>
+              <TouchableOpacity onPress={() => setShowModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <Text style={styles.closeButton}>✕</Text>
               </TouchableOpacity>
             </View>
@@ -136,7 +138,9 @@ export default function AlertsWidget({ alerts, currency = '₦', onAlertPress, o
                       setSelectedAlert(alert);
                       if (onAlertPress) onAlertPress(alert);
                     }}
-                    activeOpacity={0.6}>
+                    activeOpacity={0.6}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${alert.title}. ${alert.description}`}>
                     <View style={styles.alertContent}>
                       <Text style={styles.alertTitle}>{alert.title}</Text>
                       <Text style={styles.alertDescription}>{alert.description}</Text>
@@ -165,7 +169,9 @@ export default function AlertsWidget({ alerts, currency = '₦', onAlertPress, o
 
                     <TouchableOpacity
                       style={styles.dismissBtn}
-                      onPress={() => handleDismiss(alert.id)}>
+                      onPress={() => handleDismiss(alert.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Dismiss alert: ${alert.title}`}>
                       <Text style={styles.dismissBtnText}>✕</Text>
                     </TouchableOpacity>
                   </TouchableOpacity>
