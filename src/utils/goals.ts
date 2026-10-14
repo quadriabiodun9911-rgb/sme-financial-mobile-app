@@ -378,6 +378,46 @@ export function generateStrategy(
             break;
         }
 
+        case 'customer_frequency': {
+            // Same trailing-window comparison diagnoseCustomerBehavior and
+            // this goal's own baseline/target use -- grounds the headline
+            // tactic in the real number this goal is tracking instead of
+            // generic advice.
+            const trend = computeCustomerFrequencyTrend(transactions);
+            const freqDropPct = trend.hasEnoughData && trend.priorFreq > 0
+                ? ((trend.priorFreq - trend.recentFreq) / trend.priorFreq) * 100
+                : null;
+            actions.push({
+                priority: 'high',
+                title: 'Win back lapsed regulars',
+                detail: freqDropPct !== null && freqDropPct > 0
+                    ? `Returning customers are ordering about ${freqDropPct.toFixed(0)}% less often than they were (${trend.recentFreq.toFixed(1)} vs ${trend.priorFreq.toFixed(1)} orders per customer per month). Reach out directly to regulars who haven't ordered recently -- a personal message outperforms a blanket promotion here.`
+                    : "Identify your most frequent customers and reach out directly to anyone who's gone quiet recently.",
+                metric: trend.hasEnoughData ? `${trend.recentFreq.toFixed(1)} orders/customer/mo (was ${trend.priorFreq.toFixed(1)})` : undefined,
+            });
+            actions.push({
+                priority: 'high',
+                title: 'Test a smaller pack size or a bundle',
+                detail: "If customers are buying less often rather than stopping outright, a smaller pack size or a bundle that fits their new buying rhythm can restore frequency without discounting your core price.",
+            });
+            actions.push({
+                priority: 'medium',
+                title: 'Rule out a stockout or price change as the cause',
+                detail: 'Check whether an item regulars used to buy was out of stock, or a price change landed, around when the slowdown started -- fixing a concrete cause is faster than a generic win-back campaign.',
+            });
+            actions.push({
+                priority: 'medium',
+                title: 'Set up a standing offer for regulars',
+                detail: 'A simple loyalty mechanic (every 5th order discounted, or a small running credit) gives repeat customers a reason to keep the same buying rhythm rather than drift to buying only when they happen to think of it.',
+            });
+            actions.push({
+                priority: 'low',
+                title: 'Track this monthly, not just at goal creation',
+                detail: 'Order frequency can keep slipping quietly for months before it shows up in total revenue -- review it on its own rather than only when revenue growth stalls.',
+            });
+            break;
+        }
+
         case 'custom':
         default: {
             actions.push({
