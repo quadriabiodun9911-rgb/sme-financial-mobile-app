@@ -79,6 +79,17 @@ export function computeCostSwitch(input: CostSwitchInput): CostSwitchResult {
     } else if (financed && netMonthlyEffectWhileFinancing < 0) {
         verdict = 'marginal';
         rationale = `The switch saves money, but the finance payment is bigger than the monthly saving while you're still paying it off -- you're ahead only after the loan term ends, not immediately.`;
+    } else if (financed && totalSavingsOverHorizon < 0) {
+        // paybackMonths only measures the upfront cost against monthly
+        // savings -- it has no idea what financing that upfront cost
+        // actually costs in interest. A long enough term at a high enough
+        // rate can make total interest paid exceed what the switch ever
+        // saves within horizonMonths, even while the monthly cash flow
+        // above looks fine and the bare payback period looks fast. Without
+        // this check, the verdict could say "strong" right next to a
+        // negative totalSavingsOverHorizon figure shown in the same UI.
+        verdict = 'marginal';
+        rationale = `The upfront cost alone would pay back in about ${paybackMonths!.toFixed(1)} months, but financing it over ${termMonths} months at this rate costs more in interest than the switch saves within ${horizonMonths} months -- it only turns genuinely profitable after the loan is paid off.`;
     } else if (paybackMonths !== null && paybackMonths <= 18) {
         verdict = 'strong';
         rationale = `Pays for itself in about ${paybackMonths.toFixed(1)} months, then keeps saving ${financed ? 'on top of the finance payment' : 'every month after that'}.`;
