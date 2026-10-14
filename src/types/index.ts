@@ -127,6 +127,7 @@ export type GoalType =
     | 'reduce_overdue_ar'
     | 'customer_concentration'
     | 'supplier_concentration'
+    | 'customer_frequency'
     | 'custom';
 
 export type GoalStatus = 'on_track' | 'at_risk' | 'off_track' | 'achieved';

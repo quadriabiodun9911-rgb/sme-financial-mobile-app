@@ -108,6 +108,7 @@ const GOAL_RELEVANT_DIMENSIONS: Record<GoalType, HealthCategory['key'][]> = {
     reduce_overdue_ar: ['liquidity', 'workingCapital', 'concentration'],
     customer_concentration: ['concentration'],
     supplier_concentration: ['concentration'],
+    customer_frequency: ['profitability'],
     custom: [],
 };
 
@@ -119,6 +120,10 @@ const GOAL_RELEVANT_RISK_CATEGORIES: Record<GoalType, RiskRadarCategory['key'][]
     reduce_overdue_ar: ['customerConcentration'],
     customer_concentration: ['customerConcentration'],
     supplier_concentration: ['supplierConcentration'],
+    // Same population risk radar's customer category covers (reduce_overdue_ar
+    // above makes the same connection) -- a frequency decline is a different
+    // symptom of that same customer-base risk, not a separate category.
+    customer_frequency: ['customerConcentration'],
     custom: [],
 };
 
@@ -135,6 +140,7 @@ const GOAL_RELEVANT_EXTERNAL_DRIVERS: Record<GoalType, MacroDriver[]> = {
     reduce_overdue_ar: ['demand'],
     customer_concentration: ['demand'],
     supplier_concentration: ['supplyChain', 'fx', 'commodity'],
+    customer_frequency: ['demand'],
     custom: [],
 };
 
@@ -150,6 +156,7 @@ const GOAL_CARES_ABOUT_INVENTORY: Record<GoalType, boolean> = {
     reduce_overdue_ar: false,
     customer_concentration: false,
     supplier_concentration: true, // a second supplier is exactly how this goal protects stock continuity
+    customer_frequency: true, // a stockout is one of the concrete causes this goal's own diagnosis checks for
     custom: true,
 };
 

@@ -7,7 +7,7 @@ import { Transaction, Invoice, Loan, InventoryItem, Asset, GoalType, Industry } 
 import { computeDSCR, computeWorkingCapitalMetrics, computeCustomerConcentration, computeSupplierConcentration, computeRiskScore, computeImprovementProjection, computeProperCashFlow, RiskScore, DSCRResult } from './finance';
 import { computeStockVelocity } from './stockVelocity';
 import { computeBalanceSheetTrend } from './balanceSheetTrend';
-import { computeCustomerMetrics } from './customerMetrics';
+import { computeCustomerMetrics, computeCustomerFrequencyTrend } from './customerMetrics';
 import { pctChange } from './cashFlowHealth';
 import { localDateStr, localMonthStr } from './localDate';
 
@@ -995,12 +995,15 @@ export function diagnoseCustomerBehavior(
   if (!customerMetrics.hasEnoughData || customerMetrics.monthly.length < CUSTOMER_FREQUENCY_WINDOW_MONTHS * 2) return diagnoses;
 
   const months = customerMetrics.monthly;
+  const avg = (vals: number[]) => vals.length > 0 ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
+
+  // Frequency trend reuses the same windowed average the customer_frequency
+  // goal type tracks once a user acts on this finding -- never a second,
+  // independently-computed copy that could silently drift from the goal's
+  // own progress number.
+  const { recentFreq, priorFreq } = computeCustomerFrequencyTrend(transactions, CUSTOMER_FREQUENCY_WINDOW_MONTHS);
   const recent = months.slice(-CUSTOMER_FREQUENCY_WINDOW_MONTHS);
   const prior = months.slice(-CUSTOMER_FREQUENCY_WINDOW_MONTHS * 2, -CUSTOMER_FREQUENCY_WINDOW_MONTHS);
-
-  const avg = (vals: number[]) => vals.length > 0 ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
-  const recentFreq = avg(recent.map(m => m.ordersPerActiveCustomer));
-  const priorFreq = avg(prior.map(m => m.ordersPerActiveCustomer));
   const recentAOV = avg(recent.map(m => m.avgOrderValue));
   const priorAOV = avg(prior.map(m => m.avgOrderValue));
 
@@ -1028,6 +1031,10 @@ export function diagnoseCustomerBehavior(
       financialImpact: 0,
       opportunity: 'Test a win-back offer, a bundle, or a smaller pack size for your repeat customers before assuming the drop is permanent',
       dimension: 'profitability',
+      // Only when frequency itself is the problem -- a pure order-size
+      // (AOV) decline has no "visits per month" number worth tracking as
+      // a goal.
+      suggestedGoalType: freqDeclining ? 'customer_frequency' : undefined,
       metrics: [
         ...(freqDeclining ? [{ label: 'Orders per returning customer', value: `↓ ${Math.abs(freqChangePct).toFixed(0)}%`, compareLabel: `vs the ${CUSTOMER_FREQUENCY_WINDOW_MONTHS} months before`, tone: 'negative' as const }] : []),
         ...(aovDeclining ? [{ label: 'Average order size', value: `↓ ${Math.abs(aovChangePct).toFixed(0)}%`, compareLabel: `vs the ${CUSTOMER_FREQUENCY_WINDOW_MONTHS} months before`, tone: 'negative' as const }] : []),
