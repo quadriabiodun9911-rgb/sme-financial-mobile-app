@@ -6,6 +6,7 @@ import { getTopCategories, getMonthlyExpenseAverage, computeCustomerConcentratio
 import { computeMonthlyBaseline } from './analysis';
 import { computeHistoricalMonthlyTrend } from './trendAnalysis';
 import { totalMonthlyLoanBurden } from './loanMath';
+import { computeCustomerFrequencyTrend, computeLatestCustomerFrequency } from './customerMetrics';
 
 // ─── Goal progress computation ────────────────────────────────────────────────
 
@@ -25,6 +26,7 @@ export function computeGoalCurrent(
         }
         case 'customer_concentration': return computeCustomerConcentration(transactions)[0]?.percentage ?? 0;
         case 'supplier_concentration': return computeSupplierConcentration(transactions)[0]?.percentage ?? 0;
+        case 'customer_frequency': return parseFloat(computeLatestCustomerFrequency(transactions).toFixed(2));
         case 'custom': return goal.currentValue;
         default: return 0;
     }
@@ -616,6 +618,25 @@ export function goalDefaults(
                 targetValue: 40,
                 baselineValue: parseFloat(current.toFixed(1)),
                 unit: '%',
+            };
+        }
+        case 'customer_frequency': {
+            // Grounded in this business's own trend: recover to the
+            // pre-decline frequency diagnoseCustomerBehavior compared
+            // against (financialDiagnosisEngine.ts), the same two windows,
+            // never a second, independently-chosen cutoff. If there's no
+            // detectable decline (e.g. the goal was picked manually rather
+            // than from that finding), aim for a modest 15% lift instead of
+            // a target equal to the baseline.
+            const { recentFreq, priorFreq, hasEnoughData } = computeCustomerFrequencyTrend(transactions);
+            const baseline = hasEnoughData ? recentFreq : 0;
+            const target = hasEnoughData && priorFreq > baseline ? priorFreq : baseline * 1.15;
+            return {
+                title: 'Rebuild Repeat-Customer Frequency',
+                description: 'Get returning customers back to buying as often as they used to.',
+                targetValue: parseFloat(target.toFixed(2)),
+                baselineValue: parseFloat(baseline.toFixed(2)),
+                unit: 'orders/customer/mo',
             };
         }
         case 'custom':

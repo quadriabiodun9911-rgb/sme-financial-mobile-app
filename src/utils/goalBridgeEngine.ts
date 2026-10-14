@@ -289,6 +289,7 @@ const GOAL_TYPE_TO_BRIDGE: Record<GoalType, FinancialGoal['type']> = {
   // degrade as custom/cost_reduction above.
   customer_concentration: 'profit',
   supplier_concentration: 'profit',
+  customer_frequency: 'profit',
   custom: 'profit',
 };
 

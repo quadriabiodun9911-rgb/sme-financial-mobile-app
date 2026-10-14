@@ -213,3 +213,44 @@ export function computeCustomerMetrics(transactions: Transaction[]): CustomerMet
         avgPaybackMonths,
     };
 }
+
+export interface CustomerFrequencyTrend {
+    hasEnoughData: boolean;
+    recentFreq: number; // trailing windowMonths average of ordersPerActiveCustomer
+    priorFreq: number;  // the windowMonths average immediately before that
+}
+
+// Shared by diagnoseCustomerBehavior (financialDiagnosisEngine.ts, which
+// detects the decline) and the customer_frequency goal type (goals.ts,
+// which tracks recovering from it) -- one trailing-window average, not two
+// independently-computed copies that could silently drift apart.
+export function computeCustomerFrequencyTrend(
+    transactions: Transaction[],
+    windowMonths: number = 3,
+): CustomerFrequencyTrend {
+    const result = computeCustomerMetrics(transactions);
+    const months = result.monthly;
+    if (!result.hasEnoughData || months.length < windowMonths * 2) {
+        return { hasEnoughData: false, recentFreq: 0, priorFreq: 0 };
+    }
+
+    const avg = (vals: number[]) => vals.length > 0 ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
+    const recent = months.slice(-windowMonths);
+    const prior = months.slice(-windowMonths * 2, -windowMonths);
+
+    return {
+        hasEnoughData: true,
+        recentFreq: avg(recent.map(m => m.ordersPerActiveCustomer)),
+        priorFreq: avg(prior.map(m => m.ordersPerActiveCustomer)),
+    };
+}
+
+// The goal's "current value" once it's already been created -- just the
+// latest trailing-window frequency, independent of whatever the prior
+// window looked like when the goal was first set up.
+export function computeLatestCustomerFrequency(transactions: Transaction[], windowMonths: number = 3): number {
+    const result = computeCustomerMetrics(transactions);
+    const recent = result.monthly.slice(-windowMonths);
+    if (recent.length === 0) return 0;
+    return recent.reduce((s, m) => s + m.ordersPerActiveCustomer, 0) / recent.length;
+}

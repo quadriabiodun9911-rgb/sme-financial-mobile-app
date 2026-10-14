@@ -39,6 +39,7 @@ const GOAL_TYPE_SOLUTION: Record<GoalType, ImpactSource> = {
     reduce_overdue_ar: 'expense',
     customer_concentration: 'expense',
     supplier_concentration: 'expense',
+    customer_frequency: 'expense',
     custom: 'expense',
 };
 
@@ -50,6 +51,7 @@ const GOAL_TYPES: { type: GoalType; label: string; icon: IconName; description: 
     { type: 'reduce_overdue_ar', label: 'Clear Overdue AR', icon: 'clipboard', description: 'Collect all outstanding receivables' },
     { type: 'customer_concentration', label: 'Diversify Customers', icon: 'users', description: "Cap any single customer's share of revenue" },
     { type: 'supplier_concentration', label: 'Diversify Suppliers', icon: 'truck', description: "Cap any single supplier's share of spend" },
+    { type: 'customer_frequency', label: 'Rebuild Repeat Purchases', icon: 'users', description: 'Get returning customers buying as often as they used to' },
     { type: 'custom', label: 'Custom Goal', icon: 'target', description: 'Define your own financial milestone' },
 ];
 
