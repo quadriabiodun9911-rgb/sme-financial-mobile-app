@@ -231,11 +231,11 @@ export default function Header() {
         <View style={styles.header}>
             <View style={styles.left}>
                 {showBack && (
-                    <TouchableOpacity style={styles.backBtn} onPress={() => { if (!goBack()) setCurrentScreen('dashboard'); }} activeOpacity={0.7}>
+                    <TouchableOpacity style={styles.backBtn} onPress={() => { if (!goBack()) setCurrentScreen('dashboard'); }} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Go back">
                         <Icon name="chevron-left" size={16} color={Colors.primary} />
                     </TouchableOpacity>
                 )}
-                <TouchableOpacity style={styles.brandRow} onPress={() => setCurrentScreen('dashboard')} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.brandRow} onPress={() => setCurrentScreen('dashboard')} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Quad360 home">
                     <LinearGradient colors={[Colors.primary, Colors.secondary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.mark} />
                     <View>
                         <Text style={styles.title}>Quad360</Text>
@@ -254,14 +254,14 @@ export default function Header() {
                     />
                 )}
                 {isNarrow && (
-                    <TouchableOpacity style={styles.iconBtn} onPress={() => setSwitcherOpen(true)} activeOpacity={0.7}>
+                    <TouchableOpacity style={styles.iconBtn} onPress={() => setSwitcherOpen(true)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Switch account">
                         <Icon name="repeat" size={16} color={Colors.textSecondary} />
                     </TouchableOpacity>
                 )}
-                <TouchableOpacity style={styles.iconBtn} onPress={() => setShowSearch(true)} activeOpacity={0.7}>
+                <TouchableOpacity style={styles.iconBtn} onPress={() => setShowSearch(true)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Search">
                     <Icon name="search" size={16} color={Colors.textSecondary} />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.iconBtn} onPress={() => setCurrentScreen('settings')} activeOpacity={0.7}>
+                <TouchableOpacity style={styles.iconBtn} onPress={() => setCurrentScreen('settings')} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Settings">
                     <Icon name="settings" size={16} color={Colors.textSecondary} />
                 </TouchableOpacity>
                 {!isNarrow && (
@@ -269,6 +269,8 @@ export default function Header() {
                         style={styles.userBlock}
                         onPress={() => setSwitcherOpen(true)}
                         activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${(user?.email && accountDisplayName(user.email)) || t(language, 'adminFallback')}, ${ROLE_DISPLAY_LABEL[userRole]}. Switch account.`}
                     >
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                             <Text style={styles.userText}>{(user?.email && accountDisplayName(user.email)) || t(language, 'adminFallback')}</Text>
@@ -277,7 +279,7 @@ export default function Header() {
                         <Text style={styles.userRole}>{ROLE_DISPLAY_LABEL[userRole]}</Text>
                     </TouchableOpacity>
                 )}
-                <TouchableOpacity style={styles.signOutBtn} onPress={logout} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.signOutBtn} onPress={logout} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t(language, 'signOut')}>
                     <Text style={styles.signOutText}>{isNarrow ? t(language, 'signOutShort') : t(language, 'signOut')}</Text>
                 </TouchableOpacity>
             </View>
