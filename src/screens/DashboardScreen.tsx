@@ -2587,7 +2587,7 @@ export default function DashboardScreen() {
 
             {/* ── FAB ─────────────────────────────────────────────────────── */}
             {canWrite && (
-            <TouchableOpacity style={[styles.fab, { bottom: 80 + (!loggedToday ? logTodayBannerHeight : 0) }]} onPress={() => openFab()}>
+            <TouchableOpacity style={[styles.fab, { bottom: 80 + (!loggedToday ? logTodayBannerHeight : 0) }]} onPress={() => openFab()} accessibilityRole="button" accessibilityLabel="Add transaction">
                 <Text style={styles.fabText}>+</Text>
             </TouchableOpacity>
             )}

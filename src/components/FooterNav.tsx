@@ -231,15 +231,19 @@ export default function FooterNav() {
             <View style={styles.footer}>
                 {visibleTabs.map(tab => {
                     const active = currentScreen === tab.screen;
+                    const label = t(language, tab.label);
                     return (
                         <TouchableOpacity
                             key={tab.screen}
                             style={styles.tabItem}
                             onPress={() => setCurrentScreen(tab.screen)}
                             activeOpacity={0.7}
+                            accessibilityRole="tab"
+                            accessibilityLabel={label}
+                            accessibilityState={{ selected: active }}
                         >
                             <Icon name={tab.icon} size={18} color={active ? Colors.primary : Colors.textMuted} />
-                            <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{t(language, tab.label)}</Text>
+                            <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{label}</Text>
                             {active && <View style={styles.tabIndicator} />}
                         </TouchableOpacity>
                     );
@@ -250,6 +254,9 @@ export default function FooterNav() {
                     style={styles.tabItem}
                     onPress={() => setMoreOpen(true)}
                     activeOpacity={0.7}
+                    accessibilityRole="tab"
+                    accessibilityLabel={t(language, 'moreLabel')}
+                    accessibilityState={{ selected: moreOpen }}
                 >
                     <Icon name="more-horizontal" size={18} color={moreOpen ? Colors.primary : Colors.textMuted} />
                     <Text style={[styles.tabLabel, moreOpen && styles.tabLabelActive]}>{t(language, 'moreLabel')}</Text>
@@ -272,7 +279,7 @@ export default function FooterNav() {
                     {/* Header */}
                     <View style={styles.header}>
                         <Text style={styles.headerTitle}>{t(language, 'moreLabel')}</Text>
-                        <TouchableOpacity style={styles.closeBtn} onPress={() => setMoreOpen(false)} activeOpacity={0.7}>
+                        <TouchableOpacity style={styles.closeBtn} onPress={() => setMoreOpen(false)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
                             <Icon name="x" size={15} color={Colors.textMuted} />
                         </TouchableOpacity>
                     </View>
@@ -280,7 +287,13 @@ export default function FooterNav() {
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
                         {/* ── Profile card ──────────────────────────────── */}
-                        <TouchableOpacity style={styles.profileCard} onPress={() => goTo('settings')} activeOpacity={0.85}>
+                        <TouchableOpacity
+                            style={styles.profileCard}
+                            onPress={() => goTo('settings')}
+                            activeOpacity={0.85}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${user?.businessName || t(language, 'myBusinessFallback')}, ${pendingSyncCount > 0 ? `${pendingSyncCount} ${t(language, pendingSyncCount > 1 ? 'pendingSyncSuffixPlural' : 'pendingSyncSuffixSingular')}` : t(language, 'allDataSynced')}. Open settings.`}
+                        >
                             <View style={styles.avatar}>
                                 <Text style={styles.avatarText}>{initials}</Text>
                             </View>
@@ -306,24 +319,24 @@ export default function FooterNav() {
 
                         {/* ── Quick stats strip ─────────────────────────── */}
                         <View style={styles.statsRow}>
-                            <TouchableOpacity style={styles.statBox} onPress={() => goTo('transactions')} activeOpacity={0.8}>
+                            <TouchableOpacity style={styles.statBox} onPress={() => goTo('transactions')} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={`${totalTx} ${t(language, 'tabTransactions')}`}>
                                 <Text style={styles.statValue}>{totalTx}</Text>
                                 <Text style={styles.statLabel}>{t(language, 'tabTransactions')}</Text>
                             </TouchableOpacity>
                             <View style={styles.statDivider} />
-                            <TouchableOpacity style={styles.statBox} onPress={() => goTo('goals')} activeOpacity={0.8}>
+                            <TouchableOpacity style={styles.statBox} onPress={() => goTo('goals')} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={`${activeGoals} ${t(language, 'statActiveGoals')}`}>
                                 <Text style={styles.statValue}>{activeGoals}</Text>
                                 <Text style={styles.statLabel}>{t(language, 'statActiveGoals')}</Text>
                             </TouchableOpacity>
                             <View style={styles.statDivider} />
-                            <TouchableOpacity style={styles.statBox} onPress={() => goTo('invoices')} activeOpacity={0.8}>
+                            <TouchableOpacity style={styles.statBox} onPress={() => goTo('invoices')} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={`${unpaidInv} ${t(language, 'statUnpaidInv')}`}>
                                 <Text style={styles.statValue}>{unpaidInv}</Text>
                                 <Text style={styles.statLabel}>{t(language, 'statUnpaidInv')}</Text>
                             </TouchableOpacity>
                             {canViewFinancials && (
                             <>
                             <View style={styles.statDivider} />
-                            <TouchableOpacity style={styles.statBox} onPress={() => goTo('dashboard')} activeOpacity={0.8}>
+                            <TouchableOpacity style={styles.statBox} onPress={() => goTo('dashboard')} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={`${profit >= 0 ? '+' : '-'}${Math.abs(profit).toFixed(0)} ${t(language, 'statProfit')}`}>
                                 <Text style={[styles.statValue, { color: profit >= 0 ? Colors.income : Colors.expense }]}>
                                     {profit >= 0 ? '+' : ''}{Math.abs(profit) >= 1000 ? `${(profit / 1000).toFixed(0)}k` : profit.toFixed(0)}
                                 </Text>
@@ -345,6 +358,8 @@ export default function FooterNav() {
                                             style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
                                             onPress={() => goTo(item.screen)}
                                             activeOpacity={0.75}
+                                            accessibilityRole="button"
+                                            accessibilityLabel={`${t(language, item.label)}. ${t(language, item.desc)}`}
                                         >
                                             <View style={[styles.listIconBox, { backgroundColor: item.color + '22' }]}>
                                                 <Icon name={item.icon} size={16} color={item.color} />
@@ -371,6 +386,8 @@ export default function FooterNav() {
                                     style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
                                     onPress={() => goTo(item.screen)}
                                     activeOpacity={0.75}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`${t(language, item.label)}. ${t(language, item.desc)}`}
                                 >
                                     <View style={[styles.listIconBox, { backgroundColor: item.color + '22' }]}>
                                         <Icon name={item.icon} size={16} color={item.color} />
@@ -395,6 +412,8 @@ export default function FooterNav() {
                                     style={styles.gridItem}
                                     onPress={() => goTo(item.screen)}
                                     activeOpacity={0.75}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={t(language, item.label)}
                                 >
                                     <View style={[styles.gridIconBox, { backgroundColor: item.color + '22' }]}>
                                         <Icon name={item.icon} size={19} color={item.color} />
@@ -415,6 +434,8 @@ export default function FooterNav() {
                                     style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
                                     onPress={() => goTo(item.screen, item.params)}
                                     activeOpacity={0.75}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`${t(language, item.label)}. ${t(language, item.desc)}`}
                                 >
                                     <View style={[styles.listIconBox, { backgroundColor: item.color + '22' }]}>
                                         <Icon name={item.icon} size={16} color={item.color} />
@@ -439,6 +460,8 @@ export default function FooterNav() {
                                     style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
                                     onPress={() => goTo(item.screen)}
                                     activeOpacity={0.75}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`${t(language, item.label)}. ${t(language, item.desc)}`}
                                 >
                                     <View style={[styles.listIconBox, { backgroundColor: item.color + '22' }]}>
                                         <Icon name={item.icon} size={16} color={item.color} />
@@ -463,6 +486,8 @@ export default function FooterNav() {
                                     style={styles.gridItem}
                                     onPress={() => goTo(item.screen)}
                                     activeOpacity={0.75}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={t(language, item.label)}
                                 >
                                     <View style={[styles.gridIconBox, { backgroundColor: item.color + '22' }]}>
                                         <Icon name={item.icon} size={19} color={item.color} />
@@ -481,6 +506,8 @@ export default function FooterNav() {
                                     style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
                                     onPress={() => goTo(item.screen)}
                                     activeOpacity={0.75}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`${t(language, item.label)}. ${t(language, item.desc)}`}
                                 >
                                     <View style={[styles.listIconBox, { backgroundColor: item.color + '22' }]}>
                                         <Icon name={item.icon} size={16} color={item.color} />
