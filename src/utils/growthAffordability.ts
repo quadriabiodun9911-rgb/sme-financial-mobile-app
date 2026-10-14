@@ -52,24 +52,39 @@ export function computeGrowthAffordability(input: GrowthAffordabilityInput): Gro
     const cashAtEndOfRampUp = cashAfterUpfront - burnDuringRampUp * Math.max(0, rampUpMonths);
     const runwayAfterRampUp = runwayMonths(cashAtEndOfRampUp, burnAfterRampUp);
 
+    // With no ramp-up delay, the extra revenue lands the same month as the
+    // extra cost -- there's no gap where burnDuringRampUp (which excludes
+    // that revenue) is the real burn rate. Judging against it anyway made
+    // an immediately break-even or profitable expansion look "unsafe"
+    // purely because the pre-revenue burn rate briefly looked thin, even
+    // though that rate never actually applies for a real month.
+    const hasRampUpGap = rampUpMonths > 0;
+    const windowRunway = hasRampUpGap ? runwayDuringRampUp : runwayAfterRampUp;
+
     let verdict: GrowthAffordabilityVerdict;
     let reason: string;
 
     if (cashAfterUpfront < 0) {
         verdict = 'unsafe';
         reason = `The upfront cost alone is more than you currently have in cash — you'd need financing or a phased rollout before this is affordable.`;
-    } else if (rampUpMonths > 0 && cashAtEndOfRampUp < 0) {
+    } else if (hasRampUpGap && cashAtEndOfRampUp < 0) {
         verdict = 'unsafe';
         reason = `You'd run out of cash during the ramp-up period, before the expected extra revenue arrives — roughly ${Math.max(0, runwayDuringRampUp).toFixed(1)} months of buffer against a ${rampUpMonths}-month wait.`;
-    } else if (runwayDuringRampUp < UNSAFE_RUNWAY_MONTHS) {
+    } else if (windowRunway < UNSAFE_RUNWAY_MONTHS) {
         verdict = 'unsafe';
-        reason = `This leaves only ${runwayDuringRampUp.toFixed(1)} months of runway while the added costs are live — too thin a buffer for unexpected delays or a slow month.`;
-    } else if (runwayDuringRampUp < CAUTION_RUNWAY_MONTHS) {
+        reason = hasRampUpGap
+            ? `This leaves only ${windowRunway.toFixed(1)} months of runway while the added costs are live — too thin a buffer for unexpected delays or a slow month.`
+            : `Even with the extra revenue landing right away, this only leaves ${windowRunway.toFixed(1)} months of runway — too thin a buffer for a slow month.`;
+    } else if (windowRunway < CAUTION_RUNWAY_MONTHS) {
         verdict = 'caution';
-        reason = `Runway drops to ${runwayDuringRampUp.toFixed(1)} months during ramp-up. Workable, but there's little room for the revenue to arrive late or come in lower than expected.`;
+        reason = hasRampUpGap
+            ? `Runway drops to ${windowRunway.toFixed(1)} months during ramp-up. Workable, but there's little room for the revenue to arrive late or come in lower than expected.`
+            : `Runway settles at ${windowRunway.toFixed(1)} months once the extra revenue lands. Workable, but there's little room for it to come in lower than expected.`;
     } else {
         verdict = 'safe';
-        reason = `Runway stays above ${CAUTION_RUNWAY_MONTHS} months even before the new revenue lands, so this expansion doesn't put day-to-day operations at risk.`;
+        reason = hasRampUpGap
+            ? `Runway stays above ${CAUTION_RUNWAY_MONTHS} months even before the new revenue lands, so this expansion doesn't put day-to-day operations at risk.`
+            : `Runway stays above ${CAUTION_RUNWAY_MONTHS} months once the extra revenue lands, so this expansion doesn't put day-to-day operations at risk.`;
     }
 
     return {
