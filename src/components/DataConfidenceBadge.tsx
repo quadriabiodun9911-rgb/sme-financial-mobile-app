@@ -13,6 +13,10 @@ interface Props {
     // omitted entirely until there's a second snapshot to show growth
     // against, and at every other call site that hasn't been wired up yet.
     trend?: string | null;
+    // Same convention as `trend` above -- computed by the caller from
+    // settings.lastReconciledAt/lastReconciliationMatchedPct. Optional:
+    // omitted for a business that hasn't reconciled a statement yet.
+    reconciliation?: { lastReconciledAt?: string; lastReconciliationMatchedPct?: number };
 }
 
 const CONFIG: Record<DataConfidence, { label: string; color: string }> = {
@@ -28,9 +32,9 @@ const CONFIG: Record<DataConfidence, { label: string; color: string }> = {
 // applies to every score/verdict Quad360 shows — the number is only as
 // good as the data behind it. Every score-bearing screen should say so
 // consistently, not just internally guard against acting on thin data.
-export default function DataConfidenceBadge({ transactions, trend }: Props) {
+export default function DataConfidenceBadge({ transactions, trend, reconciliation }: Props) {
     const quality = useMemo(() => computeDataQuality(transactions), [transactions]);
-    const bullets = useMemo(() => computeDataConfidenceBullets(quality), [quality]);
+    const bullets = useMemo(() => computeDataConfidenceBullets(quality, reconciliation), [quality, reconciliation]);
     const cfg = CONFIG[quality.confidence];
 
     return (

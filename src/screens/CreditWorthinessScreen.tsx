@@ -562,6 +562,9 @@ export default function CreditWorthinessScreen() {
                 daysActive: user?.daysActive || 0,
                 generatedAt: new Date(),
                 dataConfidenceSummary: dataQuality.summary,
+                reconciliationSummary: settings.lastReconciledAt
+                    ? `Bank statement reconciled ${settings.lastReconciledAt}${settings.lastReconciliationMatchedPct !== undefined ? ` — ${settings.lastReconciliationMatchedPct}% of statement lines matched to recorded transactions` : ''}`
+                    : undefined,
             });
             const filePath = await generatePDF(exportData);
             await sharePDF(filePath, exportData.title);

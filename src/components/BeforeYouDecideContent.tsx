@@ -144,6 +144,18 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
         setPriceVolumePrefill(navParams.priceVolumePrefill);
     }, [navParams]);
 
+    // Handed off from Financing Marketplace's "Asset & Equipment" /
+    // "Expansion" category selection (see FinancingMarketplaceScreen.tsx's
+    // own "Check if you can afford this" link) -- feeds the SAME shared
+    // spendPrefill every hireExpand calculator below already reads, rather
+    // than a second, parallel prefill channel just for this entry point.
+    const consumedHireExpandPrefill = useRef(false);
+    useEffect(() => {
+        if (consumedHireExpandPrefill.current || !navParams?.hireExpandPrefill) return;
+        consumedHireExpandPrefill.current = true;
+        setSpendPrefill(navParams.hireExpandPrefill);
+    }, [navParams]);
+
     // Scrolls straight to whichever calculator Decision Readiness's own
     // launcher deep-linked here for (see navParams.decideFocusTool) -- that
     // collapsible already force-opens (its own forceOpen prop below), but

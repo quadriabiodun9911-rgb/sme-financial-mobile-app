@@ -15,12 +15,19 @@ const CONFIDENCE_META: Record<DataConfidence, { label: string; color: string }> 
 interface Props {
     transactions: Transaction[];
     style?: StyleProp<ViewStyle>;
+    // "Bank statement reconciled <date> -- NN% matched" -- from
+    // settings.lastReconciledAt/lastReconciliationMatchedPct, computed by
+    // the caller (which already has settings from useApp()) rather than
+    // this component reaching into context itself, same convention
+    // DataConfidenceBadge's own `trend` prop already uses. Optional:
+    // omitted for a business that hasn't reconciled a statement yet.
+    reconciliation?: { lastReconciledAt?: string; lastReconciliationMatchedPct?: number };
 }
 
-export default function DataQualityBadge({ transactions, style }: Props) {
+export default function DataQualityBadge({ transactions, style, reconciliation }: Props) {
     const [expanded, setExpanded] = useState(false);
     const quality = useMemo(() => computeDataQuality(transactions), [transactions]);
-    const bullets = useMemo(() => computeDataConfidenceBullets(quality), [quality]);
+    const bullets = useMemo(() => computeDataConfidenceBullets(quality, reconciliation), [quality, reconciliation]);
     const meta = CONFIDENCE_META[quality.confidence];
 
     if (quality.confidence === 'none') return null;

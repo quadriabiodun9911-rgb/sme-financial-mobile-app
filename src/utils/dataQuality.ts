@@ -153,7 +153,10 @@ function daysSince(dateStr: string): number {
  * "Most recent transaction" fills that role instead — it answers the same
  * underlying question ("is this picture current?") with something real.
  */
-export function computeDataConfidenceBullets(quality: DataQuality): string[] {
+export function computeDataConfidenceBullets(
+    quality: DataQuality,
+    reconciliation?: { lastReconciledAt?: string; lastReconciliationMatchedPct?: number },
+): string[] {
     if (quality.totalTransactions === 0) return ['No transactions recorded yet'];
 
     const bullets: string[] = [];
@@ -173,6 +176,17 @@ export function computeDataConfidenceBullets(quality: DataQuality): string[] {
     bullets.push(unresolvedCount === 0
         ? 'No transactions currently need review'
         : `${unresolvedCount} transaction${unresolvedCount === 1 ? '' : 's'} still need${unresolvedCount === 1 ? 's' : ''} review`);
+
+    // A real "checked against the bank" fact, when one exists -- never
+    // fabricated for a business that hasn't reconciled yet (omitted, not
+    // shown as "Not reconciled," since an owner who has simply never used
+    // Reconciliation isn't the same claim as one whose statement failed to
+    // match).
+    if (reconciliation?.lastReconciledAt) {
+        bullets.push(reconciliation.lastReconciliationMatchedPct !== undefined
+            ? `Bank statement reconciled ${reconciliation.lastReconciledAt} — ${reconciliation.lastReconciliationMatchedPct}% matched`
+            : `Bank statement reconciled ${reconciliation.lastReconciledAt}`);
+    }
 
     return bullets;
 }
