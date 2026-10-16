@@ -36,6 +36,14 @@ export interface LenderSummaryInput {
     // necessarily has it computed; when present, shown right under the
     // score it qualifies.
     dataConfidenceSummary?: string;
+    // One-line "last reconciled" fact, built by the caller from
+    // settings.lastReconciledAt/lastReconciliationMatchedPct (set by
+    // ReconciliationScreen.tsx whenever a bank statement is actually
+    // imported and matched). Distinct from dataConfidenceSummary above,
+    // which measures the app's own transaction coverage/dating -- this is
+    // the one signal that answers "was this checked against a real bank
+    // statement," never fabricated when no reconciliation has happened yet.
+    reconciliationSummary?: string;
 }
 
 function fmtCurrency(currency: string, n: number): string {
@@ -51,7 +59,7 @@ export function buildLenderSummaryExport(input: LenderSummaryInput): ExportData 
     const {
         businessName, currency, overallCreditScore, creditRatingLabel,
         factors, checkpoints, runwayDays, avgMonthlyRevenue, daysActive, generatedAt,
-        dataConfidenceSummary,
+        dataConfidenceSummary, reconciliationSummary,
     } = input;
 
     return {
@@ -60,6 +68,7 @@ export function buildLenderSummaryExport(input: LenderSummaryInput): ExportData 
         summary: [
             { label: 'Overall Credit Score', value: `${Math.round(overallCreditScore)} / 100 (${creditRatingLabel})` },
             ...(dataConfidenceSummary ? [{ label: 'Data Confidence', value: dataConfidenceSummary }] : []),
+            ...(reconciliationSummary ? [{ label: 'Bank Reconciliation', value: reconciliationSummary }] : []),
             { label: 'Monthly Revenue', value: fmtCurrency(currency, avgMonthlyRevenue) },
             // Infinite runway (no burn recorded, e.g. a brand new account)
             // must never render as the literal string "Infinity days" in a

@@ -435,6 +435,14 @@ export interface BusinessSettings {
     // fabricated to fit an answer the app has no data behind.
     primaryGoal?: PrimaryGoal;
     customerCreditLimits?: CustomerCreditLimit[]; // owner-set per-customer exposure ceilings, see CustomerCreditLimit
+    // Set by ReconciliationScreen.tsx whenever a bank statement is actually
+    // imported and matched against recorded transactions -- a real signal
+    // dataQuality.ts and the lender-facing exports can show ("records
+    // reconciled as of <date>, <pct>% matched"), distinct from the app's
+    // own transaction-coverage confidence, which has no idea whether a
+    // bank statement was ever checked against the books at all.
+    lastReconciledAt?: string; // ISO date
+    lastReconciliationMatchedPct?: number; // 0-100, matched / (matched + unmatchedBank) from that session
 }
 
 export type PrimaryGoal = 'cashflow' | 'costs' | 'financing';
@@ -481,6 +489,13 @@ export interface NavParams {
     // a particular tool (e.g. "model a loan's repayment" -> Loan
     // Affordability Check), not just the tab in general.
     decideFocusTool?: 'loanAffordability' | 'newSpend' | 'hireExpand' | 'stressTest' | 'breakEvenCalc';
+    // The requested amount from Financing Marketplace's own "Asset &
+    // Equipment" / "Expansion" category selection, carried into the
+    // Decide tab's shared hireExpand prefill (spendPrefill) -- so picking
+    // a category that has a real calculator behind it (not just a label)
+    // routes straight to it with the number already filled in, instead of
+    // the purpose staying a free-text field nothing ever reads.
+    hireExpandPrefill?: { amount: number };
     // Carries the exact scenario the owner was testing on the Dashboard's
     // MacroShield card into macroshield-detail, so the detail page never
     // shows a different shock than the one just explored.

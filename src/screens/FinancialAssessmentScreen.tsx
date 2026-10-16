@@ -715,7 +715,11 @@ export default function FinancialAssessmentScreen() {
         {/* How much to trust the score above -- how the diagnosis
             distinguishes "confident based on real history" from "your
             first import, take this as a starting point." */}
-        <DataConfidenceBadge transactions={transactions} trend={dataConfidenceTrend} />
+        <DataConfidenceBadge
+          transactions={transactions}
+          trend={dataConfidenceTrend}
+          reconciliation={{ lastReconciledAt: settings.lastReconciledAt, lastReconciliationMatchedPct: settings.lastReconciliationMatchedPct }}
+        />
 
         {/* "3 things to fix first" and the Revenue/Cash on Hand/Growth
             metrics grid used to live here, but both are now superseded by

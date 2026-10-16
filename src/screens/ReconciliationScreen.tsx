@@ -136,7 +136,7 @@ function ColumnPicker({ label, required, headers, sample, selected, onSelect }: 
 }
 
 export default function ReconciliationScreen() {
-    const { transactions, addTransaction, settings, setCurrentScreen, userRole } = useApp();
+    const { transactions, addTransaction, settings, updateSettings, setCurrentScreen, userRole } = useApp();
     // external_accountant is allowed onto this screen to see reconciliation
     // status (canViewFinancials), but is documented as read-only everywhere
     // (canWriteBusinessData excludes it) -- same pattern GeneralLedgerScreen
@@ -201,14 +201,27 @@ export default function ReconciliationScreen() {
         ).length;
 
         let addedCount = 0;
+        let fullBankTxs: BankTx[] = [];
         setBankTxs(prev => {
             const existingIds = new Set(prev.map(b => `${b.date}-${b.amount}-${b.description}`));
             const newOnes = parsed.filter(p => !existingIds.has(`${p.date}-${p.amount}-${p.description}`));
             addedCount = newOnes.length;
-            return [...prev, ...newOnes];
+            fullBankTxs = [...prev, ...newOnes];
+            return fullBankTxs;
         });
         setCsvText('');
         setTab('matched');
+
+        // Records that a reconciliation actually happened -- the data-quality
+        // confidence tier (dataQuality.ts) and the lender-facing exports can
+        // then show a real "last reconciled" fact instead of having no
+        // reconciliation signal at all. A fresh match against the FINAL
+        // combined bank-tx list (not the stale pre-update one) so the
+        // persisted percentage reflects what the owner is about to see on
+        // the Matched/Unmatched tabs.
+        const { matched: m, unmatchedBank: ub } = matchTransactions(fullBankTxs, transactions);
+        const matchedPct = (m.length + ub.length) > 0 ? Math.round((m.length / (m.length + ub.length)) * 100) : 0;
+        updateSettings({ lastReconciledAt: localDateStr(), lastReconciliationMatchedPct: matchedPct });
         const recordedNote = alreadyRecorded > 0
             ? `\n\n${alreadyRecorded} of these are already in your recorded transactions and will appear under "Matched".`
             : '';

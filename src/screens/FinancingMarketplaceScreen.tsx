@@ -9,6 +9,7 @@ import Icon, { IconName } from '../components/ui/Icon';
 import { ChipGroup } from '../components/ui/ChipGroup';
 import { ExpandableCard } from '../components/ui/ExpandableCard';
 import Collapsible from '../components/Collapsible';
+import NextStepLink from '../components/NextStepLink';
 import { computeRiskScore, computeDSCR, computeFinancingReadinessScore, RiskScore, latestTransactionDate } from '../utils/finance';
 import { buildFinancingFitInput, rankFinancingProducts, FinancingFitResult, FinancingFitVerdict } from '../utils/financingFit';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
@@ -597,6 +598,16 @@ export default function FinancingMarketplaceScreen() {
                         value={purposeText}
                         onChangeText={setPurposeText}
                     />
+                    {(selectedCategoryId === 'asset_equipment' || selectedCategoryId === 'expansion') && requestedAmount !== undefined && (
+                        <NextStepLink
+                            text="Check if you can actually afford this before applying"
+                            onPress={() => navigate('analysis', {
+                                tab: 'decide',
+                                decideFocusTool: 'hireExpand',
+                                hireExpandPrefill: { amount: requestedAmount },
+                            })}
+                        />
+                    )}
 
                     <View style={s.assessmentDivider} />
 
