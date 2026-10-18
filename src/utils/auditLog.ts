@@ -31,7 +31,15 @@ export type AuditAction =
     | 'FAILED_LOGIN'
     | 'ACCOUNT_LOCKED'
     | 'LENDER_SHARE_GRANTED'
-    | 'LENDER_SHARE_REVOKED';
+    | 'LENDER_SHARE_REVOKED'
+    // Financing Marketplace's own opted-in listing (financingPipeline.ts)
+    // had no audit trail at all before this -- LENDER_SHARE_GRANTED/REVOKED
+    // above only ever covered the per-loan monitoring share, leaving the
+    // other real consent mechanism in this app unlogged. Parity, not a new
+    // mechanism.
+    | 'PIPELINE_LISTING_PUBLISHED'
+    | 'PIPELINE_LISTING_REVOKED'
+    | 'PIPELINE_LISTING_MATCHED';
 
 interface AuditLogEntry {
     action: AuditAction;
@@ -131,6 +139,9 @@ const AUDIT_ACTION_LABEL: Record<AuditAction, string> = {
     ACCOUNT_LOCKED: 'Account locked after failed attempts',
     LENDER_SHARE_GRANTED: 'Shared loan status with a lender',
     LENDER_SHARE_REVOKED: 'Revoked a lender\'s access to loan status',
+    PIPELINE_LISTING_PUBLISHED: 'Published a listing to the Financing Marketplace',
+    PIPELINE_LISTING_REVOKED: 'Removed a Financing Marketplace listing',
+    PIPELINE_LISTING_MATCHED: 'Linked a Financing Marketplace listing to a funded loan',
 };
 
 /**
@@ -149,6 +160,8 @@ export function describeAuditLog(entry: AuditLogRecord): string {
     if (entry.action === 'SETTINGS_UPDATE' && d.key) return `${base} (${d.key})`;
     if (entry.action === 'FAILED_LOGIN' && d.reason) return `${base} (${d.reason})`;
     if ((entry.action === 'LENDER_SHARE_GRANTED' || entry.action === 'LENDER_SHARE_REVOKED') && d.lenderOrgId) return `${base} (loan ${d.loanId ?? ''})`;
+    if (entry.action === 'PIPELINE_LISTING_PUBLISHED' && d.financingType) return `${base} (${d.financingType})`;
+    if (entry.action === 'PIPELINE_LISTING_MATCHED' && d.loanId) return `${base} (loan ${d.loanId})`;
     return base;
 }
 
@@ -176,4 +189,7 @@ export const auditEvents = {
     dataClear: () => logAudit({ action: 'DATA_CLEAR', severity: 'high' }),
     lenderShareGranted: (loanId: string, lenderOrgId: string) => logAudit({ action: 'LENDER_SHARE_GRANTED', details: { loanId, lenderOrgId }, severity: 'high' }),
     lenderShareRevoked: (loanId: string) => logAudit({ action: 'LENDER_SHARE_REVOKED', details: { loanId }, severity: 'medium' }),
+    pipelineListingPublished: (financingType: string) => logAudit({ action: 'PIPELINE_LISTING_PUBLISHED', details: { financingType }, severity: 'high' }),
+    pipelineListingRevoked: (listingId: string) => logAudit({ action: 'PIPELINE_LISTING_REVOKED', details: { listingId }, severity: 'medium' }),
+    pipelineListingMatched: (listingId: string, loanId: string) => logAudit({ action: 'PIPELINE_LISTING_MATCHED', details: { listingId, loanId }, severity: 'medium' }),
 };

@@ -784,7 +784,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             const payments = [...prevPays, newPay];
             const totalPrincipalPaid = payments.reduce((s, p) => s + p.amount, 0);
             const status: Loan['status'] = totalPrincipalPaid >= l.principal ? 'paid_off' : l.status;
-            return { ...l, payments, status };
+            const closedAt = status === 'paid_off' && l.status !== 'paid_off' ? new Date().toISOString() : l.closedAt;
+            return { ...l, payments, status, closedAt };
           })
         );
       },

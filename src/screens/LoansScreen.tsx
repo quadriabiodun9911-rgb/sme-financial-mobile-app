@@ -20,7 +20,8 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FocusTaskBanner from '../components/FocusTaskBanner';
 import FooterNav from '../components/FooterNav';
-import { Loan, LoanStatus, Transaction, ReadinessSnapshot } from '../types';
+import { Loan, LoanStatus, Transaction, ReadinessSnapshot, PipelineListing } from '../types';
+import { loadMyPipelineListings, linkListingToLoan } from '../utils/financingPipeline';
 import DateInput from '../components/DateInput';
 import MerchantFinancingSection from './MerchantFinancingSection';
 import { computeDebtOptimiser, computeDSCR, computeInterestRateShock, DSCRResult, computeUnlinkedLoanRepayments, computeLoanPaymentSplit, latestTransactionDate, computeWorkingCapitalMetrics } from '../utils/finance';
@@ -154,6 +155,16 @@ export default function LoansScreen() {
     const [fromMarketplace, setFromMarketplace] = useState(false);
     const [collateralPledged, setCollateralPledged] = useState('');
     const [covenants, setCovenants] = useState('');
+    // Which of the business's own pipeline listings (financingPipeline.ts)
+    // this loan resulted from, if any -- only ever shown/settable while
+    // fromMarketplace is checked, and only for an unmatched listing
+    // (myListings below already excludes 'inactive', but a listing that's
+    // already 'matched' to a different loan is filtered out separately so
+    // the same listing can't be linked twice).
+    const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
+    const [myListings, setMyListings] = useState<PipelineListing[]>([]);
+    useEffect(() => { loadMyPipelineListings().then(setMyListings); }, []);
+    const linkableListings = useMemo(() => myListings.filter(l => l.status !== 'matched'), [myListings]);
 
     // Payment form
     const [payAmount, setPayAmount] = useState('');
@@ -164,7 +175,7 @@ export default function LoansScreen() {
         setLender(''); setPurpose(''); setPrincipal(''); setRate('');
         setTerm(''); setStart(localDateStr());
         setStatus('active'); setFromMarketplace(false); setEditingId(null);
-        setCollateralPledged(''); setCovenants('');
+        setCollateralPledged(''); setCovenants(''); setSelectedListingId(null);
         setQaText('');
     };
 
@@ -197,6 +208,7 @@ export default function LoansScreen() {
         setTerm(String(l.termMonths)); setStart(l.startDate);
         setStatus(l.status); setFromMarketplace(!!l.fromMarketplace); setEditingId(l.id); setShowForm(true);
         setCollateralPledged(l.collateralPledged ?? ''); setCovenants(l.covenants ?? '');
+        setSelectedListingId(l.listingId ?? null);
     }, []);
 
     const handleSave = () => {
@@ -208,17 +220,29 @@ export default function LoansScreen() {
         if (isNaN(r) || r < 0) { showAlert('Error', 'Please enter a valid interest rate (0 for interest-free).'); return; }
         if (isNaN(t) || t <= 0) { showAlert('Error', 'Please enter a valid loan term in months.'); return; }
 
+        const prevLoan = editingId ? loans.find(l => l.id === editingId) : undefined;
+        const closingNow = (status === 'paid_off' || status === 'defaulted') && prevLoan?.status !== status;
         const payload = {
             lenderName: lender.trim(), purpose: purpose.trim(),
             principal: p, interestRate: r, termMonths: t,
             startDate, status, fromMarketplace,
             collateralPledged: collateralPledged.trim() || undefined,
             covenants: covenants.trim() || undefined,
+            listingId: selectedListingId ?? undefined,
+            ...(closingNow ? { closedAt: new Date().toISOString() } : {}),
         };
+        const loanId = editingId || generateId();
         if (editingId) {
             updateLoan(editingId, payload);
         } else {
-            addLoan(payload);
+            addLoan({ ...payload, id: loanId });
+        }
+        // Completes the other half of the link -- marks the listing
+        // 'matched' and records which loan, so the two are connected both
+        // ways. Only fires when the selection actually changed (or is new),
+        // never re-sent on every unrelated edit to an already-linked loan.
+        if (selectedListingId && selectedListingId !== prevLoan?.listingId) {
+            linkListingToLoan(selectedListingId, loanId);
         }
         setShowForm(false);
         resetForm();
@@ -260,7 +284,11 @@ export default function LoansScreen() {
         updateTransaction(transactionId, { principalPortion });
         const payments = [...(loan.payments ?? []), { id: generateId(), date: tx.date, amount: principalPortion, interestPortion, note: tx.description }];
         const totalPrincipalPaid = payments.reduce((s, p) => s + p.amount, 0);
-        updateLoan(loanId, { payments, status: totalPrincipalPaid >= loan.principal ? 'paid_off' : loan.status });
+        const newStatus: LoanStatus = totalPrincipalPaid >= loan.principal ? 'paid_off' : loan.status;
+        updateLoan(loanId, {
+            payments, status: newStatus,
+            ...(newStatus === 'paid_off' && loan.status !== 'paid_off' ? { closedAt: new Date().toISOString() } : {}),
+        });
         setPickingLoanForRepayment(null);
     }, [transactions, loans, updateTransaction, updateLoan]);
 
@@ -855,6 +883,36 @@ export default function LoansScreen() {
                                     <Text style={s.marketplaceToggleHint}>{t(language, 'unlocksImpactHint')}</Text>
                                 </View>
                             </TouchableOpacity>
+
+                            {fromMarketplace && linkableListings.length > 0 && (
+                                <View style={{ marginTop: 10, marginBottom: 4 }}>
+                                    <FieldLabel text="Which listing was this? (optional)" />
+                                    <Text style={[s.marketplaceToggleHint, { marginBottom: 8 }]}>
+                                        Links this loan back to the listing's own grade/score snapshot, so Quad360 can eventually tell which readiness signals actually preceded a funded loan.
+                                    </Text>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                        {linkableListings.map(l => {
+                                            const active = selectedListingId === l.id;
+                                            return (
+                                                <TouchableOpacity
+                                                    key={l.id}
+                                                    onPress={() => setSelectedListingId(active ? null : l.id)}
+                                                    activeOpacity={0.75}
+                                                    style={{
+                                                        paddingVertical: 8, paddingHorizontal: 12, borderRadius: 16,
+                                                        borderWidth: 1.5, borderColor: active ? Colors.primary : Colors.border,
+                                                        backgroundColor: active ? Colors.primary + '18' : Colors.surface,
+                                                    }}
+                                                >
+                                                    <Text style={{ fontSize: 12.5, fontWeight: '600', color: active ? Colors.primary : Colors.textPrimary }}>
+                                                        {(l.purpose || l.financingType.replace(/_/g, ' '))} · Grade {l.grade}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                </View>
+                            )}
 
                             {/* Live preview */}
                             {principal && rate && term && !isNaN(parseFloat(principal)) && !isNaN(parseFloat(rate)) && !isNaN(parseInt(term)) && (() => {

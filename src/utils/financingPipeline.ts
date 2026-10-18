@@ -19,6 +19,7 @@
 import { getAuthUserId } from './storage';
 import { supabase } from './supabase';
 import { FinancingProductType, PipelineListing, PipelineListingStatus } from '../types';
+import { auditEvents } from './auditLog';
 
 interface PipelineListingRow {
     id: string;
@@ -36,6 +37,7 @@ interface PipelineListingRow {
     status: string;
     opted_in_at: string;
     expires_at: string | null;
+    loan_id: string | null;
 }
 
 function rowToListing(row: PipelineListingRow): PipelineListing {
@@ -54,6 +56,7 @@ function rowToListing(row: PipelineListingRow): PipelineListing {
         status: row.status as PipelineListingStatus,
         optedInAt: row.opted_in_at,
         expiresAt: row.expires_at ?? undefined,
+        loanId: row.loan_id ?? undefined,
     };
 }
 
@@ -131,6 +134,7 @@ export async function publishPipelineListing(input: PublishListingInput): Promis
             : await supabase.from('financing_pipeline_listings').insert(row);
 
         if (error) return { ok: false, error: error.message };
+        auditEvents.pipelineListingPublished(input.financingType);
         return { ok: true };
     } catch (e: any) {
         return { ok: false, error: e?.message ?? 'Could not publish listing.' };
@@ -166,6 +170,27 @@ export async function revokePipelineListing(id: string): Promise<{ ok: boolean }
             .from('financing_pipeline_listings')
             .update({ status: 'inactive' })
             .eq('id', id);
+        if (!error) auditEvents.pipelineListingRevoked(id);
+        return { ok: !error };
+    } catch {
+        return { ok: false };
+    }
+}
+
+// Completes the link 'matched' status always implied but never finished --
+// called from LoansScreen.tsx when a business marks a loan as having come
+// from a listing it published here. Sets status to 'matched' (so it drops
+// out of any lender's active-listings view, same effect revoke has, but
+// distinct in meaning: this listing succeeded, it wasn't withdrawn) and
+// records which loan, closing the gap between a diagnostic snapshot at
+// the moment of listing and the loan's eventual real-world outcome.
+export async function linkListingToLoan(listingId: string, loanId: string): Promise<{ ok: boolean }> {
+    try {
+        const { error } = await supabase
+            .from('financing_pipeline_listings')
+            .update({ status: 'matched' as PipelineListingStatus, loan_id: loanId })
+            .eq('id', listingId);
+        if (!error) auditEvents.pipelineListingMatched(listingId, loanId);
         return { ok: !error };
     } catch {
         return { ok: false };

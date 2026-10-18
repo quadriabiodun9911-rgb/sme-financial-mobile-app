@@ -876,6 +876,23 @@ export interface Loan {
     // tell "applied for through Quad360" apart from a loan the owner just typed
     // in directly, without a second, disconnected place to track the same debt.
     merchantFinancingApplicationId?: string;
+    // Which pipeline listing (see financingPipeline.ts) this loan resulted
+    // from, if any -- that link never existed before (the listing's own
+    // 'matched' status value existed in the schema with nothing ever
+    // setting it). Without it, a diagnostic snapshot at the moment of
+    // listing and the loan's eventual outcome are structurally
+    // unconnected -- exactly the data a future "which patterns of
+    // improvement precede successful repayment" question needs. Not
+    // analyzable yet with so few matched loans, but unrecoverable later
+    // if the link was never captured going forward.
+    listingId?: string;
+    // When this loan's status last transitioned to 'paid_off' or
+    // 'defaulted' -- set automatically alongside that transition
+    // (OptimizedContexts.tsx's addLoanPayment, LoansScreen.tsx's
+    // applyRepaymentToLoan and the manual status picker), never
+    // backfilled or inferred. A terminal timestamp any future outcome
+    // analysis needs; absent for any loan still 'active'.
+    closedAt?: string;
 }
 
 // ─── Financing Marketplace ──────────────────────────────────────────────────
@@ -962,6 +979,11 @@ export interface PipelineListing {
     status: PipelineListingStatus;
     optedInAt: string;
     expiresAt?: string;
+    // Set once this listing actually resulted in a recorded Loan (see
+    // Loan.listingId, the other half of this link) -- the counterpart to
+    // the 'matched' status value, which previously existed with nothing
+    // ever setting it.
+    loanId?: string;
 }
 
 // The lender side of the pipeline -- see
