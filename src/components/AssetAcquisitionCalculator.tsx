@@ -169,6 +169,13 @@ export default function AssetAcquisitionCalculator({ currency, cashBalance, mont
                         <Text style={s.verdictText}>{analysis.rationale}</Text>
                     </View>
 
+                    {selected && selected.method !== 'cash' && (
+                        <View style={[s.flagBox, analysis.termVsUsefulLife.exceeds && s.flagBoxWarn]}>
+                            <Icon name={analysis.termVsUsefulLife.exceeds ? 'alert-triangle' : 'check-circle'} size={13} color={analysis.termVsUsefulLife.exceeds ? Colors.expense : Colors.income} />
+                            <Text style={s.flagBoxText}>{analysis.termVsUsefulLife.message}</Text>
+                        </View>
+                    )}
+
                     {selected && (
                         <ProfitCashImpactCard
                             impact={computeProfitCashImpact(monthlyProfit, cashBalance - selected.upfront, -selected.monthlyProfitImpact, selectedCashDelta)}
@@ -206,4 +213,7 @@ const s = StyleSheet.create({
 
     verdict: { borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.primary, padding: 10, marginTop: Spacing.md, backgroundColor: Colors.primary + '12' },
     verdictText: { fontSize: 11.5, fontWeight: '600', lineHeight: 16, color: Colors.primary },
+    flagBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, padding: 10, marginTop: Spacing.sm, backgroundColor: Colors.income + '10' },
+    flagBoxWarn: { borderColor: Colors.expense + '88', backgroundColor: Colors.expense + '12' },
+    flagBoxText: { flex: 1, fontSize: 11, color: Colors.textSecondary, lineHeight: 15 },
 });
