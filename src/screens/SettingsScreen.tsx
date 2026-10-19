@@ -722,6 +722,15 @@ export default function SettingsScreen() {
                             </TouchableOpacity>
                         </Section>
 
+                        <Section title="Privacy Policy & Data Rights">
+                            <Text style={styles.hint}>
+                                What Quad360 collects, how it's used, and your rights under Nigeria's Data Protection Act 2023 — each one mapped to the real control that exercises it, not just a promise.
+                            </Text>
+                            <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('privacy-policy')}>
+                                <Text style={styles.dataBtnText}>Read Privacy Policy</Text>
+                            </TouchableOpacity>
+                        </Section>
+
                         <Text style={styles.hint}>
                             These three work together, not as alternatives: your PIN is what you type to open the app on THIS device; your Backup Password is what verifies you when you set up a NEW device or reset a forgotten PIN; Extra Security Lock (2FA) adds a second, separate code on top of either one at login.
                         </Text>
