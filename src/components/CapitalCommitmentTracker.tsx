@@ -6,7 +6,7 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Icon from './ui/Icon';
 import { CapitalCommitment, CommitmentDecision, CommitmentStatus } from '../types';
 import { computeCommitmentMonitor, SuggestedDecision } from '../utils/capitalCommitmentMonitor';
-import { localDateStr } from '../utils/localDate';
+import { localDateStr, addMonthsClamped } from '../utils/localDate';
 
 export interface CommitmentPrefill {
     name: string;
@@ -52,11 +52,14 @@ const TARGET_DATE_OPTIONS: { label: string; months: number | null }[] = [
     { label: '12 months', months: 12 },
 ];
 
+// addMonthsClamped -- plain setMonth let a commitment approved on the
+// 29th-31st get a target review date that silently overflowed into the
+// month after the one the chosen "N months" option actually meant (e.g.
+// approved Jan 31, "1 month" target landing Mar 3 instead of Feb 28).
 function addMonths(iso: string, months: number): string {
     const [y, m, day] = iso.split('-').map(Number);
     const d = new Date(y, (m || 1) - 1, day || 1);
-    d.setMonth(d.getMonth() + months);
-    return localDateStr(d);
+    return localDateStr(addMonthsClamped(d, months));
 }
 
 // Investment Decision Monitor -- generalizes the same "did this actually
