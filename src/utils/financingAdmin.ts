@@ -39,6 +39,7 @@ interface FinancingProductRow {
     max_term_months: number;
     interest_rate_min_pct: number;
     interest_rate_max_pct: number;
+    arrangement_fee_pct: number | null;
     eligibility: FinancingProduct['eligibility'];
     status: string;
     owner_user_id: string | null;
@@ -62,6 +63,7 @@ function rowToProduct(row: FinancingProductRow): FinancingProduct {
         maxTermMonths: row.max_term_months,
         interestRateMinPct: row.interest_rate_min_pct,
         interestRateMaxPct: row.interest_rate_max_pct,
+        arrangementFeePct: row.arrangement_fee_pct ?? undefined,
         eligibility: row.eligibility ?? {},
         status: (row.status as FinancingProduct['status']) ?? 'active',
         ownerUserId: row.owner_user_id ?? undefined,
@@ -86,6 +88,7 @@ function productToRow(product: FinancingProduct, createdBy: string): Omit<Financ
         max_term_months: product.maxTermMonths,
         interest_rate_min_pct: product.interestRateMinPct,
         interest_rate_max_pct: product.interestRateMaxPct,
+        arrangement_fee_pct: product.arrangementFeePct ?? null,
         eligibility: product.eligibility,
         status: product.status ?? 'active',
         owner_user_id: product.ownerUserId ?? null,

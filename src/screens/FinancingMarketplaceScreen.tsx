@@ -26,6 +26,7 @@ import { computeDataQuality } from '../utils/dataQuality';
 import { computeInventoryValue } from '../utils/stockVelocity';
 import { SAMPLE_FINANCING_PRODUCTS } from '../utils/financingProducts';
 import { loadActiveFinancingProducts } from '../utils/financingAdmin';
+import { computeLoanOffer } from '../utils/loanOfferComparison';
 import { bandRevenue, loadMyPipelineListings, publishPipelineListing, revokePipelineListing } from '../utils/financingPipeline';
 import { FinancingProduct, FinancingProductType, LenderType, PipelineListing } from '../types';
 import { LENDING_DECISION_DISCLAIMER } from '../utils/legalDisclaimers';
@@ -116,6 +117,30 @@ function fmtAmt(currency: string, n: number): string {
     return `${currency}${Math.round(n).toLocaleString()}`;
 }
 
+// Reuses computeLoanOffer (loanOfferComparison.ts) -- never a second,
+// independently-tuned cost formula. Only shown once a lender has actually
+// entered an arrangement fee (arrangementFeePct !== undefined); a product
+// with no fee entered shows nothing here rather than implying a 0% fee.
+// Rate and term are taken as the midpoint of the product's published
+// range, and the principal is the business's own requested amount where
+// given -- otherwise the midpoint of the product's amount range -- so this
+// is explicitly an illustrative estimate, not a quote for a specific deal.
+function buildIndicativeCost(product: FinancingProduct, requestedAmount: number | undefined, currency: string) {
+    if (product.arrangementFeePct === undefined) return null;
+    const principal = requestedAmount && requestedAmount > 0 ? requestedAmount : (product.minAmount + product.maxAmount) / 2;
+    const termMonths = Math.round((product.minTermMonths + product.maxTermMonths) / 2) || 12;
+    const marginPct = (product.interestRateMinPct + product.interestRateMaxPct) / 2;
+    const offer = computeLoanOffer({
+        label: product.productName,
+        principal,
+        termMonths,
+        benchmarkRatePct: 0,
+        marginPct,
+        arrangementFeePct: product.arrangementFeePct,
+    });
+    return { ...offer, principal, termMonths };
+}
+
 function CriterionRow({ label, status, businessValue, required, note }: { label: string; status: 'met' | 'unmet' | 'unknown'; businessValue: string; required: string; note?: string }) {
     const iconName = status === 'met' ? 'check' : status === 'unmet' ? 'alert-triangle' : 'help-circle';
     const color = status === 'met' ? Colors.income : status === 'unmet' ? Colors.expense : Colors.textMuted;
@@ -135,9 +160,10 @@ function CriterionRow({ label, status, businessValue, required, note }: { label:
     );
 }
 
-function ProductCard({ result, currency, expanded, onToggle }: { result: FinancingFitResult; currency: string; expanded: boolean; onToggle: () => void }) {
+function ProductCard({ result, currency, requestedAmount, expanded, onToggle }: { result: FinancingFitResult; currency: string; requestedAmount: number | undefined; expanded: boolean; onToggle: () => void }) {
     const { product } = result;
     const verdict = VERDICT_STYLE[result.verdict];
+    const indicativeCost = useMemo(() => buildIndicativeCost(product, requestedAmount, currency), [product, requestedAmount, currency]);
     return (
         <ExpandableCard
             expanded={expanded}
@@ -166,7 +192,16 @@ function ProductCard({ result, currency, expanded, onToggle }: { result: Financi
                         <Text style={s.productMeta}>{fmtAmt(currency, product.minAmount)}–{fmtAmt(currency, product.maxAmount)}</Text>
                         <Text style={s.productMeta}>{product.minTermMonths}–{product.maxTermMonths} mo</Text>
                         <Text style={s.productMeta}>{product.interestRateMinPct}–{product.interestRateMaxPct}% p.a.</Text>
+                        {product.arrangementFeePct !== undefined && (
+                            <Text style={s.productMeta}>{product.arrangementFeePct}% fee</Text>
+                        )}
                     </View>
+                    {indicativeCost && (
+                        <Text style={s.indicativeCostText}>
+                            Illustrative total cost over {indicativeCost.termMonths}mo on {fmtAmt(currency, indicativeCost.principal)}
+                            {requestedAmount ? '' : ' (midpoint of range)'}: {fmtAmt(currency, indicativeCost.totalCost)} (interest + fee) — not a quote, rate taken as this listing's midpoint.
+                        </Text>
+                    )}
                 </>
             }
         >
@@ -712,6 +747,7 @@ export default function FinancingMarketplaceScreen() {
                         key={r.product.id}
                         result={r}
                         currency={currency}
+                        requestedAmount={requestedAmount}
                         expanded={expandedId === r.product.id}
                         onToggle={() => setExpandedId(expandedId === r.product.id ? null : r.product.id)}
                     />
@@ -918,8 +954,9 @@ const s = StyleSheet.create({
     fitBadgeScore: { fontSize: 16, fontWeight: '800' },
     fitBadgeLabel: { fontSize: 9.5, fontWeight: '700', marginTop: 1 },
     productDesc: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginBottom: Spacing.sm },
-    productMetaRow: { flexDirection: 'row', gap: 14, marginBottom: 4 },
+    productMetaRow: { flexDirection: 'row', gap: 14, marginBottom: 4, flexWrap: 'wrap' },
     productMeta: { fontSize: 11.5, color: Colors.textMuted, fontWeight: '600' },
+    indicativeCostText: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', lineHeight: 15, marginTop: 2 },
 
     criteriaTitle: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.sm },
     criterionRow: { flexDirection: 'row', marginBottom: 9 },
