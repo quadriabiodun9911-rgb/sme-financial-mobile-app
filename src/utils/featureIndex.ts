@@ -121,7 +121,22 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         id: 'break-even', label: 'Break-Even Calculator (Plan a Price or Product)', icon: '⚖️',
         description: 'What-if: units and revenue needed to cover a hypothetical cost/price, and your margin of safety',
         keywords: ['breakeven', 'break even', 'margin of safety', 'unit economics'],
-        screen: 'analysis', navParams: { tab: 'decide' },
+        // Previously landed at the top of the Decide tab, not the
+        // calculator itself -- decideFocusTool force-opens and scrolls to
+        // it directly, same as every other Decide-tab entry below.
+        screen: 'analysis', navParams: { tab: 'decide', decideFocusTool: 'breakEvenCalc' },
+    },
+    {
+        id: 'cost-switch', label: 'Will Switching This Cost Pay For Itself?', icon: '🔁',
+        description: 'Compare a current recurring cost against a cheaper alternative, including any one-off switching cost, to see when (or if) it actually pays off',
+        keywords: ['switch supplier', 'switch cost', 'cheaper alternative', 'switching cost', 'payback', 'recurring cost'],
+        screen: 'analysis', navParams: { tab: 'decide', decideFocusTool: 'costSwitchCalc' },
+    },
+    {
+        id: 'price-volume-sim', label: 'Would This Price Change Pay Off?', icon: '📊',
+        description: 'Model how a price increase or decrease, and the volume change it causes, actually affects revenue and margin',
+        keywords: ['price change', 'price increase', 'price decrease', 'volume', 'demand', 'elasticity'],
+        screen: 'analysis', navParams: { tab: 'decide', decideFocusTool: 'priceVolumeSim' },
     },
     {
         id: 'breakeven-analysis', label: 'Breakeven Analysis (Your Actual Business)', icon: '⚖️',
@@ -172,9 +187,21 @@ export const FEATURE_INDEX: FeatureEntry[] = [
     },
     {
         id: 'cash-safety', label: 'Cash Safety', icon: '🛡️',
-        description: 'Reserve coverage, AR/AP aging, and a cash flow stress test (with scenario comparison) for cost spikes or payment delays',
-        keywords: ['reserve', 'aging', 'receivables', 'payables', 'stress test', 'shock', 'fuel', 'delay', 'shipping', 'scenario', 'compare'],
+        description: 'Reserve coverage and AR/AP aging -- how exposed cash is to overdue receivables or payables',
+        keywords: ['reserve', 'aging', 'receivables', 'payables'],
         screen: 'cashflow', navParams: { tab: 'safety' },
+    },
+    {
+        // The stress test itself moved to the Decide tab (see
+        // CashFlowSafety.tsx's own comment); this screen now only links
+        // onward to it. 'cash-safety' above used to also claim this tool
+        // lived there -- stale the moment it moved, so split out with the
+        // correct destination instead of leaving a search result one extra
+        // tap short of the thing it promised.
+        id: 'cash-stress-test', label: 'Cash Flow Stress Test', icon: '⚡',
+        description: 'Model a cost spike or a delayed payment against your real cash position, with scenario comparison',
+        keywords: ['stress test', 'shock', 'fuel', 'delay', 'shipping', 'scenario', 'compare', 'cost increase'],
+        screen: 'analysis', navParams: { tab: 'decide', decideFocusTool: 'stressTest' },
     },
     {
         id: 'growth-scenarios', label: 'Growth Trends & Scenarios', icon: '🚀',

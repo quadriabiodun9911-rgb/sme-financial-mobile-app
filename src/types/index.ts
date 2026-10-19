@@ -488,7 +488,7 @@ export interface NavParams {
     // above targets "Check a New Spend" -- for steps whose whole point is
     // a particular tool (e.g. "model a loan's repayment" -> Loan
     // Affordability Check), not just the tab in general.
-    decideFocusTool?: 'loanAffordability' | 'newSpend' | 'hireExpand' | 'stressTest' | 'breakEvenCalc' | 'compareLoanOffers';
+    decideFocusTool?: 'loanAffordability' | 'newSpend' | 'hireExpand' | 'stressTest' | 'breakEvenCalc' | 'compareLoanOffers' | 'costSwitchCalc' | 'priceVolumeSim';
     // The requested amount from Financing Marketplace's own "Asset &
     // Equipment" / "Expansion" category selection, carried into the
     // Decide tab's shared hireExpand prefill (spendPrefill) -- so picking
