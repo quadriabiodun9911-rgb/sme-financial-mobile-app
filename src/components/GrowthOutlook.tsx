@@ -5,6 +5,7 @@ import { Radius, Shadow } from '../theme/tokens';
 import { FinanceData, Transaction } from '../types';
 import { computeMonthlyTrend, latestTransactionDate } from '../utils/finance';
 import { computeMarginPct } from '../utils/priceHistory';
+import { addMonthsClamped } from '../utils/localDate';
 import NextStepLink from './NextStepLink';
 import GroupedBarChart from './GroupedBarChart';
 import TrendSparkline from './TrendSparkline';
@@ -146,7 +147,12 @@ export default function GrowthOutlook({ finance, transactions, currency, targetM
             const ig = key === 'base' ? customIncome : cfg.incomeGrowth;
             const cg = key === 'base' ? customCost : cfg.costGrowth;
             const months = Array.from({ length: horizon }, (_, i) => {
-                const d = new Date(); d.setMonth(d.getMonth() + i + 1);
+                // addMonthsClamped -- plain setMonth on today's actual date
+                // rolled a day that doesn't exist in the target month
+                // forward into the month after it, so on the 29th-31st this
+                // projection's own month labels repeated one month and
+                // skipped another (e.g. "Dec, Dec" with Nov missing).
+                const d = addMonthsClamped(new Date(), i + 1);
                 const label = d.toLocaleString('default', { month: 'short', year: '2-digit' });
                 const income = avgMonthlyIncome * (1 + ig);
                 const expense = avgMonthlyExpense * (1 + cg);

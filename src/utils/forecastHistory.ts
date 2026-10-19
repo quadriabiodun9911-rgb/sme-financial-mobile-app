@@ -18,7 +18,7 @@
 
 import { ForecastSnapshot } from '../types';
 import { ForecastSummary } from './forecastSummary';
-import { localDateStr } from './localDate';
+import { localDateStr, addMonthsClamped } from './localDate';
 
 // Rolling forecast snapshots are monthly, not weekly (contrast
 // readinessHistory's MIN_DAYS_BETWEEN_SNAPSHOTS = 7) -- the annual
@@ -108,8 +108,12 @@ export function computeForecastAccuracy(
         let actualSum = 0;
         let actualMonths = 0;
         for (let i = 0; i < elapsedMonths; i++) {
-            const d = new Date(snapshotDate);
-            d.setMonth(d.getMonth() + i);
+            // addMonthsClamped -- plain setMonth on a snapshot dated the
+            // 29th-31st could land two different `i` values on the same
+            // target month (double-counting one real month's revenue)
+            // while skipping another entirely, silently corrupting the
+            // forecast-accuracy average below.
+            const d = addMonthsClamped(snapshotDate, i);
             const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
             const revenue = monthlyRevenueByMonth.get(key);
             if (revenue !== undefined) {

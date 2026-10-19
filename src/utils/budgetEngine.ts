@@ -1,7 +1,7 @@
 import { Transaction, FinanceData, Loan } from '../types';
 import { computeRevenueForecast, latestTransactionDate } from './finance';
 import { totalMonthlyLoanBurden } from './loanMath';
-import { localMonthStr } from './localDate';
+import { localMonthStr, addMonthsClamped } from './localDate';
 
 const TRAILING_MONTHS = 3;
 
@@ -13,9 +13,11 @@ export function computeTrailingCategoryAverages(
     transactions: Transaction[],
     monthsWindow = TRAILING_MONTHS,
 ): Record<string, number> {
-    const cutoff = new Date();
-    cutoff.setMonth(cutoff.getMonth() - monthsWindow);
-    const cutoffStr = localMonthStr(cutoff);
+    // addMonthsClamped -- plain setMonth on today's actual date could roll
+    // into the month after the intended cutoff (e.g. Aug 31 minus 3 months
+    // landing in June instead of May), silently narrowing this "trailing
+    // 3 months" window to 2 months of real data on several days a year.
+    const cutoffStr = localMonthStr(addMonthsClamped(new Date(), -monthsWindow));
 
     const acc: Record<string, { total: number; months: Set<string> }> = {};
     transactions
