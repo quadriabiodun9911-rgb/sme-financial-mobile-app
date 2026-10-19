@@ -43,6 +43,7 @@ import NextStepLink from '../components/NextStepLink';
 import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
 import { monthlyPayment, totalInterest, outstandingLoanBalance, nextLoanPaymentDueDate, isLoanPaymentOverdue } from '../utils/loanMath';
+import { computeLoanOffer } from '../utils/loanOfferComparison';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
 import RadialGauge from '../components/RadialGauge';
@@ -149,6 +150,7 @@ export default function LoansScreen() {
     const [purpose, setPurpose] = useState('');
     const [principal, setPrincipal] = useState('');
     const [rate, setRate] = useState('');
+    const [arrangementFeePct, setArrangementFeePct] = useState('');
     const [term, setTerm] = useState('');
     const [startDate, setStart] = useState(localDateStr());
     const [status, setStatus] = useState<LoanStatus>('active');
@@ -172,7 +174,7 @@ export default function LoansScreen() {
     const [payNote, setPayNote] = useState('');
 
     const resetForm = () => {
-        setLender(''); setPurpose(''); setPrincipal(''); setRate('');
+        setLender(''); setPurpose(''); setPrincipal(''); setRate(''); setArrangementFeePct('');
         setTerm(''); setStart(localDateStr());
         setStatus('active'); setFromMarketplace(false); setEditingId(null);
         setCollateralPledged(''); setCovenants(''); setSelectedListingId(null);
@@ -205,6 +207,7 @@ export default function LoansScreen() {
     const openEdit = useCallback((l: Loan) => {
         setLender(l.lenderName ?? ''); setPurpose(l.purpose);
         setPrincipal(String(l.principal)); setRate(l.interestRate != null ? String(l.interestRate) : '');
+        setArrangementFeePct(l.arrangementFeePct !== undefined ? String(l.arrangementFeePct) : '');
         setTerm(String(l.termMonths)); setStart(l.startDate);
         setStatus(l.status); setFromMarketplace(!!l.fromMarketplace); setEditingId(l.id); setShowForm(true);
         setCollateralPledged(l.collateralPledged ?? ''); setCovenants(l.covenants ?? '');
@@ -222,9 +225,11 @@ export default function LoansScreen() {
 
         const prevLoan = editingId ? loans.find(l => l.id === editingId) : undefined;
         const closingNow = (status === 'paid_off' || status === 'defaulted') && prevLoan?.status !== status;
+        const parsedFeePct = parseFloat(arrangementFeePct);
         const payload = {
             lenderName: lender.trim(), purpose: purpose.trim(),
             principal: p, interestRate: r, termMonths: t,
+            arrangementFeePct: arrangementFeePct.trim() && !isNaN(parsedFeePct) ? parsedFeePct : undefined,
             startDate, status, fromMarketplace,
             collateralPledged: collateralPledged.trim() || undefined,
             covenants: covenants.trim() || undefined,
@@ -859,6 +864,10 @@ export default function LoansScreen() {
                             <TextInput style={s.input} value={rate} onChangeText={setRate}
                                 placeholder="e.g. 15 for 15% (enter 0 if interest-free)" placeholderTextColor={Colors.muted} keyboardType="decimal-pad" />
 
+                            <FieldLabel text="Arrangement / Processing Fee (optional, % of loan amount)" />
+                            <TextInput style={s.input} value={arrangementFeePct} onChangeText={setArrangementFeePct}
+                                placeholder="e.g. 2 — leave blank if none/unknown" placeholderTextColor={Colors.muted} keyboardType="decimal-pad" />
+
                             <FieldLabel text={t(language, 'loanTermLabel')} />
                             <TextInput style={s.input} value={term} onChangeText={setTerm}
                                 placeholder="e.g. 12 for 1 year, 24 for 2 years" placeholderTextColor={Colors.muted} keyboardType="number-pad" />
@@ -917,6 +926,12 @@ export default function LoansScreen() {
                             {/* Live preview */}
                             {principal && rate && term && !isNaN(parseFloat(principal)) && !isNaN(parseFloat(rate)) && !isNaN(parseInt(term)) && (() => {
                                 const mPay = monthlyPayment(parseFloat(principal), parseFloat(rate), parseInt(term));
+                                const feePct = parseFloat(arrangementFeePct) || 0;
+                                const offer = feePct > 0 ? computeLoanOffer({
+                                    label: 'this loan', principal: parseFloat(principal), termMonths: parseInt(term),
+                                    benchmarkRatePct: 0, marginPct: parseFloat(rate), arrangementFeePct: feePct,
+                                }) : null;
+                                const totalRepayable = parseFloat(principal) + totalInterest(parseFloat(principal), parseFloat(rate), parseInt(term)) + (offer?.arrangementFee ?? 0);
                                 const monthlyProfit = finance?.profit ?? 0;
                                 const profitAfter = monthlyProfit - mPay;
                                 // Share of current monthly profit consumed by the repayment
@@ -928,7 +943,10 @@ export default function LoansScreen() {
                                         <Text style={s.previewTitle}>Repayment Preview</Text>
                                         <Text style={s.previewLine}>Monthly payment: <Text style={s.previewVal}>{currency}{mPay.toFixed(2)}</Text></Text>
                                         <Text style={s.previewLine}>Total interest: <Text style={[s.previewVal, { color: Colors.expense }]}>{currency}{totalInterest(parseFloat(principal), parseFloat(rate), parseInt(term)).toFixed(2)}</Text></Text>
-                                        <Text style={s.previewLine}>Total repayable: <Text style={s.previewVal}>{currency}{(parseFloat(principal) + totalInterest(parseFloat(principal), parseFloat(rate), parseInt(term))).toFixed(2)}</Text></Text>
+                                        {offer && (
+                                            <Text style={s.previewLine}>Arrangement fee ({feePct}%): <Text style={[s.previewVal, { color: Colors.expense }]}>{currency}{offer.arrangementFee.toFixed(2)}</Text></Text>
+                                        )}
+                                        <Text style={s.previewLine}>Total repayable: <Text style={s.previewVal}>{currency}{totalRepayable.toFixed(2)}</Text></Text>
 
                                         {/* Effect on profit */}
                                         <View style={s.impactDivider} />
@@ -1156,6 +1174,12 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
     const balance = outstandingBalance(loan);
     const monthly = monthlyPayment(loan.principal, loan.interestRate, loan.termMonths);
     const interest = totalInterest(loan.principal, loan.interestRate, loan.termMonths);
+    // Only computed once a fee was actually entered -- a loan with none
+    // shows no fee/total-cost line at all rather than implying a 0% fee.
+    const feeOffer = loan.arrangementFeePct !== undefined ? computeLoanOffer({
+        label: loan.lenderName, principal: loan.principal, termMonths: loan.termMonths,
+        benchmarkRatePct: 0, marginPct: loan.interestRate, arrangementFeePct: loan.arrangementFeePct,
+    }) : null;
     const progress = Math.min(100, (paid / loan.principal) * 100);
     const overdue = isOverdue(loan);
     const statusColor = loan.status === 'paid_off' ? Colors.income : loan.status === 'defaulted' ? Colors.expense : overdue ? Colors.warning : Colors.textMuted;
@@ -1280,6 +1304,11 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
                     <Metric label={t(language, 'totalInterestMetricLabel')} value={`${currency}${interest.toFixed(0)}`} color={Colors.expense} />
                     <Metric label={t(language, 'payoffDateMetricLabel')} value={payoffDate(loan)} />
                 </View>
+                {feeOffer && (
+                    <Text style={s.feeLine}>
+                        {loan.arrangementFeePct}% arrangement fee ({currency}{feeOffer.arrangementFee.toLocaleString(undefined, { maximumFractionDigits: 0 })}) · total cost {currency}{feeOffer.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </Text>
+                )}
             </TouchableOpacity>
 
             {/* Expanded: payment history + actions */}
@@ -1569,6 +1598,7 @@ const s = StyleSheet.create({
     progressLabel: { fontSize: 10, color: Colors.textMuted, marginBottom: 10 },
 
     metricsRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 10 },
+    feeLine: { fontSize: 10.5, color: Colors.textMuted, marginTop: 8, fontStyle: 'italic' },
     metricLabel: { fontSize: 9, color: Colors.textMuted, textAlign: 'center', marginBottom: 2 },
     metricValue: { fontSize: 11, fontWeight: '700', color: Colors.textPrimary, textAlign: 'center' },
 

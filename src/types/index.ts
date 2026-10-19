@@ -840,6 +840,12 @@ export interface Loan {
     purpose: string;
     principal: number;
     interestRate: number;   // annual % e.g. 15 for 15%
+    // % of principal charged upfront by the lender. Optional and left unset
+    // (never defaulted to 0) until the business actually enters one -- "Total
+    // interest" above already ignored any fee entirely, understating what a
+    // real loan with an upfront fee actually cost. See loanOfferComparison.ts,
+    // reused here rather than a second cost formula.
+    arrangementFeePct?: number;
     termMonths: number;
     startDate: string;      // ISO date
     status: LoanStatus;
