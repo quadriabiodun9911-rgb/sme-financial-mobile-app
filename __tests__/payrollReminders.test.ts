@@ -96,4 +96,49 @@ describe('getPayrollReminderStatus', () => {
         );
         expect(status.kind).toBe('overdue');
     });
+
+    // Regression coverage for a real date-arithmetic bug: computing "last
+    // month" via plain Date.setMonth(getMonth() - 1) rolls a day that
+    // doesn't exist in the shorter target month forward into the month
+    // after it (Oct 31 minus one month lands on "Sep 31", which
+    // JavaScript normalizes to Oct 1) -- silently resolving "last month"
+    // back to the CURRENT month on the 29th-31st of several months a
+    // year, which both masks a genuinely missed prior month and falsely
+    // flags the current month as already overdue.
+    it('still resolves "last month" correctly when today is the 31st', () => {
+        const oct31 = new Date('2026-10-31T12:00:00.000Z');
+        const status = getPayrollReminderStatus(
+            [makeStaff({ startDate: '2026-01-01' })],
+            [makeRun('2026-09')], // previous month (September) covered
+            oct31,
+            30 // push dueSoonDay out so due_soon doesn't also fire
+        );
+        // Must NOT be 'overdue' for 2026-10 -- the bug collapsed prevPeriod
+        // to equal currentPeriod on this date, making the (uncovered)
+        // current month look like a missed prior one.
+        expect(status.kind).toBe('none');
+    });
+
+    it('does not falsely flag a staff member hired this month as overdue on the 31st', () => {
+        const oct31 = new Date('2026-10-31T12:00:00.000Z');
+        const status = getPayrollReminderStatus(
+            [makeStaff({ startDate: '2026-10-05' })], // hired this month
+            [],
+            oct31,
+            30
+        );
+        expect(status.kind).toBe('none');
+    });
+
+    it('still finds the correct missed prior month on the 31st when it really was skipped', () => {
+        const mar31 = new Date('2026-03-31T12:00:00.000Z');
+        const status = getPayrollReminderStatus(
+            [makeStaff({ startDate: '2026-01-01' })],
+            [makeRun('2026-03')], // only the current month was run
+            mar31,
+            30
+        );
+        expect(status.kind).toBe('overdue');
+        expect(status.kind === 'overdue' && status.missedPeriod).toBe('2026-02');
+    });
 });

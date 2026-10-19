@@ -22,10 +22,19 @@ function lastDayOfMonth(d: Date): Date {
     return new Date(d.getFullYear(), d.getMonth() + 1, 0);
 }
 
+// Normalizes to the 1st of the target month rather than preserving the
+// input day -- the only caller here (prevMonthDate below) only ever reads
+// the result's year/month (via formatPeriod/lastDayOfMonth, both of which
+// ignore the day), so this never needs to preserve it, and doing so would
+// reintroduce the exact bug this avoids: plain Date.setMonth rolls a day
+// that doesn't exist in the target month forward into the month after it
+// (e.g. Oct 31 - 1 month -> "Sep 31" -> actually Oct 1), silently making
+// "last month" resolve back to the current month on the 29th-31st of
+// several months a year. loanMath.ts's addMonthsClamped fixes the same
+// class of bug where the day DOES need preserving; this needs something
+// even simpler since it never does.
 function addMonths(d: Date, months: number): Date {
-    const next = new Date(d);
-    next.setMonth(next.getMonth() + months);
-    return next;
+    return new Date(d.getFullYear(), d.getMonth() + months, 1);
 }
 
 export function getPayrollReminderStatus(
