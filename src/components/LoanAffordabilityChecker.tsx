@@ -22,6 +22,11 @@ interface Props {
     // this checker asks the same question for a loan still being sized, so
     // it shouldn't lack the one tenor/seasonality check that form has.
     inventory?: InventoryItem[];
+    // Same optional trend/reconciliation context DataConfidenceBadge takes
+    // everywhere else it's wired up (see that component's own doc comment) --
+    // computed by the caller, never fabricated here.
+    dataConfidenceTrend?: string | null;
+    reconciliation?: { lastReconciledAt?: string; lastReconciliationMatchedPct?: number };
     // See GrowthAffordabilityCalculator's own doc comment -- same
     // "Check a New Spend" hand-off pattern, applied to this calculator's
     // loan Amount field.
@@ -67,7 +72,7 @@ const VERDICT_ICON: Record<LoanAffordabilityVerdict, IconName> = {
 // would, using the business's own numbers rather than a black-box score.
 export default function LoanAffordabilityChecker({
     currency, currentCashBalance, monthlyProfit, existingMonthlyDebtService, monthlyOperatingBurn, transactions,
-    inventory, prefillAmount, onPrefillConsumed,
+    inventory, dataConfidenceTrend, reconciliation, prefillAmount, onPrefillConsumed,
 }: Props) {
     const [amount, setAmount] = useState('');
     const [rate, setRate] = useState('15');
@@ -112,7 +117,7 @@ export default function LoanAffordabilityChecker({
                 Not "am I approved" — "can my actual cash flow absorb this specific repayment." Checked against your average profit and existing debt, not a guess.
             </Text>
 
-            <DataConfidenceBadge transactions={transactions} />
+            <DataConfidenceBadge transactions={transactions} trend={dataConfidenceTrend} reconciliation={reconciliation} />
 
             <Field label="Loan Amount" currency={currency} value={amount} onChange={setAmount} placeholder="5,000,000" />
             <View style={s.row}>

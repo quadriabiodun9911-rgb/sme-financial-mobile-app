@@ -28,6 +28,10 @@ interface Props {
     // vs. Cash Cycle" check (computeTenorCycleCheck), which reads real
     // inventory value, not the aggregate inventoryValue number above.
     inventory?: InventoryItem[];
+    // Passed straight through to LoanAffordabilityChecker's
+    // DataConfidenceBadge -- see that component's own doc comment.
+    dataConfidenceTrend?: string | null;
+    reconciliation?: { lastReconciledAt?: string; lastReconciliationMatchedPct?: number };
     // Named distinctly from the `assets` this component already derives
     // internally from computeLeverageRatios (total asset VALUE, a number)
     // -- this is the raw Asset[] register, needed only for ROIC's quarterly
@@ -111,7 +115,7 @@ function scoreInterestCoverage(interestCoverage: number, hasDebt: boolean): Rati
 export default function LoansAndDebt({
     finance, currency, loans = [], transactions = [],
     accountsReceivable = 0, accountsPayable = 0, inventoryValue = 0, inventory = [],
-    assetsList = [], defaultTaxRate,
+    assetsList = [], defaultTaxRate, dataConfidenceTrend, reconciliation,
 }: Props) {
     // Same trailing-30-day paid-expense burn rate CashFlowScreen's Runway
     // tab and the Weekly Dashboard use — one canonical "how much do we
@@ -360,6 +364,8 @@ export default function LoansAndDebt({
                     monthlyOperatingBurn={monthlyBurn}
                     transactions={transactions}
                     inventory={inventory}
+                    dataConfidenceTrend={dataConfidenceTrend}
+                    reconciliation={reconciliation}
                 />
             </Collapsible>
 

@@ -11,7 +11,7 @@ interface Props {
     // the caller (which already has dataConfidenceHistory from useApp())
     // rather than this component reaching into context itself. Optional:
     // omitted entirely until there's a second snapshot to show growth
-    // against, and at every other call site that hasn't been wired up yet.
+    // against. Every call site now passes it through.
     trend?: string | null;
     // Same convention as `trend` above -- computed by the caller from
     // settings.lastReconciledAt/lastReconciliationMatchedPct. Optional:
