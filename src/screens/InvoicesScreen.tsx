@@ -138,6 +138,12 @@ export default function InvoicesScreen() {
     const [filter, setFilter]       = useState<InvoiceStatus | 'all'>('all');
     const [showForm, setShowForm]   = useState(false);
     const [editId, setEditId]       = useState<string | null>(null);
+    // The invoice's status at the moment Edit was opened -- lets handleSave
+    // tell "editing an already-paid invoice" apart from "creating/drafting
+    // a new one," since both used to fall through the same
+    // asDraft ? 'draft' : 'sent' logic and silently reverse a paid invoice
+    // back to 'sent' on a routine edit (fixing a typo, address, etc).
+    const [editingStatus, setEditingStatus] = useState<InvoiceStatus | null>(null);
     const [viewInv, setViewInv]     = useState<Invoice | null>(null);
     const [whatsappAvailable, setWhatsappAvailable] = useState(false);
 
@@ -237,6 +243,7 @@ export default function InvoicesScreen() {
         setIsRecurring(false); setRecurringFrequency('monthly');
         setCreditLimitInput('');
         setEditId(null);
+        setEditingStatus(null);
         setQaText('');
     };
 
@@ -271,6 +278,7 @@ export default function InvoicesScreen() {
         const existingLimit = findCreditLimit(inv.clientName, settings.customerCreditLimits ?? []);
         setCreditLimitInput(existingLimit ? String(existingLimit.limit) : '');
         setEditId(inv.id);
+        setEditingStatus(inv.status);
         setShowForm(true);
     };
 
@@ -337,6 +345,16 @@ export default function InvoicesScreen() {
         }
 
         const today = localDateStr();
+        // Editing an already-paid invoice (fixing a typo, an address, a
+        // note) must never silently reverse the collection -- it used to
+        // fall through to the same asDraft ? 'draft' : 'sent' logic a new
+        // or draft invoice uses, which flipped a paid invoice back to
+        // 'sent' (or 'draft'), un-collected its linked income transaction,
+        // made it eligible for a WhatsApp payment reminder to a customer
+        // who'd already paid, and dropped its paidDate from payment-
+        // behavior history. A routine content edit keeps whatever status
+        // the invoice already had when Edit was opened.
+        const preserveStatus = editId !== null && editingStatus === 'paid';
         const payload = {
             invoiceNumber: editId ? (invoices.find(i => i.id === editId)?.invoiceNumber ?? nextInvoiceNumber()) : nextInvoiceNumber(),
             clientName: clientName.trim(),
@@ -347,7 +365,7 @@ export default function InvoicesScreen() {
             dueDate,
             lineItems,
             notes,
-            status: (asDraft ? 'draft' : 'sent') as InvoiceStatus,
+            status: (preserveStatus ? 'paid' : (asDraft ? 'draft' : 'sent')) as InvoiceStatus,
             ...totals,
             earlyPaymentDiscountPct: parseFloat(earlyDiscountPct) || undefined,
             earlyPaymentDiscountDays: parseFloat(earlyDiscountDays) || undefined,
@@ -794,12 +812,25 @@ export default function InvoicesScreen() {
                                 <TotalRow label={t(language, 'totalWord')} value={`${currency}${totals.total.toFixed(2)}`} bold />
                             </View>
 
-                            <TouchableOpacity style={styles.saveBtn} onPress={() => handleSave(false)}>
-                                <Text style={styles.saveBtnText}>{t(language, 'saveAndSend')}</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.draftBtn} onPress={() => handleSave(true)}>
-                                <Text style={styles.draftBtnText}>{t(language, 'saveAsDraft')}</Text>
-                            </TouchableOpacity>
+                            {editingStatus === 'paid' ? (
+                                // A paid invoice has already been sent and collected --
+                                // "Save & Mark as Sent" / "Save as Draft" would both be
+                                // misleading here, and handleSave already keeps this
+                                // invoice's status as 'paid' regardless of which one is
+                                // tapped. One unambiguous action instead.
+                                <TouchableOpacity style={styles.saveBtn} onPress={() => handleSave(false)}>
+                                    <Text style={styles.saveBtnText}>{t(language, 'saveChanges')}</Text>
+                                </TouchableOpacity>
+                            ) : (
+                                <>
+                                    <TouchableOpacity style={styles.saveBtn} onPress={() => handleSave(false)}>
+                                        <Text style={styles.saveBtnText}>{t(language, 'saveAndSend')}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={styles.draftBtn} onPress={() => handleSave(true)}>
+                                        <Text style={styles.draftBtnText}>{t(language, 'saveAsDraft')}</Text>
+                                    </TouchableOpacity>
+                                </>
+                            )}
                             </>
                             )}
                         </View>
