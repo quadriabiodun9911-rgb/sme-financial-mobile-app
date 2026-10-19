@@ -56,7 +56,7 @@ import { computeTenorCycleCheck } from '../utils/tenorCycleMatch';
 import { computeRepaymentSeasonalAlignment } from '../utils/repaymentSeasonalAlignment';
 import { computeRepaymentWeekdayAlignment } from '../utils/repaymentWeekdayAlignment';
 import { parseLoanQuickAddText } from '../utils/loanQuickAddParser';
-import { localDateStr } from '../utils/localDate';
+import { localDateStr, addMonthsClamped } from '../utils/localDate';
 import Collapsible from '../components/Collapsible';
 
 function totalPaid(loan: Loan): number {
@@ -77,9 +77,15 @@ function nextDueDate(loan: Loan): string {
 
 function payoffDate(loan: Loan): string {
     const [y, m, d] = loan.startDate.split('-').map(Number);
-    const end = new Date(y, (m || 1) - 1, d || 1);
-    end.setMonth(end.getMonth() + loan.termMonths);
-    return localDateStr(end);
+    const start = new Date(y, (m || 1) - 1, d || 1);
+    // addMonthsClamped -- nextLoanPaymentDueDate (loanMath.ts) already uses
+    // it for this loan's own final payment; plain setMonth here let a loan
+    // starting on the 29th-31st show a Payoff Date a few days INTO the
+    // month after the one its own payment schedule actually ends in (e.g.
+    // a 1-month loan from Jan 31 showed Mar 3, while loanMath.ts's final
+    // due date for the same loan is Feb 28) -- the card contradicting the
+    // schedule it's summarizing.
+    return localDateStr(addMonthsClamped(start, loan.termMonths));
 }
 
 const isOverdue = isLoanPaymentOverdue;
