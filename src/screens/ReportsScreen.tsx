@@ -508,7 +508,7 @@ export default function ReportsScreen() {
                 ))}
             </ScrollView>
 
-            <DataQualityBadge transactions={transactions} />
+            <DataQualityBadge transactions={transactions} reconciliation={{ lastReconciledAt: settings.lastReconciledAt, lastReconciliationMatchedPct: settings.lastReconciliationMatchedPct }} />
 
             {/* ── Period filter ─────────────────────────────────────── */}
             {periodActive && (

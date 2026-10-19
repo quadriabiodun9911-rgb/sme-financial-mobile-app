@@ -44,7 +44,11 @@ export default function WeeklyReportModal({ visible, onClose, onEditMission, tra
                         <Text style={s.title}>🗓️ Weekly Dashboard</Text>
                         <Text style={s.subtitle}>{summary.weekLabel} — a summary of this week, so far</Text>
 
-                        <DataQualityBadge transactions={transactions} style={{ marginHorizontal: 0, marginTop: 0, marginBottom: 12 }} />
+                        <DataQualityBadge
+                            transactions={transactions}
+                            style={{ marginHorizontal: 0, marginTop: 0, marginBottom: 12 }}
+                            reconciliation={{ lastReconciledAt: settings.lastReconciledAt, lastReconciliationMatchedPct: settings.lastReconciliationMatchedPct }}
+                        />
 
                         {/* Revenue / Cost / Profit */}
                         <View style={s.metricRow}>

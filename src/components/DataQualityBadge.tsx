@@ -20,7 +20,8 @@ interface Props {
     // the caller (which already has settings from useApp()) rather than
     // this component reaching into context itself, same convention
     // DataConfidenceBadge's own `trend` prop already uses. Optional:
-    // omitted for a business that hasn't reconciled a statement yet.
+    // omitted for a business that hasn't reconciled a statement yet. Both
+    // call sites (ReportsScreen, WeeklyReportModal) pass it through.
     reconciliation?: { lastReconciledAt?: string; lastReconciliationMatchedPct?: number };
 }
 
