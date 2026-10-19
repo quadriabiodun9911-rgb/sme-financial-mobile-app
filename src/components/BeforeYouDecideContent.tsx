@@ -11,6 +11,7 @@ import CostSwitchCalculator from './CostSwitchCalculator';
 import PriceVolumeSimulator from './PriceVolumeSimulator';
 import ProjectDecisionSimulator from './ProjectDecisionSimulator';
 import LoanAffordabilityChecker from './LoanAffordabilityChecker';
+import LoanOfferComparison from './LoanOfferComparison';
 import { SAFE_REPAYMENT_CAPACITY_MULTIPLE } from '../utils/loanAffordabilityCheck';
 import NextStepLink from './NextStepLink';
 import DecisionSimulator from './DecisionSimulator';
@@ -576,6 +577,16 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
                         prefillAmount={spendPrefill}
                         onPrefillConsumed={() => setSpendPrefill(null)}
                     />
+                </Collapsible>
+            </View>
+
+            <View style={styles.decisionCard}>
+                <Text style={styles.decisionQuestion}>Comparing two loan offers?</Text>
+                <Text style={styles.decisionHelp}>
+                    The instinct is to take the lower rate — but a lower rate with a bigger upfront fee can cost more in total than a higher rate with a smaller one, once both are amortized over the term you'll actually borrow for.
+                </Text>
+                <Collapsible title="Compare Two Loan Offers" forceOpen={navParams?.decideFocusTool === 'compareLoanOffers'}>
+                    <LoanOfferComparison currency={currency} />
                 </Collapsible>
             </View>
 
