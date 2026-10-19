@@ -727,7 +727,10 @@ function ListingsTab({ lenderOrgId, createdByEmail }: { lenderOrgId: string | nu
                             <Text style={[s.statusPillText, { color: p.status === 'active' ? Colors.income : Colors.textMuted }]}>{p.status}</Text>
                         </View>
                     </View>
-                    <Text style={s.detailLine}>{p.minAmount.toLocaleString()}–{p.maxAmount.toLocaleString()} · {p.minTermMonths}–{p.maxTermMonths}mo · {p.interestRateMinPct}–{p.interestRateMaxPct}%</Text>
+                    <Text style={s.detailLine}>
+                        {p.minAmount.toLocaleString()}–{p.maxAmount.toLocaleString()} · {p.minTermMonths}–{p.maxTermMonths}mo · {p.interestRateMinPct}–{p.interestRateMaxPct}%
+                        {p.arrangementFeePct !== undefined ? ` · ${p.arrangementFeePct}% fee` : ' · no fee entered'}
+                    </Text>
                     <View style={s.listingActions}>
                         <TouchableOpacity onPress={() => openEdit(p)} style={s.listingActionBtn}>
                             <Text style={s.listingActionText}>Edit</Text>
