@@ -175,6 +175,12 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'loans',
     },
     {
+        id: 'compare-loan-offers', label: 'Compare Two Loan Offers', icon: '⚖️',
+        description: 'Puts a competing lender\'s rate, margin and every fee on one page -- the cheaper loan isn\'t always the one with the lower headline rate',
+        keywords: ['compare loans', 'two offers', 'loan offer', 'arrangement fee', 'loan fee', 'which loan is cheaper', 'margin', 'headline rate'],
+        screen: 'analysis', navParams: { tab: 'decide', decideFocusTool: 'compareLoanOffers' },
+    },
+    {
         id: 'cash-timeline', label: 'Cash Timeline (Forecast)', icon: '📈',
         description: 'Forward-looking cash forecast and runway',
         keywords: ['forecast', 'runway', 'projection'],
