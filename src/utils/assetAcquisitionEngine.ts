@@ -52,6 +52,21 @@ export interface AcquisitionAnalysis {
   options: AcquisitionOption[];
   recommended: AcquisitionMethod;
   rationale: string;
+  // Both numbers already exist as inputs here (usefulLifeYears, termMonths)
+  // -- unlike tenorCycleMatch.ts's cash-cycle check, which explicitly
+  // avoids judging a loan's tenor against an asset's useful life because it
+  // has no useful-life data for a generic loan. This calculator does, so it
+  // checks the one real risk that data enables: financing/leasing an asset
+  // for longer than it's likely to actually last, which the serviceable/
+  // keepsReserve checks above never catch (a payment can be perfectly
+  // affordable every month and still be funding an asset the business will
+  // need to replace, or already can't, before the term ends).
+  termVsUsefulLife: {
+    usefulLifeMonths: number;
+    termMonths: number;
+    exceeds: boolean;
+    message: string;
+  };
 }
 
 export function analyzeAcquisition(input: AcquisitionInputs): AcquisitionAnalysis {
@@ -154,5 +169,16 @@ export function analyzeAcquisition(input: AcquisitionInputs): AcquisitionAnalysi
     rationale = 'Cash is the cheapest route here.';
   }
 
-  return { options, recommended, rationale };
+  const usefulLifeMonths = life * 12;
+  const exceedsUsefulLife = termMonths > usefulLifeMonths;
+  const termVsUsefulLife = {
+    usefulLifeMonths,
+    termMonths,
+    exceeds: exceedsUsefulLife,
+    message: exceedsUsefulLife
+      ? `This asset's useful life is about ${life} year${life === 1 ? '' : 's'} (${usefulLifeMonths} months), but the financing/lease term here is ${termMonths} months -- you'd still be paying for it after it's likely worn out or due for replacement.`
+      : `This asset's useful life (${life} year${life === 1 ? '' : 's'}) comfortably covers the ${termMonths}-month term -- you won't still be paying for it once it's worn out.`,
+  };
+
+  return { options, recommended, rationale, termVsUsefulLife };
 }

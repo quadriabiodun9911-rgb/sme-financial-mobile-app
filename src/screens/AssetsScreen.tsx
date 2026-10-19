@@ -620,6 +620,13 @@ export default function AssetsScreen() {
                                             <Text style={[s.acqVerdictText, { color: recColor }]}>{analysis.rationale}</Text>
                                         </View>
 
+                                        {acqMethod !== 'cash' && (
+                                            <View style={[s.acqFlagBox, analysis.termVsUsefulLife.exceeds && s.acqFlagBoxWarn]}>
+                                                <Icon name={analysis.termVsUsefulLife.exceeds ? 'alert-triangle' : 'check-circle'} size={13} color={analysis.termVsUsefulLife.exceeds ? Colors.expense : Colors.income} />
+                                                <Text style={s.acqFlagBoxText}>{analysis.termVsUsefulLife.message}</Text>
+                                            </View>
+                                        )}
+
                                         {(() => {
                                             const selected = analysis.options.find(o => o.method === acqMethod);
                                             if (!selected) return null;
@@ -892,6 +899,9 @@ const s = StyleSheet.create({
     acqFlag:     { fontSize: 11, fontWeight: '700', marginTop: 4 },
     acqVerdict:  { borderRadius: Radius.sm, borderWidth: 1, padding: 10, marginTop: Spacing.md, backgroundColor: Colors.primary + '12' },
     acqVerdictText: { fontSize: 11, fontWeight: '600', lineHeight: 16 },
+    acqFlagBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, padding: 10, marginTop: Spacing.sm, backgroundColor: Colors.income + '10' },
+    acqFlagBoxWarn: { borderColor: Colors.expense + '88', backgroundColor: Colors.expense + '12' },
+    acqFlagBoxText: { flex: 1, fontSize: 11, color: Colors.textSecondary, lineHeight: 15 },
     btn:        { flex: 1, backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: Radius.sm, alignItems: 'center' },
     btnSecondary: { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border },
     btnText:    { color: '#fff', fontWeight: 'bold', fontSize: 14 },
