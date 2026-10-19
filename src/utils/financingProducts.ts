@@ -2,10 +2,15 @@
  * Sample financing product listings — the "lenders list their requirements"
  * half of the marketplace idea, before Quad360 has any real lender
  * integrations. Named generically by lender type + product, not by any real
- * bank/fintech/DFI, and amount/rate ranges are round, clearly illustrative
- * figures — never present these as live, currently-applyable offers. This
+ * bank/fintech/DFI, and amount/rate/fee figures are round, clearly
+ * illustrative figures — never present these as live, currently-applyable
+ * offers. This
  * mirrors the same discipline lendingCapacity.ts already follows ("wide,
  * clearly-labeled ranges rather than fabricated bank-specific figures").
+ * arrangementFeePct is set on every sample here so the illustrative
+ * Marketplace demonstrates the fee-aware total-cost estimate (see
+ * FinancingMarketplaceScreen.tsx's buildIndicativeCost) -- a real
+ * admin/lender-entered listing may legitimately leave it unset.
  *
  * Once Quad360 has real lender partners, this becomes the seed for an actual
  * listings table (lender-managed, not hardcoded) — the matching engine in
@@ -28,6 +33,7 @@ export const SAMPLE_FINANCING_PRODUCTS: FinancingProduct[] = [
         maxTermMonths: 60,
         interestRateMinPct: 12,
         interestRateMaxPct: 20,
+        arrangementFeePct: 2,
         eligibility: {
             minMonthlyRevenue: 3_000_000,
             minBusinessAgeMonths: 24,
@@ -50,6 +56,7 @@ export const SAMPLE_FINANCING_PRODUCTS: FinancingProduct[] = [
         maxTermMonths: 18,
         interestRateMinPct: 18,
         interestRateMaxPct: 32,
+        arrangementFeePct: 1.5,
         eligibility: {
             minMonthlyRevenue: 800_000,
             minBusinessAgeMonths: 6,
@@ -70,6 +77,7 @@ export const SAMPLE_FINANCING_PRODUCTS: FinancingProduct[] = [
         maxTermMonths: 6,
         interestRateMinPct: 15,
         interestRateMaxPct: 24,
+        arrangementFeePct: 1,
         eligibility: {
             minMonthlyRevenue: 500_000,
             minBusinessAgeMonths: 3,
@@ -89,6 +97,7 @@ export const SAMPLE_FINANCING_PRODUCTS: FinancingProduct[] = [
         maxTermMonths: 12,
         interestRateMinPct: 9,
         interestRateMaxPct: 16,
+        arrangementFeePct: 1.5,
         eligibility: {
             minMonthlyRevenue: 5_000_000,
             minBusinessAgeMonths: 36,
@@ -111,6 +120,7 @@ export const SAMPLE_FINANCING_PRODUCTS: FinancingProduct[] = [
         maxTermMonths: 48,
         interestRateMinPct: 14,
         interestRateMaxPct: 22,
+        arrangementFeePct: 2,
         eligibility: {
             minMonthlyRevenue: 2_000_000,
             minBusinessAgeMonths: 18,
@@ -132,6 +142,7 @@ export const SAMPLE_FINANCING_PRODUCTS: FinancingProduct[] = [
         maxTermMonths: 12,
         interestRateMinPct: 20,
         interestRateMaxPct: 36,
+        arrangementFeePct: 1,
         eligibility: {
             minMonthlyRevenue: 150_000,
             minBusinessAgeMonths: 1,
@@ -151,6 +162,7 @@ export const SAMPLE_FINANCING_PRODUCTS: FinancingProduct[] = [
         maxTermMonths: 12,
         interestRateMinPct: 16,
         interestRateMaxPct: 26,
+        arrangementFeePct: 1,
         eligibility: {
             minMonthlyRevenue: 1_000_000,
             minBusinessAgeMonths: 12,
