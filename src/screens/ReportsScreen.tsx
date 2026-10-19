@@ -49,7 +49,7 @@ import { computeInventoryValue } from '../utils/stockVelocity';
 import { computeMarginPct } from '../utils/priceHistory';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
-import { localDateStr } from '../utils/localDate';
+import { localDateStr, addMonthsClamped } from '../utils/localDate';
 
 // ─── Section groups ────────────────────────────────────────────────────────────
 type SectionKey = 'statements' | 'customers' | 'tax' | 'growth';
@@ -223,10 +223,14 @@ export default function ReportsScreen() {
             return `For the period ${fmtDate(dates[0])} – ${todayLabel}`;
         }
         const now = new Date();
-        const cutoff = new Date(now);
-        if (period === 'month') cutoff.setMonth(now.getMonth() - 1);
-        else if (period === 'quarter') cutoff.setMonth(now.getMonth() - 3);
-        else cutoff.setFullYear(now.getFullYear() - 1);
+        // addMonthsClamped -- see finance.ts's filterByPeriod, whose exact
+        // date range this label describes. Plain setMonth/setFullYear
+        // rolled a day that doesn't exist in the target month forward,
+        // silently shrinking the labeled range near a month-end (and it
+        // must agree with the actual filter, not just look right).
+        const cutoff = period === 'month' ? addMonthsClamped(now, -1)
+            : period === 'quarter' ? addMonthsClamped(now, -3)
+            : addMonthsClamped(now, -12);
         return `For the period ${fmtDate(localDateStr(cutoff))} – ${todayLabel}`;
     }, [period, customRange, filteredTx, today]);
 
