@@ -274,6 +274,32 @@ describe('computeRecurringDates', () => {
     it('adds 3 months for quarterly', () => {
         expect(computeRecurringDates('2026-01-01', 'quarterly')).toBe('2026-04-01');
     });
+
+    it('adds 1 year for yearly', () => {
+        expect(computeRecurringDates('2026-01-01', 'yearly')).toBe('2027-01-01');
+    });
+
+    // Regression coverage for a real bug: plain Date.setMonth/setFullYear
+    // rolls a day that doesn't exist in the target month forward into the
+    // month after it, so a monthly/quarterly/yearly recurrence dated the
+    // 29th-31st used to silently skip an entire billing cycle (Jan 31 + 1
+    // month became Mar 3, not Feb 28) -- clamping to the target month's
+    // last day instead is the fix.
+    it('clamps to the last day of February for a monthly recurrence from Jan 31', () => {
+        expect(computeRecurringDates('2026-01-31', 'monthly')).toBe('2026-02-28');
+    });
+
+    it('clamps to Sep 30 for a monthly recurrence from Aug 31 (not Oct 1)', () => {
+        expect(computeRecurringDates('2026-08-31', 'monthly')).toBe('2026-09-30');
+    });
+
+    it('clamps to Feb 28 for a quarterly recurrence from Nov 30', () => {
+        expect(computeRecurringDates('2025-11-30', 'quarterly')).toBe('2026-02-28');
+    });
+
+    it('clamps a yearly recurrence from a leap-year Feb 29 to Feb 28 the next year', () => {
+        expect(computeRecurringDates('2024-02-29', 'yearly')).toBe('2025-02-28');
+    });
 });
 
 // ─── transactionsToCSV ────────────────────────────────────────────────────────

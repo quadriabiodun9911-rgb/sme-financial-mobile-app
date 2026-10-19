@@ -5,7 +5,7 @@ import { computeCashRunway } from './cashRunway';
 import { computeStockVelocity } from './stockVelocity';
 import { activeBudgetsForPeriod } from './budgetPeriod';
 import { entityKey, entityDisplayName } from './entityName';
-import { localDateStr } from './localDate';
+import { localDateStr, addMonthsClamped } from './localDate';
 import { effectiveInvoiceStatus } from './overdueTransactions';
 
 // ─── Currency formatting ───────────────────────────────────────────────────
@@ -892,11 +892,17 @@ export function computeRecurringDates(
     // date by a day for negative UTC offsets, so a monthly bill due the
     // 1st could recur on the last day of the prior month instead.
     const [ly, lm, ld] = lastDate.split('-').map(Number);
-    const d = new Date(ly, (lm || 1) - 1, ld || 1);
-    if (frequency === 'weekly')      d.setDate(d.getDate() + 7);
-    else if (frequency === 'monthly')   d.setMonth(d.getMonth() + 1);
-    else if (frequency === 'quarterly') d.setMonth(d.getMonth() + 3);
-    else                                d.setFullYear(d.getFullYear() + 1);
+    let d = new Date(ly, (lm || 1) - 1, ld || 1);
+    // Monthly/quarterly/yearly all go through addMonthsClamped -- plain
+    // setMonth/setFullYear roll a day that doesn't exist in the target
+    // month (or Feb 29 in a non-leap year) forward into the month after
+    // it, e.g. Jan 31 + 1 month silently becoming Mar 3 instead of Feb 28,
+    // which skipped an entire billing cycle for any recurring invoice or
+    // transaction dated the 29th-31st.
+    if (frequency === 'weekly')         d.setDate(d.getDate() + 7);
+    else if (frequency === 'monthly')   d = addMonthsClamped(d, 1);
+    else if (frequency === 'quarterly') d = addMonthsClamped(d, 3);
+    else                                d = addMonthsClamped(d, 12);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
@@ -905,10 +911,13 @@ export type ReportPeriod = 'month' | 'quarter' | 'year' | 'all' | 'custom';
 export function filterByPeriod(transactions: Transaction[], period: ReportPeriod): Transaction[] {
     if (period === 'all' || period === 'custom') return transactions;
     const now = new Date();
-    const cutoff = new Date(now);
-    if (period === 'month') cutoff.setMonth(now.getMonth() - 1);
-    else if (period === 'quarter') cutoff.setMonth(now.getMonth() - 3);
-    else cutoff.setFullYear(now.getFullYear() - 1);
+    // addMonthsClamped -- see computeRecurringDates' own comment. Plain
+    // setMonth(now.getMonth() - 1) on e.g. Mar 31 landed on Mar 3 instead
+    // of the end of February, silently dropping several days from "Last
+    // month"/"Last quarter"/"Last year" near a month-end.
+    const cutoff = period === 'month' ? addMonthsClamped(now, -1)
+        : period === 'quarter' ? addMonthsClamped(now, -3)
+        : addMonthsClamped(now, -12);
     const cutoffStr = localDateStr(cutoff);
     return transactions.filter(t => t.date >= cutoffStr);
 }

@@ -5,6 +5,8 @@
  * the Budget strategy card so both agree on the numbers.
  */
 
+import { addMonthsClamped } from './localDate';
+
 export function monthlyPayment(principal: number, annualRate: number, termMonths: number): number {
   if (!termMonths || termMonths <= 0) return 0;
   if (!principal || principal <= 0) return 0;
@@ -55,23 +57,6 @@ export function outstandingLoanBalance(loan: { principal: number; payments?: Arr
 interface LoanScheduleInput {
   startDate: string;
   payments?: Array<{ amount: number }>;
-}
-
-// Adds `months` to `date`, clamping the day to the target month's last day
-// instead of letting it overflow into the month after -- `Date.setMonth`'s
-// default behavior for a day that doesn't exist in the target month. For a
-// loan starting on the 29th-31st this used to produce an inconsistent
-// schedule depending on how many months were added: from Aug 31, +1 month
-// silently became Oct 1 (September only has 30 days) while +2 months
-// landed cleanly on Oct 31 -- two different "months added" collapsing into
-// the same resulting month instead of advancing one full month each time.
-function addMonthsClamped(date: Date, months: number): Date {
-  const targetIndex = date.getMonth() + months;
-  const year = date.getFullYear() + Math.floor(targetIndex / 12);
-  const month = ((targetIndex % 12) + 12) % 12;
-  const lastDayOfTargetMonth = new Date(year, month + 1, 0).getDate();
-  const day = Math.min(date.getDate(), lastDayOfTargetMonth);
-  return new Date(year, month, day);
 }
 
 /**
