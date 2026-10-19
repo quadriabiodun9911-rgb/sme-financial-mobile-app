@@ -44,6 +44,7 @@ import ProfitCashImpactCard from '../components/ProfitCashImpactCard';
 import { computeProfitCashImpact } from '../utils/impactChain';
 import { monthlyPayment, totalInterest, outstandingLoanBalance, nextLoanPaymentDueDate, isLoanPaymentOverdue } from '../utils/loanMath';
 import { computeLoanOffer } from '../utils/loanOfferComparison';
+import { describeDataConfidenceTrend } from '../utils/dataConfidenceHistory';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
 import RadialGauge from '../components/RadialGauge';
@@ -98,7 +99,12 @@ const LEASE_VERDICT_COLOR: Record<LeaseRefinanceCheck['verdict'], string> = {
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
 
 export default function LoansScreen() {
-    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams, transactions, updateTransaction, readinessHistory, user, language, isDemoMode, inventory, assets } = useApp();
+    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams, transactions, updateTransaction, readinessHistory, user, language, isDemoMode, inventory, assets, dataConfidenceHistory } = useApp();
+    // Same trend/reconciliation wiring DataConfidenceBadge already gets on
+    // FinancialAssessmentScreen -- LoansAndDebt's Loan Affordability Check
+    // had been showing without either. See DataConfidenceBadge.tsx's own
+    // doc comment.
+    const dataConfidenceTrend = useMemo(() => describeDataConfidenceTrend(dataConfidenceHistory), [dataConfidenceHistory]);
     const { currency } = settings;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -810,6 +816,8 @@ export default function LoansScreen() {
                             accountsPayable={wcMetrics.accountsPayable}
                             inventoryValue={inventoryValueForLeverage}
                             inventory={inventory}
+                            dataConfidenceTrend={dataConfidenceTrend}
+                            reconciliation={{ lastReconciledAt: settings.lastReconciledAt, lastReconciliationMatchedPct: settings.lastReconciliationMatchedPct }}
                             assetsList={assets}
                             defaultTaxRate={settings.defaultTaxRate}
                         />

@@ -23,6 +23,7 @@ import { extractVendorCustomer } from '../utils/flexibleBankStatementParser';
 import { auditEvents } from '../utils/auditLog';
 import { checkStatementBalance } from '../utils/statementBalanceCheck';
 import DataConfidenceBadge from '../components/DataConfidenceBadge';
+import { describeDataConfidenceTrend } from '../utils/dataConfidenceHistory';
 import AhaMomentFeedback from '../components/AhaMomentFeedback';
 import { canWriteBusinessData } from '../utils/rolePermissions';
 
@@ -370,11 +371,16 @@ const CATEGORY_OPTIONS: { label: string; category: TxCategory; subCategory: stri
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ImportTransactionsScreen() {
-    const { navigate, goBack, addTransaction, transactions, invoices, finance, settings, loans, inventory, assets, navParams, userRole } = useApp();
+    const { navigate, goBack, addTransaction, transactions, invoices, finance, settings, loans, inventory, assets, navParams, userRole, dataConfidenceHistory } = useApp();
     // external_accountant is allowed onto this screen (reporting visibility),
     // but is documented as read-only everywhere -- canWriteBusinessData
     // excludes it, same as ReconciliationScreen/GeneralLedgerScreen's own gate.
     const canWrite = canWriteBusinessData(userRole);
+    // Same trend/reconciliation wiring FinancialAssessmentScreen's own
+    // DataConfidenceBadge already has -- this screen's badge had been
+    // showing without either, despite the same data being one useApp()
+    // field away (see DataConfidenceBadge.tsx's own doc comment on this).
+    const dataConfidenceTrend = useMemo(() => describeDataConfidenceTrend(dataConfidenceHistory), [dataConfidenceHistory]);
     // Set by setupAccount when a brand-new account already carries real
     // numbers from Quick Health Check or a Guest Mode session -- skips
     // straight to this screen's post-import diagnosis instead of an empty
@@ -1086,7 +1092,11 @@ export default function ImportTransactionsScreen() {
                     on a first import, where the score is often built on very
                     little history. */}
                 <View style={{ width: '100%', maxWidth: 320 }}>
-                    <DataConfidenceBadge transactions={transactions} />
+                    <DataConfidenceBadge
+                        transactions={transactions}
+                        trend={dataConfidenceTrend}
+                        reconciliation={{ lastReconciledAt: settings.lastReconciledAt, lastReconciliationMatchedPct: settings.lastReconciliationMatchedPct }}
+                    />
                 </View>
 
                 {/* The one measurement that matters more than signup count

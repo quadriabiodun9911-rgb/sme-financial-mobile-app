@@ -22,6 +22,11 @@ interface Props {
     dailyBurn: number;
     transactions: Transaction[];
     inventoryValue?: number;
+    // Same optional trend/reconciliation context DataConfidenceBadge takes
+    // everywhere else it's wired up (see that component's own doc comment) --
+    // computed by the caller, never fabricated here.
+    dataConfidenceTrend?: string | null;
+    reconciliation?: { lastReconciledAt?: string; lastReconciliationMatchedPct?: number };
 }
 
 function fmtDays(n: number): string {
@@ -46,7 +51,7 @@ const VERDICT_LABEL: Record<StressVerdict, string> = {
 // The value is turning a headline about shipping delays or fuel spikes
 // into a concrete answer against this business's own cash position,
 // instead of a vague sense of unease.
-export default function CashFlowStressTester({ currency, currentCashBalance, dailyBurn, transactions, inventoryValue }: Props) {
+export default function CashFlowStressTester({ currency, currentCashBalance, dailyBurn, transactions, inventoryValue, dataConfidenceTrend, reconciliation }: Props) {
     const [costIncreasePct, setCostIncreasePct] = useState('0');
     const [delayDays, setDelayDays] = useState('0');
     const [delayedIncome, setDelayedIncome] = useState('0');
@@ -90,7 +95,7 @@ export default function CashFlowStressTester({ currency, currentCashBalance, dai
                 Model a shock — rising fuel/input costs, a delayed shipment, slower-paying customers — against your real cash position, before it actually happens.
             </Text>
 
-            <DataConfidenceBadge transactions={transactions} />
+            <DataConfidenceBadge transactions={transactions} trend={dataConfidenceTrend} reconciliation={reconciliation} />
 
             <Field label="Cost Increase (fuel, freight, materials)" suffix="%" value={costIncreasePct} onChange={setCostIncreasePct} placeholder="0" hint="e.g. 20 for a 20% rise in what you pay to run the business" />
 

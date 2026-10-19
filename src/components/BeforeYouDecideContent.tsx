@@ -30,6 +30,7 @@ import { computeInventoryDecisions, summarizeInventoryDecisions } from '../utils
 import { computeBusinessExposure, computeBusinessResilience } from '../utils/businessExposure';
 import { computeFinancialHealthPillars } from '../utils/financialHealthPillars';
 import { localDateStr } from '../utils/localDate';
+import { describeDataConfidenceTrend } from '../utils/dataConfidenceHistory';
 
 /**
  * "Before You Decide" -- formerly its own top-level screen, now the Decide
@@ -82,7 +83,11 @@ function costSwitchFinancingCategory(costLabel: string): string {
 }
 
 export default function BeforeYouDecideContent({ scrollRef }: Props) {
-    const { finance, transactions, loans, bills, invoices, inventory, assets, settings, navigate, goals, navParams } = useApp();
+    const { finance, transactions, loans, bills, invoices, inventory, assets, settings, navigate, goals, navParams, dataConfidenceHistory } = useApp();
+    // Same trend/reconciliation wiring DataConfidenceBadge already gets on
+    // FinancialAssessmentScreen -- CashFlowStressTester's own badge had been
+    // showing without either, despite both being one useApp() field away.
+    const dataConfidenceTrend = useMemo(() => describeDataConfidenceTrend(dataConfidenceHistory), [dataConfidenceHistory]);
     const { currency } = settings;
     const [affordabilityMode, setAffordabilityMode] = useState<'quick' | 'detailed'>('quick');
 
@@ -360,6 +365,8 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
                         dailyBurn={dailyBurn}
                         transactions={transactions}
                         inventoryValue={inventoryValue}
+                        dataConfidenceTrend={dataConfidenceTrend}
+                        reconciliation={{ lastReconciledAt: settings.lastReconciledAt, lastReconciliationMatchedPct: settings.lastReconciliationMatchedPct }}
                     />
                 </Collapsible>
             </View>
@@ -575,6 +582,8 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
                         monthlyOperatingBurn={monthlyBurn}
                         transactions={transactions}
                         inventory={inventory}
+                        dataConfidenceTrend={dataConfidenceTrend}
+                        reconciliation={{ lastReconciledAt: settings.lastReconciledAt, lastReconciliationMatchedPct: settings.lastReconciliationMatchedPct }}
                         prefillAmount={spendPrefill}
                         onPrefillConsumed={() => setSpendPrefill(null)}
                     />
