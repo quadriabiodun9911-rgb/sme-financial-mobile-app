@@ -809,6 +809,7 @@ export default function LoansScreen() {
                             accountsReceivable={wcMetrics.accountsReceivable}
                             accountsPayable={wcMetrics.accountsPayable}
                             inventoryValue={inventoryValueForLeverage}
+                            inventory={inventory}
                             assetsList={assets}
                             defaultTaxRate={settings.defaultTaxRate}
                         />

@@ -574,6 +574,7 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
                         existingMonthlyDebtService={existingMonthlyDebtService}
                         monthlyOperatingBurn={monthlyBurn}
                         transactions={transactions}
+                        inventory={inventory}
                         prefillAmount={spendPrefill}
                         onPrefillConsumed={() => setSpendPrefill(null)}
                     />
