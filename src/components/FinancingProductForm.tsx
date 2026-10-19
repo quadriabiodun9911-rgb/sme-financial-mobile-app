@@ -50,6 +50,7 @@ export function emptyFinancingProduct(): FinancingProduct {
         maxTermMonths: 0,
         interestRateMinPct: 0,
         interestRateMaxPct: 0,
+        arrangementFeePct: undefined,
         eligibility: {},
         status: 'active',
     };
@@ -150,6 +151,17 @@ export function FinancingProductForm({ form, setForm, hideStatusForNew }: Financ
                 <NumField label="Min" value={form.interestRateMinPct} onChange={v => setForm(f => ({ ...f, interestRateMinPct: v ?? 0 }))} />
                 <NumField label="Max" value={form.interestRateMaxPct} onChange={v => setForm(f => ({ ...f, interestRateMaxPct: v ?? 0 }))} />
             </View>
+
+            <Field label="Arrangement fee (% of principal, charged upfront — leave blank if none/unknown)">
+                <TextInput
+                    style={fs.input}
+                    keyboardType="numeric"
+                    value={form.arrangementFeePct?.toString() ?? ''}
+                    onChangeText={t => setForm(f => ({ ...f, arrangementFeePct: n(t) }))}
+                    placeholder="e.g. 2"
+                    placeholderTextColor={Colors.textMuted}
+                />
+            </Field>
 
             <Text style={fs.sectionTitle}>Eligibility (all optional — leave blank for "no requirement")</Text>
 

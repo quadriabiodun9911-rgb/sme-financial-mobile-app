@@ -941,6 +941,12 @@ export interface FinancingProduct {
     maxTermMonths: number;
     interestRateMinPct: number; // annual %
     interestRateMaxPct: number;
+    // % of principal charged upfront. Optional and left unset (never
+    // defaulted to 0) until a lender actually enters one -- a 0% fee is a
+    // real, different claim from "no fee entered yet". See
+    // loanOfferComparison.ts, which this reuses for the Marketplace's
+    // indicative total-cost estimate.
+    arrangementFeePct?: number;
     eligibility: FinancingEligibility;
     // Set only on real, admin-managed listings (financing_products table) --
     // the hardcoded SAMPLE_FINANCING_PRODUCTS never populate these.

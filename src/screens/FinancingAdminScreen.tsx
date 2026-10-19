@@ -215,7 +215,10 @@ export default function FinancingAdminScreen() {
                                         <Text style={[s.statusBadgeText, { color: p.status === 'active' ? Colors.income : Colors.textMuted }]}>{p.status}</Text>
                                     </View>
                                 </View>
-                                <Text style={s.cardMeta}>{p.minAmount.toLocaleString()}–{p.maxAmount.toLocaleString()} · {p.minTermMonths}–{p.maxTermMonths}mo · {p.interestRateMinPct}–{p.interestRateMaxPct}%</Text>
+                                <Text style={s.cardMeta}>
+                                    {p.minAmount.toLocaleString()}–{p.maxAmount.toLocaleString()} · {p.minTermMonths}–{p.maxTermMonths}mo · {p.interestRateMinPct}–{p.interestRateMaxPct}%
+                                    {p.arrangementFeePct !== undefined ? ` · ${p.arrangementFeePct}% fee` : ' · no fee entered'}
+                                </Text>
                                 <View style={s.cardActions}>
                                     <TouchableOpacity onPress={() => openEdit(p)} style={s.cardActionBtn}>
                                         <Text style={s.cardActionText}>Edit</Text>
