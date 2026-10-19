@@ -3,12 +3,17 @@
  * recordConsent in storage.ts, called from LoginScreen's signup checkbox)
  * needs something real to point at, but writing a binding Privacy Policy is
  * a legal-authorship task — data retention windows, third-party processor
- * disclosures, jurisdiction-specific legal basis, GDPR/NDPR-specific
- * language — none of which should be invented here on the business's
- * behalf. This states only what's verifiably true from the app's actual
- * code (what's collected, where it's stored, what controls exist) and
- * flags plainly that it needs a lawyer's review before anyone should rely
- * on it as an actual policy.
+ * disclosures, and the business's formal lawful-basis-for-processing
+ * analysis under the Nigeria Data Protection Act 2023 (NDPA) are legal
+ * determinations, not something to invent here on the business's behalf.
+ * This states only what's verifiably true from the app's actual code (what's
+ * collected, where it's stored, what controls exist) and maps the NDPA's
+ * named data-subject rights to the real in-app mechanism that exercises
+ * each one (export, delete account, Data Permission Centre) -- but flags
+ * plainly that it still needs a lawyer's review before anyone relies on it
+ * as a binding policy. Reachable both pre-login (signup consent link,
+ * LandingScreen's trust chip) and post-login (Settings -> Privacy Policy &
+ * Data Rights) -- see goBack below for why that matters.
  */
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Image } from 'react-native';
@@ -50,17 +55,35 @@ const SECTIONS: { title: string; body: string }[] = [
         title: 'Data Retention',
         body: 'Your business data is kept for as long as your account exists — there is no automatic deletion or archiving after a fixed period. It is removed when you delete your account (Settings → Delete Account), or sooner for specific records if you use a feature\'s own delete action (e.g. removing a single transaction). A formal, jurisdiction-specific retention schedule has not yet been defined — this describes actual current behavior, not a finalized policy.',
     },
+    {
+        title: 'Your Rights Under Nigerian Data Protection Law',
+        body: 'The Nigeria Data Protection Act 2023 (NDPA) gives you specific rights over your personal data, and Quad360 already has a real, working way to exercise each one — not just a promise:\n\n' +
+            '• Access & portability — get a full copy of everything Quad360 holds about your business from Settings → Data & Export → Export All Data.\n' +
+            '• Erasure — delete your account and the records tied to it from Settings → Delete Account. This removes your business data and login identity, not just a local cache.\n' +
+            '• Withdraw consent / object to sharing — revoke a lender\'s or team member\'s access at any time from Settings → Data Permission Centre; it takes effect immediately.\n' +
+            '• Rectification — correct any record directly in the app (transactions, settings, business profile) the same way you entered it.\n\n' +
+            'This section states which of your NDPA rights map to which real control. It does not itself establish the business\'s lawful basis for processing or its full NDPA compliance program — that remains the "not yet reviewed by a lawyer" caveat above.',
+    },
+    {
+        title: 'Data Controller & Contact',
+        body: 'The data controller for the information described in this policy is QuadView Technologies Ltd (RC No. 9935143), No. 1, Alani Salawu Street, Off Ajilo Bus Stop, Isawo, Agric, Lagos State, Nigeria. For any question about your data, or to exercise a right this policy describes that isn\'t yet self-service in the app, contact hello@quad360financial.com.',
+    },
 ];
 
 export default function PrivacyPolicyScreen() {
-    const { navigate } = useApp();
-    const goBack = () => navigate('login', { mode: 'owner-setup' });
+    const { navigate, user } = useApp();
+    // Reachable two ways now: pre-login (landing/signup consent link) and
+    // post-login (Settings -> Privacy Policy & Data Rights, added
+    // alongside the NDPA section above) -- `user` tells which one got us
+    // here, so Back actually returns to where the owner came from instead
+    // of always bouncing a signed-in user out to the login screen.
+    const goBack = () => (user ? navigate('settings') : navigate('login', { mode: 'owner-setup' }));
 
     return (
         <SafeAreaView style={s.safe}>
             <ScrollView contentContainerStyle={s.scroll}>
                 <View style={s.nav}>
-                    <TouchableOpacity onPress={() => navigate('landing')} style={s.brandRow}>
+                    <TouchableOpacity onPress={goBack} style={s.brandRow}>
                         <Image source={require('../../assets/icon.png')} style={s.navLogo} />
                         <Text style={s.navBrand}>Quad360</Text>
                     </TouchableOpacity>
@@ -74,7 +97,7 @@ export default function PrivacyPolicyScreen() {
                 <View style={s.draftBanner}>
                     <Icon name="alert-triangle" size={15} color={Colors.warning} />
                     <Text style={s.draftBannerText}>
-                        DRAFT — this describes what the app actually does today, but has not been reviewed by a lawyer and is not yet a binding policy.
+                        DRAFT — this describes what the app actually does today, including how it maps to rights under Nigeria's Data Protection Act 2023, but has not been reviewed by a lawyer and is not yet a binding policy.
                     </Text>
                 </View>
 
