@@ -3,9 +3,12 @@ import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-nativ
 import { Colors } from '../theme/colors';
 import { Shadow } from '../theme/tokens';
 import { computeLoanAffordabilityCheck, LoanAffordabilityVerdict } from '../utils/loanAffordabilityCheck';
+import { computeTenorCycleCheck } from '../utils/tenorCycleMatch';
+import { computeRepaymentSeasonalAlignment } from '../utils/repaymentSeasonalAlignment';
+import { computeRepaymentWeekdayAlignment } from '../utils/repaymentWeekdayAlignment';
 import DataConfidenceBadge from './DataConfidenceBadge';
 import Icon, { IconName } from './ui/Icon';
-import { Transaction } from '../types';
+import { Transaction, InventoryItem } from '../types';
 
 interface Props {
     currency: string;
@@ -14,6 +17,11 @@ interface Props {
     existingMonthlyDebtService: number;
     monthlyOperatingBurn: number;
     transactions: Transaction[];
+    // Feeds the same "Before You Take This On" checks the Add Loan form
+    // (LoansScreen.tsx) already shows for a loan actually being recorded --
+    // this checker asks the same question for a loan still being sized, so
+    // it shouldn't lack the one tenor/seasonality check that form has.
+    inventory?: InventoryItem[];
     // See GrowthAffordabilityCalculator's own doc comment -- same
     // "Check a New Spend" hand-off pattern, applied to this calculator's
     // loan Amount field.
@@ -59,7 +67,7 @@ const VERDICT_ICON: Record<LoanAffordabilityVerdict, IconName> = {
 // would, using the business's own numbers rather than a black-box score.
 export default function LoanAffordabilityChecker({
     currency, currentCashBalance, monthlyProfit, existingMonthlyDebtService, monthlyOperatingBurn, transactions,
-    prefillAmount, onPrefillConsumed,
+    inventory, prefillAmount, onPrefillConsumed,
 }: Props) {
     const [amount, setAmount] = useState('');
     const [rate, setRate] = useState('15');
@@ -82,6 +90,20 @@ export default function LoanAffordabilityChecker({
             loanAmount, interestRate, termMonths, purpose,
         });
     }, [amount, rate, term, purpose, currentCashBalance, monthlyProfit, existingMonthlyDebtService, monthlyOperatingBurn]);
+
+    // Same checks LoansScreen's Add Loan form already runs for a loan
+    // actually being recorded -- reused here, not reimplemented, so sizing
+    // a loan in Decide/Loans & Debt gets the identical "before you take
+    // this on" signal a loan entered for real would get.
+    const tenorCheck = useMemo(() => {
+        const termMonths = parseFloat(term);
+        return result && !isNaN(termMonths) ? computeTenorCycleCheck(termMonths, transactions, inventory ?? []) : null;
+    }, [result, term, transactions, inventory]);
+    const seasonalCheck = useMemo(
+        () => result ? computeRepaymentSeasonalAlignment(transactions, result.monthlyRepayment) : null,
+        [result, transactions],
+    );
+    const weekdayCheck = useMemo(() => result ? computeRepaymentWeekdayAlignment(transactions) : null, [result, transactions]);
 
     return (
         <View style={s.card}>
@@ -143,6 +165,39 @@ export default function LoanAffordabilityChecker({
                         </View>
                         <Text style={s.verdictReason}>{result.reason}</Text>
                     </View>
+
+                    {(tenorCheck || seasonalCheck?.available || weekdayCheck?.available) && (
+                        <>
+                            <Text style={s.beforeTakingTitle}>Before You Take This On</Text>
+                            {tenorCheck && (
+                                <View style={[s.tenorNote, tenorCheck.status === 'shorter_than_cycle' && s.tenorNoteWarn]}>
+                                    <View style={s.tenorNoteLabelRow}>
+                                        <Icon name={tenorCheck.status === 'shorter_than_cycle' ? 'alert-triangle' : 'check-circle'} size={13} color={tenorCheck.status === 'shorter_than_cycle' ? Colors.warning : Colors.income} />
+                                        <Text style={s.tenorNoteLabel}>Tenor vs. Cash Cycle</Text>
+                                    </View>
+                                    <Text style={s.tenorNoteText}>{tenorCheck.message}</Text>
+                                </View>
+                            )}
+                            {seasonalCheck?.available && (
+                                <View style={[s.tenorNote, !seasonalCheck.aligned && s.tenorNoteWarn]}>
+                                    <View style={s.tenorNoteLabelRow}>
+                                        <Icon name={seasonalCheck.aligned ? 'check-circle' : 'alert-triangle'} size={13} color={seasonalCheck.aligned ? Colors.income : Colors.warning} />
+                                        <Text style={s.tenorNoteLabel}>Repayment vs. Sales Pattern</Text>
+                                    </View>
+                                    <Text style={s.tenorNoteText}>{seasonalCheck.message}</Text>
+                                </View>
+                            )}
+                            {weekdayCheck?.available && (
+                                <View style={[s.tenorNote, weekdayCheck.concentrated && s.tenorNoteWarn]}>
+                                    <View style={s.tenorNoteLabelRow}>
+                                        <Icon name={weekdayCheck.concentrated ? 'alert-triangle' : 'check-circle'} size={13} color={weekdayCheck.concentrated ? Colors.warning : Colors.income} />
+                                        <Text style={s.tenorNoteLabel}>Repayment vs. Weekday Cash Flow</Text>
+                                    </View>
+                                    <Text style={s.tenorNoteText}>{weekdayCheck.message}</Text>
+                                </View>
+                            )}
+                        </>
+                    )}
                 </>
             )}
 
@@ -205,6 +260,13 @@ const s = StyleSheet.create({
     verdictLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
     verdictLabel: { fontSize: 13, fontWeight: '800' },
     verdictReason: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
+
+    beforeTakingTitle: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary, marginTop: 14, marginBottom: 8 },
+    tenorNote: { borderRadius: 8, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg, padding: 10, marginBottom: 8 },
+    tenorNoteWarn: { borderColor: Colors.warning + '88', backgroundColor: Colors.warning + '14' },
+    tenorNoteLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 },
+    tenorNoteLabel: { fontSize: 11.5, fontWeight: '700', color: Colors.textPrimary },
+    tenorNoteText: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 16 },
 
     emptyHint: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic' },
 });

@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TextInput } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow } from '../theme/tokens';
-import { FinanceData, Loan, Transaction, Asset } from '../types';
+import { FinanceData, Loan, Transaction, Asset, InventoryItem } from '../types';
 import { computeLeverageRatios, scoreDebtToAssets, scoreDebtToEquity, scoreEquityRatio, scoreROA, scoreROE, RatioScore } from '../utils/debtRatios';
 import { computeReturnOnInvestedCapital, scoreROICVsBenchmark } from '../utils/returnOnInvestedCapital';
 import { computeCashRunway } from '../utils/cashRunway';
@@ -24,6 +24,10 @@ interface Props {
     accountsReceivable?: number;
     accountsPayable?: number;
     inventoryValue?: number;
+    // Raw inventory register -- needed by LoanAffordabilityChecker's "Tenor
+    // vs. Cash Cycle" check (computeTenorCycleCheck), which reads real
+    // inventory value, not the aggregate inventoryValue number above.
+    inventory?: InventoryItem[];
     // Named distinctly from the `assets` this component already derives
     // internally from computeLeverageRatios (total asset VALUE, a number)
     // -- this is the raw Asset[] register, needed only for ROIC's quarterly
@@ -106,7 +110,7 @@ function scoreInterestCoverage(interestCoverage: number, hasDebt: boolean): Rati
 // ratios, shown once), what it means, then the manual loan calculators.
 export default function LoansAndDebt({
     finance, currency, loans = [], transactions = [],
-    accountsReceivable = 0, accountsPayable = 0, inventoryValue = 0,
+    accountsReceivable = 0, accountsPayable = 0, inventoryValue = 0, inventory = [],
     assetsList = [], defaultTaxRate,
 }: Props) {
     // Same trailing-30-day paid-expense burn rate CashFlowScreen's Runway
@@ -355,6 +359,7 @@ export default function LoansAndDebt({
                     existingMonthlyDebtService={existingMonthlyDebtService}
                     monthlyOperatingBurn={monthlyBurn}
                     transactions={transactions}
+                    inventory={inventory}
                 />
             </Collapsible>
 
