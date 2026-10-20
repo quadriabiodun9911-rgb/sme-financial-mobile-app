@@ -139,6 +139,7 @@ export type AlertType =
   | 'seasonal_risk'
   | 'loan_payment_overdue'
   | 'loan_payment_due_soon'
+  | 'loan_payment_cash_shortfall_risk'
   | 'payroll_overdue'
   | 'payroll_due_soon'
   | 'overdue_transaction'

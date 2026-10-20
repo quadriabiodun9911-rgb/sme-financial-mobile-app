@@ -13,6 +13,7 @@ import { computeStockVelocity } from './stockVelocity';
 import { computeExpiringStock } from './foodExpiry';
 import { computeTaxAbilityToPay } from './taxFilingReadiness';
 import { localDateStr } from './localDate';
+import { computeUpcomingLoanPaymentRisk } from './upcomingLoanPaymentRisk';
 
 /**
  * Real-Time Cash Alerts System
@@ -473,6 +474,31 @@ export class AlertEngine {
           title: `📅 Loan Payment Due Soon — ${loan.lenderName || 'your lender'}`,
           description: `Your payment to ${loan.lenderName || 'your lender'} is due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}.`,
           affectedDate: localDateStr(nextLoanPaymentDueDate(loan)),
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      // A day-countdown alone says nothing about whether cash will
+      // actually be there on the day -- an otherwise-healthy DSCR can
+      // still miss a specific payment during a temporary shortfall. Fired
+      // independently of (and in addition to) the countdown alerts above,
+      // since this answers a different question ("will the money be
+      // there") on its own, wider horizon.
+      const risk = computeUpcomingLoanPaymentRisk(loan, this.loans, this.transactions, this.invoices, this.inventory, this.currentCash, this.currency);
+      if (risk?.atRisk) {
+        const cause = risk.diagnosis?.primaryCause;
+        alerts.push({
+          id: `alert-loan-cash-shortfall-risk-${loan.id}`,
+          type: 'loan_payment_cash_shortfall_risk',
+          priority: 'high',
+          title: `⚠️ Cash May Not Cover a Payment — ${loan.lenderName || 'your lender'}`,
+          description: `Your ${formatCurrencyAbbreviated(risk.paymentAmount, this.currency)} payment to ${loan.lenderName || 'your lender'} is due in ${risk.daysUntilDue} day${risk.daysUntilDue === 1 ? '' : 's'}, but projected cash on hand by then is about ${formatCurrencyAbbreviated(Math.max(0, risk.projectedCashAtDueDate), this.currency)} -- a projected shortfall of ${formatCurrencyAbbreviated(risk.shortfall, this.currency)}.`
+            + (cause ? ` Likely driver: ${cause.label.toLowerCase()}.` : ''),
+          amount: risk.shortfall,
+          affectedDate: localDateStr(nextLoanPaymentDueDate(loan)),
+          recommendations: cause
+            ? [cause.detail, 'Contact the lender early if a shortfall looks likely -- before the due date, not after']
+            : ['Review upcoming collections and expenses against this due date', 'Contact the lender early if a shortfall looks likely -- before the due date, not after'],
           createdAt: new Date().toISOString(),
         });
       }
