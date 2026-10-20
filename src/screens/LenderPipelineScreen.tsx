@@ -26,6 +26,7 @@ import { loadPipelineListingsForLender, PipelineListingFilters, describeListingF
 import {
     loadPortfolioSharesForLender, estimateOutstandingByCurrency, LoanMonitoringShareRow, getDemoPortfolioShares,
     computeLenderExposureConcentration, computeLenderPortfolioOutcomes, countConcentrationEligibleShares, LenderConcentrationGroup,
+    computePortfolioInformationQuality,
 } from '../utils/loanMonitoringShare';
 import { FinancingProductType, PipelineListing, FinancingProduct } from '../types';
 import { PostFinancingStatus } from '../utils/postFinancingMonitor';
@@ -417,6 +418,7 @@ function PortfolioTab({ isLenderDemo }: { isLenderDemo: boolean }) {
     );
 
     const outcomes = useMemo(() => computeLenderPortfolioOutcomes(shares), [shares]);
+    const infoQuality = useMemo(() => computePortfolioInformationQuality(shares), [shares]);
 
     const sorted = useMemo(
         () => [...shares].sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status)),
@@ -505,6 +507,41 @@ function PortfolioTab({ isLenderDemo }: { isLenderDemo: boolean }) {
                         {outcomes.avgRevenueGrowthPct !== null
                             ? `Average revenue growth since funding: ${outcomes.avgRevenueGrowthPct >= 0 ? '+' : ''}${outcomes.avgRevenueGrowthPct.toFixed(0)}% (across ${outcomes.revenueGrowthSampleSize} business${outcomes.revenueGrowthSampleSize === 1 ? '' : 'es'} with enough history to measure).`
                             : 'Not enough revenue history yet to measure growth since funding.'}
+                    </Text>
+                </View>
+            )}
+
+            {/* Information Quality: not a claim about defaults or approval
+                outcomes (that's a pilot question, not something one
+                portfolio snapshot can prove) -- the one thing Quad360 CAN
+                honestly measure from its own data is how much of this book
+                it's actually able to speak to with real transaction
+                history, versus how much is still too data-thin to trust. */}
+            {infoQuality.sampleSize > 0 && (
+                <View style={s.outcomesCard}>
+                    <Text style={s.outcomesTitle}>Information Quality</Text>
+                    <Text style={s.outcomesCaption}>
+                        {infoQuality.confidentSignalPct !== null
+                            ? `${infoQuality.confidentSignalPct.toFixed(0)}% of this book (${infoQuality.strongCount + infoQuality.partialCount} of ${infoQuality.sampleSize}) has enough recorded transaction history for Quad360's signals to be a confident read.`
+                            : 'Not enough shares carry a data-confidence tier yet to measure this.'}
+                    </Text>
+                    <View style={s.outcomesRow}>
+                        <View style={s.outcomeStat}>
+                            <Text style={[s.outcomeStatValue, { color: Colors.income }]}>{infoQuality.strongCount}</Text>
+                            <Text style={s.outcomeStatLabel}>Strong Data</Text>
+                        </View>
+                        <View style={s.outcomeStat}>
+                            <Text style={[s.outcomeStatValue, { color: Colors.warning }]}>{infoQuality.partialCount}</Text>
+                            <Text style={s.outcomeStatLabel}>Partial Data</Text>
+                        </View>
+                        <View style={s.outcomeStat}>
+                            <Text style={[s.outcomeStatValue, { color: Colors.expense }]}>{infoQuality.limitedCount + infoQuality.noneCount}</Text>
+                            <Text style={s.outcomeStatLabel}>Limited/No Data</Text>
+                        </View>
+                    </View>
+                    <Text style={s.outcomesCaption}>
+                        This measures the quality of the signal Quad360 can give you, not whether it reduces defaults or
+                        approval time — that requires a pilot to test, not a single snapshot to claim.
                     </Text>
                 </View>
             )}
