@@ -20,7 +20,7 @@ import { Colors } from '../theme/colors';
 import Header from '../components/Header';
 import FocusTaskBanner from '../components/FocusTaskBanner';
 import FooterNav from '../components/FooterNav';
-import { Loan, LoanStatus, Transaction, ReadinessSnapshot, PipelineListing } from '../types';
+import { Loan, LoanStatus, Transaction, ReadinessSnapshot, PipelineListing, Invoice, InventoryItem } from '../types';
 import { loadMyPipelineListings, linkListingToLoan } from '../utils/financingPipeline';
 import DateInput from '../components/DateInput';
 import MerchantFinancingSection from './MerchantFinancingSection';
@@ -45,6 +45,7 @@ import { computeProfitCashImpact } from '../utils/impactChain';
 import { monthlyPayment, totalInterest, outstandingLoanBalance, nextLoanPaymentDueDate, isLoanPaymentOverdue } from '../utils/loanMath';
 import { computeLoanOffer } from '../utils/loanOfferComparison';
 import { describeDataConfidenceTrend } from '../utils/dataConfidenceHistory';
+import { computeUpcomingLoanPaymentRisk } from '../utils/upcomingLoanPaymentRisk';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import Icon from '../components/ui/Icon';
 import RadialGauge from '../components/RadialGauge';
@@ -105,7 +106,7 @@ const LEASE_VERDICT_COLOR: Record<LeaseRefinanceCheck['verdict'], string> = {
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────
 
 export default function LoansScreen() {
-    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams, transactions, updateTransaction, readinessHistory, user, language, isDemoMode, inventory, assets, dataConfidenceHistory } = useApp();
+    const { loans, addLoan, updateLoan, deleteLoan, addLoanPayment, settings, navigate, finance, navParams, transactions, updateTransaction, readinessHistory, user, language, isDemoMode, inventory, assets, dataConfidenceHistory, invoices } = useApp();
     // Same trend/reconciliation wiring DataConfidenceBadge already gets on
     // FinancialAssessmentScreen -- LoansAndDebt's Loan Affordability Check
     // had been showing without either. See DataConfidenceBadge.tsx's own
@@ -783,6 +784,10 @@ export default function LoansScreen() {
                                 currency={currency}
                                 expanded={expandedId === loan.id}
                                 transactions={transactions}
+                                allLoans={loans}
+                                invoices={invoices}
+                                inventory={inventory}
+                                cashBalance={finance.cashBalance}
                                 readinessHistory={readinessHistory}
                                 dscr={dscr}
                                 user={user}
@@ -1176,9 +1181,10 @@ function TabButton({ label, active, onPress }: { label: string; active: boolean;
 // a fresh per-item closure, so a card whose own loan/expanded state hasn't
 // changed can actually skip re-rendering when a sibling card is toggled or
 // an unrelated part of LoansScreen re-renders.
-const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transactions, readinessHistory, dscr, user, updateLoan, onToggle, onEdit, onDelete, onAddPayment, onLinkLender, language, isDemoMode }: {
+const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transactions, allLoans, invoices, inventory, cashBalance, readinessHistory, dscr, user, updateLoan, onToggle, onEdit, onDelete, onAddPayment, onLinkLender, language, isDemoMode }: {
     loan: Loan; currency: string; expanded: boolean;
-    transactions: Transaction[]; readinessHistory: ReadinessSnapshot[]; dscr: DSCRResult;
+    transactions: Transaction[]; allLoans: Loan[]; invoices: Invoice[]; inventory: InventoryItem[]; cashBalance: number;
+    readinessHistory: ReadinessSnapshot[]; dscr: DSCRResult;
     user: ReturnType<typeof useApp>['user']; updateLoan: ReturnType<typeof useApp>['updateLoan'];
     onToggle: (id: string) => void; onEdit: (loan: Loan) => void; onDelete: (id: string) => void; onAddPayment: (id: string) => void;
     onLinkLender: (loanId: string) => void;
@@ -1195,6 +1201,17 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
         label: loan.lenderName, principal: loan.principal, termMonths: loan.termMonths,
         benchmarkRatePct: 0, marginPct: loan.interestRate, arrangementFeePct: loan.arrangementFeePct,
     }) : null;
+    // "An acceptable annual DSCR can still miss a specific payment during
+    // a temporary cash shortfall" -- projects cash forward to THIS loan's
+    // own next due date (net of every other active loan's payment landing
+    // first) and, when it falls short, hands the gap to
+    // computeFundingGapDiagnosis for the same receivables/inventory/
+    // margin/expense root-cause read the Marketplace's funding-gap check
+    // already gives. See upcomingLoanPaymentRisk.ts's own header comment.
+    const paymentRisk = useMemo(
+        () => computeUpcomingLoanPaymentRisk(loan, allLoans, transactions, invoices, inventory, cashBalance, currency),
+        [loan, allLoans, transactions, invoices, inventory, cashBalance, currency],
+    );
     const progress = Math.min(100, (paid / loan.principal) * 100);
     const overdue = isOverdue(loan);
     const statusColor = loan.status === 'paid_off' ? Colors.income : loan.status === 'defaulted' ? Colors.expense : overdue ? Colors.warning : Colors.textMuted;
@@ -1323,6 +1340,18 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
                     <Text style={s.feeLine}>
                         {loan.arrangementFeePct}% arrangement fee ({currency}{feeOffer.arrangementFee.toLocaleString(undefined, { maximumFractionDigits: 0 })}) · total cost {currency}{feeOffer.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </Text>
+                )}
+                {paymentRisk?.atRisk && (
+                    <View style={[s.tenorNote, s.tenorNoteWarn, { marginTop: 8 }]}>
+                        <View style={s.tenorNoteLabelRow}>
+                            <Icon name="alert-triangle" size={13} color={Colors.expense} />
+                            <Text style={[s.tenorNoteLabel, { color: Colors.expense }]}>Cash May Not Cover This Payment</Text>
+                        </View>
+                        <Text style={s.tenorNoteText}>
+                            Due in {paymentRisk.daysUntilDue} day{paymentRisk.daysUntilDue === 1 ? '' : 's'} — projected cash on hand by then is about {currency}{Math.max(0, paymentRisk.projectedCashAtDueDate).toLocaleString(undefined, { maximumFractionDigits: 0 })}, a projected shortfall of {currency}{paymentRisk.shortfall.toLocaleString(undefined, { maximumFractionDigits: 0 })}.
+                            {paymentRisk.diagnosis?.primaryCause ? ` Likely driver: ${paymentRisk.diagnosis.primaryCause.detail}` : ''}
+                        </Text>
+                    </View>
                 )}
             </TouchableOpacity>
 
