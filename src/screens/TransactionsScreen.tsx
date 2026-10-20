@@ -23,6 +23,7 @@ import { auditEvents } from '../utils/auditLog';
 import { isOverdueIncomeTransaction, getOverdueIncomeTransactions } from '../utils/overdueTransactions';
 import { classifyTransactions } from '../utils/dataQuality';
 import { detectPersonalSpending, DISMISSED_PERSONAL_KEY } from '../utils/personalSpendingDetector';
+import { detectNonRevenueInflows, DISMISSED_NON_REVENUE_KEY } from '../utils/nonRevenueInflowDetector';
 import CostExposureTab from '../components/CostExposureTab';
 import RevenueExposureTab from '../components/RevenueExposureTab';
 import { canDeleteTransactions, canWriteBusinessData } from '../utils/rolePermissions';
@@ -232,11 +233,18 @@ export default function TransactionsScreen() {
     const [reviewOnly, setReviewOnly] = useState(navParams?.filter === 'review');
     const [personalOnly, setPersonalOnly] = useState(navParams?.filter === 'personal');
     const [dismissedPersonalIds, setDismissedPersonalIds] = useState<string[]>([]);
+    const [nonRevenueOnly, setNonRevenueOnly] = useState(navParams?.filter === 'nonrevenue');
+    const [dismissedNonRevenueIds, setDismissedNonRevenueIds] = useState<string[]>([]);
 
     useEffect(() => {
         AsyncStorage.getItem(DISMISSED_PERSONAL_KEY).then(raw => {
             if (raw) {
                 try { setDismissedPersonalIds(JSON.parse(raw)); } catch { /* corrupt value, start fresh */ }
+            }
+        });
+        AsyncStorage.getItem(DISMISSED_NON_REVENUE_KEY).then(raw => {
+            if (raw) {
+                try { setDismissedNonRevenueIds(JSON.parse(raw)); } catch { /* corrupt value, start fresh */ }
             }
         });
     }, []);
@@ -245,6 +253,13 @@ export default function TransactionsScreen() {
         setDismissedPersonalIds(prev => {
             const next = [...prev, transactionId];
             AsyncStorage.setItem(DISMISSED_PERSONAL_KEY, JSON.stringify(next));
+            return next;
+        });
+    };
+    const dismissNonRevenueFlag = (transactionId: string) => {
+        setDismissedNonRevenueIds(prev => {
+            const next = [...prev, transactionId];
+            AsyncStorage.setItem(DISMISSED_NON_REVENUE_KEY, JSON.stringify(next));
             return next;
         });
     };
@@ -309,6 +324,14 @@ export default function TransactionsScreen() {
         () => new Map(personalReport.flagged.map(f => [f.transactionId, f.reason])),
         [personalReport]
     );
+    const nonRevenueReport = useMemo(
+        () => detectNonRevenueInflows(transactions, currency, dismissedNonRevenueIds),
+        [transactions, currency, dismissedNonRevenueIds]
+    );
+    const nonRevenueFlagIds = useMemo(
+        () => new Map(nonRevenueReport.flagged.map(f => [f.transactionId, f.reason])),
+        [nonRevenueReport]
+    );
 
     // Same Protect/Optimize/Review/Reduce/Invest tiers CostExposureTab shows
     // per category -- surfaced here per-transaction too, so "is this expense
@@ -336,6 +359,7 @@ export default function TransactionsScreen() {
             }
             if (reviewOnly && !reviewIds.has(tx.id)) return false;
             if (personalOnly && !personalFlagIds.has(tx.id)) return false;
+            if (nonRevenueOnly && !nonRevenueFlagIds.has(tx.id)) return false;
             const q = search.toLowerCase();
             if (q && !(
                 (tx.description ?? '').toLowerCase().includes(q) ||
@@ -346,7 +370,7 @@ export default function TransactionsScreen() {
             )) return false;
             return true;
         });
-    }, [transactions, typeFilter, statusFilter, reviewOnly, reviewIds, personalOnly, personalFlagIds, search]);
+    }, [transactions, typeFilter, statusFilter, reviewOnly, reviewIds, personalOnly, personalFlagIds, nonRevenueOnly, nonRevenueFlagIds, search]);
 
     // Collections sorted by days overdue DESC, then amount DESC
     const collectionsFiltered = useMemo(() => {
@@ -653,6 +677,17 @@ export default function TransactionsScreen() {
                             </TouchableOpacity>
                         </>
                     )}
+                    {nonRevenueFlagIds.size > 0 && (
+                        <>
+                            <View style={styles.sep} />
+                            <TouchableOpacity
+                                style={[styles.chip, nonRevenueOnly && styles.chipCollect]}
+                                onPress={() => { setNonRevenueOnly(v => !v); setPage(1); }}
+                            >
+                                <Text style={[styles.chipText, nonRevenueOnly && styles.chipTextActive]}>💰 Possibly Non-Revenue ({nonRevenueFlagIds.size})</Text>
+                            </TouchableOpacity>
+                        </>
+                    )}
                 </ScrollView>
                 <Text style={styles.countBadge}>{filtered.length}</Text>
             </View>
@@ -845,6 +880,12 @@ export default function TransactionsScreen() {
                                             <Text style={styles.personalBadgeText}>{personalFlagIds.get(tx.id)}</Text>
                                         </View>
                                     ) : null}
+                                    {nonRevenueFlagIds.has(tx.id) ? (
+                                        <View style={[styles.personalBadge, styles.badgeRow]}>
+                                            <Icon name="dollar-sign" size={10} color={Colors.warning} />
+                                            <Text style={styles.personalBadgeText}>{nonRevenueFlagIds.get(tx.id)}</Text>
+                                        </View>
+                                    ) : null}
                                 </View>
 
                                 {/* Action row */}
@@ -884,6 +925,15 @@ export default function TransactionsScreen() {
                                                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                             >
                                                 <Text style={styles.notPersonalText}>Not personal</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                        {nonRevenueFlagIds.has(tx.id) && (
+                                            <TouchableOpacity
+                                                style={styles.notPersonalBtn}
+                                                onPress={() => dismissNonRevenueFlag(tx.id)}
+                                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                            >
+                                                <Text style={styles.notPersonalText}>Not capital</Text>
                                             </TouchableOpacity>
                                         )}
                                         {canDelete && (

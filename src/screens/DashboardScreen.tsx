@@ -87,6 +87,7 @@ import { computeDecisionCentre } from '../utils/decisionCentre';
 import { buildNewGoal, goalDefaults } from '../utils/goals';
 import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
 import { detectPersonalSpending, DISMISSED_PERSONAL_KEY } from '../utils/personalSpendingDetector';
+import { detectNonRevenueInflows, DISMISSED_NON_REVENUE_KEY } from '../utils/nonRevenueInflowDetector';
 import { GoalType } from '../types';
 import { buildDashboardPriorities, PriorityKind, PriorityTier, OverspentBudget } from '../utils/dashboardPriorities';
 import { resolveMonthlyMission, StoredMission } from '../utils/monthlyMission';
@@ -940,6 +941,22 @@ export default function DashboardScreen() {
     const personalSpending = useMemo(
         () => detectPersonalSpending(transactions, settings?.currency ?? '₦', dismissedPersonalIds, settings?.industry),
         [transactions, settings?.currency, dismissedPersonalIds, settings?.industry]
+    );
+
+    // Income-side counterpart -- same "not personal"/"confirm or dismiss"
+    // pattern, its own dismissal list (DISMISSED_NON_REVENUE_KEY), read the
+    // same independently-scoped way as dismissedPersonalIds above.
+    const [dismissedNonRevenueIds, setDismissedNonRevenueIds] = useState<string[]>([]);
+    useEffect(() => {
+        AsyncStorage.getItem(DISMISSED_NON_REVENUE_KEY).then(raw => {
+            if (raw) {
+                try { setDismissedNonRevenueIds(JSON.parse(raw)); } catch { /* corrupt value, start fresh */ }
+            }
+        });
+    }, []);
+    const nonRevenueInflows = useMemo(
+        () => detectNonRevenueInflows(transactions, settings?.currency ?? '₦', dismissedNonRevenueIds),
+        [transactions, settings?.currency, dismissedNonRevenueIds]
     );
 
     const openFab = (type: 'income' | 'expense' = 'income') => {
@@ -1881,6 +1898,17 @@ export default function DashboardScreen() {
                   >
                     <Text style={styles.personalSpendingBannerTitle}>⚠️ Mixed Personal & Business Spending</Text>
                     <Text style={styles.personalSpendingBannerText}>{personalSpending.summary}</Text>
+                  </TouchableOpacity>
+                )}
+
+                {nonRevenueInflows.flaggedCount > 0 && (
+                  <TouchableOpacity
+                    style={styles.personalSpendingBanner}
+                    onPress={() => navigate('transactions', { filter: 'nonrevenue' })}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.personalSpendingBannerTitle}>💰 Non-Revenue Money Counted as Income</Text>
+                    <Text style={styles.personalSpendingBannerText}>{nonRevenueInflows.summary}</Text>
                   </TouchableOpacity>
                 )}
 
