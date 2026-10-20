@@ -17,6 +17,7 @@ import { DSCRResult } from './finance';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
 import { computeReadinessDelta, ReadinessDelta } from './readinessHistory';
 import { localMonthStr } from './localDate';
+import { computeSeasonalityPattern } from './seasonality';
 
 export type PostFinancingStatus = 'healthy' | 'watch' | 'at-risk';
 
@@ -89,20 +90,47 @@ export function computePostFinancingMonitor(
     // Signal 2: revenue trend since this loan started -- 3 consecutive
     // declining months, using only months on or after the funded date so an
     // old slow patch before the loan doesn't get blamed on it.
+    //
+    // A raw 3-month decline alone can't tell a real risk apart from an
+    // entirely normal seasonal dip -- a wedding photographer's December
+    // lull, a back-to-school retailer's post-rush quiet months. Before
+    // calling it a risk signal, checks whether this business has ENOUGH OF
+    // ITS OWN HISTORY (computeSeasonalityPattern, seasonality.ts -- the same
+    // engine the Decide tab's "Repayment vs. Sales Pattern" check already
+    // reuses) to say these exact calendar months are historically its own
+    // trough months. If so, this doesn't trip the signal -- it explains it
+    // instead, so an expected seasonal low never gets mislabeled as credit
+    // deterioration (and never pushes this loan's status to watch/at-risk,
+    // or, once shared via Phase 2b, a lender's view of it) on the strength
+    // of a pattern the business repeats every year.
     const monthsSinceFunding = computeAllTimeMonthlyBuckets(transactions).filter(m => m.month >= loan.startDate.slice(0, 7));
+    const seasonality = computeSeasonalityPattern(transactions);
+    const troughCalendarMonths = new Set(seasonality.troughMonths.map(tm => tm.month));
     let revenueDeclining = false;
+    let seasonalExplanation: string | null = null;
     if (monthsSinceFunding.length >= 3) {
         const last3 = monthsSinceFunding.slice(-3);
-        revenueDeclining = last3[0].revenue > last3[1].revenue && last3[1].revenue > last3[2].revenue;
+        const rawDecline = last3[0].revenue > last3[1].revenue && last3[1].revenue > last3[2].revenue;
+        if (rawDecline) {
+            const declineCalendarMonths = last3.map(m => parseInt(m.month.slice(5, 7), 10) - 1);
+            const looksSeasonal = seasonality.available && declineCalendarMonths.every(cm => troughCalendarMonths.has(cm));
+            if (looksSeasonal) {
+                seasonalExplanation = 'this lines up with months this business has historically run below its own average';
+            } else {
+                revenueDeclining = true;
+            }
+        }
     }
     signals.push({
         label: 'Revenue trend since funding',
         tripped: revenueDeclining,
         detail: revenueDeclining
             ? 'Revenue has declined for 3 consecutive months since this loan was funded.'
-            : monthsSinceFunding.length < 3
-                ? 'Not enough months recorded since funding yet to read a trend.'
-                : 'No sustained revenue decline since this loan was funded.',
+            : seasonalExplanation
+                ? `Revenue dipped for 3 consecutive months, but ${seasonalExplanation} — may be a normal seasonal pattern rather than a new risk. Still worth confirming with the owner.`
+                : monthsSinceFunding.length < 3
+                    ? 'Not enough months recorded since funding yet to read a trend.'
+                    : 'No sustained revenue decline since this loan was funded.',
     });
 
     // Signal 3: repayment pace vs. a straight-line expectation.

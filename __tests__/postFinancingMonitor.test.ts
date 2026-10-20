@@ -147,6 +147,41 @@ describe('computePostFinancingMonitor', () => {
         expect(monitor.revenueSinceFunding?.pctChange).toBeCloseTo(50, 5);
     });
 
+    it('does not trip the revenue-decline signal when the 3-month dip matches this business\'s own known seasonal trough', () => {
+        // 12 full months of history (2025) -- Oct/Nov/Dec are consistently
+        // and substantially below this business's own average, a real,
+        // detectable seasonal trough (computeSeasonalityPattern needs 12
+        // months before it will say so).
+        const loan = makeLoan({ startDate: '2025-01-01' });
+        const transactions = [
+            tx('2025-01-15', 'income', 500_000), tx('2025-02-15', 'income', 500_000), tx('2025-03-15', 'income', 500_000),
+            tx('2025-04-15', 'income', 500_000), tx('2025-05-15', 'income', 500_000), tx('2025-06-15', 'income', 500_000),
+            tx('2025-07-15', 'income', 500_000), tx('2025-08-15', 'income', 500_000), tx('2025-09-15', 'income', 500_000),
+            tx('2025-10-15', 'income', 300_000), tx('2025-11-15', 'income', 250_000), tx('2025-12-15', 'income', 200_000),
+        ];
+        const monitor = computePostFinancingMonitor(loan, transactions, [], healthyDscr(), new Date('2026-01-10'));
+        const revenueSignal = monitor.signals.find(s => s.label === 'Revenue trend since funding');
+        expect(revenueSignal?.tripped).toBe(false);
+        expect(revenueSignal?.detail).toMatch(/seasonal/i);
+    });
+
+    it('still trips a genuine decline with a full year of seasonality data, when the declining months are not this business\'s own trough', () => {
+        // Same 12-month history length as above, but the real trough here is
+        // Apr/May, not the Oct/Nov/Dec months the decline actually lands in --
+        // those three sit close to or above this business's own average, so
+        // the dip isn't explained by its seasonal pattern and should still trip.
+        const loan = makeLoan({ startDate: '2025-01-01' });
+        const transactions = [
+            tx('2025-01-15', 'income', 400_000), tx('2025-02-15', 'income', 400_000), tx('2025-03-15', 'income', 400_000),
+            tx('2025-04-15', 'income', 200_000), tx('2025-05-15', 'income', 220_000), tx('2025-06-15', 'income', 400_000),
+            tx('2025-07-15', 'income', 420_000), tx('2025-08-15', 'income', 410_000), tx('2025-09-15', 'income', 430_000),
+            tx('2025-10-15', 'income', 420_000), tx('2025-11-15', 'income', 400_000), tx('2025-12-15', 'income', 380_000),
+        ];
+        const monitor = computePostFinancingMonitor(loan, transactions, [], healthyDscr(), new Date('2026-01-10'));
+        const revenueSignal = monitor.signals.find(s => s.label === 'Revenue trend since funding');
+        expect(revenueSignal?.tripped).toBe(true);
+    });
+
     it('excludes the current, still-in-progress month from revenue growth so the figure does not move mid-month', () => {
         const loan = makeLoan({ startDate: '2026-05-01' });
         const transactions = [
