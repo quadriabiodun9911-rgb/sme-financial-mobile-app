@@ -10,6 +10,7 @@ import { computeBalanceSheetTrend } from './balanceSheetTrend';
 import { computeCustomerMetrics, computeCustomerFrequencyTrend } from './customerMetrics';
 import { pctChange } from './cashFlowHealth';
 import { localDateStr, localMonthStr } from './localDate';
+import { computeSeasonalityPattern } from './seasonality';
 
 export interface FinancialMetrics {
   // Profitability
@@ -62,6 +63,18 @@ export interface FinancialMetrics {
 
   // Trends
   monthOverMonthGrowth: number;
+  // Whether THIS month -- if it's a decline -- is one of this business's
+  // own historically weaker calendar months (computeSeasonalityPattern),
+  // not a new problem. Never changes monthOverMonthGrowth itself (every
+  // other reader of that number -- expense-outrunning-revenue, the
+  // narrative summary, the receivables-growth driver -- still sees the
+  // real figure); only diagnoseProfitability's 'declining-revenue' finding
+  // consumes this, to avoid asserting "customer churn" as the cause of a
+  // drop the business repeats every year. Optional (not just calculated
+  // false) so every existing FinancialMetrics literal built directly --
+  // every test fixture in this codebase that predates this field -- still
+  // typechecks unchanged; undefined reads exactly like false below.
+  monthOverMonthDeclineLooksSeasonal?: boolean;
   // 'insufficient-history' is distinct from 'stable' -- there's a real
   // difference between "revenue genuinely held flat" and "there's no prior
   // month to compare against yet," and monthOverMonthGrowth defaulting to 0
@@ -435,6 +448,17 @@ export function calculateFinancialMetrics(
   const monthOverMonthGrowth =
     lastMonthRevenueComparable > 0 ? ((thisMonthRevenue - lastMonthRevenueComparable) / lastMonthRevenueComparable) * 100 : 0;
 
+  // Reuses the same seasonality engine the Decide tab's "Repayment vs.
+  // Sales Pattern" check and Risk Radar's "Seasonal Risk" category already
+  // read -- never a second pattern-detection formula. 'thisMonth' is
+  // already a calendar-month string ("YYYY-MM"); troughMonths only exists
+  // once there's a real year of history to detect a pattern from.
+  const seasonalityForDecline = computeSeasonalityPattern(transactions);
+  const thisCalendarMonth = parseInt(thisMonth.slice(5, 7), 10) - 1;
+  const monthOverMonthDeclineLooksSeasonal = monthOverMonthGrowth < 0
+    && seasonalityForDecline.available
+    && seasonalityForDecline.troughMonths.some(tm => tm.month === thisCalendarMonth);
+
   // Runway deliberately does NOT delegate to the canonical computeCashRunway
   // (cashRunway.ts) — that function is anchored to the real system clock
   // ("today"), which is exactly wrong here: this engine's whole point is
@@ -547,6 +571,7 @@ export function calculateFinancialMetrics(
     revenueRecurringPct,
     expenseGrowthPct,
     monthOverMonthGrowth,
+    monthOverMonthDeclineLooksSeasonal,
     profitTrend,
   };
 }
@@ -589,26 +614,42 @@ export function diagnoseProfitability(
     });
   }
 
-  // Declining revenue diagnosis
+  // Declining revenue diagnosis -- a raw month-over-month drop alone can't
+  // tell real customer loss apart from a normal seasonal low (the very
+  // question this diagnosis's own second "investigate" prompt used to ask
+  // the owner to go figure out themselves, even though Quad360 can already
+  // answer it from the business's own history). When this month is one of
+  // this business's own detected trough months, the finding stays visible
+  // -- the cash pressure is still real -- but it's softened to "warning"
+  // and no longer asserts churn as the cause.
   if (metrics.monthOverMonthGrowth < -10) {
+    const looksSeasonal = metrics.monthOverMonthDeclineLooksSeasonal;
     diagnoses.push({
       id: 'declining-revenue',
-      problem: 'Revenue declining rapidly',
-      severity: 'critical',
-      rootCause: 'Customer acquisition slowing or churn increasing',
+      problem: looksSeasonal ? 'Revenue down, likely a seasonal dip' : 'Revenue declining rapidly',
+      severity: looksSeasonal ? 'warning' : 'critical',
+      rootCause: looksSeasonal
+        ? "This calendar month is historically one of this business's own weaker months — likely a normal seasonal dip, not a sign of customer loss, but still worth confirming"
+        : 'Customer acquisition slowing or churn increasing',
       impact: `Revenue down ${Math.abs(metrics.monthOverMonthGrowth).toFixed(1)}% month-over-month`,
       financialImpact: -metrics.totalRevenue * (metrics.monthOverMonthGrowth / 100),
-      opportunity: 'Launch customer acquisition or win-back campaign',
+      opportunity: looksSeasonal ? 'Plan around the seasonal dip (cash reserve, adjusted expectations) while confirming it isn\'t something else' : 'Launch customer acquisition or win-back campaign',
       suggestedGoalType: 'revenue_growth',
       dimension: 'profitability',
       metrics: [
         { label: 'Revenue', value: `↓ ${Math.abs(metrics.monthOverMonthGrowth).toFixed(1)}%`, compareLabel: 'Compared with prior period', tone: 'negative' },
       ],
-      investigate: [
-        'Has one specific customer or order type dropped off, or is the decline spread evenly across the business?',
-        'Did a competitor, a price change, or a seasonal pattern coincide with the drop?',
-        'Are existing customers buying less, or are fewer new customers coming in at all?',
-      ],
+      investigate: looksSeasonal
+        ? [
+            'Compare this month\'s revenue with the same month in prior years — is the drop in line with the usual seasonal pattern, or worse than before?',
+            'Has one specific customer or order type dropped off, or is the decline spread evenly across the business?',
+            'Are existing customers buying less, or are fewer new customers coming in at all?',
+          ]
+        : [
+            'Has one specific customer or order type dropped off, or is the decline spread evenly across the business?',
+            'Did a competitor, a price change, or a seasonal pattern coincide with the drop?',
+            'Are existing customers buying less, or are fewer new customers coming in at all?',
+          ],
     });
   }
 

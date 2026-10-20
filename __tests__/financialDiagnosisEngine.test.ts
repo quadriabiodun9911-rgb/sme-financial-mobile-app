@@ -384,6 +384,83 @@ describe('diagnose* functions — suggestedGoalType', () => {
     });
 });
 
+// A raw month-over-month drop alone can't tell real customer loss apart
+// from a normal seasonal low -- the same gap already fixed in
+// postFinancingMonitor.ts, here in the main diagnosis engine that feeds the
+// Business Health Report. These use real calculateFinancialMetrics output
+// (not the healthyMetrics literal above) because
+// monthOverMonthDeclineLooksSeasonal is computed from actual transaction
+// history, not something a test can set directly as a trustworthy input.
+describe('diagnoseProfitability — declining-revenue seasonal awareness', () => {
+    const income = (date: string, amount: number): Transaction =>
+        makeTx({ id: `${date}-${amount}`, type: 'income', category: 'Sales', amount, date, status: 'paid' });
+
+    it('softens the decline to a seasonal dip when it lands in this business\'s own known trough months', () => {
+        // 12 full months of 2025 -- Oct/Nov/Dec consistently run well below
+        // this business's own average (indices ~0.69/0.57/0.46, all under
+        // the 0.85 trough threshold -- verified with a standalone script
+        // before writing this test), a real, detectable seasonal trough.
+        // Nov -> Dec is a genuine -20% drop, and Dec is one of those trough
+        // months.
+        const transactions = [
+            income('2025-01-10', 500000), income('2025-02-10', 500000), income('2025-03-10', 500000),
+            income('2025-04-10', 500000), income('2025-05-10', 500000), income('2025-06-10', 500000),
+            income('2025-07-10', 500000), income('2025-08-10', 500000), income('2025-09-10', 500000),
+            income('2025-10-10', 300000), income('2025-11-10', 250000), income('2025-12-10', 200000),
+        ];
+        const metrics = calculateFinancialMetrics(transactions, [], 100000, 50000);
+        expect(metrics.monthOverMonthGrowth).toBeCloseTo(-20, 5);
+        expect(metrics.monthOverMonthDeclineLooksSeasonal).toBe(true);
+
+        const diagnoses = diagnoseProfitability(metrics);
+        const found = diagnoses.find(d => d.id === 'declining-revenue');
+        expect(found?.problem).toBe('Revenue down, likely a seasonal dip');
+        expect(found?.severity).toBe('warning');
+        expect(found?.rootCause).toMatch(/historically one of this business's own weaker months/);
+    });
+
+    it('still asserts a genuine decline when a full year of history is available but the drop is not in a trough month', () => {
+        // Same 12-month length and same -10% trigger, but the real trough
+        // here is Apr/May (indices ~0.54/0.60) -- Dec sits at index ~0.92,
+        // close to average, not a trough -- so the Nov -> Dec -15% drop
+        // isn't explained by this business's own seasonal pattern and
+        // should still read as a real decline.
+        const transactions = [
+            income('2025-01-10', 400000), income('2025-02-10', 400000), income('2025-03-10', 400000),
+            income('2025-04-10', 200000), income('2025-05-10', 220000), income('2025-06-10', 400000),
+            income('2025-07-10', 420000), income('2025-08-10', 410000), income('2025-09-10', 430000),
+            income('2025-10-10', 420000), income('2025-11-10', 400000), income('2025-12-10', 340000),
+        ];
+        const metrics = calculateFinancialMetrics(transactions, [], 100000, 50000);
+        expect(metrics.monthOverMonthGrowth).toBeCloseTo(-15, 5);
+        expect(metrics.monthOverMonthDeclineLooksSeasonal).toBe(false);
+
+        const diagnoses = diagnoseProfitability(metrics);
+        const found = diagnoses.find(d => d.id === 'declining-revenue');
+        expect(found?.problem).toBe('Revenue declining rapidly');
+        expect(found?.severity).toBe('critical');
+        expect(found?.rootCause).toBe('Customer acquisition slowing or churn increasing');
+    });
+
+    it('still asserts a genuine decline when fewer than 12 months of history exist, even in a plausibly seasonal month', () => {
+        // Only 3 months of history -- computeSeasonalityPattern requires 12
+        // before it will call anything a trough, so even a December decline
+        // can't be waved off as seasonal without the history to back it up.
+        const transactions = [
+            income('2025-10-10', 500000),
+            income('2025-11-10', 400000),
+            income('2025-12-10', 300000),
+        ];
+        const metrics = calculateFinancialMetrics(transactions, [], 100000, 50000);
+        expect(metrics.monthOverMonthDeclineLooksSeasonal).toBe(false);
+
+        const diagnoses = diagnoseProfitability(metrics);
+        const found = diagnoses.find(d => d.id === 'declining-revenue');
+        expect(found?.problem).toBe('Revenue declining rapidly');
+        expect(found?.severity).toBe('critical');
+    });
+});
+
 // Early Warning Signals: `trigger` restates the exact numeric boundary a
 // diagnosis's own severity ternary already uses, as a forward-looking line
 // -- never a fabricated threshold. Reuses the same healthyMetrics fixture
