@@ -15,10 +15,11 @@
 
 import { getAuthUserId } from './storage';
 import { supabase } from './supabase';
-import { Loan, LoanStatus } from '../types';
+import { Loan, LoanStatus, Transaction } from '../types';
 import { PostFinancingMonitor, PostFinancingStatus } from './postFinancingMonitor';
 import { ReadinessTrend } from './readinessHistory';
 import { auditEvents } from './auditLog';
+import { computeDataQuality, DataConfidence } from './dataQuality';
 
 const PRINCIPAL_BANDS: [number, string][] = [
     [500_000, 'Under 500K'],
@@ -47,6 +48,7 @@ export async function publishLoanMonitoringShare(
     monitor: PostFinancingMonitor,
     businessName: string,
     currency: string,
+    transactions: Transaction[],
 ): Promise<{ ok: boolean; error?: string }> {
     if (!loan.lenderOrgId) return { ok: false, error: "This loan isn't linked to a lender on Quad360 yet." };
     const userId = await getAuthUserId();
@@ -78,6 +80,12 @@ export async function publishLoanMonitoringShare(
             // not something that just silently drops off the feed.
             loan_status: loan.status,
             revenue_growth_pct: monitor.revenueSinceFunding?.pctChange ?? null,
+            // The coarse confidence tier, not the underlying transaction
+            // count or date range -- the same tier label the business's
+            // own owner already sees on their own Data Confidence badge,
+            // recomputed fresh on every publish so a thin-data business
+            // that keeps logging real history gets upgraded automatically.
+            data_confidence: computeDataQuality(transactions).confidence,
             funded_at: loan.startDate,
             consent_active: true,
             expires_at: nextExpiry(),
@@ -157,6 +165,9 @@ export interface LoanMonitoringShareRow {
     // migration (or by the demo fixtures below) may not carry them.
     loanStatus?: LoanStatus;
     revenueGrowthPct?: number;
+    // Migration 047 -- same optionality reasoning: a row published before
+    // this migration existed has no tier recorded.
+    dataConfidence?: DataConfidence;
     fundedAt: string;
     updatedAt: string;
     expiresAt: string;
@@ -301,6 +312,43 @@ export function computeLenderPortfolioOutcomes(rows: LoanMonitoringShareRow[]): 
     return { activeCount, paidOffCount, defaultedCount, repaymentRatePct, avgRevenueGrowthPct, revenueGrowthSampleSize };
 }
 
+export interface PortfolioInformationQuality {
+    sampleSize: number;      // rows carrying a dataConfidence tier at all
+    strongCount: number;
+    partialCount: number;
+    limitedCount: number;
+    noneCount: number;
+    // Share of the measured portfolio with enough real transaction history
+    // (strong or partial) for Quad360's signals to be a confident read --
+    // the one figure that answers "does this actually give me more than my
+    // existing documentation," without claiming anything about defaults or
+    // approval outcomes, which a single pilot can't yet prove either way.
+    confidentSignalPct: number | null;
+}
+
+// The portfolio-level "information quality" metric: not assessment time or
+// cost (that's the lender's own internal staff-hours/process figure,
+// outside anything Quad360's data model touches -- a pilot would need the
+// lender's own before/after timing for that, not something computed here),
+// but the one thing Quad360 CAN honestly measure from its own data: how
+// much of the book it's actually able to speak to with real transaction
+// history behind it, versus how much is still too data-thin to trust.
+// Rows published before migration 047 (dataConfidence undefined) are
+// excluded from the denominator entirely rather than silently counted as
+// "none" -- an absent tier isn't evidence of weak data, just an older row.
+export function computePortfolioInformationQuality(rows: LoanMonitoringShareRow[]): PortfolioInformationQuality {
+    let strongCount = 0, partialCount = 0, limitedCount = 0, noneCount = 0;
+    for (const r of rows) {
+        if (r.dataConfidence === 'strong') strongCount++;
+        else if (r.dataConfidence === 'partial') partialCount++;
+        else if (r.dataConfidence === 'limited') limitedCount++;
+        else if (r.dataConfidence === 'none') noneCount++;
+    }
+    const sampleSize = strongCount + partialCount + limitedCount + noneCount;
+    const confidentSignalPct = sampleSize > 0 ? ((strongCount + partialCount) / sampleSize) * 100 : null;
+    return { sampleSize, strongCount, partialCount, limitedCount, noneCount, confidentSignalPct };
+}
+
 // Synthetic portfolio for the landing page's "Preview as Lender (Demo)" mode.
 // Unlike the pipeline demo above, this table's rows DO carry a business name
 // (see file header — funded businesses are no longer anonymous to their own
@@ -316,11 +364,11 @@ export function getDemoPortfolioShares(): LoanMonitoringShareRow[] {
     const daysAgoDate = (n: number) => daysAgo(n).split('T')[0];
     const daysFromNow = (n: number) => new Date(now.getTime() + n * 86400000).toISOString();
     return [
-        { id: 'demo-p1', loanId: 'demo-loan-1', businessName: 'Sample Foods Co. (Demo)', status: 'healthy', readinessTrend: 'improving', dscrFlag: false, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Working capital', principalBand: '2M–10M', currency: '₦', loanStatus: 'active', revenueGrowthPct: 18.4, fundedAt: daysAgoDate(210), updatedAt: daysAgo(2), expiresAt: daysFromNow(88) },
-        { id: 'demo-p2', loanId: 'demo-loan-2', businessName: 'Demo Textiles Ltd.', status: 'watch', readinessTrend: 'stable', dscrFlag: true, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Asset financing', principalBand: '500K–2M', currency: '₦', loanStatus: 'active', revenueGrowthPct: -3.9, fundedAt: daysAgoDate(140), updatedAt: daysAgo(5), expiresAt: daysFromNow(85) },
-        { id: 'demo-p3', loanId: 'demo-loan-3', businessName: 'Sample Logistics (Demo)', status: 'at-risk', readinessTrend: 'declining', dscrFlag: true, revenueDeclineFlag: true, repaymentPaceFlag: true, loanPurpose: 'Fleet expansion', principalBand: '10M–50M', currency: '₦', loanStatus: 'active', revenueGrowthPct: -21.7, fundedAt: daysAgoDate(300), updatedAt: daysAgo(1), expiresAt: daysFromNow(89) },
-        { id: 'demo-p4', loanId: 'demo-loan-4', businessName: 'Demo Home Goods Co.', status: 'healthy', readinessTrend: 'improving', dscrFlag: false, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Inventory restock', principalBand: '500K–2M', currency: '₦', loanStatus: 'paid_off', revenueGrowthPct: 34.6, fundedAt: daysAgoDate(95), updatedAt: daysAgo(3), expiresAt: daysFromNow(87) },
-        { id: 'demo-p5', loanId: 'demo-loan-5', businessName: 'Demo Print Shop Ltd.', status: 'at-risk', readinessTrend: 'declining', dscrFlag: true, revenueDeclineFlag: true, repaymentPaceFlag: true, loanPurpose: 'Working capital', principalBand: '500K–2M', currency: '₦', loanStatus: 'defaulted', revenueGrowthPct: -48.2, fundedAt: daysAgoDate(260), updatedAt: daysAgo(30), expiresAt: daysFromNow(60) },
+        { id: 'demo-p1', loanId: 'demo-loan-1', businessName: 'Sample Foods Co. (Demo)', status: 'healthy', readinessTrend: 'improving', dscrFlag: false, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Working capital', principalBand: '2M–10M', currency: '₦', loanStatus: 'active', revenueGrowthPct: 18.4, dataConfidence: 'strong', fundedAt: daysAgoDate(210), updatedAt: daysAgo(2), expiresAt: daysFromNow(88) },
+        { id: 'demo-p2', loanId: 'demo-loan-2', businessName: 'Demo Textiles Ltd.', status: 'watch', readinessTrend: 'stable', dscrFlag: true, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Asset financing', principalBand: '500K–2M', currency: '₦', loanStatus: 'active', revenueGrowthPct: -3.9, dataConfidence: 'partial', fundedAt: daysAgoDate(140), updatedAt: daysAgo(5), expiresAt: daysFromNow(85) },
+        { id: 'demo-p3', loanId: 'demo-loan-3', businessName: 'Sample Logistics (Demo)', status: 'at-risk', readinessTrend: 'declining', dscrFlag: true, revenueDeclineFlag: true, repaymentPaceFlag: true, loanPurpose: 'Fleet expansion', principalBand: '10M–50M', currency: '₦', loanStatus: 'active', revenueGrowthPct: -21.7, dataConfidence: 'strong', fundedAt: daysAgoDate(300), updatedAt: daysAgo(1), expiresAt: daysFromNow(89) },
+        { id: 'demo-p4', loanId: 'demo-loan-4', businessName: 'Demo Home Goods Co.', status: 'healthy', readinessTrend: 'improving', dscrFlag: false, revenueDeclineFlag: false, repaymentPaceFlag: false, loanPurpose: 'Inventory restock', principalBand: '500K–2M', currency: '₦', loanStatus: 'paid_off', revenueGrowthPct: 34.6, dataConfidence: 'strong', fundedAt: daysAgoDate(95), updatedAt: daysAgo(3), expiresAt: daysFromNow(87) },
+        { id: 'demo-p5', loanId: 'demo-loan-5', businessName: 'Demo Print Shop Ltd.', status: 'at-risk', readinessTrend: 'declining', dscrFlag: true, revenueDeclineFlag: true, repaymentPaceFlag: true, loanPurpose: 'Working capital', principalBand: '500K–2M', currency: '₦', loanStatus: 'defaulted', revenueGrowthPct: -48.2, dataConfidence: 'limited', fundedAt: daysAgoDate(260), updatedAt: daysAgo(30), expiresAt: daysFromNow(60) },
     ];
 }
 
@@ -377,6 +425,7 @@ export async function loadMyActiveLoanMonitoringShares(): Promise<LoanMonitoring
             currency: r.currency ?? undefined,
             loanStatus: r.loan_status ?? undefined,
             revenueGrowthPct: r.revenue_growth_pct ?? undefined,
+            dataConfidence: r.data_confidence ?? undefined,
             fundedAt: r.funded_at,
             updatedAt: r.updated_at,
             expiresAt: r.expires_at,
@@ -410,6 +459,7 @@ export async function loadPortfolioSharesForLender(): Promise<LoanMonitoringShar
             currency: r.currency ?? undefined,
             loanStatus: r.loan_status ?? undefined,
             revenueGrowthPct: r.revenue_growth_pct ?? undefined,
+            dataConfidence: r.data_confidence ?? undefined,
             fundedAt: r.funded_at,
             updatedAt: r.updated_at,
             expiresAt: r.expires_at,

@@ -1253,7 +1253,7 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
     // should re-publish, same as a monitor status flip.
     useEffect(() => {
         if (!monitor || !loan.lenderOrgId || !loan.shareWithLenderConsent) return;
-        publishLoanMonitoringShare(loan, monitor, user?.businessName || 'Your Business', currency);
+        publishLoanMonitoringShare(loan, monitor, user?.businessName || 'Your Business', currency, transactions);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [monitor?.status, monitor?.readinessSinceFunding?.trend, monitor?.signals.map(s => s.tripped).join(','), monitor?.revenueSinceFunding?.pctChange, loan.status, loan.lenderOrgId, loan.shareWithLenderConsent]);
 
