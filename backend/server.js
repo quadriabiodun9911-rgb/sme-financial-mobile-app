@@ -38,10 +38,10 @@ app.use(cors({
   credentials: true,
 }));
 
-// Rate limiting - increased for load testing (normally 100/15min in production)
+// Rate limiting
 const limiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute (for testing, production uses 15 min)
-  max: 5000, // 5000 requests per minute (test mode)
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requests per 15 minutes per IP
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.path === '/health', // Don't rate limit health checks
