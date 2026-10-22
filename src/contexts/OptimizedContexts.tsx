@@ -2085,6 +2085,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (msg.includes('already registered') || msg.includes('already been registered') || msg.includes('user already exists') || msg.includes('email address is already')) {
               throw new Error('User already registered');
             }
+            // Any OTHER signUpError (invalid email format slipping past
+            // handleSetup's own check, a rate limit, Supabase itself being
+            // down) falls through here deliberately -- this function's own
+            // contract is "never block local account creation" (see this
+            // function's opening comment). Logged, not silently dropped,
+            // since this is exactly the gap that leaves an account
+            // permanently local-only with no real Supabase session, and no
+            // other code path ever revisits or retries it.
+            console.error('[Auth] signUp failed (continuing with local-only account):', signUpError.message);
           } else {
             await supabase.auth.signInWithPassword({ email, password: authSecret }).catch(() => {});
             await saveAuthSecret(authSecret).catch(() => {});

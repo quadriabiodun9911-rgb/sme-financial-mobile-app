@@ -396,6 +396,17 @@ export default function LoginScreen() {
             }
         } else if (!email.trim()) {
             showAlert(t(setupLang, 'missingFields'), t(setupLang, 'email') + ' & ' + t(setupLang, 'businessName')); return;
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+            // Without this, a typo'd email (no "@", no dot, a pasted phone
+            // number) passes this form, gets rejected by Supabase further
+            // down, and setupAccount's own "never block local account
+            // creation" contract silently swallows that rejection -- the
+            // owner ends up looking fully signed up with a local-only
+            // account that can never sync, recover a forgotten PIN by
+            // email, or use any other server-dependent feature, with
+            // nothing ever telling them why. Catching the obvious case here
+            // is cheaper than detecting it after the fact.
+            showAlert(t(setupLang, 'error'), 'Please enter a valid email address.'); return;
         }
         if (!business.trim()) {
             showAlert(t(setupLang, 'missingFields'), t(setupLang, 'email') + ' & ' + t(setupLang, 'businessName')); return;
