@@ -1,17 +1,56 @@
 const express = require('express');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
+const { createClient } = require('@supabase/supabase-js');
 
 const router = express.Router();
 
-// In-memory store: Map<userId, Transaction[]>
-const transactionStore = new Map();
+// Same getSupabase() pattern as payments.js -- a service-role client, since
+// this route (and transactions.js, which reads it back) runs entirely
+// server-side with no Supabase session of its own to attach.
+function getSupabase() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key);
+}
 
+// Transactions used to live only in an in-memory Map -- correct while this
+// process stayed up, but wiped on every restart/redeploy with no way to
+// recover a business's data afterward. Now persisted to the
+// pngme_transactions table (migration 048) instead.
 /**
- * Expose store so other routes can read from it.
+ * Fetch a user's Pngme-sourced transactions, mapped to the Quad360
+ * Transaction shape, newest first filtered to oldest first for the caller.
  */
-function getTransactionsForUser(userId) {
-  return transactionStore.get(userId) || [];
+async function getTransactionsForUser(userId) {
+  const supabase = getSupabase();
+  if (!supabase) {
+    console.error('[pngme] SUPABASE_URL/SUPABASE_SERVICE_KEY not configured — cannot read transactions.');
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('pngme_transactions')
+    .select('pngme_transaction_id, date, description, type, category, amount, reference, vendor_customer')
+    .eq('user_id', userId)
+    .order('date', { ascending: true });
+
+  if (error) {
+    console.error('[pngme] Failed to load transactions:', error.message);
+    return [];
+  }
+
+  return data.map(row => ({
+    id: row.pngme_transaction_id,
+    date: row.date,
+    description: row.description || '',
+    type: row.type,
+    category: row.category || 'uncategorized',
+    amount: Number(row.amount),
+    reference: row.reference || '',
+    vendorCustomer: row.vendor_customer || '',
+  }));
 }
 
 /**
@@ -67,7 +106,7 @@ function verifyWebhookSignature(rawBody, signatureHeader) {
 }
 
 // POST /pngme/webhook
-router.post('/webhook', (req, res) => {
+router.post('/webhook', async (req, res) => {
   const rawBody = req.body; // express.raw middleware gives us a Buffer
   const signature = req.headers['x-pngme-signature'];
 
@@ -92,10 +131,33 @@ router.post('/webhook', (req, res) => {
 
     const transaction = mapToQuad360Transaction(data);
 
-    if (!transactionStore.has(userId)) {
-      transactionStore.set(userId, []);
+    const supabase = getSupabase();
+    if (!supabase) {
+      console.error('[pngme] SUPABASE_URL/SUPABASE_SERVICE_KEY not configured — cannot persist webhook.');
+      // A real 5xx (not a silent 200) so Pngme's own retry policy kicks in
+      // instead of this event being acknowledged and lost.
+      return res.status(503).json({ error: 'Storage not configured' });
     }
-    transactionStore.get(userId).push(transaction);
+
+    const { error: insertError } = await supabase
+      .from('pngme_transactions')
+      .upsert({
+        user_id: userId,
+        pngme_transaction_id: transaction.id,
+        date: transaction.date,
+        description: transaction.description,
+        type: transaction.type,
+        category: transaction.category,
+        amount: transaction.amount,
+        reference: transaction.reference,
+        vendor_customer: transaction.vendorCustomer,
+        raw_event: payload,
+      }, { onConflict: 'user_id,pngme_transaction_id' });
+
+    if (insertError) {
+      console.error('[pngme] Failed to persist transaction:', insertError.message);
+      return res.status(500).json({ error: 'Failed to store transaction' });
+    }
 
     console.log(`Stored transaction ${transaction.id} for user ${userId}`);
     return res.json({ received: true, transactionId: transaction.id });
