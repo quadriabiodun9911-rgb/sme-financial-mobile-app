@@ -93,3 +93,48 @@ describe('generateCashFlowForecast — historical baseline', () => {
         expect(forecast.baseCase.months[0].projectedExpenses).toBe(2000000);
     });
 });
+
+// Regression: the engine's own addMonths used Date.setMonth directly, which
+// doesn't clamp the day -- run on the 29th-31st of any month with fewer
+// days in whatever month is N months out, it silently overflows into the
+// month after, skipping one calendar month entirely and projecting another
+// one twice (e.g. from Jan 31, +1 month landed on Mar 3, not Feb 28/29).
+// Pinning "today" to the 31st (jest fake timers, same pattern already used
+// in trendAnalysis.test.ts) makes this reproduce deterministically no
+// matter what day the suite actually runs on.
+describe('generateCashFlowForecast — month sequencing across short months', () => {
+    it('produces 6 distinct, consecutive calendar months when "today" is the 31st', () => {
+        jest.useFakeTimers().setSystemTime(new Date(2025, 0, 31)); // Jan 31, 2025
+        try {
+            const forecast = generateCashFlowForecast(baseInput({ forecastMonths: 6 }));
+            const monthKeys = forecast.baseCase.months.map(m => m.month);
+            expect(monthKeys).toEqual(['2025-01', '2025-02', '2025-03', '2025-04', '2025-05', '2025-06']);
+            expect(new Set(monthKeys).size).toBe(6); // no month repeated, none skipped
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
+    it('keeps forecastPeriod.end in step with the same clamped month sequence', () => {
+        jest.useFakeTimers().setSystemTime(new Date(2025, 0, 31)); // Jan 31, 2025
+        try {
+            const forecast = generateCashFlowForecast(baseInput({ forecastMonths: 6 }));
+            // Without the fix this computed Jul (addMonths(today, 5) overflowing
+            // past Jun), one month ahead of the real 6th projected month.
+            expect(forecast.forecastPeriod.end).toBe('2025-06');
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
+    it('still produces 6 distinct months from a month-end date that has no overflow risk (sanity check)', () => {
+        jest.useFakeTimers().setSystemTime(new Date(2025, 3, 15)); // Apr 15, 2025 -- no month has fewer than 15 days
+        try {
+            const forecast = generateCashFlowForecast(baseInput({ forecastMonths: 6 }));
+            const monthKeys = forecast.baseCase.months.map(m => m.month);
+            expect(monthKeys).toEqual(['2025-04', '2025-05', '2025-06', '2025-07', '2025-08', '2025-09']);
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+});

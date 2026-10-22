@@ -7,7 +7,7 @@ import {
   ForecastAssumptions,
   ScenarioType,
 } from '../types/forecast';
-import { localDateStr } from './localDate';
+import { localDateStr, addMonthsClamped } from './localDate';
 import { latestTransactionDate } from './finance';
 
 /**
@@ -481,10 +481,15 @@ export class ForecastEngine {
     return `${year}-${month}`;
   }
 
+  // `Date.setMonth` doesn't clamp the day -- on the 29th-31st of a month,
+  // adding months overflows into the following month whenever the target
+  // month is shorter (e.g. Jan 31 + 1 month silently lands on Mar 3, not
+  // Feb 28), which skips a calendar month entirely and gives the next one
+  // two projection entries. addMonthsClamped (localDate.ts) is the same
+  // day-clamping fix already applied across loanMath.ts, payrollReminders.ts,
+  // finance.ts, budgetEngine.ts, forecastHistory.ts, etc.
   private addMonths(date: Date, months: number): Date {
-    const d = new Date(date);
-    d.setMonth(d.getMonth() + months);
-    return d;
+    return addMonthsClamped(date, months);
   }
 
   private monthsFromNow(date: Date): number {
