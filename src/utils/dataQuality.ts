@@ -35,6 +35,13 @@ export interface DataQuality {
     needsReviewPct: number;
     ambiguousPct: number;
     classificationSummary: string; // "82% classified automatically, 11% need review, 7% could not be confidently classified"
+    // How many transactions came from a direct, consent-based bank
+    // connection (Transaction.source === 'mono') rather than manual entry,
+    // upload, or sync -- unforgeable, bank-confirmed data. Always 0 today
+    // (no integration sets 'mono' yet); see Transaction.source and the
+    // confidence-tier note below.
+    verifiedCount: number;
+    verifiedPct: number;
 }
 
 function isValidDate(dateStr: string | undefined): boolean {
@@ -135,6 +142,12 @@ function classificationStats(transactions: Transaction[], industry?: string) {
     return { confidentCount, needsReviewCount, ambiguousCount, confidentPct, needsReviewPct, ambiguousPct, classificationSummary };
 }
 
+function verifiedStats(transactions: Transaction[]) {
+    const total = transactions.length;
+    const verifiedCount = transactions.filter(t => t.source === 'mono').length;
+    return { verifiedCount, verifiedPct: total > 0 ? Math.round((verifiedCount / total) * 100) : 0 };
+}
+
 function daysSince(dateStr: string): number {
     const then = new Date(dateStr).getTime();
     if (isNaN(then)) return NaN;
@@ -145,12 +158,12 @@ function daysSince(dateStr: string): number {
  * The exact, scannable "why should I trust this" breakdown — four bullets,
  * always in the same order, so a business owner (or a lender reading a
  * Funding Readiness Pack) can check the same four things every time rather
- * than parse a different sentence per screen. Deliberately does NOT
- * include a "connected accounts" bullet some fintech apps show: Quad360
- * has no live bank-connection/Open Banking integration (statements are
- * uploaded or entered manually), and inventing a number for a concept
- * that doesn't exist in this app would be a straightforward overclaim.
- * "Most recent transaction" fills that role instead — it answers the same
+ * than parse a different sentence per screen. A fifth, "connected account"
+ * bullet is added ONLY when quality.verifiedCount > 0 -- today that's
+ * never (Quad360 has no live Open Banking integration yet; statements are
+ * uploaded or entered manually), so this stays four bullets in practice
+ * until a real bank-connection feed starts setting Transaction.source to
+ * 'mono'. Until then, "Most recent transaction" is what answers the same
  * underlying question ("is this picture current?") with something real.
  */
 export function computeDataConfidenceBullets(
@@ -176,6 +189,14 @@ export function computeDataConfidenceBullets(
     bullets.push(unresolvedCount === 0
         ? 'No transactions currently need review'
         : `${unresolvedCount} transaction${unresolvedCount === 1 ? '' : 's'} still need${unresolvedCount === 1 ? 's' : ''} review`);
+
+    // Only ever appears once a real bank-connection feed exists and has
+    // actually set source: 'mono' on at least one transaction -- never
+    // fabricated for a business with no connected account, same honesty
+    // as the reconciliation bullet below.
+    if (quality.verifiedCount > 0) {
+        bullets.push(`${quality.verifiedPct}% of transactions verified directly from a connected bank account, not self-reported`);
+    }
 
     // A real "checked against the bank" fact, when one exists -- never
     // fabricated for a business that hasn't reconciled yet (omitted, not
@@ -206,6 +227,7 @@ export function computeDataQuality(transactions: Transaction[], industry?: strin
             coveragePct: 0, oldestDate: null, newestDate: null,
             confidence: 'none', summary: 'No transactions recorded yet',
             ...classificationStats(transactions, industry),
+            ...verifiedStats(transactions),
         };
     }
 
@@ -218,6 +240,7 @@ export function computeDataQuality(transactions: Transaction[], industry?: strin
             coveragePct: 0, oldestDate: null, newestDate: null,
             confidence: 'limited', summary: `${undatedCount} transaction${undatedCount === 1 ? '' : 's'}, none with a usable date`,
             ...classificationStats(transactions, industry),
+            ...verifiedStats(transactions),
         };
     }
 
@@ -239,6 +262,22 @@ export function computeDataQuality(transactions: Transaction[], industry?: strin
     else if (undatedPct > 5 || coveragePct < 75) confidence = 'partial';
     else confidence = 'strong';
 
+    // A transaction pulled straight from a connected bank (source === 'mono')
+    // can't be forged, mis-typed, or mis-dated the way a manual entry or an
+    // uploaded statement can -- so a business whose history is MOSTLY
+    // bank-verified earns one tier of credit even where its own
+    // coverage/undated numbers alone wouldn't yet get it there. Never a
+    // full override (coverage still measures something real -- how much
+    // history exists at all -- that verification alone doesn't answer),
+    // just a one-tier floor, and only once verified data is the majority of
+    // what's recorded. Always a no-op today: nothing sets source: 'mono'
+    // yet, so verifiedPct is always 0.
+    const { verifiedCount, verifiedPct } = verifiedStats(transactions);
+    if (verifiedPct >= 50 && confidence !== 'strong') {
+        const tiers: DataConfidence[] = ['limited', 'partial', 'strong'];
+        confidence = tiers[Math.min(tiers.indexOf(confidence) + 1, tiers.length - 1)];
+    }
+
     const parts: string[] = [`${monthsWithData} of ${monthsSpanned} month${monthsSpanned === 1 ? '' : 's'} have real data`];
     if (undatedCount > 0) parts.push(`${undatedCount} transaction${undatedCount === 1 ? '' : 's'} missing a usable date`);
 
@@ -247,5 +286,6 @@ export function computeDataQuality(transactions: Transaction[], industry?: strin
         oldestDate, newestDate, confidence,
         summary: parts.join(' · '),
         ...classificationStats(transactions, industry),
+        verifiedCount, verifiedPct,
     };
 }

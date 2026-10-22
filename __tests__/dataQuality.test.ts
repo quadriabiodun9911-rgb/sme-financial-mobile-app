@@ -70,6 +70,71 @@ describe('computeDataQuality', () => {
     });
 });
 
+// Bank-verified data (Transaction.source === 'mono') can't be forged or
+// mis-dated the way a manual entry or statement upload can, so a business
+// whose history is mostly bank-verified earns a one-tier confidence floor
+// even where its own undated/coverage numbers alone wouldn't yet get it
+// there. Dates are built relative to the real "today" (not fixed strings)
+// specifically so monthsSpanned -- which is always measured up through
+// today, per computeDataQuality's own formula -- lands at exactly 12
+// regardless of which day this test actually runs, giving a deterministic
+// 100% coveragePct to isolate the undatedPct trigger being tested here.
+describe('computeDataQuality — bank-verified data (Transaction.source "mono")', () => {
+    const monthsAgo = (n: number): string => {
+        const d = new Date();
+        d.setDate(1);
+        d.setMonth(d.getMonth() - n);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-10`;
+    };
+
+    // 12 consecutive months (0..11 months ago) of dated transactions, plus
+    // 2 undated ones -- 14 total, undatedPct ≈ 14.3% (>5%, <=20%), full
+    // 100% month coverage. Confidence is 'partial' (undatedPct>5 branch)
+    // with no verified data, verified numerically before writing this test.
+    function buildFixture(verifiedCount: number): Transaction[] {
+        const txs: Transaction[] = [];
+        for (let n = 11; n >= 0; n--) {
+            txs.push(makeTx({
+                id: `dated-${n}`,
+                date: monthsAgo(n),
+                source: verifiedCount > 0 ? 'mono' : undefined,
+            }));
+            if (verifiedCount > 0) verifiedCount--;
+        }
+        txs.push(makeTx({ id: 'undated-1', date: 'bad' }));
+        txs.push(makeTx({ id: 'undated-2', date: 'bad' }));
+        return txs;
+    }
+
+    it('rates this fixture as "partial" with no verified transactions (baseline)', () => {
+        const q = computeDataQuality(buildFixture(0));
+        expect(q.confidence).toBe('partial');
+        expect(q.verifiedCount).toBe(0);
+        expect(q.verifiedPct).toBe(0);
+    });
+
+    it('does not boost confidence when fewer than half of transactions are bank-verified', () => {
+        const q = computeDataQuality(buildFixture(1)); // 1 of 14 ≈ 7%
+        expect(q.verifiedPct).toBeLessThan(50);
+        expect(q.confidence).toBe('partial');
+    });
+
+    it('boosts confidence by one tier once at least half of transactions are bank-verified', () => {
+        const q = computeDataQuality(buildFixture(7)); // 7 of 14 = 50%
+        expect(q.verifiedPct).toBe(50);
+        expect(q.confidence).toBe('strong');
+    });
+
+    it('never boosts confidence past "strong"', () => {
+        const txs: Transaction[] = [];
+        for (let n = 11; n >= 0; n--) {
+            txs.push(makeTx({ id: `dated-${n}`, date: monthsAgo(n), source: 'mono' }));
+        }
+        const q = computeDataQuality(txs); // fully dated, full coverage, 100% verified
+        expect(q.confidence).toBe('strong');
+    });
+});
+
 describe('classifyTransactions', () => {
     it('treats a specific keyword match as confident', () => {
         const [v] = classifyTransactions([makeTx({ id: 'a', type: 'expense', description: 'Staff salary payment' })]);
@@ -204,5 +269,26 @@ describe('computeDataConfidenceBullets', () => {
         const bullets = computeDataConfidenceBullets(q);
         const reviewBullet = bullets.find(b => b.includes('need') && b.includes('review'));
         expect(reviewBullet).toMatch(/^1 transaction still needs review$/);
+    });
+
+    it('adds a fifth, connected-bank bullet only once a transaction is bank-verified', () => {
+        const txs = [
+            makeTx({ id: 't1', date: '2024-01-05', description: 'Sales — retail', source: 'mono' }),
+            makeTx({ id: 't2', date: '2024-02-05', description: 'Sales — retail' }),
+        ];
+        const q = computeDataQuality(txs);
+        const bullets = computeDataConfidenceBullets(q);
+        expect(bullets).toHaveLength(5);
+        expect(bullets.some(b => b.includes('verified directly from a connected bank account'))).toBe(true);
+    });
+
+    it('omits the connected-bank bullet when nothing is bank-verified, staying at four bullets', () => {
+        const txs = [
+            makeTx({ id: 't1', date: '2024-01-05', description: 'Sales — retail' }),
+            makeTx({ id: 't2', date: '2024-02-05', description: 'Sales — retail' }),
+        ];
+        const q = computeDataQuality(txs);
+        const bullets = computeDataConfidenceBullets(q);
+        expect(bullets).toHaveLength(4);
     });
 });
