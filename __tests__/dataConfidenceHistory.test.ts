@@ -12,6 +12,7 @@ const makeQuality = (overrides: Partial<DataQuality> = {}): DataQuality => ({
     confidentCount: 8, needsReviewCount: 1, ambiguousCount: 1,
     confidentPct: 80, needsReviewPct: 10, ambiguousPct: 10,
     classificationSummary: '',
+    verifiedCount: 0, verifiedPct: 0,
     ...overrides,
 });
 

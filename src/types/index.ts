@@ -195,7 +195,16 @@ export interface Transaction {
     // read-only here -- it's edited in the source system, not duplicated as
     // two independently-editable copies of the same real-world event. See
     // accountingSync.ts.
-    source?: 'manual' | 'quickbooks' | 'xero';
+    //
+    // 'mono' is reserved for a direct, consent-based bank-connection feed
+    // (open banking, e.g. Mono) -- NOT built yet, no integration sets this
+    // today. It's declared here so dataQuality.ts's verified-source
+    // weighting (which treats a 'mono' transaction as unforgeable, bank-
+    // confirmed data worth more than a self-reported one) can be written
+    // and tested now, ready to activate the moment a real integration
+    // starts setting it -- never backfilled onto existing data in the
+    // meantime.
+    source?: 'manual' | 'quickbooks' | 'xero' | 'mono';
     // The provider's own transaction id -- present only when source is
     // 'quickbooks'/'xero'. transactionKey() in transactionDedup.ts (date +
     // description + amount + type) is fine for a one-time statement import,
