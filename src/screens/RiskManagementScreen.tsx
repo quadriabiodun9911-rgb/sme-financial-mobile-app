@@ -21,7 +21,9 @@ import { computeExternalFactorsPanel, ImpactLevel } from '../utils/externalFacto
 import { computeExpenseSeasonalityPattern } from '../utils/seasonality';
 import { MACRO_ASSUMPTION_SUGGESTIONS } from '../utils/macroAssumptionSuggestions';
 import { fetchLiveFxRate, computeFxChangeSuggestion, recordFxSnapshot, LiveFxRate, FxChangeSuggestion } from '../utils/macroFeed';
+import { fetchAdminMacroRates, AdminMacroRate } from '../utils/adminMacroRates';
 import { loadFxSnapshots, saveFxSnapshots } from '../utils/storage';
+import { MacroDriver } from '../types';
 import { computeSupplierIntelligence } from '../utils/supplierIntelligence';
 import { localDateStr } from '../utils/localDate';
 
@@ -479,7 +481,7 @@ export default function RiskManagementScreen() {
                                             <Text style={s.suggestLabel}>{sug.label}</Text>
                                             <Text style={s.suggestPrompt}>{sug.prompt}</Text>
                                             <Text style={s.suggestWhere}>💡 {sug.whereToCheck}</Text>
-                                            {sug.driver === 'fx' && <LiveFxSuggestionCard />}
+                                            {sug.driver === 'fx' ? <LiveFxSuggestionCard /> : <AdminRateReferenceCard driver={sug.driver} />}
                                         </View>
                                     ))}
                                 </>
@@ -634,6 +636,64 @@ function LiveFxSuggestionCard() {
                         periodMonths: suggestion ? Math.max(1, Math.round(suggestion.actualMonthsSpanned)) : 3,
                         source: `Live market rate (${rate.source})`,
                         confidence: 'high' as const,
+                    },
+                })}
+            >
+                <Text style={s.liveFxBtnText}>Use this →</Text>
+            </TouchableOpacity>
+        </View>
+    );
+}
+
+// Quad360's own maintained reference figure for a driver with no free
+// live-data API (see fetchAdminMacroRates/migration 049) -- shown only
+// when Quad360 has actually set one for this driver; never fabricates a
+// number, same "nothing to show" discipline as LiveFxSuggestionCard above
+// when the live feed is unreachable. 'medium' confidence, not 'high' like
+// the live FX rate -- this is a periodically-updated manual figure, not a
+// real-time market read, and the owner should weigh it accordingly.
+function AdminRateReferenceCard({ driver }: { driver: MacroDriver }) {
+    const { navigate } = useApp();
+    const [status, setStatus] = useState<'loading' | 'unavailable' | 'ready'>('loading');
+    const [rate, setRate] = useState<AdminMacroRate | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            const rates = await fetchAdminMacroRates();
+            if (cancelled) return;
+            const match = rates?.find(r => r.driver === driver) ?? null;
+            if (!match) { setStatus('unavailable'); return; }
+            setRate(match);
+            setStatus('ready');
+        })();
+        return () => { cancelled = true; };
+    }, [driver]);
+
+    if (status !== 'ready' || !rate) return null;
+
+    return (
+        <View style={s.liveFxBox}>
+            <View style={s.badgeRow}>
+                <Icon name="info" size={11} color={Colors.primary} />
+                <Text style={s.liveFxLabel}>QUAD360 REFERENCE</Text>
+            </View>
+            <Text style={s.liveFxRate}>
+                {rate.label}: {rate.changePct >= 0 ? '+' : ''}{rate.changePct}% over {rate.periodMonths}mo
+            </Text>
+            <Text style={s.liveFxNote}>
+                As of {rate.asOf} · {rate.source}{rate.note ? ` — ${rate.note}` : ''}
+            </Text>
+            <TouchableOpacity
+                style={s.liveFxBtn}
+                onPress={() => navigate('macro-assumptions', {
+                    prefill: {
+                        driver: rate.driver,
+                        label: rate.label,
+                        changePct: rate.changePct,
+                        periodMonths: rate.periodMonths,
+                        source: rate.source,
+                        confidence: 'medium' as const,
                     },
                 })}
             >
