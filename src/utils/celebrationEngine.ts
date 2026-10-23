@@ -28,6 +28,7 @@
 import { Transaction, HealthScoreSnapshot } from '../types';
 import { RISK_BAND_CUTOFFS, RiskScore } from './finance';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
+import { localMonthStr } from './localDate';
 
 export interface Celebration {
     // Stable per real-world milestone (not per render) -- used to dismiss
@@ -62,11 +63,20 @@ function bandCelebration(healthScoreHistory: HealthScoreSnapshot[]): Celebration
     };
 }
 
-function profitTurnaroundCelebration(transactions: Transaction[], currency: string): Celebration | null {
-    const buckets = computeAllTimeMonthlyBuckets(transactions);
-    if (buckets.length < 2) return null;
-    const last = buckets[buckets.length - 1];
-    const prior = buckets[buckets.length - 2];
+function profitTurnaroundCelebration(transactions: Transaction[], currency: string, now: Date): Celebration | null {
+    // computeAllTimeMonthlyBuckets buckets strictly by whatever months
+    // exist in the data, with no exclusion of the current, still-in-
+    // progress calendar month -- without this filter, "last" is normally
+    // THIS month, which can look like a turnaround purely because expenses
+    // haven't been entered yet, not because of any real result. Same
+    // "exclude the in-progress month" discipline already applied to
+    // monthly buckets elsewhere this session (postFinancingMonitor.ts's
+    // completeMonthsSinceFunding, forecastEngine.ts's revenueSinceFunding).
+    const currentMonth = localMonthStr(now);
+    const closedBuckets = computeAllTimeMonthlyBuckets(transactions).filter(b => b.month < currentMonth);
+    if (closedBuckets.length < 2) return null;
+    const last = closedBuckets[closedBuckets.length - 1];
+    const prior = closedBuckets[closedBuckets.length - 2];
     if (!(prior.profit <= 0 && last.profit > 0)) return null;
     return {
         key: `turnaround:${last.month}`,
@@ -82,6 +92,7 @@ export function computeCelebration(
     healthScoreHistory: HealthScoreSnapshot[],
     transactions: Transaction[],
     currency: string = '₦',
+    now: Date = new Date(),
 ): Celebration | null {
-    return bandCelebration(healthScoreHistory) ?? profitTurnaroundCelebration(transactions, currency);
+    return bandCelebration(healthScoreHistory) ?? profitTurnaroundCelebration(transactions, currency, now);
 }
