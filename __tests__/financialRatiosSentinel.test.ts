@@ -1,5 +1,5 @@
 import { computeFinancialRatios } from '../src/utils/finance';
-import { FinanceData, Loan } from '../src/types';
+import { FinanceData, Loan, Transaction } from '../src/types';
 
 const baseFinance: FinanceData = {
     income: 10000, expense: 5000, profit: 5000, margin: 50, cashBalance: 8000,
@@ -52,5 +52,63 @@ describe('computeFinancialRatios sentinel values', () => {
         const r = computeFinancialRatios(baseFinance, loans, []);
         expect(r.hasLiabilitiesData).toBe(true);
         expect(r.currentRatio).toBeCloseTo(20000 / 10000, 5);
+    });
+
+    // Regression: revenueGrowth was hardcoded to 0 ("requires historical
+    // data — placeholder") regardless of input, even though the exact
+    // trend data needed (computeMonthlyTrend's own first-vs-last-month
+    // comparison, already used by the Efficiency risk factor and by
+    // financialRatiosEngine.ts's own "Revenue Growth" reading) was already
+    // available from the `transactions` parameter this function already
+    // takes. Dormant today (its one caller never read .revenueGrowth), but
+    // a landmine for the next one, since every sibling field on this type
+    // is real.
+    const tx = (date: string, amount: number): Transaction =>
+        ({ id: `${date}-${amount}`, date, type: 'income', category: 'Sales', amount, description: '' } as Transaction);
+
+    it('computes a real revenueGrowth from trailing 3-month trend instead of a hardcoded 0', () => {
+        jest.useFakeTimers().setSystemTime(new Date(2026, 8, 15)); // Sep 15, 2026
+        try {
+            const transactions = [tx('2026-07-10', 100000), tx('2026-09-10', 150000)];
+            const r = computeFinancialRatios(baseFinance, [], transactions);
+            expect(r.hasRevenueGrowthData).toBe(true);
+            expect(r.revenueGrowth).toBeCloseTo(50, 5); // (150000-100000)/100000 * 100
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
+    it('reports a real decline, not just growth', () => {
+        jest.useFakeTimers().setSystemTime(new Date(2026, 8, 15));
+        try {
+            const transactions = [tx('2026-07-10', 200000), tx('2026-09-10', 150000)];
+            const r = computeFinancialRatios(baseFinance, [], transactions);
+            expect(r.hasRevenueGrowthData).toBe(true);
+            expect(r.revenueGrowth).toBeCloseTo(-25, 5); // (150000-200000)/200000 * 100
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
+    it('flags hasRevenueGrowthData false with under 2 months of trend history, instead of a fabricated 0% ("flat")', () => {
+        jest.useFakeTimers().setSystemTime(new Date(2026, 8, 15));
+        try {
+            // Only the current (most recent) of the 3 trailing months has
+            // any recorded activity -- the earliest month is genuinely
+            // empty, not just a quiet month, so there's nothing real to
+            // compare against yet.
+            const transactions = [tx('2026-09-10', 150000)];
+            const r = computeFinancialRatios(baseFinance, [], transactions);
+            expect(r.hasRevenueGrowthData).toBe(false);
+            expect(r.revenueGrowth).toBe(0);
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
+    it('flags hasRevenueGrowthData false with no transactions at all', () => {
+        const r = computeFinancialRatios(baseFinance, [], []);
+        expect(r.hasRevenueGrowthData).toBe(false);
+        expect(r.revenueGrowth).toBe(0);
     });
 });
