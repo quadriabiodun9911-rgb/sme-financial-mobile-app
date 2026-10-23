@@ -1305,8 +1305,9 @@ export interface FinancialRatios {
     burnRate: number;
     profitMargin: number;
     revenueGrowth: number;
-    hasLiabilitiesData: boolean; // false when no liabilities recorded — currentRatio's 999 is a "no data" sentinel, not a real strength
-    hasAssetData: boolean;       // false when no assets recorded — returnOnAssets has nothing to divide by
+    hasLiabilitiesData: boolean;  // false when no liabilities recorded — currentRatio's 999 is a "no data" sentinel, not a real strength
+    hasAssetData: boolean;        // false when no assets recorded — returnOnAssets has nothing to divide by
+    hasRevenueGrowthData: boolean; // false when there's under 2 months of trend history — revenueGrowth's 0 is "not enough history," not a confirmed flat trend
 }
 
 /**
@@ -1340,7 +1341,23 @@ export function computeFinancialRatios(finance: FinanceData, loans: Loan[], tran
     // "Monthly Burn" than the runway shown elsewhere in the app.
     const burnRate = computeCashRunway(transactions, finance.cashBalance, latestTransactionDate(transactions) ?? new Date()).dailyBurn * 30;
     const profitMargin = finance.income > 0 ? (finance.profit / finance.income) * 100 : 0;
-    const revenueGrowth = 0; // requires historical data — placeholder
+    // Same computeMonthlyTrend(transactions, 3) first-vs-last-month pattern
+    // already used for the Efficiency factor (computeRiskScore, below) and
+    // financialRatiosEngine.ts's own "Revenue Growth" reading -- never a
+    // second, independently-tuned growth formula. Gated the same way: fewer
+    // than 2 months, or the earliest month having no recorded activity at
+    // all (computeMonthlyTrend always backfills exactly `months` entries
+    // with zeros, so length alone isn't a signal of missing data), reads as
+    // "no history yet" rather than a fabricated 0% ("flat").
+    const growthTrend = computeMonthlyTrend(transactions, 3);
+    const hasGrowthData = growthTrend.length >= 2 && (growthTrend[0].income > 0 || growthTrend[0].expense > 0);
+    const revenueGrowth = hasGrowthData
+        ? (() => {
+            const first = growthTrend[0];
+            const last = growthTrend[growthTrend.length - 1];
+            return first.income > 0 ? ((last.income - first.income) / first.income) * 100 : 0;
+        })()
+        : 0;
     return {
         currentRatio,
         debtToEquity: leverage.debtToEquity,
@@ -1348,6 +1365,7 @@ export function computeFinancialRatios(finance: FinanceData, loans: Loan[], tran
         burnRate, profitMargin, revenueGrowth,
         hasLiabilitiesData: leverage.liabilities > 0,
         hasAssetData: leverage.hasAssetData,
+        hasRevenueGrowthData: hasGrowthData,
     };
 }
 
