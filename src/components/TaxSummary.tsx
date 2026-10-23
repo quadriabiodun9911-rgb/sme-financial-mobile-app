@@ -1,10 +1,13 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow } from '../theme/tokens';
 import { computeTaxTotals } from '../utils/finance';
 import { Transaction } from '../types';
 import TaxComparisonTable from './TaxComparisonTable';
+import { generatePDF, sharePDF } from '../utils/pdfExport';
+import { buildTaxSummaryExport, TAX_SUMMARY_DISCLAIMER } from '../utils/taxSummaryExport';
+import { showAlert } from '../utils/webAlert';
 
 interface Props {
     // Whatever period Reports' own Monthly/Quarterly/Yearly/Custom selector
@@ -17,6 +20,12 @@ interface Props {
     // period selector — scoping it down would leave it with only one column.
     allTransactions: Transaction[];
     currency: string;
+    // The exact "For the period X – Y" string Reports' own period selector
+    // already computes for this same filteredTx (periodDateLabel) -- reused
+    // verbatim in the exported document's title so it always agrees with
+    // what's actually on screen, instead of a second, independently-worded
+    // date range.
+    periodLabel: string;
     // Taken as a prop (not read from useApp() itself) so this component has
     // no context dependency at all — every input is explicit, making it
     // reusable and testable outside a full AppContext tree. Opens the Tax
@@ -25,7 +34,8 @@ interface Props {
     onOpenTaxPlanning: () => void;
 }
 
-export default function TaxSummary({ periodTransactions, allTransactions, currency, onOpenTaxPlanning }: Props) {
+export default function TaxSummary({ periodTransactions, allTransactions, currency, periodLabel, onOpenTaxPlanning }: Props) {
+    const [exporting, setExporting] = useState(false);
 
     const taxByCategory = useMemo(() => {
         const map = new Map<string, number>();
@@ -54,6 +64,25 @@ export default function TaxSummary({ periodTransactions, allTransactions, curren
     );
 
     const effectiveTaxRate = taxableIncome > 0 ? (totalTaxCollected / taxableIncome) * 100 : 0;
+
+    const handleExport = async () => {
+        setExporting(true);
+        try {
+            const exportData = buildTaxSummaryExport(
+                periodLabel,
+                { totalTaxCollected, totalTaxPaid, netTaxPosition },
+                taxByCategory,
+                periodTransactions,
+                currency,
+            );
+            const filePath = await generatePDF(exportData);
+            await sharePDF(filePath, exportData.title);
+        } catch {
+            showAlert('Export failed', 'Could not generate the tax summary. Please try again.');
+        } finally {
+            setExporting(false);
+        }
+    };
 
     return (
         <View>
@@ -95,6 +124,12 @@ export default function TaxSummary({ periodTransactions, allTransactions, curren
                             : 'You have paid more tax than collected on income.'}
                     </Text>
                 </View>
+
+                <TouchableOpacity style={styles.exportBtn} onPress={handleExport} disabled={exporting}>
+                    {exporting
+                        ? <ActivityIndicator color={Colors.primary} size="small" />
+                        : <Text style={styles.exportBtnText}>Export Tax Summary (PDF)</Text>}
+                </TouchableOpacity>
             </View>
 
             {/* Effective Rate */}
@@ -139,9 +174,7 @@ export default function TaxSummary({ periodTransactions, allTransactions, curren
 
             {/* Disclaimer */}
             <View style={styles.disclaimerCard}>
-                <Text style={styles.disclaimerText}>
-                    ⚠ This is a summary for internal tracking only. Consult a qualified accountant or tax advisor for official tax filings and compliance requirements.
-                </Text>
+                <Text style={styles.disclaimerText}>⚠ {TAX_SUMMARY_DISCLAIMER}</Text>
             </View>
         </View>
     );
@@ -174,6 +207,8 @@ const styles = StyleSheet.create({
     netLabel: { fontSize: 12, color: Colors.textMuted, marginBottom: 4 },
     netValue: { fontSize: 24, fontWeight: 'bold', marginBottom: 6 },
     netHint: { fontSize: 11, color: Colors.textMuted, textAlign: 'center', lineHeight: 16 },
+    exportBtn: { marginTop: 14, borderRadius: 10, borderWidth: 1, borderColor: Colors.primary, paddingVertical: 10, alignItems: 'center' },
+    exportBtnText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
     emptyCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 24, alignItems: 'center', marginBottom: 14, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     emptyTitle: { fontSize: 15, fontWeight: 'bold', color: Colors.textMuted, marginBottom: 8 },
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
