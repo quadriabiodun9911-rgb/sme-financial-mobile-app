@@ -708,6 +708,7 @@ export default function ReportsScreen() {
                                 periodTransactions={filteredTx}
                                 allTransactions={transactions}
                                 currency={currency}
+                                periodLabel={periodDateLabel}
                                 onOpenTaxPlanning={() => setActiveTab('tax-planning')}
                             />
                             <NextStepLink
