@@ -87,6 +87,54 @@ describe('computeCustomerMetrics — new vs returning vs churned', () => {
     });
 });
 
+// Regression: sortedMonths used to be built directly from the sparse set
+// of months that happen to contain a customer-tagged sale, so a genuinely
+// dormant month (zero sales) was invisible rather than counted as a real
+// gap -- the churn loop then compared each month against whatever came
+// immediately before it IN THAT SPARSE LIST, silently treating two
+// non-adjacent calendar months as consecutive.
+describe('computeCustomerMetrics — backfills a dormant month with zero sales', () => {
+    const txs = [
+        makeTx({ id: 't1', date: '2024-01-05', vendorCustomer: 'Amara' }),
+        makeTx({ id: 't2', date: '2024-01-06', vendorCustomer: 'Bola' }),
+        makeTx({ id: 't3', date: '2024-02-05', vendorCustomer: 'Amara' }), // Bola churns
+        // No sales at all in March.
+        makeTx({ id: 't4', date: '2024-04-05', vendorCustomer: 'Amara' }),
+        makeTx({ id: 't5', date: '2024-04-06', vendorCustomer: 'Chidi' }),
+    ];
+
+    it('includes the dormant month in the monthly series with zero active customers', () => {
+        const result = computeCustomerMetrics(txs);
+        const months = result.monthly.map(m => m.month);
+        expect(months).toEqual(['2024-01', '2024-02', '2024-03', '2024-04']);
+        const march = result.monthly.find(m => m.month === '2024-03')!;
+        expect(march.activeCustomers).toBe(0);
+        expect(march.newCustomers).toBe(0);
+    });
+
+    it('reads the dormant month as 100% churn of whoever was active the month before it', () => {
+        const result = computeCustomerMetrics(txs);
+        const march = result.monthly.find(m => m.month === '2024-03')!;
+        // Amara was Feb's only active customer and bought nothing in March.
+        expect(march.churnedCustomers).toBe(1);
+        expect(march.churnRate).toBe(1);
+    });
+
+    it('does not let April read as a clean "no churn" recovery straight off February', () => {
+        const result = computeCustomerMetrics(txs);
+        const april = result.monthly.find(m => m.month === '2024-04')!;
+        // Without the fix, April would compare against Feb's {Amara} (still
+        // active, Amara returned) and report 0 churned / 0% churn -- as if
+        // March never happened. With the fix, April compares against
+        // March's genuinely empty active set, so there is nothing to
+        // measure churn against yet (null, not a fabricated 0%).
+        expect(april.churnedCustomers).toBe(0);
+        expect(april.churnRate).toBeNull();
+        expect(april.activeCustomers).toBe(2); // Amara + Chidi
+        expect(april.newCustomers).toBe(1); // Chidi
+    });
+});
+
 describe('computeCustomerMetrics — CAC', () => {
     it('computes CAC as marketing spend divided by new customers that month', () => {
         const txs = [

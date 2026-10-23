@@ -82,6 +82,22 @@ function isMarketingExpense(tx: Transaction): boolean {
     return tx.type === 'expense' && (tx.category || '').trim().toLowerCase() === 'marketing';
 }
 
+// Every 'YYYY-MM' month from startMonth through endMonth inclusive -- used
+// to turn a sparse set of "months that happen to have a sale" into a dense,
+// consecutive calendar sequence (see sortedMonths below for why consecutive
+// months matter here specifically).
+function enumerateMonthRange(startMonth: string, endMonth: string): string[] {
+    const months: string[] = [];
+    let [y, m] = startMonth.split('-').map(Number);
+    const [endY, endM] = endMonth.split('-').map(Number);
+    while (y < endY || (y === endY && m <= endM)) {
+        months.push(`${y}-${String(m).padStart(2, '0')}`);
+        m += 1;
+        if (m > 12) { m = 1; y += 1; }
+    }
+    return months;
+}
+
 export function computeCustomerMetrics(transactions: Transaction[]): CustomerMetricsResult {
     const salesTx = transactions.filter(t => t.type === 'income' && normalizeCustomerKey(t.vendorCustomer) && t.date);
     const distinctCustomers = new Set(salesTx.map(t => normalizeCustomerKey(t.vendorCustomer)!));
@@ -148,7 +164,20 @@ export function computeCustomerMetrics(transactions: Transaction[]): CustomerMet
         marketingByMonth.set(month, (marketingByMonth.get(month) ?? 0) + (t.amount ?? 0));
     }
 
-    const sortedMonths = [...monthsWithSalesData].sort();
+    // Backfills every calendar month between the earliest and latest
+    // customer-tagged sale, even one with zero sales at all -- without
+    // this, sortedMonths was built directly from monthsWithSalesData (a
+    // Set of only the months that happen to contain a sale), so a
+    // genuinely dormant month (no customer-tagged sale that month, even
+    // though the business may have had other transactions) was invisible
+    // rather than counted as a real gap. The churn/active-customer loop
+    // below compares each entry against whatever came immediately before
+    // it in this list, so a missing month silently merged two
+    // non-adjacent calendar months together: a real customer who stopped
+    // buying could be missed entirely, and a later month could read as a
+    // clean "no churn" recovery it never actually earned.
+    const salesMonthsSorted = [...monthsWithSalesData].sort();
+    const sortedMonths = enumerateMonthRange(salesMonthsSorted[0], salesMonthsSorted[salesMonthsSorted.length - 1]);
     const monthly: MonthlyCustomerMetrics[] = [];
     let prevActive: Set<string> | null = null;
 
