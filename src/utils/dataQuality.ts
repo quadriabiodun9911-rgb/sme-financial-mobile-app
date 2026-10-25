@@ -36,10 +36,10 @@ export interface DataQuality {
     ambiguousPct: number;
     classificationSummary: string; // "82% classified automatically, 11% need review, 7% could not be confidently classified"
     // How many transactions came from a direct, consent-based bank
-    // connection (Transaction.source === 'mono') rather than manual entry,
-    // upload, or sync -- unforgeable, bank-confirmed data. Always 0 today
-    // (no integration sets 'mono' yet); see Transaction.source and the
-    // confidence-tier note below.
+    // connection (Transaction.source === 'mono', set by monoConnect.ts's
+    // own sync) rather than manual entry, upload, or accounting-system
+    // sync -- unforgeable, bank-confirmed data. See Transaction.source and
+    // the confidence-tier note below.
     verifiedCount: number;
     verifiedPct: number;
 }
@@ -270,8 +270,7 @@ export function computeDataQuality(transactions: Transaction[], industry?: strin
     // full override (coverage still measures something real -- how much
     // history exists at all -- that verification alone doesn't answer),
     // just a one-tier floor, and only once verified data is the majority of
-    // what's recorded. Always a no-op today: nothing sets source: 'mono'
-    // yet, so verifiedPct is always 0.
+    // what's recorded.
     const { verifiedCount, verifiedPct } = verifiedStats(transactions);
     if (verifiedPct >= 50 && confidence !== 'strong') {
         const tiers: DataConfidence[] = ['limited', 'partial', 'strong'];
