@@ -1850,9 +1850,16 @@ function MonoConnectionField({ canManage, businessName, industry, transactions, 
                 </View>
             ) : isPending ? (
                 <View>
-                    <Text style={[styles.hint, { color: Colors.warning }]}>Finishing your bank's connection -- this usually takes a few seconds to a couple of minutes.</Text>
+                    <Text style={[styles.hint, { color: Colors.warning }]}>Finishing your bank's connection -- this usually takes a few seconds to a couple of minutes. If you closed the bank window before finishing, tap "Start over" to pick a bank again.</Text>
                     <TouchableOpacity onPress={refreshStatus} style={[styles.saveBtn, { marginTop: 8 }]}>
                         <Text style={styles.saveBtnText}>Refresh status</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={handleConnect}
+                        disabled={connecting}
+                        style={{ marginTop: 8, alignSelf: 'center' }}
+                    >
+                        <Text style={{ fontSize: 12, color: Colors.textMuted, fontWeight: '600' }}>{connecting ? 'Opening…' : 'Start over'}</Text>
                     </TouchableOpacity>
                 </View>
             ) : connected || hasError ? (
