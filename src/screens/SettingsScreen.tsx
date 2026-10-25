@@ -30,6 +30,7 @@ import {
     fetchAndReconcileAccountingTransactions, categorizeAccountingRows, saveCategoryMapping, UnmappedExternalCategory,
 } from '../utils/accountingSync';
 import { ExistingSyncedTransaction } from '../utils/transactionDedup';
+import { MonoConnectionInfo, getMonoConnectionStatus, connectMonoAccount, disconnectMonoAccount, fetchAndReconcileMonoTransactions } from '../utils/monoConnect';
 import { setBackupPassword, deleteBackupPassword, getBackupPasswordStatus } from '../utils/backupPassword';
 import { WhatsAppLinkStatus, WHATSAPP_BOT_NUMBER, getWhatsAppLinkStatus, createWhatsAppLinkRequest, disconnectWhatsApp } from '../utils/whatsappTransactions';
 import CurrencyAccountsModal from '../components/CurrencyAccountsModal';
@@ -985,13 +986,12 @@ export default function SettingsScreen() {
                     {/* Bank & Mobile Money */}
                     <CollapsibleSection title="Bank & Mobile Money" icon="folder" defaultOpen={false}>
                         <Text style={styles.hint}>
-                            Upload a bank statement file, or scan a photo of a statement/receipt, to import your transactions.
+                            Connect your bank directly for verified, always-current transactions -- or upload a statement file / scan a photo instead.
                         </Text>
 
-                        {/* Auto-connect (Bank Aggregator / Connect Bank) removed from
-                            navigation — that flow's real "connect" action is disabled
-                            pending beta, so surfacing it here just offered a button
-                            that doesn't do anything yet. */}
+                        <MonoConnectionField canManage={canManagePaymentSettings(userRole)} businessName={settings.businessName}
+                            industry={settings.industry} transactions={transactions} addTransaction={addTransaction} updateTransaction={updateTransaction} />
+
                         <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('import-transactions')}>
                             <View style={styles.btnIconRow}>
                                 <Icon name="folder" size={14} color={Colors.primary} />
@@ -1733,6 +1733,172 @@ function AccountingProviderField({ provider, label, canManage, transactions, add
                         }
                     }}
                 />
+            )}
+        </Section>
+    );
+}
+
+// Mono Connect -- direct, consent-based bank linking. Simpler than
+// AccountingProviderField above in one real way: there's no category-review
+// step, since a bank narration ("POS-PURCHASE 123 SHOPRITE") has no
+// provider-defined category worth mapping the way QuickBooks/Xero's own
+// chart of accounts does -- fetchAndReconcileMonoTransactions already runs
+// every row through Quad360's own classifyByDescription (the same
+// categorizer a manually-typed transaction gets) before this ever sees it.
+// One real extra state AccountingProviderField doesn't have: 'pending' --
+// linking finishes asynchronously via mono-webhook (anywhere from ~0.1s to
+// a few minutes per Mono's own docs), so there's a real gap between "the
+// owner finished Mono's hosted flow" and "Quad360 actually knows the
+// account id," which the UI has to represent honestly rather than silently
+// sitting on the old "not connected" button.
+function MonoConnectionField({ canManage, businessName, industry, transactions, addTransaction, updateTransaction }: {
+    canManage: boolean; businessName: string; industry?: string;
+    transactions: import('../types').Transaction[];
+    addTransaction: (tx: Omit<import('../types').Transaction, 'id'> & { id?: string }) => void;
+    updateTransaction: (id: string, tx: Partial<import('../types').Transaction>) => void;
+}) {
+    const [info, setInfo] = useState<MonoConnectionInfo | 'loading'>('loading');
+    const [connecting, setConnecting] = useState(false);
+    const [syncing, setSyncing] = useState(false);
+
+    const refreshStatus = async () => setInfo(await getMonoConnectionStatus());
+
+    useEffect(() => {
+        let cancelled = false;
+        getMonoConnectionStatus().then(i => { if (!cancelled) setInfo(i); });
+        return () => { cancelled = true; };
+    }, []);
+
+    const handleConnect = async () => {
+        if (!canManage) { showAlert('Permission denied', 'Only the account owner or an admin can manage bank connections.'); return; }
+        setConnecting(true);
+        try {
+            await connectMonoAccount(businessName);
+            // The account only finishes linking once mono-webhook's events
+            // arrive, not immediately on return from the hosted flow -- a
+            // status refresh here just picks up the 'pending' row this
+            // function's own initiate call already wrote.
+            await refreshStatus();
+        } catch (e: any) {
+            showAlert('Could not connect', e.message || 'Please try again.');
+        } finally {
+            setConnecting(false);
+        }
+    };
+
+    const handleDisconnect = () => {
+        if (!canManage) { showAlert('Permission denied', 'Only the account owner or an admin can manage bank connections.'); return; }
+        confirmAction(
+            'Disconnect your bank account?',
+            'Quad360 will stop pulling in transactions from this account. Transactions already imported stay as they are.',
+            'Disconnect',
+            async () => {
+                try {
+                    await disconnectMonoAccount();
+                    await refreshStatus();
+                } catch (e: any) {
+                    showAlert('Could not disconnect', e.message || 'Please try again.');
+                }
+            },
+            true,
+        );
+    };
+
+    const handleSync = async () => {
+        if (!canManage) { showAlert('Permission denied', 'Only the account owner or an admin can manage bank connections.'); return; }
+        setSyncing(true);
+        try {
+            const existing: ExistingSyncedTransaction[] = transactions.map(t => ({
+                id: t.id, externalId: t.externalId, date: t.date, description: t.description,
+                amount: t.amount, type: t.type, category: t.category,
+            }));
+            const { fresh, changed, unchangedImported } = await fetchAndReconcileMonoTransactions(existing, industry);
+            for (const c of fresh) {
+                addTransaction({ date: c.date, description: c.description, amount: c.amount, type: c.type, category: c.category, status: 'paid', source: 'mono', externalId: c.externalId });
+            }
+            for (const { id, candidate: c } of changed) {
+                updateTransaction(id, { date: c.date, description: c.description, amount: c.amount, type: c.type, category: c.category });
+            }
+            const parts = [`Imported ${fresh.length} transaction${fresh.length !== 1 ? 's' : ''}.`];
+            if (changed.length > 0) parts.push(`Updated ${changed.length} that changed.`);
+            if (unchangedImported > 0) parts.push(`${unchangedImported} already up to date.`);
+            showAlert('Sync complete', parts.join(' '));
+            await refreshStatus();
+        } catch (e: any) {
+            showAlert('Sync failed', e.message || 'Please try again.');
+        } finally {
+            setSyncing(false);
+        }
+    };
+
+    const connected = info !== 'loading' && info.status === 'connected';
+    const hasError = info !== 'loading' && info.status === 'error';
+    const isUnknown = info !== 'loading' && info.status === 'unknown';
+    const isPending = info !== 'loading' && info.status === 'pending';
+    const dataNotReady = connected && info.dataStatus !== 'available' && info.dataStatus !== 'partial';
+
+    return (
+        <Section title="Connect Your Bank (Mono)">
+            {info === 'loading' ? (
+                <Text style={styles.hint}>Checking connection…</Text>
+            ) : isUnknown ? (
+                <View>
+                    <Text style={[styles.hint, { color: Colors.expense }]}>Could not check connection status -- this doesn't mean your bank is disconnected, just that the check itself failed.</Text>
+                    <TouchableOpacity onPress={refreshStatus} style={[styles.saveBtn, { marginTop: 8 }]}>
+                        <Text style={styles.saveBtnText}>Retry</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : isPending ? (
+                <View>
+                    <Text style={[styles.hint, { color: Colors.warning }]}>Finishing your bank's connection -- this usually takes a few seconds to a couple of minutes.</Text>
+                    <TouchableOpacity onPress={refreshStatus} style={[styles.saveBtn, { marginTop: 8 }]}>
+                        <Text style={styles.saveBtnText}>Refresh status</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : connected || hasError ? (
+                <View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                            <Icon name={hasError ? 'alert-triangle' : 'check'} size={13} color={hasError ? Colors.expense : Colors.success} />
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: hasError ? Colors.expense : Colors.success }} numberOfLines={1}>
+                                {hasError ? 'Connection error' : `Connected${info.bankName ? ` — ${info.bankName}` : ''}${info.accountNumber ? ` ${info.accountNumber}` : ''}`}
+                            </Text>
+                        </View>
+                        <TouchableOpacity onPress={handleDisconnect}>
+                            <Text style={{ fontSize: 12, color: Colors.textMuted, fontWeight: '600' }}>Disconnect</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {hasError && info.errorMessage && (
+                        <Text style={[styles.hint, { color: Colors.expense, marginTop: 4 }]}>{info.errorMessage}</Text>
+                    )}
+                    {dataNotReady ? (
+                        <Text style={[styles.hint, { marginTop: 4 }]}>Your bank is still preparing this account's transaction history -- try syncing again shortly.</Text>
+                    ) : (
+                        <Text style={[styles.hint, { marginTop: 4 }]}>
+                            {info.lastSyncedAt ? `Last synced ${new Date(info.lastSyncedAt).toLocaleString()}` : 'Never synced yet'}
+                        </Text>
+                    )}
+                    <TouchableOpacity
+                        style={[styles.saveBtn, { marginTop: 8 }, syncing && { opacity: 0.6 }]}
+                        onPress={handleSync}
+                        disabled={syncing}
+                    >
+                        <Text style={styles.saveBtnText}>{syncing ? 'Syncing…' : 'Sync now'}</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : (
+                <>
+                    <TouchableOpacity
+                        style={[styles.saveBtn, { marginTop: 4 }, connecting && { opacity: 0.6 }]}
+                        onPress={handleConnect}
+                        disabled={connecting}
+                    >
+                        <Text style={styles.saveBtnText}>{connecting ? 'Opening…' : 'Connect Bank Account'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={refreshStatus} style={{ marginTop: 8, alignSelf: 'center' }}>
+                        <Text style={{ fontSize: 12, color: Colors.textMuted, fontWeight: '600' }}>Already connected? Refresh status</Text>
+                    </TouchableOpacity>
+                </>
             )}
         </Section>
     );

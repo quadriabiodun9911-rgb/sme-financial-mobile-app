@@ -188,25 +188,24 @@ export interface Transaction {
     // Sales" from "Bank Sales" in its revenue breakdown instead of the
     // bank statement silently standing in for the whole business.
     paymentMethod?: 'cash' | 'bank' | 'pos' | 'transfer' | 'other';
-    // Set only on a transaction pulled from a connected accounting system
-    // (QuickBooks/Xero) -- absent (equivalent to 'manual') for everything
-    // Quad360 owns and can edit: typed entry, Quick Add, bank-statement
-    // import, receipt scan, WhatsApp capture. A synced transaction is
-    // read-only here -- it's edited in the source system, not duplicated as
-    // two independently-editable copies of the same real-world event. See
-    // accountingSync.ts.
+    // Set only on a transaction pulled from a connected external source
+    // (QuickBooks/Xero via accountingSync.ts, or a directly-linked bank
+    // account via monoConnect.ts) -- absent (equivalent to 'manual') for
+    // everything Quad360 owns and can edit: typed entry, Quick Add,
+    // bank-statement import, receipt scan, WhatsApp capture. A synced
+    // transaction is read-only here -- it's edited in the source system,
+    // not duplicated as two independently-editable copies of the same
+    // real-world event.
     //
-    // 'mono' is reserved for a direct, consent-based bank-connection feed
-    // (open banking, e.g. Mono) -- NOT built yet, no integration sets this
-    // today. It's declared here so dataQuality.ts's verified-source
-    // weighting (which treats a 'mono' transaction as unforgeable, bank-
-    // confirmed data worth more than a self-reported one) can be written
-    // and tested now, ready to activate the moment a real integration
-    // starts setting it -- never backfilled onto existing data in the
-    // meantime.
+    // 'mono' means a direct, consent-based bank-connection feed (Mono
+    // Connect) -- unforgeable, bank-confirmed data, which is exactly what
+    // dataQuality.ts's verified-source weighting treats it as (worth more
+    // than a self-reported transaction). Never backfilled onto existing
+    // data -- only monoConnect.ts's own sync sets it, on a transaction it
+    // actually fetched from the linked account.
     source?: 'manual' | 'quickbooks' | 'xero' | 'mono';
     // The provider's own transaction id -- present only when source is
-    // 'quickbooks'/'xero'. transactionKey() in transactionDedup.ts (date +
+    // 'quickbooks'/'xero'/'mono'. transactionKey() in transactionDedup.ts (date +
     // description + amount + type) is fine for a one-time statement import,
     // but wrong for anything that re-syncs periodically: if the accountant
     // edits a description in QuickBooks after the fact, that content-based
