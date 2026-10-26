@@ -62,9 +62,18 @@ const POLICY = {
     tooEarlyThresholdPct: 60,
 } as const;
 
+// Local calendar-date midnight for both ends, not `new Date(from)` (UTC
+// midnight) compared against a raw `to` that still carries its real
+// time-of-day -- that mismatch drifted daysSinceApproval within a single
+// calendar day and could shift a target date's arrival by a day for
+// negative UTC offsets, the same round-trip bug already fixed elsewhere in
+// this app (see foodExpiry.ts's own daysBetween, customerWinback.ts's
+// daysSince).
 function daysBetween(from: string, to: Date): number {
-    const start = new Date(from);
-    return Math.floor((to.getTime() - start.getTime()) / 86400000);
+    const [y, m, d] = from.split('-').map(Number);
+    const fromMidnight = new Date(y, (m || 1) - 1, d || 1).getTime();
+    const toMidnight = new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime();
+    return Math.round((toMidnight - fromMidnight) / 86400000);
 }
 
 export function computeCommitmentMonitor(commitment: CapitalCommitment, now: Date = new Date()): CommitmentMonitorResult {
@@ -95,7 +104,7 @@ export function computeCommitmentMonitor(commitment: CapitalCommitment, now: Dat
         };
     }
 
-    const targetDatePending = !!commitment.targetDate && now < new Date(commitment.targetDate);
+    const targetDatePending = !!commitment.targetDate && daysBetween(commitment.targetDate, now) < 0;
     const tooEarly = targetDatePending && overallAchievementPct < POLICY.tooEarlyThresholdPct;
 
     // 'off-track'/'at-risk' both read as a verdict on how this is going --
@@ -114,7 +123,8 @@ export function computeCommitmentMonitor(commitment: CapitalCommitment, now: Dat
 
     if (tooEarly) {
         suggestedDecision = null;
-        const targetLabel = new Date(commitment.targetDate as string).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+        const [ty, tm, td] = (commitment.targetDate as string).split('-').map(Number);
+        const targetLabel = new Date(ty, (tm || 1) - 1, td || 1).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
         decisionRationale = `Too early to judge — ${pct}% of target so far, with evidence expected by ${targetLabel}.`;
     } else if (overallAchievementPct >= POLICY.decisionScalePct) {
         suggestedDecision = 'scale';
