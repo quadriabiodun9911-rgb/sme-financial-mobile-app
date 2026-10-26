@@ -19,7 +19,6 @@ import FooterNav from '../components/FooterNav';
 import { t } from '../utils/i18n';
 import { validateAmount, validateDescription } from '../utils/validation';
 import { Language, Screen } from '../types';
-import OnboardingWizard from '../components/OnboardingWizard';
 import ProfitShareCard from '../components/ProfitShareCard';
 import RetentionNudges, { StreakBadge } from '../components/RetentionNudges';
 import FirstRunWizard from '../components/FirstRunWizard';
@@ -259,7 +258,6 @@ export default function DashboardScreen() {
 
     const [showFullDashboard, setShowFullDashboard] = useState(false);
     const [onboardingDismissed, setOnboardingDismissed] = useState(false);
-    const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
     const [showShareCard, setShowShareCard]     = useState(false);
     const [showFirstRun, setShowFirstRun]       = useState(false);
     const [showSearch, setShowSearch]           = useState(false);
@@ -2850,7 +2848,6 @@ export default function DashboardScreen() {
                 currency={currency}
             />
             <GlobalSearch visible={showSearch} onClose={() => setShowSearch(false)} />
-            <OnboardingWizard visible={showOnboardingWizard} onDone={() => setShowOnboardingWizard(false)} />
             <ProfitShareCard visible={showShareCard} onClose={() => setShowShareCard(false)} />
             <FirstRunWizard
                 visible={showFirstRun}
