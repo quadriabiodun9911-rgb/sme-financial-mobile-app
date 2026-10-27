@@ -857,7 +857,15 @@ export default function TransactionsScreen() {
                                         <View style={[styles.dueBadge, styles.overdueBadge, styles.badgeRow]}>
                                             <Icon name="alert-triangle" size={10} color={Colors.expense} />
                                             <Text style={styles.overdueBadgeText}>
-                                                {Math.ceil((Date.now() - new Date(tx.dueDate + 'T00:00:00').getTime()) / 86400000)} days overdue
+                                                {/* Math.floor, not ceil -- every other "days overdue"
+                                                    calculation in the app (overdueTransactions.ts,
+                                                    alertEngine.ts, Header.tsx) uses floor against the due
+                                                    date's local midnight, which already gives the correct
+                                                    whole-calendar-days-elapsed count without needing "now"
+                                                    normalized too. ceil overcounted by a day for most of each
+                                                    day -- an invoice due exactly 1 calendar day ago showed
+                                                    "2 days overdue" any time after midnight. */}
+                                                {Math.floor((Date.now() - new Date(tx.dueDate + 'T00:00:00').getTime()) / 86400000)} days overdue
                                             </Text>
                                         </View>
                                     ) : tx.dueDate ? (
