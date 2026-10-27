@@ -928,135 +928,148 @@ export default function SettingsScreen() {
                         </TouchableOpacity>
                     </CollapsibleSection>
 
-                    {/* Payment Gateways */}
-                    <CollapsibleSection title="Payment Gateways" icon="credit-card" defaultOpen={false}>
+                    {/* Integrations -- umbrella for the five third-party/
+                        external connections (payment gateways, accounting
+                        software, bank, currency tracking, WhatsApp), grouped
+                        together so Settings doesn't read as 15 top-level
+                        sections of equal weight -- these are all things most
+                        pilot users never touch, versus the core settings
+                        (Business Profile, Security) above. */}
+                    <CollapsibleSection title="Integrations" icon="link" defaultOpen={false}>
                         <Text style={styles.hint}>
-                            Connect your own Paystack, Korapay, or Flutterwave account below so customer payments land directly in YOUR account, under YOUR business name -- not a shared Quad360 account. Then tap "Create Payment Link" to charge customers by card, bank transfer, or USSD.
+                            Connect the external accounts and tools Quad360 can pull data from or send payments through.
                         </Text>
 
-                        <ProviderKeyField provider="paystack" label="Paystack" hintUrl="dashboard.paystack.com → Settings → API Keys"
-                            placeholder="sk_live_xxxxxxxxxxxxxxxxxx" canManage={canManagePaymentSettings(userRole)}
-                            onConnectionChange={connected => setConnectedProviders(p => ({ ...p, paystack: connected }))} />
-
-                        <ProviderKeyField provider="korapay" label="Korapay" hintUrl="merchant.korapay.com → Settings → API Keys"
-                            placeholder="sk_live_xxxxxxxxxxxxxxxxxx" canManage={canManagePaymentSettings(userRole)}
-                            onConnectionChange={connected => setConnectedProviders(p => ({ ...p, korapay: connected }))} />
-
-                        <ProviderKeyField provider="flutterwave" label="Flutterwave" hintUrl="dashboard.flutterwave.com → Settings → API Keys"
-                            placeholder="FLWSECK_TEST-xxxxxxxxxxxxxxxxxx-X" canManage={canManagePaymentSettings(userRole)}
-                            onConnectionChange={connected => setConnectedProviders(p => ({ ...p, flutterwave: connected }))} />
-
-                        <TouchableOpacity
-                            style={[styles.dataBtn, { marginTop: 8 }]}
-                            onPress={() => {
-                                const anyConnected = connectedProviders.paystack || connectedProviders.korapay || connectedProviders.flutterwave;
-                                if (!anyConnected) {
-                                    showAlert('No account connected', 'Connect your Paystack, Korapay, or Flutterwave account above first.');
-                                    return;
-                                }
-                                setCurrentScreen('payment-link');
-                            }}
-                        >
-                            <View style={styles.btnIconRow}>
-                                <Icon name="credit-card" size={14} color={Colors.primary} />
-                                <Text style={styles.dataBtnText}>Create Payment Link →</Text>
-                            </View>
-                        </TouchableOpacity>
-                    </CollapsibleSection>
-
-                    {/* Accounting Systems -- Quad360 as an intelligence layer
-                        on top of the accounting system a business's
-                        accountant already uses, rather than a replacement
-                        for it. Read-only: transactions are pulled in for
-                        Quad360's own forecasting/DSCR/CFO tools, nothing is
-                        ever written back to QuickBooks or Xero. See
-                        accountingSync.ts. */}
-                    <CollapsibleSection title="Accounting Systems" icon="link-2" defaultOpen={false}>
-                        <Text style={styles.hint}>
-                            Already keep your books in QuickBooks or Xero? Connect it here so Quad360 can read those transactions for forecasting, credit-worthiness, and the other tools on this app -- nothing is ever written back to your books.
-                        </Text>
-
-                        <AccountingProviderField provider="quickbooks" label="QuickBooks Online" canManage={canManagePaymentSettings(userRole)}
-                            transactions={transactions} addTransaction={addTransaction} updateTransaction={updateTransaction} />
-
-                        <AccountingProviderField provider="xero" label="Xero" canManage={canManagePaymentSettings(userRole)}
-                            transactions={transactions} addTransaction={addTransaction} updateTransaction={updateTransaction} />
-                    </CollapsibleSection>
-
-                    {/* Bank & Mobile Money */}
-                    <CollapsibleSection title="Bank & Mobile Money" icon="folder" defaultOpen={false}>
-                        <Text style={styles.hint}>
-                            Connect your bank directly for verified, always-current transactions -- or upload a statement file / scan a photo instead.
-                        </Text>
-
-                        <MonoConnectionField canManage={canManagePaymentSettings(userRole)} businessName={settings.businessName}
-                            industry={settings.industry} transactions={transactions} addTransaction={addTransaction} updateTransaction={updateTransaction} />
-
-                        <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('import-transactions')}>
-                            <View style={styles.btnIconRow}>
-                                <Icon name="folder" size={14} color={Colors.primary} />
-                                <Text style={styles.dataBtnText}>Import Bank Statement or Scan a Photo →</Text>
-                            </View>
-                        </TouchableOpacity>
-                    </CollapsibleSection>
-
-                    {/* Currency Accounts -- "what do I hold, across
-                        currencies," a standalone owner-maintained tracker.
-                        Deliberately not wired into cashBalance/runway/DSCR/
-                        forecasts -- see CurrencyAccount (types/index.ts). */}
-                    <CollapsibleSection title="Currency Accounts" icon="globe" defaultOpen={false}>
-                        <Text style={styles.hint}>
-                            Hold money in a currency other than {settings.currency}? Track it here -- a USD account, a GBP escrow -- converted for reference only. Your reports and cash figures stay in {settings.currency}.
-                        </Text>
-                        {currencyAccounts.length > 0 && (
+                        {/* Payment Gateways */}
+                        <CollapsibleSection title="Payment Gateways" icon="credit-card" defaultOpen={false}>
                             <Text style={styles.hint}>
-                                {currencyAccounts.length} account{currencyAccounts.length === 1 ? '' : 's'} tracked -- {settings.currency}{computeCurrencyAccountsTotal(currencyAccounts).toLocaleString()} combined
+                                Connect your own Paystack, Korapay, or Flutterwave account below so customer payments land directly in YOUR account, under YOUR business name -- not a shared Quad360 account. Then tap "Create Payment Link" to charge customers by card, bank transfer, or USSD.
                             </Text>
-                        )}
-                        <TouchableOpacity style={styles.dataBtn} onPress={() => setShowCurrencyAccounts(true)}>
-                            <View style={styles.btnIconRow}>
-                                <Icon name="globe" size={14} color={Colors.primary} />
-                                <Text style={styles.dataBtnText}>Manage Currency Accounts →</Text>
-                            </View>
-                        </TouchableOpacity>
-                    </CollapsibleSection>
 
-                    {/* WhatsApp -- log a sale/expense by text instead of opening
-                        the app, plus a daily cash-position message. See
-                        whatsappTransactions.ts / whatsapp-webhook/index.ts.
-                        WHATSAPP_BOT_NUMBER is still blank (no Twilio WhatsApp
-                        sender provisioned yet), same "built, not live yet"
-                        state the Bank Aggregator connect flow above was in --
-                        the card stays visible rather than hidden, matching how
-                        every other not-yet-deployed integration in this app
-                        (AI Advisor, AI categorization) shipped its full UI
-                        ahead of the backend going live. */}
-                    <CollapsibleSection title="WhatsApp" icon="message-circle" defaultOpen={false}>
-                        <Text style={styles.hint}>
-                            Log a sale or expense by texting it -- no need to open the app. You'll also get a daily message with yesterday's numbers and your cash position.
-                        </Text>
-                        {whatsappStatus.linked ? (
-                            <View style={styles.dataSafetyCard}>
+                            <ProviderKeyField provider="paystack" label="Paystack" hintUrl="dashboard.paystack.com → Settings → API Keys"
+                                placeholder="sk_live_xxxxxxxxxxxxxxxxxx" canManage={canManagePaymentSettings(userRole)}
+                                onConnectionChange={connected => setConnectedProviders(p => ({ ...p, paystack: connected }))} />
+
+                            <ProviderKeyField provider="korapay" label="Korapay" hintUrl="merchant.korapay.com → Settings → API Keys"
+                                placeholder="sk_live_xxxxxxxxxxxxxxxxxx" canManage={canManagePaymentSettings(userRole)}
+                                onConnectionChange={connected => setConnectedProviders(p => ({ ...p, korapay: connected }))} />
+
+                            <ProviderKeyField provider="flutterwave" label="Flutterwave" hintUrl="dashboard.flutterwave.com → Settings → API Keys"
+                                placeholder="FLWSECK_TEST-xxxxxxxxxxxxxxxxxx-X" canManage={canManagePaymentSettings(userRole)}
+                                onConnectionChange={connected => setConnectedProviders(p => ({ ...p, flutterwave: connected }))} />
+
+                            <TouchableOpacity
+                                style={[styles.dataBtn, { marginTop: 8 }]}
+                                onPress={() => {
+                                    const anyConnected = connectedProviders.paystack || connectedProviders.korapay || connectedProviders.flutterwave;
+                                    if (!anyConnected) {
+                                        showAlert('No account connected', 'Connect your Paystack, Korapay, or Flutterwave account above first.');
+                                        return;
+                                    }
+                                    setCurrentScreen('payment-link');
+                                }}
+                            >
                                 <View style={styles.btnIconRow}>
-                                    <Icon name="check-circle" size={14} color={Colors.textPrimary} />
-                                    <Text style={styles.dataSafetyTitle}>Connected</Text>
-                                </View>
-                                <Text style={styles.dataSafetyBody}>{whatsappStatus.whatsappNumber}</Text>
-                                <TouchableOpacity style={[styles.dataBtn, { marginTop: 8 }]} onPress={handleDisconnectWhatsApp}>
-                                    <Text style={styles.dataBtnText}>Disconnect</Text>
-                                </TouchableOpacity>
-                            </View>
-                        ) : (
-                            <TouchableOpacity style={styles.dataBtn} onPress={handleConnectWhatsApp} disabled={whatsappConnecting}>
-                                <View style={styles.btnIconRow}>
-                                    <Icon name="message-circle" size={14} color={Colors.primary} />
-                                    <Text style={styles.dataBtnText}>{whatsappConnecting ? 'Opening WhatsApp…' : 'Connect WhatsApp →'}</Text>
+                                    <Icon name="credit-card" size={14} color={Colors.primary} />
+                                    <Text style={styles.dataBtnText}>Create Payment Link →</Text>
                                 </View>
                             </TouchableOpacity>
-                        )}
-                        {!WHATSAPP_BOT_NUMBER && (
-                            <Text style={styles.hint}>Not live yet -- check back soon.</Text>
-                        )}
+                        </CollapsibleSection>
+
+                        {/* Accounting Systems -- Quad360 as an intelligence layer
+                            on top of the accounting system a business's
+                            accountant already uses, rather than a replacement
+                            for it. Read-only: transactions are pulled in for
+                            Quad360's own forecasting/DSCR/CFO tools, nothing is
+                            ever written back to QuickBooks or Xero. See
+                            accountingSync.ts. */}
+                        <CollapsibleSection title="Accounting Systems" icon="link-2" defaultOpen={false}>
+                            <Text style={styles.hint}>
+                                Already keep your books in QuickBooks or Xero? Connect it here so Quad360 can read those transactions for forecasting, credit-worthiness, and the other tools on this app -- nothing is ever written back to your books.
+                            </Text>
+
+                            <AccountingProviderField provider="quickbooks" label="QuickBooks Online" canManage={canManagePaymentSettings(userRole)}
+                                transactions={transactions} addTransaction={addTransaction} updateTransaction={updateTransaction} />
+
+                            <AccountingProviderField provider="xero" label="Xero" canManage={canManagePaymentSettings(userRole)}
+                                transactions={transactions} addTransaction={addTransaction} updateTransaction={updateTransaction} />
+                        </CollapsibleSection>
+
+                        {/* Bank & Mobile Money */}
+                        <CollapsibleSection title="Bank & Mobile Money" icon="folder" defaultOpen={false}>
+                            <Text style={styles.hint}>
+                                Connect your bank directly for verified, always-current transactions -- or upload a statement file / scan a photo instead.
+                            </Text>
+
+                            <MonoConnectionField canManage={canManagePaymentSettings(userRole)} businessName={settings.businessName}
+                                industry={settings.industry} transactions={transactions} addTransaction={addTransaction} updateTransaction={updateTransaction} />
+
+                            <TouchableOpacity style={styles.dataBtn} onPress={() => setCurrentScreen('import-transactions')}>
+                                <View style={styles.btnIconRow}>
+                                    <Icon name="folder" size={14} color={Colors.primary} />
+                                    <Text style={styles.dataBtnText}>Import Bank Statement or Scan a Photo →</Text>
+                                </View>
+                            </TouchableOpacity>
+                        </CollapsibleSection>
+
+                        {/* Currency Accounts -- "what do I hold, across
+                            currencies," a standalone owner-maintained tracker.
+                            Deliberately not wired into cashBalance/runway/DSCR/
+                            forecasts -- see CurrencyAccount (types/index.ts). */}
+                        <CollapsibleSection title="Currency Accounts" icon="globe" defaultOpen={false}>
+                            <Text style={styles.hint}>
+                                Hold money in a currency other than {settings.currency}? Track it here -- a USD account, a GBP escrow -- converted for reference only. Your reports and cash figures stay in {settings.currency}.
+                            </Text>
+                            {currencyAccounts.length > 0 && (
+                                <Text style={styles.hint}>
+                                    {currencyAccounts.length} account{currencyAccounts.length === 1 ? '' : 's'} tracked -- {settings.currency}{computeCurrencyAccountsTotal(currencyAccounts).toLocaleString()} combined
+                                </Text>
+                            )}
+                            <TouchableOpacity style={styles.dataBtn} onPress={() => setShowCurrencyAccounts(true)}>
+                                <View style={styles.btnIconRow}>
+                                    <Icon name="globe" size={14} color={Colors.primary} />
+                                    <Text style={styles.dataBtnText}>Manage Currency Accounts →</Text>
+                                </View>
+                            </TouchableOpacity>
+                        </CollapsibleSection>
+
+                        {/* WhatsApp -- log a sale/expense by text instead of opening
+                            the app, plus a daily cash-position message. See
+                            whatsappTransactions.ts / whatsapp-webhook/index.ts.
+                            WHATSAPP_BOT_NUMBER is still blank (no Twilio WhatsApp
+                            sender provisioned yet), same "built, not live yet"
+                            state the Bank Aggregator connect flow above was in --
+                            the card stays visible rather than hidden, matching how
+                            every other not-yet-deployed integration in this app
+                            (AI Advisor, AI categorization) shipped its full UI
+                            ahead of the backend going live. */}
+                        <CollapsibleSection title="WhatsApp" icon="message-circle" defaultOpen={false}>
+                            <Text style={styles.hint}>
+                                Log a sale or expense by texting it -- no need to open the app. You'll also get a daily message with yesterday's numbers and your cash position.
+                            </Text>
+                            {whatsappStatus.linked ? (
+                                <View style={styles.dataSafetyCard}>
+                                    <View style={styles.btnIconRow}>
+                                        <Icon name="check-circle" size={14} color={Colors.textPrimary} />
+                                        <Text style={styles.dataSafetyTitle}>Connected</Text>
+                                    </View>
+                                    <Text style={styles.dataSafetyBody}>{whatsappStatus.whatsappNumber}</Text>
+                                    <TouchableOpacity style={[styles.dataBtn, { marginTop: 8 }]} onPress={handleDisconnectWhatsApp}>
+                                        <Text style={styles.dataBtnText}>Disconnect</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                <TouchableOpacity style={styles.dataBtn} onPress={handleConnectWhatsApp} disabled={whatsappConnecting}>
+                                    <View style={styles.btnIconRow}>
+                                        <Icon name="message-circle" size={14} color={Colors.primary} />
+                                        <Text style={styles.dataBtnText}>{whatsappConnecting ? 'Opening WhatsApp…' : 'Connect WhatsApp →'}</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            )}
+                            {!WHATSAPP_BOT_NUMBER && (
+                                <Text style={styles.hint}>Not live yet -- check back soon.</Text>
+                            )}
+                        </CollapsibleSection>
                     </CollapsibleSection>
 
                     {/* ANALYTICS */}
