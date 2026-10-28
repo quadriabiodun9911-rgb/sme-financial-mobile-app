@@ -58,7 +58,7 @@ export default function TaxSummary({ periodTransactions, allTransactions, curren
         periodTransactions.filter(t => t.type === 'expense' && (t.taxAmount ?? 0) > 0).reduce((s, t) => s + (t.amount ?? 0), 0)
     ), [periodTransactions]);
 
-    const { totalTaxCollected, totalTaxPaid, netTaxPosition } = useMemo(
+    const { totalTaxCollected, totalTaxPaid, netTaxPosition, exemptSalesTotal, zeroRatedSalesTotal } = useMemo(
         () => computeTaxTotals(periodTransactions),
         [periodTransactions]
     );
@@ -70,7 +70,7 @@ export default function TaxSummary({ periodTransactions, allTransactions, curren
         try {
             const exportData = buildTaxSummaryExport(
                 periodLabel,
-                { totalTaxCollected, totalTaxPaid, netTaxPosition },
+                { totalTaxCollected, totalTaxPaid, netTaxPosition, exemptSalesTotal, zeroRatedSalesTotal },
                 taxByCategory,
                 periodTransactions,
                 currency,
@@ -153,6 +153,31 @@ export default function TaxSummary({ periodTransactions, allTransactions, curren
                 </View>
             </TouchableOpacity>
 
+            {/* Zero-rated/exempt breakdown -- only shown once the owner has
+                actually marked a 0%-tax sale one way or the other, since
+                most businesses never need this distinction. Kept separate
+                from Net Tax Position rather than netted into it: an exempt
+                sale's related input VAT may not be reclaimable, and this
+                app doesn't attempt that apportionment, so it's surfaced as
+                a flag for the owner/accountant instead of a number that
+                might silently be wrong. */}
+            {(exemptSalesTotal > 0 || zeroRatedSalesTotal > 0) && (
+                <View style={styles.card}>
+                    <Text style={styles.cardTitle}>Zero-Rated & Exempt Sales</Text>
+                    {zeroRatedSalesTotal > 0 && (
+                        <MetricRow label="Zero-Rated Sales" value={`${currency}${zeroRatedSalesTotal.toLocaleString()}`} />
+                    )}
+                    {exemptSalesTotal > 0 && (
+                        <MetricRow label="Exempt Sales" value={`${currency}${exemptSalesTotal.toLocaleString()}`} />
+                    )}
+                    {exemptSalesTotal > 0 && (
+                        <Text style={styles.exemptNote}>
+                            Input tax on purchases tied to exempt sales may not be reclaimable -- confirm with your accountant before treating it as part of Net Tax Position above.
+                        </Text>
+                    )}
+                </View>
+            )}
+
             {/* By Category */}
             {taxByCategory.length > 0 && (
                 <View style={styles.card}>
@@ -214,6 +239,7 @@ const styles = StyleSheet.create({
     emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
     disclaimerCard: { backgroundColor: 'rgba(245,158,11,0.08)', borderRadius: 10, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', ...Shadow.sm },
     disclaimerText: { fontSize: 11, color: Colors.warning, lineHeight: 18 },
+    exemptNote: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, marginTop: 8, fontStyle: 'italic' },
     featureCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: Colors.primary + '40' },
     featureIcon: { fontSize: 28 },
     featureContent: { flex: 1 },

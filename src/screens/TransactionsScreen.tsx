@@ -31,6 +31,7 @@ import { convertToBaseCurrency, FOREIGN_CURRENCY_CODES } from '../utils/foreignC
 import { categorizeTransactionAI, AICategorizationResult } from '../utils/aiCategorization';
 import { computeExpenseIntelligence, ExpenseTier } from '../utils/expenseIntelligence';
 import { filterNewTransactions } from '../utils/transactionDedup';
+import { splitTaxInclusive } from '../utils/vatCalculator';
 
 type FilterType   = 'all' | 'income' | 'expense' | 'collect';
 type StatusFilter = 'all' | 'paid' | 'pending' | 'overdue';
@@ -58,6 +59,14 @@ type FormState = {
     vendorCustomer: string;
     phone: string;
     taxRate: string;
+    // When on, `amount` below is treated as the tax-inclusive total (what
+    // the customer actually paid/was charged) and split into the stored
+    // exclusive amount + tax on save, instead of amount always meaning the
+    // pre-tax figure. Never persisted on the transaction itself -- it's an
+    // entry-time convenience, not a property of the saved record.
+    vatInclusive: boolean;
+    // Only meaningful when taxRate is 0 -- see Transaction.vatCategory.
+    vatCategory: '' | 'zero-rated' | 'exempt';
     status: TransactionStatus;
     dueDate: string;
     date: string;
@@ -118,6 +127,8 @@ const EMPTY_FORM: FormState = {
     vendorCustomer: '',
     phone: '',
     taxRate: '',
+    vatInclusive: false,
+    vatCategory: '',
     status: 'paid',
     dueDate: '',
     date: todayStr(),
@@ -141,6 +152,11 @@ function formFromTx(tx: Transaction): FormState {
         vendorCustomer:     name,
         phone:              phone,
         taxRate:            tx.taxRate != null ? String(tx.taxRate) : '',
+        // Always resets to exclusive-entry mode on edit -- what's stored is
+        // always the exclusive amount, so there's nothing to "re-derive"
+        // an inclusive total from; the toggle only matters at entry time.
+        vatInclusive:       false,
+        vatCategory:        tx.vatCategory ?? '',
         status:             tx.status ?? 'paid',
         dueDate:            tx.dueDate ?? '',
         date:               tx.date,
@@ -449,6 +465,18 @@ export default function TransactionsScreen() {
         // real user. Same formula as taxPreview above.
         const taxRateNum = form.taxRate ? parseFloat(form.taxRate) : undefined;
 
+        // When the owner entered a tax-inclusive total, split it into the
+        // exclusive amount actually stored and the tax portion -- `amount`
+        // on a saved transaction is always the pre-tax figure everywhere
+        // else in this app (P&L, cash flow, etc.), so this conversion has
+        // to happen here, once, rather than leaving every downstream
+        // consumer to guess which kind of amount it's looking at.
+        const vatSplit = form.vatInclusive && taxRateNum
+            ? splitTaxInclusive(amt, taxRateNum)
+            : null;
+        const storedAmount = vatSplit ? vatSplit.exclusive : amt;
+        const storedTaxAmount = vatSplit ? vatSplit.taxAmount : (taxRateNum ? amt * (taxRateNum / 100) : undefined);
+
         // Only persist the foreign-currency fields when the toggle is on
         // AND both numbers actually parse -- a half-filled foreign-currency
         // section (e.g. code picked but amount left blank) must not record
@@ -461,13 +489,16 @@ export default function TransactionsScreen() {
 
         const payload = {
             description:        form.description.trim(),
-            amount:             amt,
+            amount:             storedAmount,
             type:               form.type,
             category:           form.customCategory.trim() || form.category || 'Other',
             reference:          form.reference || undefined,
             vendorCustomer:     joinVendorCustomer(form.vendorCustomer, form.phone) || undefined,
             taxRate:            taxRateNum,
-            taxAmount:          taxRateNum ? amt * (taxRateNum / 100) : undefined,
+            taxAmount:          storedTaxAmount,
+            // Only meaningful at 0% -- clears itself if the owner sets a
+            // non-zero rate without having to remember to reset the picker.
+            vatCategory:        taxRateNum === 0 && form.vatCategory ? form.vatCategory : undefined,
             status:             form.status,
             dueDate:            form.dueDate || undefined,
             date:               form.date || todayStr(),
@@ -566,9 +597,15 @@ export default function TransactionsScreen() {
     const showTierExplanation = (tier: ExpenseTier, reason: string) =>
         showAlert(TIER_META[tier].label, reason);
 
-    const taxPreview = form.amount && form.taxRate
-        ? (parseFloat(form.amount || '0') * (parseFloat(form.taxRate) / 100)).toFixed(2)
+    // Same split used on save (splitTaxInclusive) so the live preview and
+    // the saved record can never disagree about the math.
+    const taxSplitPreview = form.amount && form.taxRate
+        ? (form.vatInclusive
+            ? splitTaxInclusive(parseFloat(form.amount || '0'), parseFloat(form.taxRate))
+            : { exclusive: parseFloat(form.amount || '0'), taxAmount: parseFloat(form.amount || '0') * (parseFloat(form.taxRate) / 100) })
         : null;
+    const taxPreview = taxSplitPreview ? taxSplitPreview.taxAmount.toFixed(2) : null;
+    const showVatCategoryPicker = form.taxRate !== '' && parseFloat(form.taxRate) === 0;
 
     return (
         <SafeAreaView style={styles.safe}>
@@ -1262,10 +1299,56 @@ export default function TransactionsScreen() {
                                     />
                                     {taxPreview && (
                                         <Text style={styles.taxPreview}>
-                                            = {currency}{taxPreview} tax on {currency}{form.amount}
+                                            {form.vatInclusive && taxSplitPreview
+                                                ? `${currency}${form.amount} includes ${currency}${taxPreview} tax — ${currency}${taxSplitPreview.exclusive.toFixed(2)} before tax`
+                                                : `= ${currency}${taxPreview} tax on ${currency}${form.amount}`}
                                         </Text>
                                     )}
                                 </Field>
+
+                                {/* The amount field above is always typed as
+                                    a pre-tax figure by default -- an owner
+                                    quoting from a receipt or a customer's
+                                    total naturally has the inclusive number
+                                    instead, so this lets them enter that
+                                    directly rather than doing the division
+                                    themselves. */}
+                                <View style={styles.recurringRow}>
+                                    <Text style={styles.recurringLabel}>Amount entered includes tax</Text>
+                                    <TouchableOpacity
+                                        style={[styles.toggleBtn, form.vatInclusive && styles.toggleBtnOn]}
+                                        onPress={() => setForm(f => ({ ...f, vatInclusive: !f.vatInclusive }))}
+                                    >
+                                        <Text style={[styles.toggleBtnText, form.vatInclusive && styles.toggleBtnTextOn]}>{form.vatInclusive ? t(language, 'onLabel') : t(language, 'offLabel')}</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {/* Only relevant at 0% tax -- zero-rated and
+                                    exempt both show as "no tax added" to a
+                                    customer, but a zero-rated sale still
+                                    lets the business reclaim input tax on
+                                    related purchases, an exempt one doesn't. */}
+                                {showVatCategoryPicker && (
+                                    <Field label="Zero-rated or exempt?">
+                                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                                            <TouchableOpacity
+                                                style={[styles.toggleBtn, { flex: 1 }, form.vatCategory === 'zero-rated' && styles.toggleBtnOn]}
+                                                onPress={() => setForm(f => ({ ...f, vatCategory: f.vatCategory === 'zero-rated' ? '' : 'zero-rated' }))}
+                                            >
+                                                <Text style={[styles.toggleBtnText, form.vatCategory === 'zero-rated' && styles.toggleBtnTextOn]}>Zero-rated</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={[styles.toggleBtn, { flex: 1 }, form.vatCategory === 'exempt' && styles.toggleBtnOn]}
+                                                onPress={() => setForm(f => ({ ...f, vatCategory: f.vatCategory === 'exempt' ? '' : 'exempt' }))}
+                                            >
+                                                <Text style={[styles.toggleBtnText, form.vatCategory === 'exempt' && styles.toggleBtnTextOn]}>Exempt</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                        <Text style={styles.taxPreview}>
+                                            Zero-rated: tax on related purchases can usually still be reclaimed. Exempt: it usually can't. Leave unselected if unsure.
+                                        </Text>
+                                    </Field>
+                                )}
                             </Section>
 
                             {/* ── Optional details ──────────────────────── */}

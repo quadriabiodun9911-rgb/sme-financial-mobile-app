@@ -217,6 +217,12 @@ export interface Transaction {
     vendorCustomer?: string;
     taxRate?: number;
     taxAmount?: number;
+    // Only meaningful when taxRate is 0 -- zero-rated and exempt both show
+    // as "no tax added" to a customer, but they're not the same thing: a
+    // zero-rated sale still lets the business reclaim input VAT on related
+    // purchases, an exempt one doesn't. Left undefined when taxRate isn't 0
+    // (the distinction doesn't apply) or the owner hasn't specified it.
+    vatCategory?: 'zero-rated' | 'exempt';
     status?: TransactionStatus;
     dueDate?: string;
     isRecurring?: boolean;

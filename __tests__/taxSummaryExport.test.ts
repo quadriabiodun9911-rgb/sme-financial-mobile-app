@@ -9,7 +9,7 @@ function tx(overrides: Partial<Transaction>): Transaction {
 }
 
 describe('buildTaxSummaryExport', () => {
-    const totals = { totalTaxCollected: 75000, totalTaxPaid: 22500, netTaxPosition: 52500 };
+    const totals = { totalTaxCollected: 75000, totalTaxPaid: 22500, netTaxPosition: 52500, exemptSalesTotal: 0, zeroRatedSalesTotal: 0 };
     const taxByCategory = [{ label: 'Sales (income)', amount: 75000 }, { label: 'Supplies (expense)', amount: 22500 }];
     const periodTransactions = [
         tx({ id: 't1', date: '2026-08-05', description: 'Client invoice', type: 'income', amount: 1000000, taxRate: 7.5, taxAmount: 75000 }),
@@ -49,7 +49,7 @@ describe('buildTaxSummaryExport', () => {
     });
 
     it('shows a plain "no taxed transactions" line instead of an empty section when nothing is taxed', () => {
-        const r = buildTaxSummaryExport('period', { totalTaxCollected: 0, totalTaxPaid: 0, netTaxPosition: 0 }, [], [tx({ taxAmount: undefined })], '₦');
+        const r = buildTaxSummaryExport('period', { totalTaxCollected: 0, totalTaxPaid: 0, netTaxPosition: 0, exemptSalesTotal: 0, zeroRatedSalesTotal: 0 }, [], [tx({ taxAmount: undefined })], '₦');
         const section = r.sections.find(s => s.name === 'Taxed Transactions');
         expect(section?.data).toHaveLength(1);
         expect(section?.data[0].label).toContain('No transactions');
