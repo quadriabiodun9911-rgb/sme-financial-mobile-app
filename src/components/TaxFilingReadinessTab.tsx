@@ -52,6 +52,20 @@ export default function TaxFilingReadinessTab() {
                 <Text style={s.deadlineEdit}>{settings.nextTaxDeadline ? 'Edit in Settings' : 'Set it in Settings →'}</Text>
             </TouchableOpacity>
 
+            {/* NGN only -- Nigeria's VAT Act exempts small businesses below
+                a turnover threshold from VAT registration, filing and
+                payment entirely. Advisory only: this never tells an owner
+                they definitely don't need to file, only that it's worth
+                confirming, and says so explicitly. */}
+            {readiness.vatExemption?.likelyExempt && (
+                <View style={s.vatExemptCard}>
+                    <Text style={s.vatExemptTitle}>You may be exempt from VAT filing</Text>
+                    <Text style={s.vatExemptText}>
+                        Your trailing 12-month revenue is around ₦{Math.round(readiness.vatExemption.trailing12moRevenue).toLocaleString()}, below the ₦{readiness.vatExemption.thresholdNgn.toLocaleString()} small-business VAT threshold. You may not be required to register for or file VAT. Confirm your exact status with the Nigeria Revenue Service or your accountant -- this threshold can change with tax law.
+                    </Text>
+                </View>
+            )}
+
             <View style={[s.summaryCard, { borderColor: readiness.overallReady ? Colors.income : Colors.warning }]}>
                 <Text style={[s.summaryScore, { color: readiness.overallReady ? Colors.income : Colors.warning }]}>
                     {readiness.passedCount} / {readiness.totalChecks}
@@ -123,6 +137,16 @@ const s = StyleSheet.create({
     deadlineValue: { fontSize: 30, fontWeight: '900', marginBottom: 2 },
     deadlineDate: { fontSize: 12, color: Colors.textMuted, marginBottom: 8 },
     deadlineEdit: { fontSize: 12, color: Colors.primary, fontWeight: '600' },
+    vatExemptCard: {
+        backgroundColor: 'rgba(16,185,129,0.08)',
+        borderRadius: 10,
+        padding: 14,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(16,185,129,0.3)',
+    },
+    vatExemptTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
+    vatExemptText: { fontSize: 12, color: Colors.textMuted, lineHeight: 17 },
     summaryCard: {
         backgroundColor: Colors.surface,
         borderRadius: 12,

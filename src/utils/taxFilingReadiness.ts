@@ -1,6 +1,7 @@
 import { Transaction, Invoice, BusinessSettings, FinanceData } from '../types';
 import { computeDataQuality } from './dataQuality';
 import { daysUntilTaxDeadline } from './taxDeadline';
+import { computeVatExemptionStatus, VatExemptionStatus } from './vatCalculator';
 
 export interface ReadinessCheck {
     id: string;
@@ -17,6 +18,10 @@ export interface TaxFilingReadiness {
     countryCode: string;
     hasCertifiedFilingPartner: boolean; // always false today — see note in TaxFilingReadinessScreen
     daysUntilDeadline: number | null; // null when no deadline is set; negative means overdue
+    // Only set for NGN businesses -- the threshold is Nigeria-specific, so
+    // this stays undefined everywhere else rather than showing a Naira
+    // figure to a business in another currency.
+    vatExemption?: VatExemptionStatus;
 }
 
 /**
@@ -64,21 +69,30 @@ export function computeTaxFilingReadiness(
     // biggest driver of SME tax problems: 55% filed late in the past 3
     // years, 40% missed up to 4 deadlines. A clean-books checklist alone
     // never surfaces "you have 4 days left" — this does.
+    const isNigeria = (settings.currencyCode || '').toUpperCase() === 'NGN';
+
     let daysUntilDeadline: number | null = null;
     if (settings.nextTaxDeadline) {
         daysUntilDeadline = daysUntilTaxDeadline(settings.nextTaxDeadline, referenceDate);
     }
+    // NRS's own published penalty for late VAT filing (form VAT 002): ₦100,000
+    // the first month, ₦50,000 each month after, separate from any late-
+    // payment interest. Only shown for NGN businesses -- a Naira figure
+    // means nothing to anyone filing elsewhere.
+    const deadlinePassed = daysUntilDeadline !== null && daysUntilDeadline > 14;
+    const ngnLatePenaltyNote = ' Late VAT filing can incur a ₦100,000 penalty the first month, plus ₦50,000 each month after.';
     checks.push({
         id: 'deadline',
         label: 'Next tax filing deadline is tracked and not imminent',
-        passed: daysUntilDeadline !== null && daysUntilDeadline > 14,
-        detail: daysUntilDeadline === null
+        passed: deadlinePassed,
+        detail: (daysUntilDeadline === null
             ? 'No deadline set in Settings — add your next VAT/Corporation Tax due date.'
             : daysUntilDeadline < 0
                 ? `OVERDUE by ${Math.abs(daysUntilDeadline)} day${Math.abs(daysUntilDeadline) === 1 ? '' : 's'} — file as soon as possible to limit penalties.`
                 : daysUntilDeadline === 0
                     ? 'Due today.'
-                    : `${daysUntilDeadline} day${daysUntilDeadline === 1 ? '' : 's'} left`,
+                    : `${daysUntilDeadline} day${daysUntilDeadline === 1 ? '' : 's'} left`)
+            + (!deadlinePassed && daysUntilDeadline !== null && isNigeria ? ngnLatePenaltyNote : ''),
     });
 
     // Ability to pay — the study found Time to Pay scheme usage jumped
@@ -172,5 +186,6 @@ export function computeTaxFilingReadiness(
         countryCode: settings.currencyCode || 'unknown',
         hasCertifiedFilingPartner: false,
         daysUntilDeadline,
+        vatExemption: isNigeria ? computeVatExemptionStatus(transactions, referenceDate) : undefined,
     };
 }

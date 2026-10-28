@@ -612,6 +612,14 @@ export interface TaxTotals {
     totalTaxCollected: number;
     totalTaxPaid: number;
     netTaxPosition: number;
+    // Sales marked zero-rated or exempt at entry (see Transaction.vatCategory).
+    // Kept separate from totalTaxCollected/totalTaxPaid rather than folded
+    // into netTaxPosition -- an exempt sale's related input VAT may not be
+    // reclaimable, and this codebase doesn't attempt that apportionment, so
+    // these are surfaced as a flag for the owner/accountant to look at
+    // rather than silently baked into a number that might be wrong.
+    exemptSalesTotal: number;
+    zeroRatedSalesTotal: number;
 }
 
 // Extracted so any screen showing tax collected/paid can scope it to
@@ -627,7 +635,18 @@ export function computeTaxTotals(transactions: Transaction[]): TaxTotals {
         .filter(t => t.type === 'expense')
         .reduce((sum, t) => sum + (t.taxAmount ?? 0), 0);
 
-    return { totalTaxCollected, totalTaxPaid, netTaxPosition: totalTaxCollected - totalTaxPaid };
+    const exemptSalesTotal = transactions
+        .filter(t => t.type === 'income' && t.vatCategory === 'exempt')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const zeroRatedSalesTotal = transactions
+        .filter(t => t.type === 'income' && t.vatCategory === 'zero-rated')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    return {
+        totalTaxCollected, totalTaxPaid, netTaxPosition: totalTaxCollected - totalTaxPaid,
+        exemptSalesTotal, zeroRatedSalesTotal,
+    };
 }
 
 export function computeFinance(

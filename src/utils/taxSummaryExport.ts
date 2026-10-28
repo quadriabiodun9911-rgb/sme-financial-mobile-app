@@ -49,6 +49,11 @@ export function buildTaxSummaryExport(
             { label: 'Tax Paid (on expenses)', value: fmt(totals.totalTaxPaid) },
             { label: 'Net Tax Position', value: `${totals.netTaxPosition >= 0 ? '+' : ''}${fmt(totals.netTaxPosition)}` },
             { label: 'Effective Tax Rate on Revenue', value: `${effectiveTaxRate.toFixed(2)}%` },
+            // Only shown when the owner has actually marked a transaction
+            // zero-rated/exempt -- most businesses never touch this
+            // distinction, so it stays out of the way until it's relevant.
+            ...(totals.zeroRatedSalesTotal > 0 ? [{ label: 'Zero-Rated Sales', value: fmt(totals.zeroRatedSalesTotal) }] : []),
+            ...(totals.exemptSalesTotal > 0 ? [{ label: 'Exempt Sales', value: fmt(totals.exemptSalesTotal) }] : []),
         ],
         sections: [
             ...(taxByCategory.length > 0 ? [{
