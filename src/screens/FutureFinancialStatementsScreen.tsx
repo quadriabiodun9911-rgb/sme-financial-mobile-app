@@ -295,8 +295,8 @@ export default function FutureFinancialStatementsScreen() {
         [transactions, invoices, finance, currency, loans, inventory, assets],
     );
     const actionPlan = useMemo(
-        () => generateActionPlan(diagnosis, diagnosis.metrics, currency),
-        [diagnosis, currency],
+        () => generateActionPlan(diagnosis, diagnosis.metrics, currency, [], undefined, transactions),
+        [diagnosis, currency, transactions],
     );
     const topActions = (actionPlan.immediateActions.length > 0 ? actionPlan.immediateActions : actionPlan.shortTermActions).slice(0, 3);
 

@@ -4,7 +4,8 @@
  */
 
 import { DiagnosisResult, FinancialMetrics } from './financialDiagnosisEngine';
-import { PrimaryGoal, Screen } from '../types';
+import { PrimaryGoal, Screen, Transaction } from '../types';
+import { computeWinbackList } from './customerWinback';
 
 export interface ActionTactic {
   id: string;
@@ -225,9 +226,46 @@ export function generateExpenseReductionActions(
 export function generateRevenueActions(
   diagnosis: DiagnosisResult,
   metrics: FinancialMetrics,
-  currency: string = '₦'
+  currency: string = '₦',
+  transactions: Transaction[] = []
 ): ActionTactic[] {
   const actions: ActionTactic[] = [];
+
+  // REVENUE TACTIC 0: Win back lapsed customers -- cheaper and faster than
+  // acquisition (see revenue-acquisition below), and unlike that one,
+  // Quad360 already has the tooling to actually do this: a named,
+  // phone-numbered list sorted by lifetime value, with a one-tap WhatsApp
+  // broadcast already built (GrowthIntelligenceScreen's Customers tab).
+  // Only fires when there's a real list to act on -- never a generic
+  // "go find lapsed customers" prompt with nothing behind it.
+  const winback = computeWinbackList(transactions);
+  if (winback.hasEnoughData && winback.customers.length > 0) {
+    const winbackValue = winback.customers.reduce((sum, c) => sum + c.totalRevenue, 0);
+    actions.push({
+      id: 'revenue-winback',
+      title: `Win Back ${winback.customers.length} Lapsed Customer${winback.customers.length === 1 ? '' : 's'}`,
+      description: `${winback.customers.length} customer${winback.customers.length === 1 ? '' : 's'} who've bought before (${currency}${winbackValue.toLocaleString()} lifetime) haven't ordered in 60+ days.`,
+      category: 'revenue',
+      priority: 7,
+      timeframe: 'week',
+      timelineWeeks: 1,
+      expectedImpact: winbackValue * 0.2, // conservative: ~20% plausibly reorder if reached out to, not the full lifetime figure
+      impactType: 'revenue',
+      difficulty: 'easy',
+      successProbability: 0.35,
+      rationale: 'A customer who already bought from you once is far cheaper to win back than finding a new one -- the relationship and trust already exist, you just need to reconnect.',
+      steps: [
+        'Open your Win-Back List (Growth Intelligence → Customers)',
+        'Review who\'s on it, highest lifetime value first',
+        'Send them a message -- a check-in, a small offer, or just "we\'d love to see you again"',
+        'Track who comes back',
+      ],
+      metrics: ['Customers reactivated', 'Revenue from returning customers'],
+      screen: 'growth',
+      screenParams: { tab: 'customers' },
+      actionLabel: 'Open your Win-Back List and message them',
+    });
+  }
 
   // REVENUE TACTIC 1: Price increase -- only when a real margin gap was
   // actually diagnosed (the 'low-profit-margin' root cause,
@@ -480,7 +518,8 @@ export function generateActionPlan(
   metrics: FinancialMetrics,
   currency: string = '₦',
   outcomeHistory: PastTacticOutcome[] = [],
-  primaryGoal?: PrimaryGoal
+  primaryGoal?: PrimaryGoal,
+  transactions: Transaction[] = []
 ): ActionPlan {
   let allActions: ActionTactic[] = [];
 
@@ -493,7 +532,7 @@ export function generateActionPlan(
   allActions.push(...generateExpenseReductionActions(diagnosis, metrics, currency));
 
   // Generate revenue actions
-  allActions.push(...generateRevenueActions(diagnosis, metrics, currency));
+  allActions.push(...generateRevenueActions(diagnosis, metrics, currency, transactions));
 
   // Debt, inventory, and concentration tactics — previously the plan could
   // only ever recommend fixes for profitability/liquidity/expenses, even

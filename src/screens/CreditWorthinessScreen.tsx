@@ -352,7 +352,7 @@ export default function CreditWorthinessScreen() {
         const riskRadar = computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? [], new Date(), assets);
         const externalFactorsPanel = computeExternalFactorsPanel(transactions, settings?.macroAssumptions ?? []);
         const inventorySignal = buildInventoryGoalSignal(inventory, transactions, avgMonthlyExpense);
-        const tactics = generateActionPlan(diagnosis, diagnosis.metrics, currency);
+        const tactics = generateActionPlan(diagnosis, diagnosis.metrics, currency, [], undefined, transactions);
         const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
         const map: Record<string, GoalRiskAssessment> = {};
         for (const g of activeGoals) {

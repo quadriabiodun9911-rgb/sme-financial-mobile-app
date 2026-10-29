@@ -291,7 +291,7 @@ export default function ScoreboardScreen() {
         const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, avgMonthlyExpense, currency, loans, inventory, assets, settings.industry);
         const externalFactorsPanel = computeExternalFactorsPanel(transactions, settings?.macroAssumptions ?? []);
         const inventorySignal = buildInventoryGoalSignal(inventory, transactions, avgMonthlyExpense);
-        const tactics = generateActionPlan(diagnosis, diagnosis.metrics, currency);
+        const tactics = generateActionPlan(diagnosis, diagnosis.metrics, currency, [], undefined, transactions);
         const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
         const map: Record<string, GoalRiskAssessment> = {};
         for (const g of activeGoals) {
