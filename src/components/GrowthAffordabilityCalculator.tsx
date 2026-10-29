@@ -54,6 +54,13 @@ export default function GrowthAffordabilityCalculator({ currency, currentCashBal
     const [addedCost, setAddedCost] = useState('');
     const [addedRevenue, setAddedRevenue] = useState('');
     const [rampUp, setRampUp] = useState('3');
+    // A NEW or increased draw the owner is planning alongside this growth
+    // decision -- separate from ordinary personal spending already mixed
+    // into the account, which is already inside monthlyBurn via the
+    // historical transactions it's computed from (see
+    // personalSpendingDetector.ts). Optional and defaults to 0, so leaving
+    // it blank behaves exactly as before this existed.
+    const [ownerDrawing, setOwnerDrawing] = useState('');
 
     useEffect(() => {
         if (!prefillAmount) return;
@@ -63,6 +70,7 @@ export default function GrowthAffordabilityCalculator({ currency, currentCashBal
 
     const addedCostNum = parseFloat(addedCost) || 0;
     const addedRevenueNum = parseFloat(addedRevenue) || 0;
+    const ownerDrawingNum = parseFloat(ownerDrawing) || 0;
 
     const result = useMemo(() => {
         const upfrontCost = parseFloat(upfront) || 0;
@@ -73,8 +81,9 @@ export default function GrowthAffordabilityCalculator({ currency, currentCashBal
         return computeGrowthAffordability({
             currentCashBalance, monthlyBurn, upfrontCost, additionalMonthlyCost,
             expectedAdditionalMonthlyRevenue, rampUpMonths,
+            plannedMonthlyOwnerDrawing: ownerDrawingNum,
         });
-    }, [upfront, addedCostNum, addedRevenueNum, rampUp, currentCashBalance, monthlyBurn]);
+    }, [upfront, addedCostNum, addedRevenueNum, rampUp, ownerDrawingNum, currentCashBalance, monthlyBurn]);
 
     // Once ramp-up ends, this is the decision's lasting effect on the
     // business's monthly cash surplus -- the steady-state pace a
@@ -84,9 +93,9 @@ export default function GrowthAffordabilityCalculator({ currency, currentCashBal
         if (!result || currentMonthlySurplus === undefined || !goals) return null;
         const goal = pickCashGoal(goals);
         if (!goal) return null;
-        const newMonthlyRate = currentMonthlySurplus + addedRevenueNum - addedCostNum;
+        const newMonthlyRate = currentMonthlySurplus + addedRevenueNum - addedCostNum - ownerDrawingNum;
         return estimateGoalDelay(goal, currentMonthlySurplus, newMonthlyRate);
-    }, [result, currentMonthlySurplus, addedRevenueNum, addedCostNum, goals]);
+    }, [result, currentMonthlySurplus, addedRevenueNum, addedCostNum, ownerDrawingNum, goals]);
 
     return (
         <View style={s.card}>
@@ -105,6 +114,7 @@ export default function GrowthAffordabilityCalculator({ currency, currentCashBal
                 </View>
             </View>
             <Field label="Expected Added Monthly Revenue" currency={currency} value={addedRevenue} onChange={setAddedRevenue} placeholder="0" hint="Be conservative — leave at 0 if you're not sure yet" />
+            <Field label="Planned Owner Drawing" currency={currency} value={ownerDrawing} onChange={setOwnerDrawing} placeholder="0" hint="Money you plan to draw out for yourself each month, on top of what you already take out today — leave at 0 if nothing is changing" />
 
             {result && (
                 <>

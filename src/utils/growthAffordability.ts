@@ -5,6 +5,17 @@ export interface GrowthAffordabilityInput {
     additionalMonthlyCost: number; // new hire salary, new rent, added overheads
     expectedAdditionalMonthlyRevenue: number; // conservative estimate; 0 if unknown
     rampUpMonths: number; // months before that revenue actually starts landing
+    // Money the owner plans to draw from the business each month going
+    // forward, on top of whatever's already inside monthlyBurn's trailing
+    // average. Personal spending that's ALREADY happened is already baked
+    // into monthlyBurn via the historical transactions it's computed from
+    // (see personalSpendingDetector.ts for the data-quality half of that --
+    // flagging it so it's categorized correctly) -- this field is
+    // specifically for a NEW or INCREASED draw the owner is planning
+    // alongside this growth decision, which trailing burn can't know about
+    // yet. Defaults to 0, preserving prior behaviour for every caller that
+    // doesn't pass it.
+    plannedMonthlyOwnerDrawing?: number;
 }
 
 export type GrowthAffordabilityVerdict = 'unsafe' | 'caution' | 'safe';
@@ -40,15 +51,22 @@ export function computeGrowthAffordability(input: GrowthAffordabilityInput): Gro
         additionalMonthlyCost,
         expectedAdditionalMonthlyRevenue,
         rampUpMonths,
+        plannedMonthlyOwnerDrawing = 0,
     } = input;
 
-    const cashAfterUpfront = currentCashBalance - upfrontCost;
-    const runwayBefore = runwayMonths(currentCashBalance, monthlyBurn);
+    // Folded into every stage below, not just the ramp-up window -- a
+    // planned draw is an ongoing commitment the owner is taking on
+    // regardless of this specific growth decision, so it belongs in the
+    // baseline runway too, same as monthlyBurn itself.
+    const effectiveMonthlyBurn = monthlyBurn + Math.max(0, plannedMonthlyOwnerDrawing);
 
-    const burnDuringRampUp = monthlyBurn + additionalMonthlyCost;
+    const cashAfterUpfront = currentCashBalance - upfrontCost;
+    const runwayBefore = runwayMonths(currentCashBalance, effectiveMonthlyBurn);
+
+    const burnDuringRampUp = effectiveMonthlyBurn + additionalMonthlyCost;
     const runwayDuringRampUp = runwayMonths(cashAfterUpfront, burnDuringRampUp);
 
-    const burnAfterRampUp = Math.max(0, monthlyBurn + additionalMonthlyCost - expectedAdditionalMonthlyRevenue);
+    const burnAfterRampUp = Math.max(0, effectiveMonthlyBurn + additionalMonthlyCost - expectedAdditionalMonthlyRevenue);
     const cashAtEndOfRampUp = cashAfterUpfront - burnDuringRampUp * Math.max(0, rampUpMonths);
     const runwayAfterRampUp = runwayMonths(cashAtEndOfRampUp, burnAfterRampUp);
 
@@ -85,6 +103,13 @@ export function computeGrowthAffordability(input: GrowthAffordabilityInput): Gro
         reason = hasRampUpGap
             ? `Runway stays above ${CAUTION_RUNWAY_MONTHS} months even before the new revenue lands, so this expansion doesn't put day-to-day operations at risk.`
             : `Runway stays above ${CAUTION_RUNWAY_MONTHS} months once the extra revenue lands, so this expansion doesn't put day-to-day operations at risk.`;
+    }
+
+    // Transparent rather than silently folded in -- the owner should see
+    // why their runway looks thinner than "just the expansion costs" would
+    // suggest, not wonder where the gap went.
+    if (plannedMonthlyOwnerDrawing > 0) {
+        reason += ' This already accounts for the planned monthly owner drawing you entered.';
     }
 
     return {
