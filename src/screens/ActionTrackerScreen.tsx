@@ -248,8 +248,8 @@ export default function ActionTrackerScreen() {
   );
 
   const actionPlan = useMemo(() => {
-    return generateActionPlan(diagnosis, diagnosis.metrics, settings.currency, outcomeHistory, settings.primaryGoal);
-  }, [diagnosis, settings.currency, outcomeHistory, settings.primaryGoal]);
+    return generateActionPlan(diagnosis, diagnosis.metrics, settings.currency, outcomeHistory, settings.primaryGoal, transactions);
+  }, [diagnosis, settings.currency, outcomeHistory, settings.primaryGoal, transactions]);
 
   // Records that this render's recommended tactics were actually shown --
   // the only place in the app a tactic id is ever seen before (or without)

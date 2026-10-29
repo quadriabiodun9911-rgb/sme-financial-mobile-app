@@ -269,7 +269,7 @@ export function buildBusinessPassport(
             const riskRadar = computeRiskRadar(transactions, loans, settings.macroAssumptions ?? [], new Date(), assets);
             const externalFactorsPanel = computeExternalFactorsPanel(transactions, settings.macroAssumptions ?? []);
             const inventorySignal = buildInventoryGoalSignal(inventory, transactions, getMonthlyExpenseAverage(finance.expense, transactions));
-            const tactics = generateActionPlan(diagnosis, diagnosis.metrics, settings.currency);
+            const tactics = generateActionPlan(diagnosis, diagnosis.metrics, settings.currency, [], undefined, transactions);
             const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
             return activeGoals.map(g => {
                 const bridge = calculateGoalBridge(mapSavedGoalToBridge(g), diagnosis.metrics, allTactics, settings.currency);

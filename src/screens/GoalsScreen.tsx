@@ -146,7 +146,7 @@ export default function GoalsScreen() {
     // instead of only revealing that after tapping into a separate screen.
     const feasibilityByGoalId = useMemo(() => {
         if (transactions.length < 5 || goals.length === 0 || !goalDiagnosis) return {};
-        const tactics = generateActionPlan(goalDiagnosis, goalDiagnosis.metrics, settings.currency);
+        const tactics = generateActionPlan(goalDiagnosis, goalDiagnosis.metrics, settings.currency, [], undefined, transactions);
         const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
         const map: Record<string, { feasibility: string; requiredMonthlyImprovement: number; successProbability: number }> = {};
         for (const g of goals) {
@@ -158,7 +158,7 @@ export default function GoalsScreen() {
             };
         }
         return map;
-    }, [transactions.length, goals, goalDiagnosis, settings.currency]);
+    }, [transactions, goals, goalDiagnosis, settings.currency]);
 
     const strategy = useMemo(
         () => planGoal ? generateStrategy(planGoal, finance, transactions, settings) : null,
@@ -179,10 +179,10 @@ export default function GoalsScreen() {
     // feasibilityByGoalId's lightweight card-preview above).
     const planBridge = useMemo(() => {
         if (!planGoal || !planDiagnosis) return null;
-        const tactics = generateActionPlan(planDiagnosis, planDiagnosis.metrics, settings.currency);
+        const tactics = generateActionPlan(planDiagnosis, planDiagnosis.metrics, settings.currency, [], undefined, transactions);
         const allTactics = [...tactics.immediateActions, ...tactics.shortTermActions, ...tactics.strategicActions];
         return calculateGoalBridge(mapSavedGoalToBridge(planGoal), planDiagnosis.metrics, allTactics, settings.currency);
-    }, [planGoal, planDiagnosis, settings.currency]);
+    }, [planGoal, planDiagnosis, settings.currency, transactions]);
 
     // Fixed, calendar-anchored checkpoints (createdAt -> deadline) for the
     // Milestones list below -- distinct from planBridge.milestones above,
