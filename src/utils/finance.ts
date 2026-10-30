@@ -1,4 +1,4 @@
-import { Transaction, FinanceData, BusinessSettings, AgingBucket, Asset, Invoice, Loan, FinancialGoal, Budget, InventoryItem } from '../types';
+import { Transaction, FinanceData, BusinessSettings, AgingBucket, Asset, Invoice, Loan, FinancialGoal, Budget, InventoryItem, BadDebtProvision } from '../types';
 import { getWeekRanges, transactionsInRange, sumByType } from './periodRange';
 import { computeLeverageRatios } from './debtRatios';
 import { computeCashRunway } from './cashRunway';
@@ -91,6 +91,7 @@ export interface EnhancedPnL {
     depreciation: number;
     ebitda: number;
     interestExpense: number;
+    badDebtExpense: number;
     profitBeforeTax: number;
     netProfit: number;
     netMargin: number;
@@ -115,7 +116,7 @@ export function transactionSpanYears(transactions: Transaction[]): number {
     return Math.min(1, spanDays / 365);
 }
 
-export function computeEnhancedPnL(transactions: Transaction[], assets: Asset[]): EnhancedPnL {
+export function computeEnhancedPnL(transactions: Transaction[], assets: Asset[], badDebtProvisions: BadDebtProvision[] = []): EnhancedPnL {
     // Owner capital contributions/drawings are never revenue or an expense
     // (see Transaction.equityMovement) -- excluded here for the same
     // reason journalEntry.ts posts them to Owner's Capital instead of a
@@ -125,9 +126,29 @@ export function computeEnhancedPnL(transactions: Transaction[], assets: Asset[])
     const revenue = pnlTransactions.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
     const expenses = pnlTransactions.filter(t => t.type === 'expense');
 
+    // badDebtExpense is recognized at the provision's OWN date (see
+    // buildBadDebtProvisionDraft), not the underlying receivable's date --
+    // this function has no explicit period start/end of its own, only
+    // whatever date span `transactions` (already period-filtered by the
+    // caller) happens to cover, so that span is reused as the boundary a
+    // provision must fall inside to count for THIS call. A provision raised
+    // on a date with no transaction of its own sitting exactly on the
+    // period's calendar edge is the one case this can misclassify -- the
+    // same kind of edge-of-span approximation transactionSpanYears already
+    // accepts elsewhere in this file, not a silent fabrication.
+    const txDates = transactions.map(t => t.date).filter(Boolean).sort();
+    const periodStart = txDates[0];
+    const periodEnd = txDates[txDates.length - 1];
+    const badDebtExpense = (periodStart && periodEnd)
+        ? badDebtProvisions
+            .filter(p => !p.reversedAt && p.date >= periodStart && p.date <= periodEnd)
+            .reduce((s, p) => s + (Number(p.amount) || 0), 0)
+        : 0;
+
     const cogsMap = new Map<string, number>();
     const sgaMap  = new Map<string, number>();
-    let cogs = 0, sga = 0, interestExpense = 0;
+    let cogs = 0, sga = badDebtExpense, interestExpense = 0;
+    if (badDebtExpense > 0) sgaMap.set('Bad Debt Expense', badDebtExpense);
     for (const t of expenses) {
         // Loan principal repayments aren't a P&L expense under GAAP/IFRS —
         // only the interest portion is. `principalPortion` (set on
@@ -190,7 +211,7 @@ export function computeEnhancedPnL(transactions: Transaction[], assets: Asset[])
     return {
         revenue, cogs, grossProfit, grossMargin,
         sgaExpenses: sga, ebit, ebitMargin, depreciation, ebitda,
-        interestExpense, profitBeforeTax,
+        interestExpense, badDebtExpense, profitBeforeTax,
         netProfit, netMargin,
         revenueByCategory: getTopCategories(transactions, 'income', 8),
         cogsCategories: sort(cogsMap),

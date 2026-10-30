@@ -818,7 +818,7 @@ export interface JournalLine {
 }
 
 export type JournalEntrySource =
-    | 'transaction' | 'invoice' | 'bill' | 'payroll' | 'loan_payment' | 'inventory' | 'manual';
+    | 'transaction' | 'invoice' | 'bill' | 'payroll' | 'loan_payment' | 'inventory' | 'manual' | 'bad_debt_provision';
 
 export interface JournalEntry {
     id: string;
@@ -841,6 +841,26 @@ export interface JournalEntry {
     // entry that reverses this one, and this field links the two so the
     // General Ledger can show "reversed" rather than silently double-count.
     reversedByEntryId?: string;
+}
+
+// A judgment-based write-down against a SPECIFIC still-outstanding income
+// Transaction the owner believes won't be collected (IFRS for SMEs Section
+// 21 / IAS 37 provisions, applied to a receivable) -- raised from the Aging
+// Report against a real income transaction's id, never a synthesized
+// unlinked-invoice placeholder (see unlinkedInvoiceReceivables in
+// finance.ts), since there's no real Transaction to link a provision
+// against until that invoice is actually recorded as one.
+export interface BadDebtProvision {
+    id: string;
+    transactionId: string;
+    customerLabel?: string; // snapshot of vendorCustomer at the time raised -- still readable if the underlying transaction is later edited or deleted
+    amount: number;
+    date: string; // ISO date raised -- the period Bad Debt Expense is recognized in, same "recognized at its own date" convention as buildJournalEntryDraftForNewTransaction
+    note?: string;
+    // Never deleted once reversed -- the same "a correction is a new entry,
+    // the original record stays" discipline as JournalEntry.reversedByEntryId.
+    reversedAt?: string;
+    createdAt: string;
 }
 
 export type LoanStatus = 'active' | 'paid_off' | 'defaulted';

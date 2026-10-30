@@ -9,9 +9,28 @@ import { Transaction } from '../types';
 import BarList from './BarList';
 
 export default function AgingReport() {
-    const { transactions, settings, updateTransaction, invoices, markInvoiceStatus } = useApp();
+    const { transactions, settings, updateTransaction, invoices, markInvoiceStatus, badDebtProvisions, addBadDebtProvision, reverseBadDebtProvision } = useApp();
     const { currency } = settings;
     const [activeTab, setActiveTab] = useState<'ar' | 'ap'>('ar');
+
+    // The one active (not reversed) provision against a transaction id, if
+    // any -- a transaction is never provisioned twice: markDoubtful below
+    // is only offered when this is null.
+    const activeProvisionByTxId = useMemo(() => {
+        const map = new Map<string, typeof badDebtProvisions[number]>();
+        for (const p of badDebtProvisions) {
+            if (!p.reversedAt) map.set(p.transactionId, p);
+        }
+        return map;
+    }, [badDebtProvisions]);
+
+    // Never offered against a synthesized unlinked-invoice placeholder (see
+    // unlinkedInvoiceReceivables in finance.ts) -- there's no real
+    // Transaction id yet to link a provision against.
+    const markDoubtful = (tx: Transaction) => {
+        if (tx.id.startsWith('unlinked-invoice-')) return;
+        addBadDebtProvision(tx.id, tx.amount ?? 0, localDateStr(), tx.vendorCustomer, tx.description);
+    };
 
     // A synthesized invoice receivable's "pending" vs "overdue" label and
     // aging bucket both come from effectiveInvoiceStatus/today at the moment
@@ -102,7 +121,10 @@ export default function AgingReport() {
                             </Text>
                         </View>
 
-                        {bucket.transactions.map((tx: Transaction) => (
+                        {bucket.transactions.map((tx: Transaction) => {
+                            const provision = activeTab === 'ar' ? activeProvisionByTxId.get(tx.id) : undefined;
+                            const canMarkDoubtful = activeTab === 'ar' && !provision && !tx.id.startsWith('unlinked-invoice-');
+                            return (
                             <View key={tx.id} style={styles.txRow}>
                                 <View style={styles.txInfo}>
                                     <Text style={styles.txDesc} numberOfLines={1}>{tx.description}</Text>
@@ -114,6 +136,9 @@ export default function AgingReport() {
                                         <Text style={[styles.statusText, { color: tx.status === 'overdue' ? Colors.expense : Colors.warning }]}>
                                             {tx.status}
                                         </Text>
+                                        {provision ? (
+                                            <Text style={[styles.statusText, { color: Colors.expense }]}>· Doubtful</Text>
+                                        ) : null}
                                     </View>
                                 </View>
                                 <View style={styles.txRight}>
@@ -123,9 +148,19 @@ export default function AgingReport() {
                                     <TouchableOpacity style={styles.markPaidBtn} onPress={() => markPaid(tx)}>
                                         <Text style={styles.markPaidText}>Mark Paid</Text>
                                     </TouchableOpacity>
+                                    {provision ? (
+                                        <TouchableOpacity style={styles.doubtfulBtn} onPress={() => reverseBadDebtProvision(provision.id)}>
+                                            <Text style={styles.doubtfulBtnText}>Reverse Doubtful</Text>
+                                        </TouchableOpacity>
+                                    ) : canMarkDoubtful ? (
+                                        <TouchableOpacity style={styles.doubtfulBtn} onPress={() => markDoubtful(tx)}>
+                                            <Text style={styles.doubtfulBtnText}>Mark Doubtful</Text>
+                                        </TouchableOpacity>
+                                    ) : null}
                                 </View>
                             </View>
-                        ))}
+                            );
+                        })}
                     </View>
                 );
             })}
@@ -181,6 +216,8 @@ const styles = StyleSheet.create({
     txAmount: { fontSize: 14, fontWeight: 'bold' },
     markPaidBtn: { paddingHorizontal: 8, paddingVertical: 3, backgroundColor: 'rgba(16,185,129,0.15)', borderRadius: 6 },
     markPaidText: { fontSize: 11, color: Colors.income, fontWeight: '600' },
+    doubtfulBtn: { paddingHorizontal: 8, paddingVertical: 3, backgroundColor: 'rgba(239,68,68,0.12)', borderRadius: 6 },
+    doubtfulBtnText: { fontSize: 11, color: Colors.expense, fontWeight: '600' },
     summaryBar: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     summaryBarTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
 });

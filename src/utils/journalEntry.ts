@@ -48,7 +48,7 @@
  *   kind of invented figure this app's engines already go out of their way
  *   to avoid (see macroShield.ts, fxPurchaseImpact.ts's own doc comments).
  */
-import { Transaction, JournalEntry, JournalLine, JournalEntrySource, Account, AccountType } from '../types';
+import { Transaction, JournalEntry, JournalLine, JournalEntrySource, Account, AccountType, BadDebtProvision } from '../types';
 import { SYSTEM_ACCOUNTS, mapExpenseCategoryToAccountId, mapIncomeCategoryToAccountId } from './chartOfAccounts';
 import { generateId } from './uuid';
 
@@ -232,27 +232,62 @@ export function buildJournalEntryDraftForNewTransaction(tx: Transaction): Journa
  * cosmetic edit like description, which would reverse-and-repost an
  * identical entry for no reason).
  */
-export function reconcileTransactionEntries(entries: JournalEntry[], transaction: Transaction, now: Date = new Date()): JournalEntry[] {
+/**
+ * Reverses every not-yet-reversed entry posted against one (source,
+ * sourceId) pair -- shared by reconcileTransactionEntries below and by
+ * bad-debt provision reversal, so "find the live postings for this source
+ * and reverse them" has exactly one implementation.
+ *
+ * A reversal entry itself carries the same source/sourceId as the entry it
+ * reversed (see buildReversalDraft), so without excluding reversals this
+ * would find and re-reverse its own output on a later call. Every reversal
+ * entry's id appears as exactly one OTHER entry's reversedByEntryId (the
+ * entry it reversed) -- collecting that set of ids and excluding them is
+ * how a reversal is told apart from a real, still-open posting.
+ */
+export function reverseEntriesForSource(
+    entries: JournalEntry[], source: JournalEntrySource, sourceId: string, now: Date = new Date()
+): JournalEntry[] {
     let next = entries;
-    // A reversal entry itself carries the same source/sourceId as the entry
-    // it reversed (see buildReversalDraft), so without this it would look
-    // like just another live posting eligible for reversal on a later call.
-    // Every reversal entry's id appears as exactly one OTHER entry's
-    // reversedByEntryId (the entry it reversed) -- collecting that set of
-    // ids and excluding them is how a reversal is told apart from a real,
-    // still-open posting.
     const reversalIds = new Set(next.map(e => e.reversedByEntryId).filter((id): id is string => !!id));
     const toReverse = next.filter(e =>
-        e.source === 'transaction' && e.sourceId === transaction.id && !e.reversedByEntryId && !reversalIds.has(e.id)
+        e.source === source && e.sourceId === sourceId && !e.reversedByEntryId && !reversalIds.has(e.id)
     );
     for (const original of toReverse) {
         next = postJournalEntry(next, buildReversalDraft(original, now), now);
         const reversal = next[next.length - 1];
         next = next.map(e => (e.id === original.id ? { ...e, reversedByEntryId: reversal.id } : e));
     }
+    return next;
+}
+
+export function reconcileTransactionEntries(entries: JournalEntry[], transaction: Transaction, now: Date = new Date()): JournalEntry[] {
+    let next = reverseEntriesForSource(entries, 'transaction', transaction.id, now);
     const draft = buildJournalEntryDraftForNewTransaction(transaction);
     if (draft) next = postJournalEntry(next, draft, now);
     return next;
+}
+
+/**
+ * Dr Bad Debt Expense / Cr Allowance for Doubtful Debts -- the provision
+ * itself never touches Accounts Receivable or the original income account
+ * (the receivable isn't written OFF, just judged unlikely to be collected),
+ * mirroring how depreciation reduces Fixed Assets' NET book value via a
+ * contra-account rather than editing the asset's own cost. Recognized at
+ * the provision's own `date`, the same "recognized when raised, not
+ * backdated" convention buildJournalEntryDraftForNewTransaction already
+ * uses for every other posting in this file.
+ */
+export function buildBadDebtProvisionDraft(provision: BadDebtProvision): JournalEntryDraft {
+    return {
+        date: provision.date,
+        memo: `Bad debt provision: ${provision.customerLabel || provision.note || 'doubtful receivable'}`,
+        lines: [
+            ln(SYSTEM_ACCOUNTS.badDebtExpense, provision.amount, 0),
+            ln(SYSTEM_ACCOUNTS.allowanceForDoubtfulDebts, 0, provision.amount),
+        ],
+        source: 'bad_debt_provision', sourceId: provision.id,
+    };
 }
 
 export interface TrialBalanceRow {

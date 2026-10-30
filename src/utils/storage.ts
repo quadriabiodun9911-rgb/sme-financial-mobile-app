@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CryptoJS from 'crypto-js';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, Bill, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CurrencyAccount, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, HealthScoreSnapshot, FxRateSnapshot, Account, JournalEntry } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, Bill, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CurrencyAccount, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, HealthScoreSnapshot, FxRateSnapshot, Account, JournalEntry, BadDebtProvision } from '../types';
 import { supabase } from './supabase';
 import {
     savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData, saveAuthSecretSecurely, loadAuthSecretSecurely, clearAuthSecretSecurely,
@@ -1377,6 +1377,22 @@ export async function saveHealthScoreHistory(history: HealthScoreSnapshot[]): Pr
 export async function loadHealthScoreHistory(): Promise<HealthScoreSnapshot[] | null> {
     const raw = await AsyncStorage.getItem(HEALTH_SCORE_HISTORY_KEY);
     return safeParse<HealthScoreSnapshot[]>(raw);
+}
+
+// ─── Bad Debt Provisions ──────────────────────────────────────────────────────
+// Same local-only pattern as Readiness History above -- no Supabase table
+// exists for this yet, so provisions raised on one device don't follow the
+// business to another. The journal entries they post (journalEntry.ts's
+// buildBadDebtProvisionDraft) already sync like every other journal entry;
+// only this record of WHICH receivable each one was raised against, and
+// whether it's since been reversed, is local-only for now.
+export const BAD_DEBT_PROVISIONS_KEY = '@quad360/badDebtProvisions';
+export async function saveBadDebtProvisions(provisions: BadDebtProvision[]): Promise<void> {
+    await AsyncStorage.setItem(BAD_DEBT_PROVISIONS_KEY, JSON.stringify(provisions));
+}
+export async function loadBadDebtProvisions(): Promise<BadDebtProvision[] | null> {
+    const raw = await AsyncStorage.getItem(BAD_DEBT_PROVISIONS_KEY);
+    return safeParse<BadDebtProvision[]>(raw);
 }
 
 // Every local-only snapshot-history key above, in one place. All four

@@ -32,6 +32,13 @@ const SEED_ACCOUNTS: AccountSeed[] = [
     // Assets
     { code: '1000', name: 'Cash and Bank', type: 'asset', subtype: 'current_asset' },
     { code: '1100', name: 'Accounts Receivable', type: 'asset', subtype: 'current_asset' },
+    // Contra-asset -- carries a credit balance that nets against Accounts
+    // Receivable (see computeBalanceSheetTrend's accountsReceivableNet), the
+    // same net-presentation convention Fixed Assets already uses against
+    // accumulated depreciation. computeTrialBalance needs no special case:
+    // a credit-balance asset account already sorts to the credit column
+    // there, nothing here fabricates new logic for it.
+    { code: '1150', name: 'Allowance for Doubtful Debts', type: 'asset', subtype: 'current_asset' },
     { code: '1200', name: 'Inventory', type: 'asset', subtype: 'current_asset' },
     { code: '1500', name: 'Fixed Assets', type: 'asset', subtype: 'fixed_asset' },
 
@@ -67,6 +74,7 @@ const SEED_ACCOUNTS: AccountSeed[] = [
     { code: '6720', name: 'Supplies Expense', type: 'expense', subtype: 'operating_expense' },
     { code: '6730', name: 'Maintenance Expense', type: 'expense', subtype: 'operating_expense' },
     { code: '6740', name: 'Training Expense', type: 'expense', subtype: 'operating_expense' },
+    { code: '6800', name: 'Bad Debt Expense', type: 'expense', subtype: 'operating_expense' },
     { code: '6900', name: 'Tax Expense', type: 'expense', subtype: 'operating_expense' },
     { code: '6990', name: 'Other Operating Expense', type: 'expense', subtype: 'operating_expense' },
 
@@ -97,6 +105,7 @@ export function buildDefaultChartOfAccounts(now: string = new Date().toISOString
 export const SYSTEM_ACCOUNTS = {
     cashAndBank: ACCOUNT_ID('1000'),
     accountsReceivable: ACCOUNT_ID('1100'),
+    allowanceForDoubtfulDebts: ACCOUNT_ID('1150'),
     inventory: ACCOUNT_ID('1200'),
     fixedAssets: ACCOUNT_ID('1500'),
     accountsPayable: ACCOUNT_ID('2000'),
@@ -111,6 +120,7 @@ export const SYSTEM_ACCOUNTS = {
     otherOperatingExpense: ACCOUNT_ID('6990'),
     interestExpense: ACCOUNT_ID('7000'),
     lossOnAssetDisposal: ACCOUNT_ID('7100'),
+    badDebtExpense: ACCOUNT_ID('6800'),
 } as const;
 
 // Case-insensitive match against this app's own suggested categories

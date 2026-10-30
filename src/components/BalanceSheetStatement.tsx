@@ -18,7 +18,7 @@ interface Props {
 }
 
 export default function BalanceSheetStatement({ businessName, asOfLabel, point, currency }: Props) {
-    const totalCurrentAssets = point.cashOnHand + point.accountsReceivable + point.stockValue + point.otherAssets;
+    const totalCurrentAssets = point.cashOnHand + point.accountsReceivableNet + point.stockValue + point.otherAssets;
     const totalFixedAssets = point.equipmentValue + point.manualEquipment;
 
     return (
@@ -27,6 +27,9 @@ export default function BalanceSheetStatement({ businessName, asOfLabel, point, 
             <StatementSection label="Current Assets" />
             <StatementLine label="Cash and Cash Equivalents" amount={point.cashOnHand} currency={currency} indent={1} />
             <StatementLine label="Accounts Receivable" amount={point.accountsReceivable} currency={currency} indent={1} />
+            {point.allowanceForDoubtfulDebts > 0 && (
+                <StatementLine label="Less: Allowance for Doubtful Debts" amount={point.allowanceForDoubtfulDebts} currency={currency} indent={1} deduction muted />
+            )}
             {point.stockValue > 0 && (
                 <StatementLine label="Inventory" amount={point.stockValue} currency={currency} indent={1} />
             )}
