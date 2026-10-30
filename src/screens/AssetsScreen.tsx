@@ -74,6 +74,17 @@ export default function AssetsScreen() {
     const [description, setDesc]      = useState('');
     const [purchaseDate, setPDate]    = useState('');
     const [purchaseCost, setPCost]    = useState('');
+    // Costs directly attributable to getting the asset ready for its
+    // intended use -- delivery, installation, import duty -- which IAS 16
+    // generally has a business capitalise alongside the purchase price,
+    // not expense separately. Kept as its own field (rather than just
+    // telling the owner to add it into Purchase Cost themselves) because
+    // the common SME mistake this exists to prevent is under-capitalising
+    // by forgetting these costs entirely, not over-capitalising; a visible
+    // prompt catches that where a single combined field wouldn't. Summed
+    // into the one purchaseCost figure actually stored on Asset -- this
+    // app has no concept of a cost breakdown once saved, only the total.
+    const [additionalCosts, setAdditionalCosts] = useState('');
     const [usefulLife, setLife]       = useState('');
     const [residualValue, setResidual]= useState('0');
 
@@ -84,7 +95,7 @@ export default function AssetsScreen() {
     const resetForm = () => {
         setName(''); setCategory('equipment'); setDesc('');
         setPDate(localDateStr());
-        setPCost(''); setLife('5'); setResidual('0');
+        setPCost(''); setAdditionalCosts(''); setLife('5'); setResidual('0');
         setAcqMethod('cash'); setAcqTerm('24'); setAcqRate('20');
         setEditingId(null);
         setQaText('');
@@ -119,13 +130,20 @@ export default function AssetsScreen() {
     const openEdit = useCallback((a: Asset) => {
         setName(a.name); setCategory(a.category); setDesc(a.description ?? '');
         setPDate(a.purchaseDate); setPCost(String(a.purchaseCost));
+        // The stored purchaseCost is already whatever total was saved --
+        // this app has no breakdown to recover, so the full figure goes in
+        // Purchase Cost and Additional Costs starts blank rather than
+        // double-counting if the owner adds anything here.
+        setAdditionalCosts('');
         setLife(String(a.usefulLifeYears)); setResidual(String(a.residualValue));
         setEditingId(a.id); setShowForm(true);
     }, []);
 
     const handleSave = () => {
         if (!name.trim()) { showAlert(t(language, 'error'), t(language, 'missingFields')); return; }
-        const cost = parseFloat(purchaseCost);
+        const basePrice = parseFloat(purchaseCost) || 0;
+        const readyForUseCosts = parseFloat(additionalCosts) || 0;
+        const cost = basePrice + readyForUseCosts;
         const life = parseFloat(usefulLife);
         const resid = parseFloat(residualValue) || 0;
         if (isNaN(cost) || cost <= 0) { showAlert(t(language, 'error'), t(language, 'missingFields')); return; }
@@ -538,6 +556,17 @@ export default function AssetsScreen() {
                             <Label text={`${t(language, 'purchaseCost')} (${currency})`} />
                             <TextInput style={s.input} value={purchaseCost} onChangeText={setPCost} placeholderTextColor={Colors.muted} keyboardType="decimal-pad" placeholder="0" />
 
+                            <Label text={`Additional Costs to Ready for Use (${currency}) -- optional`} />
+                            <TextInput style={s.input} value={additionalCosts} onChangeText={setAdditionalCosts} placeholderTextColor={Colors.muted} keyboardType="decimal-pad" placeholder="0" />
+                            <Text style={s.hint}>
+                                Delivery, installation, or anything else needed to get this asset working -- these are usually added to the asset's cost, not logged as a separate expense. Staff training and ongoing running costs should still be logged separately as expenses, not added here.
+                            </Text>
+                            {(parseFloat(additionalCosts) || 0) > 0 && (
+                                <Text style={s.hint}>
+                                    Total asset cost: {currency}{((parseFloat(purchaseCost) || 0) + (parseFloat(additionalCosts) || 0)).toLocaleString()}
+                                </Text>
+                            )}
+
                             <Label text={t(language, 'usefulLife')} />
                             <TextInput style={s.input} value={usefulLife} onChangeText={setLife} placeholderTextColor={Colors.muted} keyboardType="decimal-pad" placeholder="5" />
 
@@ -546,7 +575,10 @@ export default function AssetsScreen() {
 
                             {/* Acquisition Strategy: cash vs credit vs lease */}
                             {(() => {
-                                const cost = parseFloat(purchaseCost);
+                                // Same combined total as handleSave -- financing a purchase
+                                // based on only the base price would understate what's
+                                // actually needed to get the asset running.
+                                const cost = (parseFloat(purchaseCost) || 0) + (parseFloat(additionalCosts) || 0);
                                 if (isNaN(cost) || cost <= 0) return null;
                                 const analysis = analyzeAcquisition({
                                     cost,
@@ -890,6 +922,7 @@ const s = StyleSheet.create({
     acqTitle:    { fontSize: 13, fontWeight: '800', color: Colors.text },
     acqTermRow:  { flexDirection: 'row', marginBottom: Spacing.sm },
     acqHint:     { fontSize: 10, color: Colors.muted, fontStyle: 'italic', marginBottom: 2 },
+    hint:        { fontSize: 11.5, color: Colors.muted, lineHeight: 16, marginTop: 4, marginBottom: Spacing.sm },
     acqOption:   { backgroundColor: Colors.card, borderRadius: 10, padding: 10, marginTop: Spacing.sm, borderWidth: 1, borderColor: Colors.border },
     acqOptHeader:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
     acqOptLabel: { fontSize: 12, fontWeight: '800', color: Colors.text },
