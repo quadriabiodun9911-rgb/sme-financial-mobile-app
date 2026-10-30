@@ -223,6 +223,16 @@ export interface Transaction {
     // purchases, an exempt one doesn't. Left undefined when taxRate isn't 0
     // (the distinction doesn't apply) or the owner hasn't specified it.
     vatCategory?: 'zero-rated' | 'exempt';
+    // Money the owner puts into or takes out of the business personally --
+    // a capital contribution or a drawing. Structurally different from an
+    // ordinary sale or cost even though it still carries type: 'income' or
+    // 'expense' (so cash balance, which just sums paid income minus paid
+    // expense, keeps working unchanged): a contribution is not revenue and
+    // a drawing is not a business expense, so computeEnhancedPnL and the
+    // ledger (journalEntry.ts) both exclude these from revenue/expense and
+    // post them to Owner's Capital instead. See changesInEquity.ts, the
+    // one place this field's whole reason for existing comes together.
+    equityMovement?: 'owner-contribution' | 'owner-drawing';
     status?: TransactionStatus;
     dueDate?: string;
     isRecurring?: boolean;

@@ -128,6 +128,11 @@ export function computeAllTimeMonthlyBuckets(transactions: Transaction[]): Month
     const buckets = new Map<string, { revenue: number; expense: number; cogs: number; opex: number; otherExpense: number; count: number }>();
 
     for (const t of transactions) {
+        // Owner capital contributions/drawings aren't revenue or an
+        // expense either (see finance.ts computeEnhancedPnL for the same
+        // exclusion) -- same "must agree with Reports' P&L card" reasoning
+        // as the principalPortion exclusion just below.
+        if (t.equityMovement) continue;
         const month = (t.date || '').slice(0, 7);
         if (!month || month.length !== 7) continue;
         if (!buckets.has(month)) buckets.set(month, { revenue: 0, expense: 0, cogs: 0, opex: 0, otherExpense: 0, count: 0 });

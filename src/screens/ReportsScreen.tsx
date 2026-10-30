@@ -34,6 +34,8 @@ import AccrualCashFlow from '../components/AccrualCashFlow';
 import ProfitAndLossStatement from '../components/ProfitAndLossStatement';
 import { computeRevenueByPaymentMethod } from '../utils/revenueByPaymentMethod';
 import BalanceSheetStatement from '../components/BalanceSheetStatement';
+import ChangesInEquityStatement from '../components/ChangesInEquityStatement';
+import { computeChangesInEquity } from '../utils/changesInEquity';
 import CashFlowFormalStatement from '../components/CashFlowFormalStatement';
 import GroupedBarChart from '../components/GroupedBarChart';
 import { computeBalanceSheetTrend } from '../utils/balanceSheetTrend';
@@ -62,7 +64,7 @@ const SECTIONS: { key: SectionKey; label: string; icon: IconName; desc: string }
 ];
 
 type SubTab =
-    | 'balancesheet' | 'pnl' | 'inventory' | 'accrual'
+    | 'balancesheet' | 'pnl' | 'inventory' | 'accrual' | 'changesInEquity'
     | 'aging'
     | 'tax' | 'tax-filing' | 'tax-planning'
     | 'cashflow' | 'cashhealth' | 'workingcapitalhealth'
@@ -72,6 +74,7 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     statements: [
         { key: 'balancesheet', label: 'What I Own & Owe' },
         { key: 'pnl',          label: 'Profit & Loss' },
+        { key: 'changesInEquity', label: 'Changes in Equity' },
         { key: 'cashflow',     label: 'Cash Flow Statement' },
         { key: 'cashhealth',   label: 'Cash Flow Health' },
         { key: 'workingcapitalhealth', label: 'Working Capital Health' },
@@ -209,6 +212,15 @@ export default function ReportsScreen() {
         const points = computeBalanceSheetTrend('monthly', monthKeys, transactions, assets, loansList, manualBalances);
         return points.length > 0 ? points[points.length - 1] : null;
     }, [transactions, assets, loansList, manualBalances]);
+
+    // Most recent month with data -- same "latest point" convention as
+    // balanceSheetPoint above, just for the Statement of Changes in Equity.
+    const changesInEquityPoint = useMemo(() => {
+        const monthly = computeAllTimeMonthlyBuckets(transactions);
+        const monthKeys = monthly.map(m => m.month);
+        const points = computeChangesInEquity(monthKeys, transactions, assets, loansList, settings, manualBalances);
+        return points.length > 0 ? points[points.length - 1] : null;
+    }, [transactions, assets, loansList, settings, manualBalances]);
 
     // Real calendar dates for the selected period, matching filterByPeriod's
     // own rolling-window logic -- a lender reading "For the period" wants an
@@ -674,6 +686,28 @@ export default function ReportsScreen() {
                             </View>
 
                             <MonthlyChart trend={trend} currency={currency} />
+                        </View>
+                    )}
+
+                    {/* ── CHANGES IN EQUITY ───────────────────────────────── */}
+                    {activeTab === 'changesInEquity' && (
+                        <View>
+                            {changesInEquityPoint ? (
+                                <ChangesInEquityStatement
+                                    businessName={businessName}
+                                    periodLabel={`For the month of ${changesInEquityPoint.label}`}
+                                    point={changesInEquityPoint}
+                                    currency={currency}
+                                />
+                            ) : (
+                                <View style={styles.card}>
+                                    <Text style={styles.cardTitle}>Not Enough Data Yet</Text>
+                                    <Text style={styles.cardSub}>Add some transactions to see how your equity has changed over the month.</Text>
+                                </View>
+                            )}
+                            <Text style={styles.note}>
+                                Opening and closing equity are the same figures shown on your Balance Sheet. Net Profit matches your P&L for the same month. If the two don't fully add up, the gap is shown as its own line rather than hidden — it usually comes from an opening balance set in Settings or an estimate the Balance Sheet makes about older unpaid amounts.
+                            </Text>
                         </View>
                     )}
 
