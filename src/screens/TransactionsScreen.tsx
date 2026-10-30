@@ -67,6 +67,13 @@ type FormState = {
     vatInclusive: boolean;
     // Only meaningful when taxRate is 0 -- see Transaction.vatCategory.
     vatCategory: '' | 'zero-rated' | 'exempt';
+    // See Transaction.equityMovement -- money the owner put in or took out
+    // personally, not a sale or a business cost. Selecting one auto-sets
+    // `type` to match (a contribution is money in, a drawing is money
+    // out), and category/tax get overridden on save regardless of what's
+    // shown in those sections, since neither applies to a capital
+    // movement.
+    equityMovement: '' | 'owner-contribution' | 'owner-drawing';
     status: TransactionStatus;
     dueDate: string;
     date: string;
@@ -129,6 +136,7 @@ const EMPTY_FORM: FormState = {
     taxRate: '',
     vatInclusive: false,
     vatCategory: '',
+    equityMovement: '',
     status: 'paid',
     dueDate: '',
     date: todayStr(),
@@ -157,6 +165,7 @@ function formFromTx(tx: Transaction): FormState {
         // an inclusive total from; the toggle only matters at entry time.
         vatInclusive:       false,
         vatCategory:        tx.vatCategory ?? '',
+        equityMovement:     tx.equityMovement ?? '',
         status:             tx.status ?? 'paid',
         dueDate:            tx.dueDate ?? '',
         date:               tx.date,
@@ -455,6 +464,12 @@ export default function TransactionsScreen() {
             return;
         }
 
+        // An owner capital movement is never a sale or a business cost, so
+        // tax/VAT handling below doesn't apply to it at all -- determined
+        // up front so it can guard the VAT-inclusive split too, not just
+        // the payload fields further down.
+        const isEquityMovement = !!form.equityMovement;
+
         // taxRate alone was being saved with no corresponding taxAmount --
         // the "= ₦X tax on ₦Y" preview shown just above this form promised
         // the figure would be tracked, but nothing ever persisted it, so
@@ -463,7 +478,7 @@ export default function TransactionsScreen() {
         // silently breaking the Tax Filing Readiness "ability to pay" check
         // and its alert-bell/Dashboard/notification counterpart for every
         // real user. Same formula as taxPreview above.
-        const taxRateNum = form.taxRate ? parseFloat(form.taxRate) : undefined;
+        const taxRateNum = (!isEquityMovement && form.taxRate) ? parseFloat(form.taxRate) : undefined;
 
         // When the owner entered a tax-inclusive total, split it into the
         // exclusive amount actually stored and the tax portion -- `amount`
@@ -487,18 +502,28 @@ export default function TransactionsScreen() {
         const rate    = form.foreignCurrency ? parseFloat(form.exchangeRate) : NaN;
         const hasValidForeignCurrency = form.foreignCurrency && !isNaN(origAmt) && origAmt > 0 && !isNaN(rate) && rate > 0;
 
+        // category/tax fields elsewhere in this form don't apply to an
+        // owner capital movement, so they're overridden here regardless of
+        // whatever's shown on screen, rather than trusting the owner to
+        // leave them blank/correct themselves. `type` also follows the
+        // movement kind directly (contribution = money in, drawing = money
+        // out) instead of whatever the Type toggle above happens to show,
+        // so the two can never disagree.
         const payload = {
             description:        form.description.trim(),
             amount:             storedAmount,
-            type:               form.type,
-            category:           form.customCategory.trim() || form.category || 'Other',
+            type:               isEquityMovement
+                ? (form.equityMovement === 'owner-contribution' ? 'income' as const : 'expense' as const)
+                : form.type,
+            category:           isEquityMovement ? "Owner's Capital" : (form.customCategory.trim() || form.category || 'Other'),
             reference:          form.reference || undefined,
             vendorCustomer:     joinVendorCustomer(form.vendorCustomer, form.phone) || undefined,
-            taxRate:            taxRateNum,
-            taxAmount:          storedTaxAmount,
+            taxRate:            isEquityMovement ? undefined : taxRateNum,
+            taxAmount:          isEquityMovement ? undefined : storedTaxAmount,
             // Only meaningful at 0% -- clears itself if the owner sets a
             // non-zero rate without having to remember to reset the picker.
-            vatCategory:        taxRateNum === 0 && form.vatCategory ? form.vatCategory : undefined,
+            vatCategory:        !isEquityMovement && taxRateNum === 0 && form.vatCategory ? form.vatCategory : undefined,
+            equityMovement:     form.equityMovement || undefined,
             status:             form.status,
             dueDate:            form.dueDate || undefined,
             date:               form.date || todayStr(),
@@ -1117,6 +1142,40 @@ export default function TransactionsScreen() {
                                         activeColor={form.type === 'income' ? Colors.income : Colors.expense}
                                     />
                                 </Field>
+                            </Section>
+
+                            {/* ── Owner's capital movement ─────────────── */}
+                            <Section label="Owner's Capital">
+                                <View style={styles.recurringRow}>
+                                    <Text style={styles.recurringLabel}>This is money I put in or took out personally</Text>
+                                    <TouchableOpacity
+                                        style={[styles.toggleBtn, !!form.equityMovement && styles.toggleBtnOn]}
+                                        onPress={() => setForm(f => ({ ...f, equityMovement: f.equityMovement ? '' : 'owner-contribution' }))}
+                                    >
+                                        <Text style={[styles.toggleBtnText, !!form.equityMovement && styles.toggleBtnTextOn]}>{form.equityMovement ? t(language, 'onLabel') : t(language, 'offLabel')}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                {!!form.equityMovement && (
+                                    <>
+                                        <Text style={styles.taxPreview}>
+                                            Not a sale or a business expense -- this won't affect your profit, only your cash and your equity. Category and tax above are ignored for this entry.
+                                        </Text>
+                                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                                            <TouchableOpacity
+                                                style={[styles.toggleBtn, { flex: 1 }, form.equityMovement === 'owner-contribution' && styles.toggleBtnOn]}
+                                                onPress={() => setForm(f => ({ ...f, equityMovement: 'owner-contribution' }))}
+                                            >
+                                                <Text style={[styles.toggleBtnText, form.equityMovement === 'owner-contribution' && styles.toggleBtnTextOn]}>I put money in</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={[styles.toggleBtn, { flex: 1 }, form.equityMovement === 'owner-drawing' && styles.toggleBtnOn]}
+                                                onPress={() => setForm(f => ({ ...f, equityMovement: 'owner-drawing' }))}
+                                            >
+                                                <Text style={[styles.toggleBtnText, form.equityMovement === 'owner-drawing' && styles.toggleBtnTextOn]}>I took money out</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </>
+                                )}
                             </Section>
 
                             {/* ── Foreign currency ─────────────────────── */}

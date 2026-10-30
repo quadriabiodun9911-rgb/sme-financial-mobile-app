@@ -116,8 +116,14 @@ export function transactionSpanYears(transactions: Transaction[]): number {
 }
 
 export function computeEnhancedPnL(transactions: Transaction[], assets: Asset[]): EnhancedPnL {
-    const revenue = transactions.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    const expenses = transactions.filter(t => t.type === 'expense');
+    // Owner capital contributions/drawings are never revenue or an expense
+    // (see Transaction.equityMovement) -- excluded here for the same
+    // reason journalEntry.ts posts them to Owner's Capital instead of a
+    // revenue/expense account, so the P&L and the ledger can never
+    // silently disagree about what counts as one.
+    const pnlTransactions = transactions.filter(t => !t.equityMovement);
+    const revenue = pnlTransactions.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const expenses = pnlTransactions.filter(t => t.type === 'expense');
 
     const cogsMap = new Map<string, number>();
     const sgaMap  = new Map<string, number>();
@@ -655,14 +661,22 @@ export function computeFinance(
     registeredAssetsValue = 0,
     activeAssets: Asset[] = [],
 ): FinanceData {
-    const income = transactions
+    // Owner capital contributions/drawings are never revenue or an expense
+    // (see Transaction.equityMovement, and computeEnhancedPnL's identical
+    // exclusion) -- stay in full below in paidIncome/paidExpense/
+    // cashBalance, which is cash-basis and correctly includes them (the
+    // cash really did move), excluded only from the accrual P&L figures
+    // here so this app's two "profit" numbers can never silently disagree.
+    const pnlTransactions = transactions.filter(t => !t.equityMovement);
+
+    const income = pnlTransactions
         .filter(t => t.type === 'income')
         .reduce((sum, t) => sum + (t.amount ?? 0), 0);
 
     // Loan principal repayments are excluded here (GAAP/IFRS: only interest
     // is a P&L expense) but stay in full below in paidExpense/cashBalance,
     // which is cash-basis and correctly includes them.
-    const expense = transactions
+    const expense = pnlTransactions
         .filter(t => t.type === 'expense')
         .reduce((sum, t) => sum + (t.amount ?? 0) - (t.principalPortion || 0), 0);
 
@@ -1023,7 +1037,10 @@ export function computeMonthlyTrend(transactions: Transaction[], months = 6, anc
         const yr = d.getFullYear();
         const mo = d.getMonth(); // 0-based
         const prefix = `${yr}-${String(mo + 1).padStart(2, '0')}`;
-        const monthTx = transactions.filter(t => t.date.startsWith(prefix));
+        // Owner capital contributions/drawings excluded -- same reason as
+        // computeEnhancedPnL/computeFinance, so a one-time capital
+        // injection never reads as a revenue spike on a trend chart.
+        const monthTx = transactions.filter(t => t.date.startsWith(prefix) && !t.equityMovement);
         const income = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount ?? 0), 0);
         const expense = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount ?? 0), 0);
         points.push({

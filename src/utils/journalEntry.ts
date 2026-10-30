@@ -138,6 +138,35 @@ export function buildJournalEntryDraftForNewTransaction(tx: Transaction): Journa
     if (!(tx.amount > 0)) return null; // nothing to post for a zero/invalid amount
     const settled = tx.status === 'paid';
 
+    // Owner capital movement -- never revenue or an expense (see
+    // Transaction.equityMovement's own comment), so this posts against
+    // Owner's Capital directly instead of falling into the ordinary
+    // income/expense branches below. computeEnhancedPnL (finance.ts)
+    // excludes these from revenue/expense for the exact same reason --
+    // this file's own header comment is explicit that the ledger must
+    // never silently disagree with the P&L, and this is that rule applied.
+    // Netted straight against Owner's Capital rather than a separate
+    // Drawings contra-account: a simplified, SME-appropriate treatment,
+    // not a misunderstanding of the distinction -- a dedicated Drawings
+    // account only earns its keep once something actually reads it
+    // separately from Owner's Capital, which nothing here does yet.
+    if (tx.equityMovement === 'owner-contribution') {
+        const otherSide = settled ? SYSTEM_ACCOUNTS.cashAndBank : SYSTEM_ACCOUNTS.accountsReceivable;
+        return {
+            date: tx.date, memo: tx.description,
+            lines: [ln(otherSide, tx.amount, 0), ln(SYSTEM_ACCOUNTS.ownersCapital, 0, tx.amount)],
+            source: 'transaction', sourceId: tx.id,
+        };
+    }
+    if (tx.equityMovement === 'owner-drawing') {
+        const otherSide = settled ? SYSTEM_ACCOUNTS.cashAndBank : SYSTEM_ACCOUNTS.accountsPayable;
+        return {
+            date: tx.date, memo: tx.description,
+            lines: [ln(SYSTEM_ACCOUNTS.ownersCapital, tx.amount, 0), ln(otherSide, 0, tx.amount)],
+            source: 'transaction', sourceId: tx.id,
+        };
+    }
+
     if (tx.type === 'expense' && tx.category === 'Loan Repayment') {
         const principal = Math.min(Math.max(tx.principalPortion ?? 0, 0), tx.amount);
         const interest = tx.amount - principal;
