@@ -109,7 +109,7 @@ const PERIODS: { key: ReportPeriod; label: string }[] = [
 ];
 
 export default function ReportsScreen() {
-    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate, user, isDemoMode } = useApp();
+    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate, user, isDemoMode, badDebtProvisions } = useApp();
     const { currency, targetMargin } = settings;
     const businessName = user?.businessName || 'Your Business';
 
@@ -178,7 +178,7 @@ export default function ReportsScreen() {
     );
     const operatingMarginReading = ratiosDashboard.categories.find(c => c.key === 'profitability')?.readings.find(r => r.key === 'operatingMargin');
     const cashRatioReading = ratiosDashboard.categories.find(c => c.key === 'liquidity')?.readings.find(r => r.key === 'cashRatio');
-    const enhPnL     = useMemo(() => computeEnhancedPnL(filteredTx, assets), [filteredTx, assets]);
+    const enhPnL     = useMemo(() => computeEnhancedPnL(filteredTx, assets, badDebtProvisions), [filteredTx, assets, badDebtProvisions]);
     // Exactly the transactions enhPnL.revenue was summed from -- see
     // computeEnhancedPnL's own revenue line -- so the P&L's drill-down
     // panel can never disagree with the total it's explaining.
@@ -209,18 +209,18 @@ export default function ReportsScreen() {
     const balanceSheetPoint = useMemo(() => {
         const monthly = computeAllTimeMonthlyBuckets(transactions);
         const monthKeys = monthly.map(m => m.month);
-        const points = computeBalanceSheetTrend('monthly', monthKeys, transactions, assets, loansList, manualBalances);
+        const points = computeBalanceSheetTrend('monthly', monthKeys, transactions, assets, loansList, manualBalances, badDebtProvisions);
         return points.length > 0 ? points[points.length - 1] : null;
-    }, [transactions, assets, loansList, manualBalances]);
+    }, [transactions, assets, loansList, manualBalances, badDebtProvisions]);
 
     // Most recent month with data -- same "latest point" convention as
     // balanceSheetPoint above, just for the Statement of Changes in Equity.
     const changesInEquityPoint = useMemo(() => {
         const monthly = computeAllTimeMonthlyBuckets(transactions);
         const monthKeys = monthly.map(m => m.month);
-        const points = computeChangesInEquity(monthKeys, transactions, assets, loansList, settings, manualBalances);
+        const points = computeChangesInEquity(monthKeys, transactions, assets, loansList, settings, manualBalances, badDebtProvisions);
         return points.length > 0 ? points[points.length - 1] : null;
-    }, [transactions, assets, loansList, settings, manualBalances]);
+    }, [transactions, assets, loansList, settings, manualBalances, badDebtProvisions]);
 
     // Real calendar dates for the selected period, matching filterByPeriod's
     // own rolling-window logic -- a lender reading "For the period" wants an

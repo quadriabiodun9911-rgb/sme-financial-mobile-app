@@ -149,9 +149,18 @@ function verifiedStats(transactions: Transaction[]) {
 }
 
 function daysSince(dateStr: string): number {
-    const then = new Date(dateStr).getTime();
-    if (isNaN(then)) return NaN;
-    return Math.max(0, Math.floor((Date.now() - then) / 86400000));
+    // Local calendar-date midnight for both sides, not `new Date(dateStr)`
+    // (UTC midnight) against `Date.now()` (real local now) -- for a
+    // negative UTC offset, that mismatch can make a transaction dated
+    // "today" read as "1 day ago" once enough hours have passed locally,
+    // the same round-trip bug already fixed elsewhere in this app (see
+    // customerWinback.ts's own daysSince).
+    const [y, m, d] = dateStr.split('-').map(Number);
+    if (!y || !m || !d) return NaN;
+    const then = new Date(y, m - 1, d).getTime();
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    return Math.max(0, Math.floor((today - then) / 86400000));
 }
 
 /**
