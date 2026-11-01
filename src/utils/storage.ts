@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CryptoJS from 'crypto-js';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, Bill, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CurrencyAccount, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, HealthScoreSnapshot, FxRateSnapshot, Account, JournalEntry, BadDebtProvision } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, Bill, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CurrencyAccount, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, HealthScoreSnapshot, FxRateSnapshot, Account, JournalEntry, BadDebtProvision, ReceivableWriteOff } from '../types';
 import { supabase } from './supabase';
 import {
     savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData, saveAuthSecretSecurely, loadAuthSecretSecurely, clearAuthSecretSecurely,
@@ -1395,6 +1395,17 @@ export async function loadBadDebtProvisions(): Promise<BadDebtProvision[] | null
     return safeParse<BadDebtProvision[]>(raw);
 }
 
+// ─── Receivable Write-Offs ─────────────────────────────────────────────────────
+// Same local-only pattern as Bad Debt Provisions above.
+export const RECEIVABLE_WRITE_OFFS_KEY = '@quad360/receivableWriteOffs';
+export async function saveReceivableWriteOffs(writeOffs: ReceivableWriteOff[]): Promise<void> {
+    await AsyncStorage.setItem(RECEIVABLE_WRITE_OFFS_KEY, JSON.stringify(writeOffs));
+}
+export async function loadReceivableWriteOffs(): Promise<ReceivableWriteOff[] | null> {
+    const raw = await AsyncStorage.getItem(RECEIVABLE_WRITE_OFFS_KEY);
+    return safeParse<ReceivableWriteOff[]>(raw);
+}
+
 // Every local-only snapshot-history key above, in one place. All four
 // share the exact trait that makes them dangerous to forget clearing: no
 // Supabase table backs them (see each section's own comment), and they
@@ -1921,6 +1932,13 @@ const FINANCIAL_CACHE_KEYS = [
     '@quad360/milestones_seen', '@quad360/streak_date', '@quad360/streak_count', '@quad360/retention_last_seen',
     // invoiceReminders.ts
     '@quad360/invoice_reminder_state',
+    // Bad debt provisions / receivable write-offs (financeOptimized /
+    // journalEntry.ts) -- missing from this list until now, the exact
+    // recurring "forgot to add the new local-only key" bug this list's own
+    // header comment describes: without it, a second account on this
+    // device would inherit the first account's doubtful-receivable and
+    // write-off records.
+    BAD_DEBT_PROVISIONS_KEY, RECEIVABLE_WRITE_OFFS_KEY,
 ];
 
 // Clears local storage only — Supabase data is preserved so user can sign back in and recover.

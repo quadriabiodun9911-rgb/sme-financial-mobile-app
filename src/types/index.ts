@@ -818,7 +818,7 @@ export interface JournalLine {
 }
 
 export type JournalEntrySource =
-    | 'transaction' | 'invoice' | 'bill' | 'payroll' | 'loan_payment' | 'inventory' | 'manual' | 'bad_debt_provision';
+    | 'transaction' | 'invoice' | 'bill' | 'payroll' | 'loan_payment' | 'inventory' | 'manual' | 'bad_debt_provision' | 'receivable_write_off';
 
 export interface JournalEntry {
     id: string;
@@ -844,11 +844,24 @@ export interface JournalEntry {
 }
 
 // A judgment-based write-down against a SPECIFIC still-outstanding income
-// Transaction the owner believes won't be collected (IFRS for SMEs Section
-// 21 / IAS 37 provisions, applied to a receivable) -- raised from the Aging
-// Report against a real income transaction's id, never a synthesized
-// unlinked-invoice placeholder (see unlinkedInvoiceReceivables in
-// finance.ts), since there's no real Transaction to link a provision
+// Transaction the owner believes won't be fully collected -- governed by
+// IFRS for SMEs Section 11 (Basic Financial Instruments), paragraphs
+// 11.21-11.26: an incurred-loss model, not full IFRS 9's forward-looking
+// Expected Credit Loss model -- an entity assesses for OBJECTIVE EVIDENCE
+// of impairment (11.22: financial difficulty, delinquency, probable
+// bankruptcy) and may assess individually (11.23), which is exactly what
+// raising a provision against one specific receivable, triggered by the
+// owner noticing it's badly overdue, already is. (Earlier revisions of
+// this comment cited Section 21/IAS 37 -- wrong; that section is for
+// non-financial-instrument obligations like warranty provisions, not
+// receivables impairment.)
+//
+// `amount` may be less than the transaction's full outstanding balance --
+// a partial provision ("I think ₦30k of this ₦100k is at risk, not all of
+// it") is a real, supported case, not just a full write-down. Raised from
+// the Aging Report against a real income transaction's id, never a
+// synthesized unlinked-invoice placeholder (see unlinkedInvoiceReceivables
+// in finance.ts), since there's no real Transaction to link a provision
 // against until that invoice is actually recorded as one.
 export interface BadDebtProvision {
     id: string;
@@ -860,6 +873,32 @@ export interface BadDebtProvision {
     // Never deleted once reversed -- the same "a correction is a new entry,
     // the original record stays" discipline as JournalEntry.reversedByEntryId.
     reversedAt?: string;
+    createdAt: string;
+}
+
+// The permanent counterpart to a BadDebtProvision (11.24's impairment loss
+// is a judgment that collection is UNLIKELY; a write-off is the separate
+// decision that collection is ABANDONED) -- derecognizes a receivable
+// entirely: Accounts Receivable is credited for the full amount, consuming
+// whatever Allowance was already raised against it (buildReceivableWriteOffDraft
+// in journalEntry.ts), with any shortfall hitting Bad Debt Expense directly
+// if the receivable was never provisioned first. Always the transaction's
+// FULL outstanding amount, never partial -- getOutstandingReceivables
+// (finance.ts) excludes a written-off transaction entirely from every
+// outstanding-AR view (Aging Report, the customer ranking, the periodic
+// report), which only makes sense for the whole item, not a fraction of
+// it; a partially-doubtful-but-still-collectible remainder stays
+// outstanding with its own (partial) BadDebtProvision instead. Never
+// reversed -- once a receivable is written off this app offers no "undo",
+// the same "correction only ever adds, never edits or deletes" discipline
+// every other ledger-backed record here holds to.
+export interface ReceivableWriteOff {
+    id: string;
+    transactionId: string;
+    amount: number;
+    date: string;
+    customerLabel?: string;
+    note?: string;
     createdAt: string;
 }
 
