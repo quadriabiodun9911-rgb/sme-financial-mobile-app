@@ -892,6 +892,30 @@ function unlinkedInvoiceReceivables(transactions: Transaction[], invoices: Invoi
     return receivables;
 }
 
+// Every still-outstanding income item -- ordinary transactions still
+// pending/overdue with a due date, plus invoice-only receivables that have
+// no transaction yet (unlinkedInvoiceReceivables) -- the one definition of
+// "what counts as outstanding AR" every receivables-facing feature (Aging
+// Report buckets, the customer ranking, the periodic report) reads from, so
+// none of them can silently disagree about which items are outstanding.
+function getOutstandingReceivables(transactions: Transaction[], invoices: Invoice[] = []): Transaction[] {
+    return transactions.concat(unlinkedInvoiceReceivables(transactions, invoices))
+        .filter(t => t.type === 'income' && (t.status === 'pending' || t.status === 'overdue') && t.dueDate);
+}
+
+// Parses a "YYYY-MM-DD" dueDate as local calendar-date components directly,
+// not via `new Date(string)` (UTC midnight) -- that would shift the
+// calendar date back a day for negative UTC offsets, moving an item into
+// the wrong aging bucket near a 30/60/90-day boundary. `today` must already
+// be local midnight (`.setHours(0,0,0,0)`). Shared by computeAgingBuckets,
+// the customer ranking and the periodic report so none of them can
+// disagree about how many days overdue the same item is.
+function daysOverdueAsOf(dueDate: string, today: Date): number {
+    const [dy, dm, dd] = dueDate.split('-').map(Number);
+    const due = new Date(dy, (dm || 1) - 1, dd || 1);
+    return Math.floor((today.getTime() - due.getTime()) / 86400000);
+}
+
 export function computeAgingBuckets(
     transactions: Transaction[],
     type: 'income' | 'expense',
@@ -900,10 +924,9 @@ export function computeAgingBuckets(
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const source = type === 'income' ? transactions.concat(unlinkedInvoiceReceivables(transactions, invoices)) : transactions;
-    const pending = source.filter(
-        t => t.type === type && (t.status === 'pending' || t.status === 'overdue') && t.dueDate
-    );
+    const pending = type === 'income'
+        ? getOutstandingReceivables(transactions, invoices)
+        : transactions.filter(t => t.type === type && (t.status === 'pending' || t.status === 'overdue') && t.dueDate);
 
     const buckets: AgingBucket[] = [
         { label: 'Current (0–30 days)', transactions: [], total: 0 },
@@ -913,15 +936,7 @@ export function computeAgingBuckets(
     ];
 
     for (const tx of pending) {
-        // Parse the "YYYY-MM-DD" dueDate as local calendar-date components
-        // directly, not via `new Date(string)` (UTC midnight) followed by
-        // `.setHours(0,0,0,0)` (re-anchors to LOCAL midnight) — that
-        // round-trip shifts the calendar date back a day for negative UTC
-        // offsets, moving transactions into the wrong aging bucket near a
-        // 30/60/90-day boundary.
-        const [dy, dm, dd] = tx.dueDate!.split('-').map(Number);
-        const due = new Date(dy, (dm || 1) - 1, dd || 1);
-        const daysOverdue = Math.floor((today.getTime() - due.getTime()) / 86400000);
+        const daysOverdue = daysOverdueAsOf(tx.dueDate!, today);
 
         let bucket: AgingBucket;
         if (daysOverdue <= 30) bucket = buckets[0];
@@ -934,6 +949,149 @@ export function computeAgingBuckets(
     }
 
     return buckets;
+}
+
+export interface CustomerOutstandingSummary {
+    customer: string;
+    key: string;
+    totalOutstanding: number;
+    itemCount: number;
+    // Days overdue of the single oldest outstanding item for this customer
+    // (negative = not yet due) -- the same "oldest item drives urgency"
+    // read a human doing collections would reach for, not an average that
+    // could hide one badly overdue invoice behind several current ones.
+    maxDaysOverdue: number;
+    percentageOfTotal: number;
+}
+
+/**
+ * Ranks customers by how much they currently OWE, not by how much revenue
+ * they've generated (that's computeCustomerConcentration, a different
+ * question -- a customer can be a top revenue source and have nothing
+ * outstanding, or a middling one sitting on the largest unpaid balance).
+ * Reuses getOutstandingReceivables, the exact same source
+ * computeAgingBuckets groups into buckets -- this is the same outstanding
+ * total regrouped by customer instead of by age, so it can never disagree
+ * with the Aging Report's own total.
+ */
+export function computeTopOutstandingCustomers(transactions: Transaction[], invoices: Invoice[] = []): CustomerOutstandingSummary[] {
+    const pending = getOutstandingReceivables(transactions, invoices);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const map = new Map<string, { display: string; amount: number; count: number; maxDaysOverdue: number }>();
+    let total = 0;
+    for (const t of pending) {
+        const key = entityKey(t.vendorCustomer) || 'unknown';
+        const display = entityDisplayName(t.vendorCustomer) || 'Unknown';
+        const daysOverdue = daysOverdueAsOf(t.dueDate!, today);
+        const e = map.get(key) ?? { display, amount: 0, count: 0, maxDaysOverdue: -Infinity };
+        e.amount += (t.amount ?? 0);
+        e.count++;
+        e.maxDaysOverdue = Math.max(e.maxDaysOverdue, daysOverdue);
+        map.set(key, e);
+        total += (t.amount ?? 0);
+    }
+
+    return Array.from(map.entries())
+        .sort((a, b) => b[1].amount - a[1].amount)
+        .map(([key, { display, amount, count, maxDaysOverdue }]) => ({
+            customer: display,
+            key,
+            totalOutstanding: amount,
+            itemCount: count,
+            maxDaysOverdue,
+            percentageOfTotal: total > 0 ? (amount / total) * 100 : 0,
+        }));
+}
+
+export interface ReceivablesReportItem {
+    customer: string;
+    amount: number;
+    dueDate: string;
+    days: number; // expectedCollections: days until due (>=0); needsReview: days overdue
+}
+
+export interface ReceivablesReportPeriod {
+    periodLabel: string;
+    asOfDate: string;
+    totalOutstanding: number;
+    currentBalance: number;   // not yet overdue, or overdue <=30 days -- the Aging Report's own "Current" bucket
+    overdueBalance: number;   // totalOutstanding - currentBalance
+    // Invoices only -- the one place a real collection DATE exists
+    // (Invoice.paidDate, stamped the moment markInvoiceStatus transitions an
+    // invoice to 'paid'; see customerPaymentBehavior.ts's own comment). A
+    // plain Transaction's paid status carries no date of when it was marked
+    // paid, so it can't honestly be counted here -- this is a floor on
+    // "collected this period", not the complete figure, the same kind of
+    // caveat balanceSheetTrend.ts already documents for AR/AP as of a past
+    // date.
+    collectedThisPeriod: number;
+    collectedInvoiceCount: number;
+    topDefaulters: CustomerOutstandingSummary[];
+    expectedCollections: ReceivablesReportItem[]; // not yet overdue, soonest due date first
+    // Long-overdue items (90+ days) -- flagged for manual review because
+    // they're the oldest and highest-risk, NOT because anything in this
+    // app's data can tell a real dispute or billing error apart from a
+    // customer who simply hasn't paid. Labelling this "disputed" would be
+    // inventing a fact Quad360 has no way to know.
+    needsReview: ReceivablesReportItem[];
+}
+
+export function computeReceivablesReport(
+    transactions: Transaction[],
+    invoices: Invoice[],
+    periodStart: string,
+    periodEnd: string,
+    periodLabel: string
+): ReceivablesReportPeriod {
+    const buckets = computeAgingBuckets(transactions, 'income', invoices);
+    const totalOutstanding = buckets.reduce((s, b) => s + b.total, 0);
+    const currentBalance = buckets[0].total;
+    const overdueBalance = totalOutstanding - currentBalance;
+
+    const collectedInvoices = invoices.filter(
+        inv => inv.status === 'paid' && inv.paidDate && inv.paidDate >= periodStart && inv.paidDate <= periodEnd
+    );
+    const collectedThisPeriod = collectedInvoices.reduce((s, inv) => s + (inv.total ?? 0), 0);
+
+    const topDefaulters = computeTopOutstandingCustomers(transactions, invoices).slice(0, 8);
+
+    const pending = getOutstandingReceivables(transactions, invoices);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const dated = pending.map(t => ({
+        customer: entityDisplayName(t.vendorCustomer) || 'Unknown',
+        amount: t.amount ?? 0,
+        dueDate: t.dueDate!,
+        daysOverdue: daysOverdueAsOf(t.dueDate!, today),
+    }));
+
+    const expectedCollections: ReceivablesReportItem[] = dated
+        .filter(d => d.daysOverdue < 0)
+        .sort((a, b) => b.daysOverdue - a.daysOverdue) // soonest due date first -- daysOverdue is negative here, closest to 0 (least negative) due soonest
+        .slice(0, 10)
+        .map(d => ({ customer: d.customer, amount: d.amount, dueDate: d.dueDate, days: -d.daysOverdue }));
+
+    const needsReview: ReceivablesReportItem[] = dated
+        .filter(d => d.daysOverdue > 90)
+        .sort((a, b) => b.daysOverdue - a.daysOverdue)
+        .slice(0, 10)
+        .map(d => ({ customer: d.customer, amount: d.amount, dueDate: d.dueDate, days: d.daysOverdue }));
+
+    return {
+        periodLabel,
+        asOfDate: localDateStr(today),
+        totalOutstanding,
+        currentBalance,
+        overdueBalance,
+        collectedThisPeriod,
+        collectedInvoiceCount: collectedInvoices.length,
+        topDefaulters,
+        expectedCollections,
+        needsReview,
+    };
 }
 
 export function computeRecurringDates(
