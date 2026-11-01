@@ -28,7 +28,7 @@
  * undercount for this reason. Flagged in the UI, not hidden.
  */
 
-import { Transaction, Asset, Loan, BadDebtProvision } from '../types';
+import { Transaction, Asset, Loan, BadDebtProvision, ReceivableWriteOff } from '../types';
 import { computeLoanAmortizationSplit } from './finance';
 import { isoWeekOf } from './trendAnalysis';
 import { localDateStr } from './localDate';
@@ -108,9 +108,16 @@ function cashOnHandAsOf(transactions: Transaction[], endDate: string): number {
 // Still-unpaid income/expense transactions dated by endDate — see the
 // module-level caveat: this is a floor on historical AR/AP, not the true
 // as-of-that-date figure, since paid status carries no date of its own.
-function accountsReceivableAsOf(transactions: Transaction[], endDate: string): number {
+// A receivable written off by endDate (see ReceivableWriteOff) is excluded
+// -- it's been derecognized, not just allowed-for, so it must drop out of
+// gross AR itself, not merely net against it the way allowanceForDoubtfulDebtsAsOf
+// does. Excluded only from the point its OWN write-off date onward: it was
+// genuinely still outstanding at any earlier endDate, and a past snapshot
+// shouldn't retroactively erase it.
+function accountsReceivableAsOf(transactions: Transaction[], endDate: string, writeOffs: ReceivableWriteOff[] = []): number {
+    const writtenOffByThen = new Set(writeOffs.filter(w => w.date && w.date <= endDate).map(w => w.transactionId));
     return transactions
-        .filter(t => t.type === 'income' && t.date && t.date <= endDate && (t.status === 'pending' || t.status === 'overdue'))
+        .filter(t => t.type === 'income' && t.date && t.date <= endDate && (t.status === 'pending' || t.status === 'overdue') && !writtenOffByThen.has(t.id))
         .reduce((sum, t) => sum + (t.amount ?? 0), 0);
 }
 
@@ -173,10 +180,10 @@ function loanBalanceSplitAsOf(loans: Loan[], endDate: string): { total: number; 
 
 const EMPTY_MANUAL: ManualBalances = { stockValue: 0, manualEquipment: 0, otherAssets: 0, otherLiabilities: 0 };
 
-function buildPoints(periods: PeriodDef[], transactions: Transaction[], assets: Asset[], loans: Loan[], manual: ManualBalances, badDebtProvisions: BadDebtProvision[]): BalanceSheetTrendPoint[] {
+function buildPoints(periods: PeriodDef[], transactions: Transaction[], assets: Asset[], loans: Loan[], manual: ManualBalances, badDebtProvisions: BadDebtProvision[], writeOffs: ReceivableWriteOff[]): BalanceSheetTrendPoint[] {
     return periods.map(p => {
         const cashOnHand = cashOnHandAsOf(transactions, p.endDate);
-        const accountsReceivable = accountsReceivableAsOf(transactions, p.endDate);
+        const accountsReceivable = accountsReceivableAsOf(transactions, p.endDate, writeOffs);
         const allowanceForDoubtfulDebts = allowanceForDoubtfulDebtsAsOf(badDebtProvisions, p.endDate);
         const accountsReceivableNet = accountsReceivable - allowanceForDoubtfulDebts;
         const accountsPayable = accountsPayableAsOf(transactions, p.endDate);
@@ -257,7 +264,8 @@ export function computeBalanceSheetTrend(
     assets: Asset[],
     loans: Loan[],
     manual: ManualBalances = EMPTY_MANUAL,
-    badDebtProvisions: BadDebtProvision[] = []
+    badDebtProvisions: BadDebtProvision[] = [],
+    writeOffs: ReceivableWriteOff[] = []
 ): BalanceSheetTrendPoint[] {
     if (grouping === 'daily' || grouping === 'weekly') {
         const days = datesWithData(transactions);
@@ -265,7 +273,7 @@ export function computeBalanceSheetTrend(
 
         if (grouping === 'daily') {
             const periods: PeriodDef[] = days.map(d => ({ key: d, label: DAY_LABEL(d), endDate: capAtToday(d) }));
-            return buildPoints(periods, transactions, assets, loans, manual, badDebtProvisions);
+            return buildPoints(periods, transactions, assets, loans, manual, badDebtProvisions, writeOffs);
         }
 
         // weekly -- as of each ISO week's Sunday (its calendar end), not
@@ -278,7 +286,7 @@ export function computeBalanceSheetTrend(
         }
         return Array.from(seen.values())
             .sort((a, b) => a.key.localeCompare(b.key))
-            .map(p => buildPoints([p], transactions, assets, loans, manual, badDebtProvisions)[0]);
+            .map(p => buildPoints([p], transactions, assets, loans, manual, badDebtProvisions, writeOffs)[0]);
     }
 
     if (months.length === 0) return [];
@@ -288,7 +296,7 @@ export function computeBalanceSheetTrend(
             const [y, mo] = m.split('-').map(Number);
             return { key: m, label: MONTH_SHORT(y, mo), endDate: capAtToday(monthEndDate(y, mo)) };
         });
-        return buildPoints(periods, transactions, assets, loans, manual, badDebtProvisions);
+        return buildPoints(periods, transactions, assets, loans, manual, badDebtProvisions, writeOffs);
     }
 
     if (grouping === 'quarterly') {
@@ -299,7 +307,7 @@ export function computeBalanceSheetTrend(
             const key = `${y}-Q${q}`;
             if (!seen.has(key)) seen.set(key, { key, label: `Q${q} ${y}`, endDate: capAtToday(monthEndDate(y, q * 3)) });
         }
-        return buildPoints(Array.from(seen.values()).sort((a, b) => a.key.localeCompare(b.key)), transactions, assets, loans, manual, badDebtProvisions);
+        return buildPoints(Array.from(seen.values()).sort((a, b) => a.key.localeCompare(b.key)), transactions, assets, loans, manual, badDebtProvisions, writeOffs);
     }
 
     // yearly
@@ -311,5 +319,5 @@ export function computeBalanceSheetTrend(
     }
     return Array.from(seen.values())
         .sort((a, b) => a.key.localeCompare(b.key))
-        .map(p => buildPoints([p], transactions, assets, loans, manual, badDebtProvisions)[0]);
+        .map(p => buildPoints([p], transactions, assets, loans, manual, badDebtProvisions, writeOffs)[0]);
 }
