@@ -43,7 +43,7 @@ import { computeAllTimeMonthlyBuckets } from '../utils/trendAnalysis';
 import { filterByPeriod, filterByDateRange, getPreviousPeriodRange, computeFinance, computeAssetCurrentValue, computeMonthlyTrend, computeEnhancedPnL, computeProperCashFlow, computeWorkingCapitalMetrics, classifyBusinessSize, sizeLabel, transactionsToCSV, ReportPeriod, MonthlyPoint, DateRange } from '../utils/finance';
 import { trackReportViewed, trackDataExported } from '../utils/analytics';
 import { auditEvents } from '../utils/auditLog';
-import { FinanceData } from '../types';
+import { FinanceData, Transaction } from '../types';
 import DateInput from '../components/DateInput';
 import { InventoryItem } from '../types';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
@@ -51,7 +51,7 @@ import { computeInventoryValue } from '../utils/stockVelocity';
 import { computeMarginPct } from '../utils/priceHistory';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
-import { localDateStr, addMonthsClamped } from '../utils/localDate';
+import { localDateStr, localMonthStr, addMonthsClamped } from '../utils/localDate';
 
 // ─── Section groups ────────────────────────────────────────────────────────────
 type SectionKey = 'statements' | 'customers' | 'tax' | 'growth';
@@ -109,7 +109,7 @@ const PERIODS: { key: ReportPeriod; label: string }[] = [
 ];
 
 export default function ReportsScreen() {
-    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate, user, isDemoMode, badDebtProvisions } = useApp();
+    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate, user, isDemoMode, badDebtProvisions, receivableWriteOffs } = useApp();
     const { currency, targetMargin } = settings;
     const businessName = user?.businessName || 'Your Business';
 
@@ -178,7 +178,16 @@ export default function ReportsScreen() {
     );
     const operatingMarginReading = ratiosDashboard.categories.find(c => c.key === 'profitability')?.readings.find(r => r.key === 'operatingMargin');
     const cashRatioReading = ratiosDashboard.categories.find(c => c.key === 'liquidity')?.readings.find(r => r.key === 'cashRatio');
-    const enhPnL     = useMemo(() => computeEnhancedPnL(filteredTx, assets, badDebtProvisions), [filteredTx, assets, badDebtProvisions]);
+    // 'month'/'quarter'/'year'/'all' all run a trailing window through to
+    // NOW (filterByPeriod only applies a start cutoff) -- only 'custom' has
+    // its own fixed end date, which must be respected as-is rather than
+    // extended to today. See computeEnhancedPnL's periodEndOverride comment
+    // for why this matters specifically for badDebtExpense.
+    const pnlPeriodEnd = period === 'custom' ? customRange.to : today;
+    const enhPnL     = useMemo(
+        () => computeEnhancedPnL(filteredTx, assets, badDebtProvisions, receivableWriteOffs, pnlPeriodEnd),
+        [filteredTx, assets, badDebtProvisions, receivableWriteOffs, pnlPeriodEnd]
+    );
     // Exactly the transactions enhPnL.revenue was summed from -- see
     // computeEnhancedPnL's own revenue line -- so the P&L's drill-down
     // panel can never disagree with the total it's explaining.
@@ -204,23 +213,42 @@ export default function ReportsScreen() {
         otherLiabilities: parseFloat(settings.openingLiabilities) || 0,
     }), [inventoryValue, settings.openingAssets, settings.openingOtherAssets, settings.openingLiabilities]);
 
+    // computeAllTimeMonthlyBuckets only returns months that actually have a
+    // transaction dated in them -- fine for trend/MoM math, but these two
+    // memos are explicitly "as of TODAY" snapshots, and a business whose
+    // most recent transaction isn't dated this month would otherwise get
+    // "as of today" figures frozen at that older month: cash/AR/equity
+    // wouldn't move, and a bad-debt provision or write-off raised today
+    // (dated today, via the Aging Report) would silently fail to appear in
+    // either statement until some transaction eventually lands in the
+    // current month. Backfilling today's month key (when there's at least
+    // some history to extend) gives computeBalanceSheetTrend/
+    // computeChangesInEquity a same-figures-carried-forward point ending
+    // today to actually attach today-dated provisions/write-offs to -- a
+    // business with zero transactions ever still correctly gets no point
+    // at all (nothing to show).
+    const monthKeysThroughToday = (txs: Transaction[]): string[] => {
+        const keys = computeAllTimeMonthlyBuckets(txs).map(m => m.month);
+        const currentMonth = localMonthStr();
+        if (keys.length > 0 && keys[keys.length - 1] !== currentMonth) keys.push(currentMonth);
+        return keys;
+    };
+
     // "As of today" snapshot for the formal Balance Sheet -- the most recent
     // monthly point computeBalanceSheetTrend produces, capped at today.
     const balanceSheetPoint = useMemo(() => {
-        const monthly = computeAllTimeMonthlyBuckets(transactions);
-        const monthKeys = monthly.map(m => m.month);
-        const points = computeBalanceSheetTrend('monthly', monthKeys, transactions, assets, loansList, manualBalances, badDebtProvisions);
+        const monthKeys = monthKeysThroughToday(transactions);
+        const points = computeBalanceSheetTrend('monthly', monthKeys, transactions, assets, loansList, manualBalances, badDebtProvisions, receivableWriteOffs);
         return points.length > 0 ? points[points.length - 1] : null;
-    }, [transactions, assets, loansList, manualBalances, badDebtProvisions]);
+    }, [transactions, assets, loansList, manualBalances, badDebtProvisions, receivableWriteOffs]);
 
     // Most recent month with data -- same "latest point" convention as
     // balanceSheetPoint above, just for the Statement of Changes in Equity.
     const changesInEquityPoint = useMemo(() => {
-        const monthly = computeAllTimeMonthlyBuckets(transactions);
-        const monthKeys = monthly.map(m => m.month);
-        const points = computeChangesInEquity(monthKeys, transactions, assets, loansList, settings, manualBalances, badDebtProvisions);
+        const monthKeys = monthKeysThroughToday(transactions);
+        const points = computeChangesInEquity(monthKeys, transactions, assets, loansList, settings, manualBalances, badDebtProvisions, receivableWriteOffs);
         return points.length > 0 ? points[points.length - 1] : null;
-    }, [transactions, assets, loansList, settings, manualBalances, badDebtProvisions]);
+    }, [transactions, assets, loansList, settings, manualBalances, badDebtProvisions, receivableWriteOffs]);
 
     // Real calendar dates for the selected period, matching filterByPeriod's
     // own rolling-window logic -- a lender reading "For the period" wants an

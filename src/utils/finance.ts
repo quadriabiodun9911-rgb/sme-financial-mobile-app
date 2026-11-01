@@ -116,7 +116,20 @@ export function transactionSpanYears(transactions: Transaction[]): number {
     return Math.min(1, spanDays / 365);
 }
 
-export function computeEnhancedPnL(transactions: Transaction[], assets: Asset[], badDebtProvisions: BadDebtProvision[] = []): EnhancedPnL {
+export function computeEnhancedPnL(
+    transactions: Transaction[], assets: Asset[], badDebtProvisions: BadDebtProvision[] = [], receivableWriteOffs: ReceivableWriteOff[] = [],
+    // Overrides the transaction-span upper bound used below for
+    // badDebtExpense only, when the caller knows the period being shown
+    // genuinely extends through this date (e.g. an "all time" or trailing
+    // "last N months" view, which conceptually runs through today even if
+    // no transaction happens to be dated today) -- without it, a provision
+    // or write-off dated after the LAST transaction's own date would be
+    // silently excluded just because nothing else was recorded that
+    // recently. Omit it for a closed historical slice (a specific past
+    // month/quarter/year, or a custom range with its own fixed end date),
+    // where the transaction span IS the correct boundary.
+    periodEndOverride?: string,
+): EnhancedPnL {
     // Owner capital contributions/drawings are never revenue or an expense
     // (see Transaction.equityMovement) -- excluded here for the same
     // reason journalEntry.ts posts them to Owner's Capital instead of a
@@ -138,12 +151,29 @@ export function computeEnhancedPnL(transactions: Transaction[], assets: Asset[],
     // accepts elsewhere in this file, not a silent fabrication.
     const txDates = transactions.map(t => t.date).filter(Boolean).sort();
     const periodStart = txDates[0];
-    const periodEnd = txDates[txDates.length - 1];
-    const badDebtExpense = (periodStart && periodEnd)
+    const periodEnd = periodEndOverride ?? txDates[txDates.length - 1];
+    const provisionExpense = (periodStart && periodEnd)
         ? badDebtProvisions
             .filter(p => !p.reversedAt && p.date >= periodStart && p.date <= periodEnd)
             .reduce((s, p) => s + (Number(p.amount) || 0), 0)
         : 0;
+    // A write-off's OWN expense impact is only the SHORTFALL beyond what was
+    // already provisioned for that receivable (buildReceivableWriteOffDraft's
+    // exact split) -- the already-provisioned portion was already expensed
+    // when that provision was raised (possibly in an earlier period, already
+    // counted above or in a prior call), so counting the write-off's full
+    // amount again here would double it.
+    const provisionedByTx = new Map<string, number>();
+    for (const p of badDebtProvisions) {
+        if (p.reversedAt) continue;
+        provisionedByTx.set(p.transactionId, (provisionedByTx.get(p.transactionId) ?? 0) + p.amount);
+    }
+    const writeOffShortfallExpense = (periodStart && periodEnd)
+        ? receivableWriteOffs
+            .filter(w => w.date >= periodStart && w.date <= periodEnd)
+            .reduce((s, w) => s + Math.max(0, w.amount - (provisionedByTx.get(w.transactionId) ?? 0)), 0)
+        : 0;
+    const badDebtExpense = provisionExpense + writeOffShortfallExpense;
 
     const cogsMap = new Map<string, number>();
     const sgaMap  = new Map<string, number>();

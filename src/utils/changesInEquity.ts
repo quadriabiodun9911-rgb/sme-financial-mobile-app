@@ -26,7 +26,7 @@
  * own "Other movements (unexplained)" line -- real information about a
  * figure this statement can't fully explain, not a bug to hide.
  */
-import { Transaction, Asset, Loan, BusinessSettings, BadDebtProvision } from '../types';
+import { Transaction, Asset, Loan, BusinessSettings, BadDebtProvision, ReceivableWriteOff } from '../types';
 import { computeEnhancedPnL } from './finance';
 import { computeBalanceSheetTrend, ManualBalances } from './balanceSheetTrend';
 import { localDateStr } from './localDate';
@@ -60,15 +60,17 @@ export function computeChangesInEquity(
     settings: Pick<BusinessSettings, 'openingAssets' | 'openingLiabilities'>,
     manual: ManualBalances = { stockValue: 0, manualEquipment: 0, otherAssets: 0, otherLiabilities: 0 },
     badDebtProvisions: BadDebtProvision[] = [],
+    receivableWriteOffs: ReceivableWriteOff[] = [],
 ): ChangesInEquityPoint[] {
     if (months.length === 0) return [];
 
-    // Same badDebtProvisions array threaded into both the Balance Sheet
-    // (closingEquity, via netWorth) and the P&L (netProfit) below -- a
-    // provision counted in one but not the other would show up as a false
-    // "unexplainedMovement", the exact silent-disagreement failure mode
-    // this statement's own header comment exists to surface, not hide.
-    const balanceSheetPoints = computeBalanceSheetTrend('monthly', months, transactions, assets, loans, manual, badDebtProvisions);
+    // Same badDebtProvisions/receivableWriteOffs arrays threaded into both
+    // the Balance Sheet (closingEquity, via netWorth) and the P&L
+    // (netProfit) below -- a provision or write-off counted in one but not
+    // the other would show up as a false "unexplainedMovement", the exact
+    // silent-disagreement failure mode this statement's own header comment
+    // exists to surface, not hide.
+    const balanceSheetPoints = computeBalanceSheetTrend('monthly', months, transactions, assets, loans, manual, badDebtProvisions, receivableWriteOffs);
 
     const openingBaseline = (parseFloat(settings.openingAssets) || 0) - (parseFloat(settings.openingLiabilities) || 0);
 
@@ -83,7 +85,7 @@ export function computeChangesInEquity(
         // from revenue/expense -- this is the exact same "Net Profit"
         // figure the P&L statement shows for this period, not a second,
         // independently-derived one.
-        const pnl = computeEnhancedPnL(periodTx, assets, badDebtProvisions);
+        const pnl = computeEnhancedPnL(periodTx, assets, badDebtProvisions, receivableWriteOffs, periodEnd);
 
         const ownerContributions = periodTx
             .filter(t => t.equityMovement === 'owner-contribution')
