@@ -1,4 +1,4 @@
-import { Transaction, FinanceData, BusinessSettings, AgingBucket, Asset, Invoice, Loan, FinancialGoal, Budget, InventoryItem, BadDebtProvision } from '../types';
+import { Transaction, FinanceData, BusinessSettings, AgingBucket, Asset, Invoice, Loan, FinancialGoal, Budget, InventoryItem, BadDebtProvision, ReceivableWriteOff } from '../types';
 import { getWeekRanges, transactionsInRange, sumByType } from './periodRange';
 import { computeLeverageRatios } from './debtRatios';
 import { computeCashRunway } from './cashRunway';
@@ -898,9 +898,14 @@ function unlinkedInvoiceReceivables(transactions: Transaction[], invoices: Invoi
 // "what counts as outstanding AR" every receivables-facing feature (Aging
 // Report buckets, the customer ranking, the periodic report) reads from, so
 // none of them can silently disagree about which items are outstanding.
-function getOutstandingReceivables(transactions: Transaction[], invoices: Invoice[] = []): Transaction[] {
+// A written-off receivable (ReceivableWriteOff) is excluded entirely, not
+// just discounted -- writing off is always the transaction's FULL
+// outstanding amount (see that type's own comment), so there's no partial
+// remainder that could still belong in an outstanding view.
+function getOutstandingReceivables(transactions: Transaction[], invoices: Invoice[] = [], writeOffs: ReceivableWriteOff[] = []): Transaction[] {
+    const writtenOffIds = new Set(writeOffs.map(w => w.transactionId));
     return transactions.concat(unlinkedInvoiceReceivables(transactions, invoices))
-        .filter(t => t.type === 'income' && (t.status === 'pending' || t.status === 'overdue') && t.dueDate);
+        .filter(t => t.type === 'income' && (t.status === 'pending' || t.status === 'overdue') && t.dueDate && !writtenOffIds.has(t.id));
 }
 
 // Parses a "YYYY-MM-DD" dueDate as local calendar-date components directly,
@@ -919,13 +924,14 @@ function daysOverdueAsOf(dueDate: string, today: Date): number {
 export function computeAgingBuckets(
     transactions: Transaction[],
     type: 'income' | 'expense',
-    invoices: Invoice[] = []
+    invoices: Invoice[] = [],
+    writeOffs: ReceivableWriteOff[] = []
 ): AgingBucket[] {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const pending = type === 'income'
-        ? getOutstandingReceivables(transactions, invoices)
+        ? getOutstandingReceivables(transactions, invoices, writeOffs)
         : transactions.filter(t => t.type === type && (t.status === 'pending' || t.status === 'overdue') && t.dueDate);
 
     const buckets: AgingBucket[] = [
@@ -974,8 +980,8 @@ export interface CustomerOutstandingSummary {
  * total regrouped by customer instead of by age, so it can never disagree
  * with the Aging Report's own total.
  */
-export function computeTopOutstandingCustomers(transactions: Transaction[], invoices: Invoice[] = []): CustomerOutstandingSummary[] {
-    const pending = getOutstandingReceivables(transactions, invoices);
+export function computeTopOutstandingCustomers(transactions: Transaction[], invoices: Invoice[] = [], writeOffs: ReceivableWriteOff[] = []): CustomerOutstandingSummary[] {
+    const pending = getOutstandingReceivables(transactions, invoices, writeOffs);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -1006,10 +1012,20 @@ export function computeTopOutstandingCustomers(transactions: Transaction[], invo
 }
 
 export interface ReceivablesReportItem {
+    transactionId: string;
     customer: string;
     amount: number;
     dueDate: string;
     days: number; // expectedCollections: days until due (>=0); needsReview: days overdue
+    // false for a synthesized unlinked-invoice placeholder (see
+    // unlinkedInvoiceReceivables) -- there's no real Transaction yet to
+    // raise a provision or write-off against, so a caller must hide those
+    // actions rather than offer them against an id nothing can resolve.
+    actionable: boolean;
+    // needsReview only -- whether this item already has an active (not
+    // reversed) BadDebtProvision against it, i.e. whether the IFRS for SMEs
+    // 11.21 period-end impairment assessment has already been done for it.
+    hasActiveProvision: boolean;
 }
 
 export interface ReceivablesReportPeriod {
@@ -1030,11 +1046,15 @@ export interface ReceivablesReportPeriod {
     collectedInvoiceCount: number;
     topDefaulters: CustomerOutstandingSummary[];
     expectedCollections: ReceivablesReportItem[]; // not yet overdue, soonest due date first
-    // Long-overdue items (90+ days) -- flagged for manual review because
-    // they're the oldest and highest-risk, NOT because anything in this
-    // app's data can tell a real dispute or billing error apart from a
-    // customer who simply hasn't paid. Labelling this "disputed" would be
-    // inventing a fact Quad360 has no way to know.
+    // Long-overdue items (90+ days) -- the IFRS for SMEs 11.21 period-end
+    // impairment review queue: every receivable old enough to show
+    // objective evidence of impairment (11.22), flagged because it's old
+    // and high-risk, NOT because anything in this app's data can tell a
+    // real dispute or billing error apart from a customer who simply
+    // hasn't paid -- labelling this "disputed" would be inventing a fact
+    // Quad360 has no way to know. hasActiveProvision on each item marks
+    // which ones still need that assessment done versus which are already
+    // handled.
     needsReview: ReceivablesReportItem[];
 }
 
@@ -1043,9 +1063,11 @@ export function computeReceivablesReport(
     invoices: Invoice[],
     periodStart: string,
     periodEnd: string,
-    periodLabel: string
+    periodLabel: string,
+    badDebtProvisions: BadDebtProvision[] = [],
+    writeOffs: ReceivableWriteOff[] = []
 ): ReceivablesReportPeriod {
-    const buckets = computeAgingBuckets(transactions, 'income', invoices);
+    const buckets = computeAgingBuckets(transactions, 'income', invoices, writeOffs);
     const totalOutstanding = buckets.reduce((s, b) => s + b.total, 0);
     const currentBalance = buckets[0].total;
     const overdueBalance = totalOutstanding - currentBalance;
@@ -1055,30 +1077,34 @@ export function computeReceivablesReport(
     );
     const collectedThisPeriod = collectedInvoices.reduce((s, inv) => s + (inv.total ?? 0), 0);
 
-    const topDefaulters = computeTopOutstandingCustomers(transactions, invoices).slice(0, 8);
+    const topDefaulters = computeTopOutstandingCustomers(transactions, invoices, writeOffs).slice(0, 8);
 
-    const pending = getOutstandingReceivables(transactions, invoices);
+    const pending = getOutstandingReceivables(transactions, invoices, writeOffs);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    const provisionedIds = new Set(badDebtProvisions.filter(p => !p.reversedAt).map(p => p.transactionId));
+
     const dated = pending.map(t => ({
+        transactionId: t.id,
         customer: entityDisplayName(t.vendorCustomer) || 'Unknown',
         amount: t.amount ?? 0,
         dueDate: t.dueDate!,
         daysOverdue: daysOverdueAsOf(t.dueDate!, today),
+        actionable: !t.id.startsWith('unlinked-invoice-'),
     }));
 
     const expectedCollections: ReceivablesReportItem[] = dated
         .filter(d => d.daysOverdue < 0)
         .sort((a, b) => b.daysOverdue - a.daysOverdue) // soonest due date first -- daysOverdue is negative here, closest to 0 (least negative) due soonest
         .slice(0, 10)
-        .map(d => ({ customer: d.customer, amount: d.amount, dueDate: d.dueDate, days: -d.daysOverdue }));
+        .map(d => ({ transactionId: d.transactionId, customer: d.customer, amount: d.amount, dueDate: d.dueDate, days: -d.daysOverdue, actionable: d.actionable, hasActiveProvision: provisionedIds.has(d.transactionId) }));
 
     const needsReview: ReceivablesReportItem[] = dated
         .filter(d => d.daysOverdue > 90)
         .sort((a, b) => b.daysOverdue - a.daysOverdue)
         .slice(0, 10)
-        .map(d => ({ customer: d.customer, amount: d.amount, dueDate: d.dueDate, days: d.daysOverdue }));
+        .map(d => ({ transactionId: d.transactionId, customer: d.customer, amount: d.amount, dueDate: d.dueDate, days: d.daysOverdue, actionable: d.actionable, hasActiveProvision: provisionedIds.has(d.transactionId) }));
 
     return {
         periodLabel,

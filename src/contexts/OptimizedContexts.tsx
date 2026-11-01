@@ -10,13 +10,13 @@
 
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Platform } from 'react-native';
-import { User, Invoice, InvoiceStatus, Bill, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CurrencyAccount, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, HealthScoreSnapshot, UserRole, Screen, Account, JournalEntry, JournalLine, BadDebtProvision } from '../types';
+import { User, Invoice, InvoiceStatus, Bill, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CurrencyAccount, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, HealthScoreSnapshot, UserRole, Screen, Account, JournalEntry, JournalLine, BadDebtProvision, ReceivableWriteOff } from '../types';
 import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore, computeLoanPaymentSplit } from '../utils/finance';
 import { buildDefaultChartOfAccounts } from '../utils/chartOfAccounts';
 import {
   postJournalEntry, isBalanced, backfillJournalEntries,
   buildJournalEntryDraftForNewTransaction, reconcileTransactionEntries,
-  buildBadDebtProvisionDraft, reverseEntriesForSource,
+  buildBadDebtProvisionDraft, buildReceivableWriteOffDraft, reverseEntriesForSource,
 } from '../utils/journalEntry';
 import { buildLoanFromMerchantFinancing } from '../utils/merchantFinancingConversion';
 import { buildReadinessSnapshot, shouldRecordSnapshot, appendReadinessSnapshot } from '../utils/readinessHistory';
@@ -53,6 +53,7 @@ import {
   loadDataConfidenceHistory, saveDataConfidenceHistory,
   loadHealthScoreHistory, saveHealthScoreHistory,
   loadBadDebtProvisions, saveBadDebtProvisions,
+  loadReceivableWriteOffs, saveReceivableWriteOffs,
   clearLocalFinancialCache,
   syncFinancingToSupabase,
   saveProfile, loadProfile, savePin, loadPin, verifyPin as verifyPinStored,
@@ -237,12 +238,13 @@ interface FinanceContextValue {
   deleteLedgerAccount: (id: string) => void;
   deleteJournalEntry: (id: string) => void;
 
-  // Bad debt provisions (IFRS for SMEs Section 21 / IAS 37, applied to a
-  // specific still-outstanding receivable) -- see BadDebtProvision's own
-  // doc comment. addBadDebtProvision posts the Dr Bad Debt Expense / Cr
-  // Allowance for Doubtful Debts entry (buildBadDebtProvisionDraft) in the
-  // same state update as recording the provision, so the two can never
-  // exist out of step; reverseBadDebtProvision reverses that entry
+  // Bad debt provisions (IFRS for SMEs Section 11, paras 11.21-11.26 --
+  // see BadDebtProvision's own doc comment). addBadDebtProvision posts the
+  // Dr Bad Debt Expense / Cr Allowance for Doubtful Debts entry
+  // (buildBadDebtProvisionDraft) in the same state update as recording the
+  // provision, so the two can never exist out of step; `amount` may be
+  // less than the transaction's full outstanding balance (a partial
+  // provision). reverseBadDebtProvision reverses that entry
   // (reverseEntriesForSource) and marks the provision reversed rather than
   // deleting it, the same "a correction is a new entry, nothing already
   // posted is edited or removed" discipline journalEntry.ts holds itself to
@@ -250,6 +252,15 @@ interface FinanceContextValue {
   badDebtProvisions: BadDebtProvision[];
   addBadDebtProvision: (transactionId: string, amount: number, date: string, customerLabel?: string, note?: string) => void;
   reverseBadDebtProvision: (id: string) => void;
+
+  // The permanent counterpart -- see ReceivableWriteOff's own doc comment.
+  // Always the transaction's full outstanding amount; writeOffReceivable
+  // computes how much of it is already covered by an active provision and
+  // posts buildReceivableWriteOffDraft accordingly (Dr Allowance for the
+  // covered portion, Dr Bad Debt Expense for any shortfall, Cr Accounts
+  // Receivable for the whole amount). Never reversed.
+  receivableWriteOffs: ReceivableWriteOff[];
+  writeOffReceivable: (transactionId: string, amount: number, date: string, customerLabel?: string, note?: string) => void;
 
   // True once this provider's own async load (AsyncStorage + Supabase) has
   // resolved for the current identity -- see useAppReady below, which
@@ -294,6 +305,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [badDebtProvisions, setBadDebtProvisions] = useState<BadDebtProvision[]>([]);
+  const [receivableWriteOffs, setReceivableWriteOffs] = useState<ReceivableWriteOff[]>([]);
   const [financing, setFinancing] = useState<FinancingContextData>({
     isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
     maxQualifiedAmount: undefined, application: undefined,
@@ -382,7 +394,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setHydrated(false);
     setTransactions([]); setAssets([]); setLoans([]); setBudgets([]); setInventory([]);
     setStaff([]); setPayrollRuns([]); setCashPockets([]); setCurrencyAccounts([]); setCapitalCommitments([]); setReadinessHistory([]);
-    setForecastHistory([]); setDataConfidenceHistory([]); setAccounts([]); setJournalEntries([]); setBadDebtProvisions([]);
+    setForecastHistory([]); setDataConfidenceHistory([]); setAccounts([]); setJournalEntries([]); setBadDebtProvisions([]); setReceivableWriteOffs([]);
     setFinancing({
       isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
       maxQualifiedAmount: undefined, application: undefined,
@@ -429,7 +441,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (l) setLoans(l.map((x) => ({ ...x, payments: x.payments ?? [] })));
         if (b) setBudgets(b);
         if (inv) setInventory(inv);
-        const [st, pr, cp, ca, cc, rh, fh, dch, hsh, bdp] = await Promise.all([
+        const [st, pr, cp, ca, cc, rh, fh, dch, hsh, bdp, rwo] = await Promise.all([
           isStaffRole ? Promise.resolve(null) : loadStaff(),
           isStaffRole ? Promise.resolve(null) : loadPayrollRuns(),
           isStaffRole ? Promise.resolve(null) : loadCashPockets(),
@@ -437,6 +449,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           isStaffRole ? Promise.resolve(null) : loadCapitalCommitments(),
           loadReadinessHistory(), loadForecastHistory(), loadDataConfidenceHistory(), loadHealthScoreHistory(),
           isStaffRole ? Promise.resolve(null) : loadBadDebtProvisions(),
+          isStaffRole ? Promise.resolve(null) : loadReceivableWriteOffs(),
         ]);
         if (st) setStaff(st);
         if (pr) setPayrollRuns(pr);
@@ -448,6 +461,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (dch) setDataConfidenceHistory(dch);
         if (hsh) setHealthScoreHistory(hsh);
         if (bdp) setBadDebtProvisions(bdp);
+        if (rwo) setReceivableWriteOffs(rwo);
 
         // Chart of Accounts: seed the default set the first time this
         // business ever hydrates (no accounts row yet, anywhere) so the
@@ -525,6 +539,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveAccounts(accounts).catch(() => {}); }, [accounts, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveJournalEntries(journalEntries).catch(() => {}); }, [journalEntries, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveBadDebtProvisions(badDebtProvisions).catch(() => {}); }, [badDebtProvisions, hydrated, isDemoMode, isStaffRole]);
+  useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveReceivableWriteOffs(receivableWriteOffs).catch(() => {}); }, [receivableWriteOffs, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => {
     // Never loaded for 'staff' (see the hydrate effect above), so `financing`
     // is still just the never-qualified default here -- writing that would
@@ -693,6 +708,19 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       reverseBadDebtProvision: (id) => {
         setBadDebtProvisions((prev) => prev.map((p) => (p.id === id ? { ...p, reversedAt: new Date().toISOString() } : p)));
         setJournalEntries((prev) => reverseEntriesForSource(prev, 'bad_debt_provision', id));
+      },
+      receivableWriteOffs,
+      writeOffReceivable: (transactionId, amount, date, customerLabel, note) => {
+        if (!(amount > 0)) return;
+        const alreadyProvisioned = badDebtProvisions
+          .filter((p) => p.transactionId === transactionId && !p.reversedAt)
+          .reduce((s, p) => s + p.amount, 0);
+        const writeOff: ReceivableWriteOff = {
+          id: genId(), transactionId, amount, date, customerLabel, note,
+          createdAt: new Date().toISOString(),
+        };
+        setReceivableWriteOffs((prev) => [...prev, writeOff]);
+        postEntry(buildReceivableWriteOffDraft(writeOff, alreadyProvisioned));
       },
       transactions,
       assets,
@@ -1122,7 +1150,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         });
       },
     }),
-    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, currencyAccounts, capitalCommitments, readinessHistory, forecastHistory, dataConfidenceHistory, healthScoreHistory, recordHealthScoreSnapshot, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency, hydrated, accounts, journalEntries, badDebtProvisions]
+    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, currencyAccounts, capitalCommitments, readinessHistory, forecastHistory, dataConfidenceHistory, healthScoreHistory, recordHealthScoreSnapshot, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency, hydrated, accounts, journalEntries, badDebtProvisions, receivableWriteOffs]
   );
 
   return (
@@ -2777,6 +2805,7 @@ export function useApp() {
   const accounts = finance?.accounts ?? [];
   const journalEntries = finance?.journalEntries ?? [];
   const badDebtProvisions = finance?.badDebtProvisions ?? [];
+  const receivableWriteOffs = finance?.receivableWriteOffs ?? [];
   // Recomputes currentValue/progress/status against live finance/transaction
   // data on every read instead of trusting whatever was stored at creation
   // (or last edit) time — GoalProvider's addGoal/updateGoal never refresh
@@ -2898,6 +2927,8 @@ export function useApp() {
     badDebtProvisions,
     addBadDebtProvision: finance?.addBadDebtProvision || (() => {}),
     reverseBadDebtProvision: finance?.reverseBadDebtProvision || (() => {}),
+    receivableWriteOffs,
+    writeOffReceivable: finance?.writeOffReceivable || (() => {}),
     postManualJournalEntry: finance?.postManualJournalEntry || (() => ({ ok: false, error: 'Not ready yet.' })),
     deleteLedgerAccount: finance?.deleteLedgerAccount || (() => {}),
     deleteJournalEntry: finance?.deleteJournalEntry || (() => {}),

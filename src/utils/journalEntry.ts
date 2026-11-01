@@ -48,7 +48,7 @@
  *   kind of invented figure this app's engines already go out of their way
  *   to avoid (see macroShield.ts, fxPurchaseImpact.ts's own doc comments).
  */
-import { Transaction, JournalEntry, JournalLine, JournalEntrySource, Account, AccountType, BadDebtProvision } from '../types';
+import { Transaction, JournalEntry, JournalLine, JournalEntrySource, Account, AccountType, BadDebtProvision, ReceivableWriteOff } from '../types';
 import { SYSTEM_ACCOUNTS, mapExpenseCategoryToAccountId, mapIncomeCategoryToAccountId } from './chartOfAccounts';
 import { generateId } from './uuid';
 
@@ -287,6 +287,33 @@ export function buildBadDebtProvisionDraft(provision: BadDebtProvision): Journal
             ln(SYSTEM_ACCOUNTS.allowanceForDoubtfulDebts, 0, provision.amount),
         ],
         source: 'bad_debt_provision', sourceId: provision.id,
+    };
+}
+
+/**
+ * Dr Allowance for Doubtful Debts (consuming whatever was already set aside
+ * for this receivable) / Dr Bad Debt Expense (for any shortfall never
+ * provisioned) / Cr Accounts Receivable for the full write-off amount --
+ * IFRS for SMEs 11.24's impairment loss already hit the P&L when the
+ * provision was raised; writing off a FULLY provisioned receivable is pure
+ * balance-sheet reclassification with no further P&L impact, which is
+ * exactly what happens here when `alreadyProvisioned >= writeOff.amount`
+ * (expensePortion is 0). A receivable written off with no prior provision
+ * (alreadyProvisioned 0) expenses the whole amount here instead -- a direct
+ * write-off is valid practice, just skips the "doubtful" step.
+ */
+export function buildReceivableWriteOffDraft(writeOff: ReceivableWriteOff, alreadyProvisioned: number): JournalEntryDraft {
+    const allowancePortion = Math.min(Math.max(alreadyProvisioned, 0), writeOff.amount);
+    const expensePortion = writeOff.amount - allowancePortion;
+    const lines: JournalLine[] = [];
+    if (allowancePortion > 0) lines.push(ln(SYSTEM_ACCOUNTS.allowanceForDoubtfulDebts, allowancePortion, 0));
+    if (expensePortion > 0) lines.push(ln(SYSTEM_ACCOUNTS.badDebtExpense, expensePortion, 0));
+    lines.push(ln(SYSTEM_ACCOUNTS.accountsReceivable, 0, writeOff.amount));
+    return {
+        date: writeOff.date,
+        memo: `Write off: ${writeOff.customerLabel || writeOff.note || 'uncollectible receivable'}`,
+        lines,
+        source: 'receivable_write_off', sourceId: writeOff.id,
     };
 }
 

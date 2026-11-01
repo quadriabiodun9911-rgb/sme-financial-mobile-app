@@ -8,15 +8,21 @@ import { Radius, Shadow } from '../theme/tokens';
 import { Transaction } from '../types';
 import BarList from './BarList';
 import ReceivablesReport from './ReceivablesReport';
+import ReceivableActionModal, { ReceivableActionMode } from './ReceivableActionModal';
 
 export default function AgingReport() {
-    const { transactions, settings, updateTransaction, invoices, markInvoiceStatus, badDebtProvisions, addBadDebtProvision, reverseBadDebtProvision } = useApp();
+    const {
+        transactions, settings, updateTransaction, invoices, markInvoiceStatus,
+        badDebtProvisions, addBadDebtProvision, reverseBadDebtProvision,
+        receivableWriteOffs, writeOffReceivable,
+    } = useApp();
     const { currency } = settings;
     const [activeTab, setActiveTab] = useState<'ar' | 'ap'>('ar');
+    const [actionModal, setActionModal] = useState<{ mode: ReceivableActionMode; tx: Transaction } | null>(null);
 
     // The one active (not reversed) provision against a transaction id, if
-    // any -- a transaction is never provisioned twice: markDoubtful below
-    // is only offered when this is null.
+    // any -- shown as a "Doubtful" tag and offered a Reverse action instead
+    // of a fresh Mark Doubtful one.
     const activeProvisionByTxId = useMemo(() => {
         const map = new Map<string, typeof badDebtProvisions[number]>();
         for (const p of badDebtProvisions) {
@@ -27,10 +33,10 @@ export default function AgingReport() {
 
     // Never offered against a synthesized unlinked-invoice placeholder (see
     // unlinkedInvoiceReceivables in finance.ts) -- there's no real
-    // Transaction id yet to link a provision against.
-    const markDoubtful = (tx: Transaction) => {
+    // Transaction id yet to link a provision or write-off against.
+    const openAction = (mode: ReceivableActionMode, tx: Transaction) => {
         if (tx.id.startsWith('unlinked-invoice-')) return;
-        addBadDebtProvision(tx.id, tx.amount ?? 0, localDateStr(), tx.vendorCustomer, tx.description);
+        setActionModal({ mode, tx });
     };
 
     // A synthesized invoice receivable's "pending" vs "overdue" label and
@@ -42,7 +48,10 @@ export default function AgingReport() {
     // dependency to invalidate on instead of only reacting to transactions/
     // invoices actually changing).
     const todayKey = localDateStr();
-    const arBuckets = useMemo(() => computeAgingBuckets(transactions, 'income', invoices), [transactions, invoices, todayKey]);
+    const arBuckets = useMemo(
+        () => computeAgingBuckets(transactions, 'income', invoices, receivableWriteOffs),
+        [transactions, invoices, receivableWriteOffs, todayKey]
+    );
     const apBuckets = useMemo(() => computeAgingBuckets(transactions, 'expense'), [transactions]);
 
     const buckets = activeTab === 'ar' ? arBuckets : apBuckets;
@@ -126,7 +135,7 @@ export default function AgingReport() {
 
                         {bucket.transactions.map((tx: Transaction) => {
                             const provision = activeTab === 'ar' ? activeProvisionByTxId.get(tx.id) : undefined;
-                            const canMarkDoubtful = activeTab === 'ar' && !provision && !tx.id.startsWith('unlinked-invoice-');
+                            const arActionable = activeTab === 'ar' && !tx.id.startsWith('unlinked-invoice-');
                             return (
                             <View key={tx.id} style={styles.txRow}>
                                 <View style={styles.txInfo}>
@@ -155,11 +164,16 @@ export default function AgingReport() {
                                         <TouchableOpacity style={styles.doubtfulBtn} onPress={() => reverseBadDebtProvision(provision.id)}>
                                             <Text style={styles.doubtfulBtnText}>Reverse Doubtful</Text>
                                         </TouchableOpacity>
-                                    ) : canMarkDoubtful ? (
-                                        <TouchableOpacity style={styles.doubtfulBtn} onPress={() => markDoubtful(tx)}>
+                                    ) : arActionable ? (
+                                        <TouchableOpacity style={styles.doubtfulBtn} onPress={() => openAction('doubtful', tx)}>
                                             <Text style={styles.doubtfulBtnText}>Mark Doubtful</Text>
                                         </TouchableOpacity>
                                     ) : null}
+                                    {arActionable && (
+                                        <TouchableOpacity style={styles.writeOffBtn} onPress={() => openAction('writeoff', tx)}>
+                                            <Text style={styles.writeOffBtnText}>Write Off</Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
                             </View>
                             );
@@ -186,6 +200,22 @@ export default function AgingReport() {
                     />
                 </View>
             )}
+
+            <ReceivableActionModal
+                visible={!!actionModal}
+                mode={actionModal?.mode ?? 'doubtful'}
+                tx={actionModal?.tx ?? null}
+                currency={currency}
+                onClose={() => setActionModal(null)}
+                onConfirmDoubtful={(amount, note) => {
+                    if (!actionModal) return;
+                    addBadDebtProvision(actionModal.tx.id, amount, localDateStr(), actionModal.tx.vendorCustomer, note || actionModal.tx.description);
+                }}
+                onConfirmWriteOff={(note) => {
+                    if (!actionModal) return;
+                    writeOffReceivable(actionModal.tx.id, actionModal.tx.amount ?? 0, localDateStr(), actionModal.tx.vendorCustomer, note || actionModal.tx.description);
+                }}
+            />
         </View>
     );
 }
@@ -221,6 +251,8 @@ const styles = StyleSheet.create({
     markPaidText: { fontSize: 11, color: Colors.income, fontWeight: '600' },
     doubtfulBtn: { paddingHorizontal: 8, paddingVertical: 3, backgroundColor: 'rgba(239,68,68,0.12)', borderRadius: 6 },
     doubtfulBtnText: { fontSize: 11, color: Colors.expense, fontWeight: '600' },
+    writeOffBtn: { paddingHorizontal: 8, paddingVertical: 3, backgroundColor: Colors.surfaceVariant, borderRadius: 6, borderWidth: 1, borderColor: Colors.border },
+    writeOffBtnText: { fontSize: 11, color: Colors.textSecondary, fontWeight: '600' },
     summaryBar: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     summaryBarTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12 },
 });
