@@ -7,6 +7,7 @@ import { Colors } from '../theme/colors';
 import { Radius, Shadow } from '../theme/tokens';
 import { Transaction } from '../types';
 import BarList from './BarList';
+import ReceivablesReport from './ReceivablesReport';
 
 export default function AgingReport() {
     const { transactions, settings, updateTransaction, invoices, markInvoiceStatus, badDebtProvisions, addBadDebtProvision, reverseBadDebtProvision } = useApp();
@@ -82,6 +83,8 @@ export default function AgingReport() {
                     </Text>
                 </TouchableOpacity>
             </View>
+
+            {activeTab === 'ar' && <ReceivablesReport />}
 
             {/* Summary */}
             <View style={styles.summaryCard}>
