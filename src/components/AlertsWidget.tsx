@@ -15,9 +15,14 @@ interface Props {
    *  this returns true, so it never dead-ends into a no-op tap. */
   canNotify?: (alert: ForecastAlert) => boolean;
   onNotify?: (alert: ForecastAlert) => void;
+  /** Sends the owner to wherever alert.screen says to actually act on this
+   *  -- the one thing that was missing here: every alert used to end at
+   *  "Dismiss" with nowhere else to go. Omitted only when the host screen
+   *  has no navigate function to give it (never expected in practice). */
+  onNavigate?: (screen: ForecastAlert['screen'], params?: Record<string, any>) => void;
 }
 
-export default function AlertsWidget({ alerts, currency = '₦', onAlertPress, onDismiss, canNotify, onNotify }: Props) {
+export default function AlertsWidget({ alerts, currency = '₦', onAlertPress, onDismiss, canNotify, onNotify, onNavigate }: Props) {
   const [showModal, setShowModal] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<ForecastAlert | null>(null);
 
@@ -60,6 +65,13 @@ export default function AlertsWidget({ alerts, currency = '₦', onAlertPress, o
     if (onDismiss) {
       onDismiss(alertId);
     }
+  };
+
+  const handleNavigate = (alert: ForecastAlert) => {
+    if (!alert.screen || !onNavigate) return;
+    onNavigate(alert.screen, alert.screenParams);
+    setSelectedAlert(null);
+    setShowModal(false);
   };
 
   return (
@@ -165,6 +177,16 @@ export default function AlertsWidget({ alerts, currency = '₦', onAlertPress, o
                           ))}
                         </View>
                       )}
+
+                      {alert.screen && onNavigate && (
+                        <TouchableOpacity
+                          style={styles.goBtn}
+                          onPress={() => handleNavigate(alert)}
+                          accessibilityRole="button"
+                          accessibilityLabel={alert.actionLabel || 'Go fix this'}>
+                          <Text style={styles.goBtnText}>{alert.actionLabel || 'Go fix this'} →</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
 
                     <TouchableOpacity
@@ -249,6 +271,14 @@ export default function AlertsWidget({ alerts, currency = '₦', onAlertPress, o
                   Created: {new Date(selectedAlert.createdAt).toLocaleString()}
                 </Text>
               </ScrollView>
+
+              {selectedAlert.screen && onNavigate && (
+                <TouchableOpacity
+                  style={styles.detailGoBtn}
+                  onPress={() => handleNavigate(selectedAlert)}>
+                  <Text style={styles.detailGoBtnText}>{selectedAlert.actionLabel || 'Go fix this'} →</Text>
+                </TouchableOpacity>
+              )}
 
               {onNotify && canNotify?.(selectedAlert) && (
                 <TouchableOpacity
@@ -445,6 +475,20 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
 
+  goBtn: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: Colors.primary,
+  },
+  goBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#fff',
+  },
+
   dismissBtn: {
     padding: 4,
   },
@@ -573,6 +617,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 16,
     marginBottom: 12,
+  },
+
+  detailGoBtn: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    backgroundColor: Colors.primary,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  detailGoBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
   },
 
   detailNotifyBtn: {

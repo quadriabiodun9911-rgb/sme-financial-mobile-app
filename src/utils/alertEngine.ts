@@ -218,6 +218,7 @@ export class AlertEngine {
         'Consider delaying non-critical payments',
       ],
       createdAt: new Date().toISOString(),
+      screen: 'reports', screenParams: { reportSection: 'statements', reportTab: 'cashflow' }, actionLabel: 'View Cash Flow',
     };
   }
 
@@ -257,6 +258,7 @@ export class AlertEngine {
         'Review discretionary spending',
       ],
       createdAt: new Date().toISOString(),
+      screen: 'reports', screenParams: { reportSection: 'statements', reportTab: 'cashflow' }, actionLabel: 'View Cash Flow Forecast',
     };
   }
 
@@ -313,6 +315,7 @@ export class AlertEngine {
           'Hold off on new commitments until this is back above target',
         ],
         createdAt: new Date().toISOString(),
+        screen: 'reports', screenParams: { reportSection: 'statements', reportTab: 'cashflow' }, actionLabel: 'View Cash Flow',
       };
     }
 
@@ -351,6 +354,7 @@ export class AlertEngine {
             'Offer payment plan if needed',
           ],
           createdAt: new Date().toISOString(),
+          screen: 'invoices', actionLabel: 'View Invoices',
         });
       }
     });
@@ -383,6 +387,7 @@ export class AlertEngine {
           'Consider logging it as a formal invoice for easier tracking',
         ],
         createdAt: new Date().toISOString(),
+        screen: 'transactions', actionLabel: 'View Transactions',
       };
     });
   }
@@ -427,6 +432,7 @@ export class AlertEngine {
           'Review expense necessity',
         ],
         createdAt: new Date().toISOString(),
+        screen: 'transactions', actionLabel: 'Review Transactions',
       };
     }
 
@@ -465,6 +471,7 @@ export class AlertEngine {
             'Contact the lender if you need to renegotiate terms',
           ],
           createdAt: new Date().toISOString(),
+          screen: 'loans', actionLabel: 'View Loan',
         });
       } else if (daysUntilDue >= 0 && daysUntilDue <= this.thresholds.loanPaymentDueSoonDays) {
         alerts.push({
@@ -475,6 +482,7 @@ export class AlertEngine {
           description: `Your payment to ${loan.lenderName || 'your lender'} is due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}.`,
           affectedDate: localDateStr(nextLoanPaymentDueDate(loan)),
           createdAt: new Date().toISOString(),
+          screen: 'loans', actionLabel: 'View Loan',
         });
       }
 
@@ -500,6 +508,7 @@ export class AlertEngine {
             ? [cause.detail, 'Contact the lender early if a shortfall looks likely -- before the due date, not after']
             : ['Review upcoming collections and expenses against this due date', 'Contact the lender early if a shortfall looks likely -- before the due date, not after'],
           createdAt: new Date().toISOString(),
+          screen: 'loans', actionLabel: 'View Loan',
         });
       }
     }
@@ -531,6 +540,7 @@ export class AlertEngine {
           'If they were paid outside the app, log the run anyway to keep records accurate',
         ],
         createdAt: new Date().toISOString(),
+        screen: 'payroll', actionLabel: 'Run Payroll',
       };
     }
 
@@ -543,6 +553,7 @@ export class AlertEngine {
         description: `${status.daysLeftInMonth} day${status.daysLeftInMonth === 1 ? '' : 's'} left in ${status.period} and payroll hasn't been run.`,
         affectedDate: status.period,
         createdAt: new Date().toISOString(),
+        screen: 'payroll', actionLabel: 'Run Payroll',
       };
     }
 
@@ -574,6 +585,7 @@ export class AlertEngine {
           'Contact an accountant if you need help catching up',
         ],
         createdAt: new Date().toISOString(),
+        screen: 'reports', screenParams: { reportSection: 'tax', reportTab: 'tax-filing' }, actionLabel: 'View Filing Readiness',
       };
     }
 
@@ -587,6 +599,7 @@ export class AlertEngine {
         affectedDate: status.deadline,
         recommendations: ['Make sure your records are ready to hand to an accountant'],
         createdAt: new Date().toISOString(),
+        screen: 'reports', screenParams: { reportSection: 'tax', reportTab: 'tax-filing' }, actionLabel: 'View Filing Readiness',
       };
     }
 
@@ -623,6 +636,7 @@ export class AlertEngine {
           affectedDate: goal.deadline,
           recommendations: ['Review the goal and either push the deadline out or close it out if it was reached another way'],
           createdAt: new Date().toISOString(),
+          screen: 'goals', actionLabel: 'View Goal',
         });
       } else if (goal.status === 'off_track') {
         alerts.push({
@@ -633,6 +647,7 @@ export class AlertEngine {
           description: `"${goal.title}" is falling behind pace: ${Math.round(goal.progress)}% complete with the deadline (${goal.deadline}) still ahead.`,
           affectedDate: goal.deadline,
           createdAt: new Date().toISOString(),
+          screen: 'goals', actionLabel: 'View Goal',
         });
       }
     }
@@ -677,6 +692,7 @@ export class AlertEngine {
             'Edit this entry\'s date once you\'ve recorded the latest occurrence, to keep the schedule accurate',
           ],
           createdAt: new Date().toISOString(),
+          screen: 'transactions', actionLabel: 'View Transactions',
         });
       } else if (daysUntilDue >= 0 && daysUntilDue <= this.thresholds.recurringDueSoonDays) {
         alerts.push({
@@ -687,6 +703,7 @@ export class AlertEngine {
           description: `"${tx.description || 'This transaction'}" (${this.formatCurrency(tx.amount)}) is due again in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}.`,
           affectedDate: dueDate,
           createdAt: new Date().toISOString(),
+          screen: 'transactions', actionLabel: 'View Transactions',
         });
       }
     }
@@ -717,6 +734,7 @@ export class AlertEngine {
         'Renew your categories in Budget, or use Auto-Generate Budget to refresh them all at once',
       ],
       createdAt: new Date().toISOString(),
+      screen: 'budget', actionLabel: 'View Budget',
     };
   }
 
@@ -752,6 +770,7 @@ export class AlertEngine {
             'Or reallocate budget from an under-spent category to cover it',
           ],
           createdAt: new Date().toISOString(),
+          screen: 'budget', actionLabel: 'View Budget',
         };
       });
   }
@@ -778,6 +797,7 @@ export class AlertEngine {
         amount: currentValue,
         recommendations: ['Set a replacement-fund goal to budget for this ahead of time'],
         createdAt: new Date().toISOString(),
+        screen: 'assets', actionLabel: 'View Asset',
       };
     });
   }
@@ -809,6 +829,7 @@ export class AlertEngine {
         amount: item.quantity * (item.costPrice ?? 0),
         recommendations: ['Reorder now to avoid a stockout while it\'s still selling well'],
         createdAt: new Date().toISOString(),
+        screen: 'inventory', actionLabel: 'View Inventory',
       });
     }
 
@@ -842,6 +863,7 @@ export class AlertEngine {
         amount: item.quantity * (item.costPrice ?? 0),
         recommendations: ['Consider a discount or bundle to free up the cash tied up in this stock'],
         createdAt: new Date().toISOString(),
+        screen: 'inventory', actionLabel: 'View Inventory',
       });
     }
 
@@ -877,6 +899,7 @@ export class AlertEngine {
         amount: e.valueAtRisk,
         recommendations: ['Remove it from sale and write it off before it\'s sold or counted as good stock'],
         createdAt: new Date().toISOString(),
+        screen: 'inventory', actionLabel: 'View Inventory',
       });
     }
 
@@ -890,6 +913,7 @@ export class AlertEngine {
         amount: e.valueAtRisk,
         recommendations: ['Discount or push this stock now, before it expires unsold'],
         createdAt: new Date().toISOString(),
+        screen: 'inventory', actionLabel: 'View Inventory',
       });
     }
 
@@ -928,6 +952,7 @@ export class AlertEngine {
         'Look into a Time to Pay arrangement with the tax authority if you\'ll be short when it\'s due',
       ],
       createdAt: new Date().toISOString(),
+      screen: 'reports', screenParams: { reportSection: 'tax', reportTab: 'tax-filing' }, actionLabel: 'View Filing Readiness',
     };
   }
 

@@ -94,7 +94,12 @@ function monthEndDate(year: number, month1to12: number): string {
     return localDateStr(new Date(year, month1to12, 0));
 }
 
-function cashOnHandAsOf(transactions: Transaction[], endDate: string): number {
+// Exported (alongside accountsReceivableAsOf/allowanceForDoubtfulDebtsAsOf
+// below) so ledgerReconciliation.ts can compare the Balance Sheet's own
+// figures against the general ledger using the EXACT same statement-side
+// logic, rather than a reimplementation that could itself drift from what
+// the Balance Sheet actually displays.
+export function cashOnHandAsOf(transactions: Transaction[], endDate: string): number {
     let cash = 0;
     for (const t of transactions) {
         if (!t.date || t.date > endDate) continue;
@@ -114,7 +119,7 @@ function cashOnHandAsOf(transactions: Transaction[], endDate: string): number {
 // does. Excluded only from the point its OWN write-off date onward: it was
 // genuinely still outstanding at any earlier endDate, and a past snapshot
 // shouldn't retroactively erase it.
-function accountsReceivableAsOf(transactions: Transaction[], endDate: string, writeOffs: ReceivableWriteOff[] = []): number {
+export function accountsReceivableAsOf(transactions: Transaction[], endDate: string, writeOffs: ReceivableWriteOff[] = []): number {
     const writtenOffByThen = new Set(writeOffs.filter(w => w.date && w.date <= endDate).map(w => w.transactionId));
     return transactions
         .filter(t => t.type === 'income' && t.date && t.date <= endDate && (t.status === 'pending' || t.status === 'overdue') && !writtenOffByThen.has(t.id))
@@ -127,7 +132,7 @@ function accountsReceivableAsOf(transactions: Transaction[], endDate: string, wr
 // provision raised in March still reduces net AR in every later period
 // until it's reversed, the same "stays in effect until explicitly undone"
 // behavior a loan balance or an asset's ownership window already has here.
-function allowanceForDoubtfulDebtsAsOf(provisions: BadDebtProvision[], endDate: string): number {
+export function allowanceForDoubtfulDebtsAsOf(provisions: BadDebtProvision[], endDate: string): number {
     return provisions
         .filter(p => !p.reversedAt && p.date && p.date <= endDate)
         .reduce((sum, p) => sum + (p.amount ?? 0), 0);

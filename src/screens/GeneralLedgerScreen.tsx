@@ -22,6 +22,8 @@ import FooterNav from '../components/FooterNav';
 import Icon from '../components/ui/Icon';
 import { canWriteBusinessData } from '../utils/rolePermissions';
 import { computeTrialBalance, isBalanced } from '../utils/journalEntry';
+import { computeLedgerReconciliation } from '../utils/ledgerReconciliation';
+import { localDateStr } from '../utils/localDate';
 import { Account, AccountType, JournalLine } from '../types';
 
 function fmt(currency: string, value: number): string {
@@ -60,13 +62,21 @@ function SectionCard({ icon, title, subtitle, children }: { icon: string; title:
 }
 
 export default function GeneralLedgerScreen() {
-    const { accounts, journalEntries, postManualJournalEntry, settings, userRole } = useApp();
+    const { accounts, journalEntries, postManualJournalEntry, settings, userRole, transactions, badDebtProvisions, receivableWriteOffs } = useApp();
     const cur = settings.currency || '';
     const canWrite = canWriteBusinessData(userRole);
     const { width: windowWidth } = useWindowDimensions();
     const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const trialBalance = useMemo(() => computeTrialBalance(accounts, journalEntries), [accounts, journalEntries]);
+
+    // Proves the ledger above and the financial statements elsewhere in the
+    // app actually agree -- see ledgerReconciliation.ts's own header comment
+    // for why only these three figures are checked.
+    const reconciliation = useMemo(
+        () => computeLedgerReconciliation(accounts, journalEntries, transactions, badDebtProvisions, receivableWriteOffs, localDateStr()),
+        [accounts, journalEntries, transactions, badDebtProvisions, receivableWriteOffs]
+    );
     const totalDebit = trialBalance.reduce((s, r) => s + r.debitBalance, 0);
     const totalCredit = trialBalance.reduce((s, r) => s + r.creditBalance, 0);
     const rowsByType = useMemo(() => {
@@ -166,6 +176,35 @@ export default function GeneralLedgerScreen() {
                             </>
                         )}
                     </SectionCard>
+
+                    {/* Reconciliation -- the actual proof this ledger and
+                        your statements agree, not just a claim */}
+                    {reconciliation.hasLedgerData && (
+                        <SectionCard
+                            icon={reconciliation.allMatch ? 'check-circle' : 'alert-triangle'}
+                            title="Reconciliation"
+                            subtitle={`Ledger vs. your statements, as of today -- ${reconciliation.allMatch ? 'everything ties out' : 'a difference needs a look'}`}
+                        >
+                            {reconciliation.checks.map(c => (
+                                <View key={c.id} style={s.reconRow}>
+                                    <View style={s.reconHeadRow}>
+                                        <Icon name={c.matches ? 'check' : 'x'} size={14} color={c.matches ? Colors.income : Colors.expense} />
+                                        <Text style={s.reconLabel}>{c.label}</Text>
+                                    </View>
+                                    <View style={s.reconValuesRow}>
+                                        <Text style={s.reconValueText}>Ledger: {fmt(cur, c.ledgerAmount)}</Text>
+                                        <Text style={s.reconValueText}>Statement: {fmt(cur, c.statementAmount)}</Text>
+                                    </View>
+                                    {!c.matches && (
+                                        <Text style={s.reconDiffText}>Off by {fmt(cur, Math.abs(c.difference))}</Text>
+                                    )}
+                                </View>
+                            ))}
+                            <Text style={s.reconFootnote}>
+                                Doesn't cover Inventory, Equipment & Property, or Net Profit -- those are deliberately computed outside the ledger (see Inventory and Assets) and aren't expected to match it line for line.
+                            </Text>
+                        </SectionCard>
+                    )}
 
                     {/* Journal Entries */}
                     <SectionCard icon="list" title="Journal Entries" subtitle="Most recent 20, newest first">
@@ -340,6 +379,14 @@ const s = StyleSheet.create({
     tbTotalRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm, borderTopWidth: 2, borderTopColor: Colors.textPrimary, marginTop: 4 },
     tbTotalLabel: { flex: 1, fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
     tbTotalValue: { width: 80, fontSize: 13, fontWeight: '800', color: Colors.textPrimary, textAlign: 'right' },
+
+    reconRow: { paddingVertical: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border },
+    reconHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
+    reconLabel: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    reconValuesRow: { flexDirection: 'row', gap: Spacing.md, marginLeft: 20 },
+    reconValueText: { fontSize: 12, color: Colors.textSecondary },
+    reconDiffText: { fontSize: 12, color: Colors.expense, fontWeight: '600', marginLeft: 20, marginTop: 2 },
+    reconFootnote: { fontSize: 11, color: Colors.textMuted, lineHeight: 15, marginTop: Spacing.sm, fontStyle: 'italic' },
 
     jeRow: { flexDirection: 'row', paddingVertical: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border },
     jeHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
