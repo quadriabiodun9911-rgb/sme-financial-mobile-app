@@ -47,7 +47,7 @@ import { FinanceData, Transaction } from '../types';
 import DateInput from '../components/DateInput';
 import { InventoryItem } from '../types';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
-import { computeInventoryValue } from '../utils/stockVelocity';
+import { computeInventoryValue, computeInventoryWriteDownTotal } from '../utils/stockVelocity';
 import { computeMarginPct } from '../utils/priceHistory';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
@@ -109,7 +109,7 @@ const PERIODS: { key: ReportPeriod; label: string }[] = [
 ];
 
 export default function ReportsScreen() {
-    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate, user, isDemoMode, badDebtProvisions, receivableWriteOffs } = useApp();
+    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate, user, isDemoMode, badDebtProvisions, receivableWriteOffs, inventoryWriteDowns } = useApp();
     const { currency, targetMargin } = settings;
     const businessName = user?.businessName || 'Your Business';
 
@@ -144,9 +144,14 @@ export default function ReportsScreen() {
     const [showFormalBS, setShowFormalBS]   = useState(true);
     const [showFormalCF, setShowFormalCF]   = useState(true);
     const today = localDateStr();
+    // Net of any active NRV write-downs (IFRS for SMEs 13.19-13.21) -- the
+    // Balance Sheet's own "Inventory" line wants carrying value, not raw
+    // cost. computeInventoryValue's own gross figure (the Inventory report
+    // tab below, stock-at-cost views) is left alone -- "what did I pay for
+    // this stock" is a different question from "what's it worth now."
     const inventoryValue = useMemo(
-        () => computeInventoryValue(inventory),
-        [inventory],
+        () => computeInventoryValue(inventory) - computeInventoryWriteDownTotal(inventoryWriteDowns),
+        [inventory, inventoryWriteDowns],
     );
     const [customRange, setCustomRange] = useState<DateRange>({ from: today, to: today });
 
@@ -185,8 +190,8 @@ export default function ReportsScreen() {
     // for why this matters specifically for badDebtExpense.
     const pnlPeriodEnd = period === 'custom' ? customRange.to : today;
     const enhPnL     = useMemo(
-        () => computeEnhancedPnL(filteredTx, assets, badDebtProvisions, receivableWriteOffs, pnlPeriodEnd),
-        [filteredTx, assets, badDebtProvisions, receivableWriteOffs, pnlPeriodEnd]
+        () => computeEnhancedPnL(filteredTx, assets, badDebtProvisions, receivableWriteOffs, inventoryWriteDowns, pnlPeriodEnd),
+        [filteredTx, assets, badDebtProvisions, receivableWriteOffs, inventoryWriteDowns, pnlPeriodEnd]
     );
     // Exactly the transactions enhPnL.revenue was summed from -- see
     // computeEnhancedPnL's own revenue line -- so the P&L's drill-down
@@ -246,9 +251,9 @@ export default function ReportsScreen() {
     // balanceSheetPoint above, just for the Statement of Changes in Equity.
     const changesInEquityPoint = useMemo(() => {
         const monthKeys = monthKeysThroughToday(transactions);
-        const points = computeChangesInEquity(monthKeys, transactions, assets, loansList, settings, manualBalances, badDebtProvisions, receivableWriteOffs);
+        const points = computeChangesInEquity(monthKeys, transactions, assets, loansList, settings, manualBalances, badDebtProvisions, receivableWriteOffs, inventoryWriteDowns);
         return points.length > 0 ? points[points.length - 1] : null;
-    }, [transactions, assets, loansList, settings, manualBalances, badDebtProvisions, receivableWriteOffs]);
+    }, [transactions, assets, loansList, settings, manualBalances, badDebtProvisions, receivableWriteOffs, inventoryWriteDowns]);
 
     // Real calendar dates for the selected period, matching filterByPeriod's
     // own rolling-window logic -- a lender reading "For the period" wants an

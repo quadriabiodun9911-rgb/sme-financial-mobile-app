@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CryptoJS from 'crypto-js';
-import { Transaction, BusinessSettings, FinancialGoal, Invoice, Bill, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CurrencyAccount, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, HealthScoreSnapshot, FxRateSnapshot, Account, JournalEntry, BadDebtProvision, ReceivableWriteOff } from '../types';
+import { Transaction, BusinessSettings, FinancialGoal, Invoice, Bill, TeamMember, Language, Asset, InventoryItem, Loan, Budget, StaffMember, PayrollRun, FinancingContextData, CashPocket, CurrencyAccount, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, HealthScoreSnapshot, FxRateSnapshot, Account, JournalEntry, BadDebtProvision, ReceivableWriteOff, InventoryWriteDown } from '../types';
 import { supabase } from './supabase';
 import {
     savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData, saveAuthSecretSecurely, loadAuthSecretSecurely, clearAuthSecretSecurely,
@@ -1406,6 +1406,17 @@ export async function loadReceivableWriteOffs(): Promise<ReceivableWriteOff[] | 
     return safeParse<ReceivableWriteOff[]>(raw);
 }
 
+// ─── Inventory Write-Downs ──────────────────────────────────────────────────────
+// Same local-only pattern as Bad Debt Provisions above.
+export const INVENTORY_WRITE_DOWNS_KEY = '@quad360/inventoryWriteDowns';
+export async function saveInventoryWriteDowns(writeDowns: InventoryWriteDown[]): Promise<void> {
+    await AsyncStorage.setItem(INVENTORY_WRITE_DOWNS_KEY, JSON.stringify(writeDowns));
+}
+export async function loadInventoryWriteDowns(): Promise<InventoryWriteDown[] | null> {
+    const raw = await AsyncStorage.getItem(INVENTORY_WRITE_DOWNS_KEY);
+    return safeParse<InventoryWriteDown[]>(raw);
+}
+
 // Every local-only snapshot-history key above, in one place. All four
 // share the exact trait that makes them dangerous to forget clearing: no
 // Supabase table backs them (see each section's own comment), and they
@@ -1938,7 +1949,7 @@ const FINANCIAL_CACHE_KEYS = [
     // header comment describes: without it, a second account on this
     // device would inherit the first account's doubtful-receivable and
     // write-off records.
-    BAD_DEBT_PROVISIONS_KEY, RECEIVABLE_WRITE_OFFS_KEY,
+    BAD_DEBT_PROVISIONS_KEY, RECEIVABLE_WRITE_OFFS_KEY, INVENTORY_WRITE_DOWNS_KEY,
 ];
 
 // Clears local storage only — Supabase data is preserved so user can sign back in and recover.

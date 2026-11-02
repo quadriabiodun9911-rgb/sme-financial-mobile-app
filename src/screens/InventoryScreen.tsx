@@ -15,7 +15,7 @@ import RadialGauge from '../components/RadialGauge';
 import NextStepLink from '../components/NextStepLink';
 import PeriodComparisonTable from '../components/PeriodComparisonTable';
 import { suggestSolution } from '../utils/impactChain';
-import { computeStockVelocity, computeInventoryValue } from '../utils/stockVelocity';
+import { computeStockVelocity, computeInventoryValue, computeInventoryWriteDownTotal } from '../utils/stockVelocity';
 import { applyStockIn, getEffectiveBatches, consumeFifo, recomputeCostPrice, addCountSurplusBatch } from '../utils/inventoryCosting';
 import { computeDiscountAmount, DiscountType } from '../utils/saleDiscount';
 import { computeDiscountSummary } from '../utils/inventorySalesTrend';
@@ -28,7 +28,7 @@ import { computeStockReconciliation } from '../utils/stockReconciliation';
 import RecipeCostCalculator from '../components/RecipeCostCalculator';
 import ProductionCostCalculator from '../components/ProductionCostCalculator';
 import DateInput from '../components/DateInput';
-import { InventoryItem } from '../types';
+import { InventoryItem, InventoryWriteDown } from '../types';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import InventoryPricingTab from '../components/InventoryPricingTab';
 import { localDateStr } from '../utils/localDate';
@@ -140,7 +140,7 @@ function StockBar({ quantity, threshold, color }: { quantity: number; threshold:
 }
 
 export default function InventoryScreen() {
-    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, linkInventoryCostTransaction, settings, navigate, addTransaction, transactions, finance, navParams, canViewFinancials } = useApp();
+    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, linkInventoryCostTransaction, settings, navigate, addTransaction, transactions, finance, navParams, canViewFinancials, inventoryWriteDowns, addInventoryWriteDown, reverseInventoryWriteDown } = useApp();
     // 'staff' can open Inventory (STAFF_ALLOWED_SCREENS in rolePermissions.ts
     // -- "manage stock" is explicitly their job) but is documented app-wide
     // as having "no visibility into P&L, cash balance, bank/loan details"
@@ -181,6 +181,9 @@ export default function InventoryScreen() {
     const [stockInForm, setStockInForm] = useState<StockInForm | null>(null);
     const [priceModal, setPriceModal] = useState<{ item: InventoryItem } | null>(null);
     const [priceForm, setPriceForm] = useState<PriceChangeForm | null>(null);
+    const [writeDownModal, setWriteDownModal] = useState<{ item: InventoryItem } | null>(null);
+    const [writeDownNrv, setWriteDownNrv] = useState('');
+    const [writeDownNote, setWriteDownNote] = useState('');
     const [countModal, setCountModal] = useState<{ item: InventoryItem } | null>(null);
     const [countQty, setCountQty] = useState('');
     const [countNote, setCountNote] = useState('');
@@ -262,6 +265,18 @@ export default function InventoryScreen() {
         () => new Map(inventory.map(item => [item.id, computeStockVelocity(item, transactions)])),
         [inventory, transactions],
     );
+
+    // Latest active (non-reversed) write-down per item -- an item can only
+    // be written down once at a time in this UI (reverse before raising
+    // another), so "latest" is really "the" active one.
+    const activeWriteDownByItemId = useMemo(() => {
+        const map = new Map<string, InventoryWriteDown>();
+        for (const w of inventoryWriteDowns) {
+            if (w.reversedAt) continue;
+            map.set(w.inventoryItemId, w);
+        }
+        return map;
+    }, [inventoryWriteDowns]);
 
     // All-time discount impact across every sale recorded through the Sell
     // button (same "Sell-only" scope as the rest of this screen's sales
@@ -548,6 +563,29 @@ export default function InventoryScreen() {
         showAlert('Price Updated', `${item.name} is now ${currency}${newPrice.toLocaleString()}/unit.`);
     };
 
+    const openWriteDown = (item: InventoryItem) => {
+        setWriteDownModal({ item });
+        setWriteDownNrv(item.sellingPrice != null ? String(item.sellingPrice) : '');
+        setWriteDownNote('');
+    };
+
+    const confirmWriteDown = () => {
+        if (!writeDownModal) return;
+        const { item } = writeDownModal;
+        const nrv = parseFloat(writeDownNrv);
+        if (isNaN(nrv) || nrv < 0) { showAlert('Validation', 'Enter a valid net realisable value.'); return; }
+        if (nrv >= item.costPrice) { showAlert('Validation', 'Net realisable value must be below cost for a write-down -- this stock isn\'t impaired at this estimate.'); return; }
+        addInventoryWriteDown(item.id, nrv, localDateStr(), item.name, writeDownNote.trim() || undefined);
+        setWriteDownModal(null);
+        setWriteDownNrv('');
+        setWriteDownNote('');
+        showAlert('Write-Down Recorded', `${item.name}'s stock is now carried at its estimated net realisable value.`);
+    };
+
+    const confirmReverseWriteDown = (item: InventoryItem, writeDownId: string) => {
+        confirmAction('Reverse Write-Down', `Reverse the write-down on "${item.name}"? It will go back to being carried at cost.`, 'Reverse', () => reverseInventoryWriteDown(writeDownId));
+    };
+
     const openCount = (item: InventoryItem) => {
         setCountModal({ item });
         setCountQty(String(item.quantity));
@@ -751,6 +789,12 @@ export default function InventoryScreen() {
                                         <View style={styles.flex}>
                                             <Text style={styles.itemName}>{item.name}</Text>
                                             <Text style={styles.itemCategory}>{item.category}{item.sku ? ` · ${item.sku}` : ''}</Text>
+                                            {canSeeMargins && activeWriteDownByItemId.has(item.id) && (
+                                                <View style={styles.writeDownBadge}>
+                                                    <Icon name="trending-down" size={10} color={Colors.expense} />
+                                                    <Text style={styles.writeDownBadgeText}>Written down to NRV</Text>
+                                                </View>
+                                            )}
                                         </View>
                                         <View style={styles.itemActions}>
                                             <TouchableOpacity style={styles.actionBtn} onPress={() => openStockIn(item)}>
@@ -762,6 +806,17 @@ export default function InventoryScreen() {
                                             <TouchableOpacity style={styles.actionBtn} onPress={() => openPriceChange(item)}>
                                                 <Icon name="tag" size={14} color={Colors.textPrimary} />
                                             </TouchableOpacity>
+                                            {canSeeMargins && (
+                                                activeWriteDownByItemId.has(item.id) ? (
+                                                    <TouchableOpacity style={[styles.actionBtn, { backgroundColor: 'rgba(239,68,68,0.12)' }]} onPress={() => confirmReverseWriteDown(item, activeWriteDownByItemId.get(item.id)!.id)}>
+                                                        <Icon name="trending-down" size={14} color={Colors.expense} />
+                                                    </TouchableOpacity>
+                                                ) : (
+                                                    <TouchableOpacity style={styles.actionBtn} onPress={() => openWriteDown(item)}>
+                                                        <Icon name="trending-down" size={14} color={Colors.textPrimary} />
+                                                    </TouchableOpacity>
+                                                )
+                                            )}
                                             <TouchableOpacity style={styles.actionBtn} onPress={() => openCount(item)}>
                                                 <Icon name="clipboard" size={14} color={Colors.textPrimary} />
                                             </TouchableOpacity>
@@ -1738,6 +1793,80 @@ export default function InventoryScreen() {
                 </KeyboardAvoidingView>
             </Modal>
 
+            {/* ── Write Down to Net Realisable Value Modal (IFRS for SMEs
+                13.19-13.21) ─────────────────────────────────────────────── */}
+            <Modal visible={!!writeDownModal} transparent animationType="slide" onRequestClose={() => { setWriteDownModal(null); setWriteDownNrv(''); setWriteDownNote(''); }}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => { setWriteDownModal(null); setWriteDownNrv(''); setWriteDownNote(''); }} />
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
+                    <View style={styles.modalHandle} />
+                    <Text style={styles.modalTitle}>Write Down to Net Realisable Value</Text>
+                    {writeDownModal && (() => {
+                        const { item } = writeDownModal;
+                        const nrv = parseFloat(writeDownNrv);
+                        const hasNrv = !isNaN(nrv) && nrv >= 0;
+                        const shortfallPerUnit = hasNrv ? Math.max(0, item.costPrice - nrv) : 0;
+                        const writeDownAmount = shortfallPerUnit * item.quantity;
+
+                        return (
+                            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                                <Text style={{ color: Colors.textSecondary, marginBottom: 8 }}>
+                                    {item.name} — {item.quantity} {item.unit} in stock at {currency}{item.costPrice.toLocaleString()}/unit cost
+                                </Text>
+                                <Text style={{ color: Colors.textSecondary, marginBottom: 12, fontSize: 12 }}>
+                                    If this stock is worth less than you paid for it — damaged, slow-moving, out of season — record what you could actually sell it for now. The difference is written off as a loss, without touching the price customers see.
+                                </Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder={`Net realisable value per unit (${currency})`}
+                                    placeholderTextColor={Colors.textMuted}
+                                    keyboardType="decimal-pad"
+                                    value={writeDownNrv}
+                                    onChangeText={setWriteDownNrv}
+                                />
+                                <TextInput
+                                    style={[styles.input, { marginTop: Spacing.sm }]}
+                                    placeholder="Note (optional) — why is this stock impaired?"
+                                    placeholderTextColor={Colors.textMuted}
+                                    value={writeDownNote}
+                                    onChangeText={setWriteDownNote}
+                                />
+
+                                {hasNrv && nrv < item.costPrice && writeDownAmount > 0 && (
+                                    <View style={styles.previewCard}>
+                                        <View style={styles.previewRow}>
+                                            <Text style={styles.previewLabel}>Shortfall per unit</Text>
+                                            <Text style={styles.previewVal}>{currency}{shortfallPerUnit.toLocaleString()}</Text>
+                                        </View>
+                                        <View style={[styles.previewRow, styles.previewBorderTop]}>
+                                            <Text style={[styles.previewLabel, { fontWeight: '700', color: Colors.textPrimary }]}>Total write-down</Text>
+                                            <Text style={[styles.previewVal, { fontWeight: '700', color: Colors.expense }]}>{currency}{writeDownAmount.toLocaleString()}</Text>
+                                        </View>
+                                    </View>
+                                )}
+
+                                {hasNrv && nrv >= item.costPrice && (
+                                    <View style={[styles.marginPreview, { borderColor: Colors.expense }]}>
+                                        <View style={styles.marginPreviewNoteRow}>
+                                            <Icon name="alert-triangle" size={12} color={Colors.expense} />
+                                            <Text style={[styles.marginPreviewNote, { color: Colors.expense }]}>
+                                                That's not below cost ({currency}{item.costPrice.toLocaleString()}/unit) — there's nothing to write down at this estimate.
+                                            </Text>
+                                        </View>
+                                    </View>
+                                )}
+
+                                <TouchableOpacity style={styles.submitBtn} onPress={confirmWriteDown}>
+                                    <Text style={styles.submitBtnText}>Confirm Write-Down</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setWriteDownModal(null); setWriteDownNrv(''); setWriteDownNote(''); }}>
+                                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                                </TouchableOpacity>
+                            </ScrollView>
+                        );
+                    })()}
+                </KeyboardAvoidingView>
+            </Modal>
+
             <Modal visible={!!countModal} transparent animationType="slide" onRequestClose={() => setCountModal(null)}>
                 <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setCountModal(null)} />
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
@@ -1892,6 +2021,8 @@ const styles = StyleSheet.create({
     itemHeader:   { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.md },
     itemName:     { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 2 },
     itemCategory: { fontSize: 11, color: Colors.textMuted },
+    writeDownBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+    writeDownBadgeText: { fontSize: 10, color: Colors.expense, fontWeight: '600' },
     itemActions:  { flexDirection: 'row', gap: 6 },
     actionBtn:    { backgroundColor: Colors.muted, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
     deleteBtn:    { backgroundColor: 'rgba(239,68,68,0.2)' },

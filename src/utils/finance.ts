@@ -1,4 +1,4 @@
-import { Transaction, FinanceData, BusinessSettings, AgingBucket, Asset, Invoice, Loan, FinancialGoal, Budget, InventoryItem, BadDebtProvision, ReceivableWriteOff } from '../types';
+import { Transaction, FinanceData, BusinessSettings, AgingBucket, Asset, Invoice, Loan, FinancialGoal, Budget, InventoryItem, BadDebtProvision, ReceivableWriteOff, InventoryWriteDown } from '../types';
 import { getWeekRanges, transactionsInRange, sumByType } from './periodRange';
 import { computeLeverageRatios } from './debtRatios';
 import { computeCashRunway } from './cashRunway';
@@ -118,6 +118,7 @@ export function transactionSpanYears(transactions: Transaction[]): number {
 
 export function computeEnhancedPnL(
     transactions: Transaction[], assets: Asset[], badDebtProvisions: BadDebtProvision[] = [], receivableWriteOffs: ReceivableWriteOff[] = [],
+    inventoryWriteDowns: InventoryWriteDown[] = [],
     // Overrides the transaction-span upper bound used below for
     // badDebtExpense only, when the caller knows the period being shown
     // genuinely extends through this date (e.g. an "all time" or trailing
@@ -175,10 +176,24 @@ export function computeEnhancedPnL(
         : 0;
     const badDebtExpense = provisionExpense + writeOffShortfallExpense;
 
+    // Inventory write-downs (IFRS for SMEs 13.19-13.21, see
+    // InventoryWriteDown's own doc comment) are a COST OF the goods held,
+    // not an operating expense -- they reduce gross profit the same way an
+    // ordinary stock purchase would, so they're folded into COGS below
+    // rather than SG&A. Same "recognized at its own date, bounded by the
+    // period span (or periodEndOverride)" convention as badDebtExpense
+    // above.
+    const inventoryWriteDownExpense = (periodStart && periodEnd)
+        ? inventoryWriteDowns
+            .filter(w => !w.reversedAt && w.date >= periodStart && w.date <= periodEnd)
+            .reduce((s, w) => s + (Number(w.amount) || 0), 0)
+        : 0;
+
     const cogsMap = new Map<string, number>();
     const sgaMap  = new Map<string, number>();
-    let cogs = 0, sga = badDebtExpense, interestExpense = 0;
+    let cogs = inventoryWriteDownExpense, sga = badDebtExpense, interestExpense = 0;
     if (badDebtExpense > 0) sgaMap.set('Bad Debt Expense', badDebtExpense);
+    if (inventoryWriteDownExpense > 0) cogsMap.set('Inventory Write-down', inventoryWriteDownExpense);
     for (const t of expenses) {
         // Loan principal repayments aren't a P&L expense under GAAP/IFRS —
         // only the interest portion is. `principalPortion` (set on

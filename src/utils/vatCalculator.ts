@@ -40,11 +40,14 @@ export interface VatExemptionStatus {
 // business is younger than a year (bounded to a 12x multiplier, i.e. never
 // inferred from less than ~30 days of data) -- same bounded-annualization
 // approach finance.ts's DSCR calculation already uses for the identical
-// "not enough history yet" problem.
-export function computeVatExemptionStatus(
+// "not enough history yet" problem. Shared between VAT registration and
+// Companies Income Tax small-company status below -- both thresholds are
+// framed around annual turnover, so both read this one figure rather than
+// each re-deriving it.
+export function computeTrailing12MonthRevenue(
     transactions: { type: string; amount: number; date: string }[],
     referenceDate: Date = new Date(),
-): VatExemptionStatus {
+): number {
     const refMs = referenceDate.getTime();
     const cutoffMs = refMs - 365 * 86400000;
     const incomeTx = transactions.filter(t => t.type === 'income');
@@ -61,10 +64,16 @@ export function computeVatExemptionStatus(
         : refMs;
     const daysOfHistory = Math.max(1, Math.round((refMs - oldestMs) / 86400000));
 
-    const trailing12moRevenue = daysOfHistory >= 365
+    return daysOfHistory >= 365
         ? windowIncome
         : windowIncome * Math.min(12, 365 / Math.max(30, daysOfHistory));
+}
 
+export function computeVatExemptionStatus(
+    transactions: { type: string; amount: number; date: string }[],
+    referenceDate: Date = new Date(),
+): VatExemptionStatus {
+    const trailing12moRevenue = computeTrailing12MonthRevenue(transactions, referenceDate);
     return {
         trailing12moRevenue,
         likelyExempt: trailing12moRevenue < NGN_VAT_REGISTRATION_THRESHOLD,
