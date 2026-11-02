@@ -19,7 +19,7 @@ import { t } from '../utils/i18n';
 const DISMISSED_ALERTS_KEY = '@quad360/dismissed_alerts';
 
 export default function Header() {
-    const { user, logout, setCurrentScreen, goBack, currentScreen, finance, transactions, invoices, loans, staff, payrollRuns, settings, goals, budgets, assets, inventory, localAccounts, switchAccountDirect, teamMemberships, refreshTeamMemberships, switchBusiness, workspaceVersion, userRole, canViewFinancials, language } = useApp();
+    const { user, logout, setCurrentScreen, goBack, currentScreen, finance, transactions, invoices, loans, staff, payrollRuns, settings, goals, budgets, assets, inventory, localAccounts, switchAccountDirect, teamMemberships, refreshTeamMemberships, switchBusiness, workspaceVersion, userRole, canViewFinancials, language, navigate } = useApp();
     const showBack = currentScreen !== 'dashboard' && currentScreen !== 'login';
     const { width } = useWindowDimensions();
     const isNarrow = width < 480;
@@ -251,6 +251,7 @@ export default function Header() {
                         onDismiss={handleDismiss}
                         canNotify={canNotify}
                         onNotify={handleNotify}
+                        onNavigate={(screen, params) => { if (screen) navigate(screen, params); }}
                     />
                 )}
                 {isNarrow && (

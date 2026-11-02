@@ -136,7 +136,15 @@ export function buildReversalDraft(original: JournalEntry, now: Date = new Date(
  */
 export function buildJournalEntryDraftForNewTransaction(tx: Transaction): JournalEntryDraft | null {
     if (!(tx.amount > 0)) return null; // nothing to post for a zero/invalid amount
-    const settled = tx.status === 'paid';
+    // Matches balanceSheetTrend.ts's cashOnHandAsOf/accountsReceivableAsOf
+    // convention (`(t.status ?? 'paid') !== 'paid'`) -- a Transaction with no
+    // status at all is treated as settled by both, not just here. A plain
+    // `tx.status === 'paid'` check would silently diverge from the Balance
+    // Sheet for any statusless transaction (posting it to Accounts
+    // Receivable/Payable here while the Balance Sheet counts it as cash),
+    // undermining ledgerReconciliation.ts's whole premise that Cash and
+    // Accounts Receivable agree between the two.
+    const settled = (tx.status ?? 'paid') === 'paid';
 
     // Owner capital movement -- never revenue or an expense (see
     // Transaction.equityMovement's own comment), so this posts against

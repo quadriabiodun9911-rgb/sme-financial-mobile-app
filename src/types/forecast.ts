@@ -1,3 +1,5 @@
+import { Screen } from './index';
+
 export type ScenarioType = 'base' | 'optimistic' | 'pessimistic';
 
 export interface MonthlyProjection {
@@ -169,6 +171,15 @@ export interface ForecastAlert {
   recommendations?: string[];
   dismissedAt?: string; // ISO timestamp when user dismissed
   createdAt: string; // ISO timestamp
+  // Where to actually DO something about this alert -- same {screen,
+  // params} + label deep-link convention actionRecommendationEngine.ts's
+  // ActionTactic and diagnosticDimensions.ts's DiagnosticActionStep already
+  // use, so an alert's CTA behaves identically to every other "do this
+  // next" link in the app. Omitted only for an alert with no real screen to
+  // send the owner to.
+  screen?: Screen;
+  screenParams?: Record<string, any>;
+  actionLabel?: string;
 }
 
 export interface ForecastScenario {

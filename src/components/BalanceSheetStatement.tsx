@@ -8,16 +8,24 @@
  */
 import React from 'react';
 import { BalanceSheetTrendPoint } from '../utils/balanceSheetTrend';
+import { Transaction } from '../types';
 import { StatementCard, StatementSection, StatementLine, StatementSpacer } from './FormalStatement';
+import SourceOfTruthPanel from './SourceOfTruthPanel';
 
 interface Props {
     businessName: string;
     asOfLabel: string; // e.g. "As of August 15, 2026"
     point: BalanceSheetTrendPoint;
     currency: string;
+    // The exact transactions Cash/Accounts Receivable were built from --
+    // optional so callers without this handy can omit it and this
+    // statement renders exactly as before. Same convention as
+    // ProfitAndLossStatement's revenueTransactions.
+    cashTransactions?: Transaction[];
+    receivableTransactions?: Transaction[];
 }
 
-export default function BalanceSheetStatement({ businessName, asOfLabel, point, currency }: Props) {
+export default function BalanceSheetStatement({ businessName, asOfLabel, point, currency, cashTransactions, receivableTransactions }: Props) {
     const totalCurrentAssets = point.cashOnHand + point.accountsReceivableNet + point.stockValue + point.otherAssets;
     const totalFixedAssets = point.equipmentValue + point.manualEquipment;
 
@@ -26,7 +34,25 @@ export default function BalanceSheetStatement({ businessName, asOfLabel, point, 
             <StatementSection label="Assets" />
             <StatementSection label="Current Assets" />
             <StatementLine label="Cash and Cash Equivalents" amount={point.cashOnHand} currency={currency} indent={1} />
+            {cashTransactions && (
+                <SourceOfTruthPanel
+                    label="Cash and Cash Equivalents"
+                    amount={point.cashOnHand}
+                    currency={currency}
+                    transactions={cashTransactions}
+                    periodLabel={asOfLabel}
+                />
+            )}
             <StatementLine label="Accounts Receivable" amount={point.accountsReceivable} currency={currency} indent={1} />
+            {receivableTransactions && (
+                <SourceOfTruthPanel
+                    label="Accounts Receivable"
+                    amount={point.accountsReceivable}
+                    currency={currency}
+                    transactions={receivableTransactions}
+                    periodLabel={asOfLabel}
+                />
+            )}
             {point.allowanceForDoubtfulDebts > 0 && (
                 <StatementLine label="Less: Allowance for Doubtful Debts" amount={point.allowanceForDoubtfulDebts} currency={currency} indent={1} deduction muted />
             )}

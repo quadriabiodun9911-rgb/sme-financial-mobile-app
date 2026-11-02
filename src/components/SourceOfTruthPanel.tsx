@@ -44,15 +44,25 @@ export default function SourceOfTruthPanel({ label, amount, currency, transactio
                     <Text style={s.summaryLine}>{summary.lastUpdatedText}</Text>
 
                     {shown.length === 0 && <Text style={s.emptyText}>No transactions behind this figure.</Text>}
-                    {shown.map(t => (
-                        <View key={t.id} style={s.row}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={s.rowDesc} numberOfLines={1}>{t.description || 'Untitled'}</Text>
-                                <Text style={s.rowDate}>{t.date || 'No date'}</Text>
+                    {shown.map(t => {
+                        // Signed +/- only when this list mixes income and
+                        // expense (e.g. Cash, a net figure) -- a pure
+                        // one-directional list like Revenue or Accounts
+                        // Receivable keeps the plain unsigned look this
+                        // panel always had.
+                        const isExpense = t.type === 'expense';
+                        return (
+                            <View key={t.id} style={s.row}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={s.rowDesc} numberOfLines={1}>{t.description || 'Untitled'}</Text>
+                                    <Text style={s.rowDate}>{t.date || 'No date'}</Text>
+                                </View>
+                                <Text style={[s.rowAmount, isExpense && { color: Colors.expense }]}>
+                                    {isExpense ? '-' : ''}{currency}{Math.round(t.amount ?? 0).toLocaleString()}
+                                </Text>
                             </View>
-                            <Text style={s.rowAmount}>{currency}{Math.round(t.amount ?? 0).toLocaleString()}</Text>
-                        </View>
-                    ))}
+                        );
+                    })}
                     {hiddenCount > 0 && (
                         <Text style={s.moreText}>+ {hiddenCount} more transaction{hiddenCount === 1 ? '' : 's'} not shown</Text>
                     )}

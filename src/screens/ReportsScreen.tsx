@@ -247,6 +247,21 @@ export default function ReportsScreen() {
         return points.length > 0 ? points[points.length - 1] : null;
     }, [transactions, assets, loansList, manualBalances, badDebtProvisions, receivableWriteOffs]);
 
+    // Exactly the transactions balanceSheetPoint's cashOnHand/
+    // accountsReceivable were built from (same predicates
+    // cashOnHandAsOf/accountsReceivableAsOf use internally, see
+    // balanceSheetTrend.ts) -- mirrors revenueTransactions above, so the
+    // Balance Sheet's drill-down panels can never disagree with the totals
+    // they're explaining.
+    const balanceSheetCashTransactions = useMemo(
+        () => transactions.filter(t => t.date && t.date <= today && (t.status ?? 'paid') === 'paid'),
+        [transactions, today]
+    );
+    const balanceSheetReceivableTransactions = useMemo(() => {
+        const writtenOffByToday = new Set(receivableWriteOffs.filter(w => w.date && w.date <= today).map(w => w.transactionId));
+        return transactions.filter(t => t.type === 'income' && t.date && t.date <= today && (t.status === 'pending' || t.status === 'overdue') && !writtenOffByToday.has(t.id));
+    }, [transactions, receivableWriteOffs, today]);
+
     // Most recent month with data -- same "latest point" convention as
     // balanceSheetPoint above, just for the Statement of Changes in Equity.
     const changesInEquityPoint = useMemo(() => {
@@ -622,6 +637,8 @@ export default function ReportsScreen() {
                                     asOfLabel={asOfLabel}
                                     point={balanceSheetPoint}
                                     currency={currency}
+                                    cashTransactions={balanceSheetCashTransactions}
+                                    receivableTransactions={balanceSheetReceivableTransactions}
                                 />
                             )}
 
