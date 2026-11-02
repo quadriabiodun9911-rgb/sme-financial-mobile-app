@@ -35,7 +35,7 @@ const WHAT_I_SELL_TO_INDUSTRY: Partial<Record<string, Industry>> = {
 };
 
 export default function FirstRunWizard({ visible, onDone }: Props) {
-    const { addTransaction, settings, updateSettings } = useApp();
+    const { addTransaction, settings, updateSettings, navigate } = useApp();
     const currency = settings.currency;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -98,6 +98,18 @@ export default function FirstRunWizard({ visible, onDone }: Props) {
         onDone();
     };
 
+    // The highest-attention moment in this whole flow -- right after seeing
+    // their own profit number -- is the best place to actually teach the
+    // habit, not just close the modal. Sends them straight into the real Add
+    // Transaction form (not another simplified wizard) so logging transaction
+    // #2 means learning the real workflow while motivation is highest, not
+    // discovering it cold later. Same cleanup as "I'll do this later" below --
+    // first-run is done either way -- it only adds the navigate.
+    const handleAddNext = () => {
+        handleClose();
+        navigate('transactions', { openAdd: true });
+    };
+
     return (
         <Modal visible={visible} animationType="slide" statusBarTranslucent>
             <KeyboardAvoidingView
@@ -128,6 +140,11 @@ export default function FirstRunWizard({ visible, onDone }: Props) {
                                     ? `That's ${currency}${profit.toLocaleString()} profit. Quad360 will track this every day.`
                                     : 'No profit yet — but now you can see exactly where money is going.'}
                             </Text>
+                            <View style={styles.whyCard}>
+                                <Text style={styles.whyText}>
+                                    This is the start of a real financial record — the kind a bank actually trusts when deciding on a loan, and the kind that protects you if your tax bill is ever questioned. One entry won't do it. Logging regularly will.
+                                </Text>
+                            </View>
                             <View style={styles.celebStats}>
                                 <View style={styles.celebStat}>
                                     <Text style={styles.celebStatLabel}>Money In</Text>
@@ -146,8 +163,11 @@ export default function FirstRunWizard({ visible, onDone }: Props) {
                                     </Text>
                                 </View>
                             </View>
-                            <TouchableOpacity style={styles.primaryBtn} onPress={handleClose}>
-                                <Text style={styles.primaryBtnText}>Let's Go →</Text>
+                            <TouchableOpacity style={styles.primaryBtn} onPress={handleAddNext}>
+                                <Text style={styles.primaryBtnText}>Add My Next Transaction →</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.skipBtn} onPress={handleClose}>
+                                <Text style={styles.skipText}>I'll do this later</Text>
                             </TouchableOpacity>
                         </View>
                     ) : (
@@ -293,7 +313,9 @@ const styles = StyleSheet.create({
     celebEmoji:     { fontSize: 72, marginBottom: 20 },
     celebTitle:     { fontSize: 26, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center', marginBottom: 10, lineHeight: 34 },
     celebBigProfit: { fontSize: 48, fontWeight: 'bold', marginBottom: 10 },
-    celebSub:       { fontSize: 14, color: Colors.textMuted, textAlign: 'center', lineHeight: 21, marginBottom: 30 },
+    celebSub:       { fontSize: 14, color: Colors.textMuted, textAlign: 'center', lineHeight: 21, marginBottom: 16 },
+    whyCard:        { backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, padding: 14, width: '100%', marginBottom: 24 },
+    whyText:        { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, textAlign: 'center' },
     celebStats:     { flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: 14, padding: 18, width: '100%', marginBottom: 30, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     celebStat:      { flex: 1, alignItems: 'center' },
     celebStatDiv:   { width: 1, backgroundColor: Colors.border },

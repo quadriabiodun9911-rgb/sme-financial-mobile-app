@@ -457,6 +457,14 @@ export default function TransactionsScreen() {
         setModalOpen(true);
     };
 
+    // Deep-link from FirstRunWizard's "Add My Next Transaction" -- opens
+    // straight into the real Add form instead of leaving the owner to find
+    // the + button themselves right after the wizard taught them why logging
+    // matters.
+    useEffect(() => {
+        if (navParams?.openAdd) openNew();
+    }, [navParams]);
+
     const handleSave = () => {
         const amt = parseFloat(form.amount);
         if (!form.description.trim() || isNaN(amt) || amt <= 0) {
