@@ -18,7 +18,7 @@
  * outside Inventory.
  */
 
-import { InventoryItem, Transaction } from '../types';
+import { InventoryItem, InventoryWriteDown, Transaction } from '../types';
 import { localDateStr } from './localDate';
 
 // Total stock at cost — the one place this gets summed. Previously
@@ -28,6 +28,37 @@ import { localDateStr } from './localDate';
 // disposed/zero-quantity items) would have needed applying in every copy.
 export function computeInventoryValue(items: InventoryItem[]): number {
     return items.reduce((sum, item) => sum + (item.quantity || 0) * (item.costPrice || 0), 0);
+}
+
+// Sum of every active (not reversed) InventoryWriteDown's own `amount` --
+// the lower-of-cost-or-NRV markdown (IFRS for SMEs 13.19-13.21) to subtract
+// from computeInventoryValue's gross-cost total for the Balance Sheet's
+// actual carrying value. See InventoryWriteDown's own doc comment for why
+// this reads the markdown's SNAPSHOT amount rather than recomputing it
+// live against the item's current quantity.
+export function computeInventoryWriteDownTotal(writeDowns: InventoryWriteDown[]): number {
+    return writeDowns.filter(w => !w.reversedAt).reduce((sum, w) => sum + (w.amount || 0), 0);
+}
+
+export interface BelowCostInventoryItem {
+    item: InventoryItem;
+    shortfallPerUnit: number; // costPrice - sellingPrice
+}
+
+// Items whose CURRENT selling price sits below cost -- an objective,
+// already-on-the-record NRV indicator (selling price is the business's own
+// stated estimate of what a unit realises) a write-down review can start
+// from, the same role the Aging Report's 90+ day bucket plays for the
+// receivables-impairment review queue. Not itself a write-down -- a
+// mispriced item here may be a deliberate loss-leader, not genuinely
+// impaired stock, so this only surfaces candidates for the owner's own
+// judgment call, exactly like a receivable showing up as "overdue" doesn't
+// by itself mean it's doubtful.
+export function computeBelowCostInventoryItems(items: InventoryItem[]): BelowCostInventoryItem[] {
+    return items
+        .filter(item => item.quantity > 0 && item.costPrice > 0 && item.sellingPrice < item.costPrice)
+        .map(item => ({ item, shortfallPerUnit: item.costPrice - item.sellingPrice }))
+        .sort((a, b) => (b.shortfallPerUnit * b.item.quantity) - (a.shortfallPerUnit * a.item.quantity));
 }
 
 export type StockVelocityTier = 'fast' | 'moderate' | 'slow' | 'no-data';

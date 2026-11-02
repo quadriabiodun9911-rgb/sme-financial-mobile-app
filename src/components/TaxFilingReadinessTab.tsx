@@ -8,11 +8,11 @@ import { computeComplianceObligations } from '../utils/complianceMapping';
 import Icon from './ui/Icon';
 
 export default function TaxFilingReadinessTab() {
-    const { transactions, invoices, settings, finance, setCurrentScreen, user, staff } = useApp();
+    const { transactions, invoices, settings, finance, setCurrentScreen, user, staff, assets, badDebtProvisions, receivableWriteOffs, inventoryWriteDowns } = useApp();
 
     const readiness = useMemo(
-        () => computeTaxFilingReadiness(transactions, invoices, settings, finance, new Date(), user?.businessName),
-        [transactions, invoices, settings, finance, user?.businessName]
+        () => computeTaxFilingReadiness(transactions, invoices, settings, finance, new Date(), user?.businessName, assets, badDebtProvisions, receivableWriteOffs, inventoryWriteDowns),
+        [transactions, invoices, settings, finance, user?.businessName, assets, badDebtProvisions, receivableWriteOffs, inventoryWriteDowns]
     );
 
     const compliance = useMemo(
@@ -63,6 +63,27 @@ export default function TaxFilingReadinessTab() {
                     <Text style={s.vatExemptText}>
                         Your trailing 12-month revenue is around ₦{Math.round(readiness.vatExemption.trailing12moRevenue).toLocaleString()}, below the ₦{readiness.vatExemption.thresholdNgn.toLocaleString()} small-business VAT threshold. You may not be required to register for or file VAT. Confirm your exact status with the Nigeria Revenue Service or your accountant -- this threshold can change with tax law.
                     </Text>
+                </View>
+            )}
+
+            {/* NGN only -- the 2025/2026 tax reform's Companies Income Tax
+                small-company exemption. Same advisory posture as the VAT
+                card above: this is an estimate to confirm, not a filing
+                figure. */}
+            {readiness.citEstimate && (readiness.citEstimate.isSmallCompany || readiness.citEstimate.estimatedCit > 0) && (
+                <View style={[s.vatExemptCard, !readiness.citEstimate.isSmallCompany && s.citCardLiable]}>
+                    <Text style={s.vatExemptTitle}>
+                        {readiness.citEstimate.isSmallCompany ? 'You may be exempt from Companies Income Tax' : 'Estimated Companies Income Tax'}
+                    </Text>
+                    {readiness.citEstimate.isSmallCompany ? (
+                        <Text style={s.vatExemptText}>
+                            Your trailing 12-month revenue is around ₦{Math.round(readiness.citEstimate.trailing12moRevenue).toLocaleString()}, below the ₦{readiness.citEstimate.thresholdNgn.toLocaleString()} small-company CIT threshold. You may owe no Companies Income Tax on this year's profit. Confirm your exact status with the Nigeria Revenue Service or your accountant -- this threshold can change with tax law.
+                        </Text>
+                    ) : (
+                        <Text style={s.vatExemptText}>
+                            Trailing 12-month profit before tax is around ₦{Math.round(readiness.citEstimate.profitBeforeTax).toLocaleString()}, above the ₦{readiness.citEstimate.thresholdNgn.toLocaleString()} small-company revenue threshold. At the standard {readiness.citEstimate.ratePercent}% rate, that's roughly ₦{Math.round(readiness.citEstimate.estimatedCit).toLocaleString()} in Companies Income Tax -- a rough estimate, not a filing figure. Confirm the exact amount and rate with an accountant or the Nigeria Revenue Service.
+                        </Text>
+                    )}
                 </View>
             )}
 
@@ -147,6 +168,10 @@ const s = StyleSheet.create({
     },
     vatExemptTitle: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
     vatExemptText: { fontSize: 12, color: Colors.textMuted, lineHeight: 17 },
+    citCardLiable: {
+        backgroundColor: 'rgba(245,158,11,0.08)',
+        borderColor: 'rgba(245,158,11,0.3)',
+    },
     summaryCard: {
         backgroundColor: Colors.surface,
         borderRadius: 12,

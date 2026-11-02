@@ -1,7 +1,8 @@
-import { Transaction, Invoice, BusinessSettings, FinanceData } from '../types';
+import { Transaction, Invoice, BusinessSettings, FinanceData, Asset, BadDebtProvision, ReceivableWriteOff, InventoryWriteDown } from '../types';
 import { computeDataQuality } from './dataQuality';
 import { daysUntilTaxDeadline } from './taxDeadline';
 import { computeVatExemptionStatus, VatExemptionStatus } from './vatCalculator';
+import { computeCitEstimate, CitEstimate } from './citEstimate';
 
 export interface ReadinessCheck {
     id: string;
@@ -22,6 +23,8 @@ export interface TaxFilingReadiness {
     // this stays undefined everywhere else rather than showing a Naira
     // figure to a business in another currency.
     vatExemption?: VatExemptionStatus;
+    // Same NGN-only gating as vatExemption above.
+    citEstimate?: CitEstimate;
 }
 
 /**
@@ -60,6 +63,10 @@ export function computeTaxFilingReadiness(
     finance?: FinanceData,
     referenceDate: Date = new Date(),
     businessName?: string,
+    assets: Asset[] = [],
+    badDebtProvisions: BadDebtProvision[] = [],
+    receivableWriteOffs: ReceivableWriteOff[] = [],
+    inventoryWriteDowns: InventoryWriteDown[] = [],
 ): TaxFilingReadiness {
     const checks: ReadinessCheck[] = [];
     const currency = settings.currency || '';
@@ -187,5 +194,6 @@ export function computeTaxFilingReadiness(
         hasCertifiedFilingPartner: false,
         daysUntilDeadline,
         vatExemption: isNigeria ? computeVatExemptionStatus(transactions, referenceDate) : undefined,
+        citEstimate: isNigeria ? computeCitEstimate(transactions, assets, badDebtProvisions, receivableWriteOffs, inventoryWriteDowns, referenceDate) : undefined,
     };
 }

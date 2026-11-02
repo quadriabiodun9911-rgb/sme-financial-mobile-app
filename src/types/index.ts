@@ -902,6 +902,43 @@ export interface ReceivableWriteOff {
     createdAt: string;
 }
 
+// IFRS for SMEs Section 13.19-13.21: inventory is carried at the LOWER of
+// cost and net realisable value (estimated selling price less costs to
+// complete and sell), reassessed each period -- the same "assess for
+// objective evidence" discipline Section 11 already applies to receivables,
+// here applied to stock instead of debtors. Mirrors BadDebtProvision almost
+// exactly (judgment-based, dated, reversible, never edited/deleted), with
+// one real difference: `quantityAtWriteDown` is a SNAPSHOT, not a live
+// read of the item's current quantity -- selling some of the written-down
+// units doesn't automatically shrink this record (the same "a correction
+// is a new entry" discipline as everywhere else here), so a stale
+// write-down against stock that's since sold through should be reversed
+// rather than left to quietly overstate the markdown.
+//
+// No journal entry is posted for this (unlike BadDebtProvision) -- the
+// Inventory GL account (chartOfAccounts.ts code 1200) is never posted to
+// by anything in this app (inventory purchases expense straight to COGS,
+// a periodic not perpetual system -- see journalEntry.ts's own header
+// comment), so there is no live GL balance to write down against; doing so
+// would fabricate a GL entry crediting an account that was never debited
+// for a purchase in the first place. This stays an application-level
+// adjustment to computeInventoryValue/computeEnhancedPnL instead, the same
+// treatment this app already gives depreciation (also never posted to the
+// GL -- only an asset's disposal gain/loss is).
+export interface InventoryWriteDown {
+    id: string;
+    inventoryItemId: string;
+    itemNameLabel?: string; // snapshot of the item's name at write-down time -- still readable if the item is later renamed or deleted
+    quantityAtWriteDown: number;
+    costPricePerUnit: number; // snapshot of costPrice at write-down time
+    nrvPerUnit: number; // owner's estimate of net realisable value per unit
+    amount: number; // max(0, costPricePerUnit - nrvPerUnit) * quantityAtWriteDown, computed once at raise time
+    date: string;
+    note?: string;
+    reversedAt?: string;
+    createdAt: string;
+}
+
 export type LoanStatus = 'active' | 'paid_off' | 'defaulted';
 
 export interface LoanPayment {

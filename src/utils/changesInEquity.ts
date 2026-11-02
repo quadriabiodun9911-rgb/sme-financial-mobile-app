@@ -26,7 +26,7 @@
  * own "Other movements (unexplained)" line -- real information about a
  * figure this statement can't fully explain, not a bug to hide.
  */
-import { Transaction, Asset, Loan, BusinessSettings, BadDebtProvision, ReceivableWriteOff } from '../types';
+import { Transaction, Asset, Loan, BusinessSettings, BadDebtProvision, ReceivableWriteOff, InventoryWriteDown } from '../types';
 import { computeEnhancedPnL } from './finance';
 import { computeBalanceSheetTrend, ManualBalances } from './balanceSheetTrend';
 import { localDateStr } from './localDate';
@@ -61,6 +61,7 @@ export function computeChangesInEquity(
     manual: ManualBalances = { stockValue: 0, manualEquipment: 0, otherAssets: 0, otherLiabilities: 0 },
     badDebtProvisions: BadDebtProvision[] = [],
     receivableWriteOffs: ReceivableWriteOff[] = [],
+    inventoryWriteDowns: InventoryWriteDown[] = [],
 ): ChangesInEquityPoint[] {
     if (months.length === 0) return [];
 
@@ -85,7 +86,7 @@ export function computeChangesInEquity(
         // from revenue/expense -- this is the exact same "Net Profit"
         // figure the P&L statement shows for this period, not a second,
         // independently-derived one.
-        const pnl = computeEnhancedPnL(periodTx, assets, badDebtProvisions, receivableWriteOffs, periodEnd);
+        const pnl = computeEnhancedPnL(periodTx, assets, badDebtProvisions, receivableWriteOffs, inventoryWriteDowns, periodEnd);
 
         const ownerContributions = periodTx
             .filter(t => t.equityMovement === 'owner-contribution')
