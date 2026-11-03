@@ -97,7 +97,6 @@ const UNDERSTAND_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen;
 
 const ANTICIPATE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string }[] = [
     { label: 'navRisk',     icon: 'radio',          screen: 'risk-management', color: '#ef4444' },
-    { label: 'navForecast', icon: 'compass',         screen: 'future-statements', color: '#a855f7' },
     { label: 'growth',      icon: 'trending-up',     screen: 'growth',   color: '#10b981' },
 ];
 
@@ -120,7 +119,16 @@ const IMPROVE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; co
 
 const FUND_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string }[] = [
     { label: 'navCredit',      icon: 'credit-card',  screen: 'credit-worthiness', color: '#eab308' },
-    { label: 'navFinancing',   icon: 'search',       screen: 'financing-marketplace', color: '#14b8a6' },
+];
+
+// Deeper tools most businesses reach for occasionally, not every cycle --
+// moved out of Anticipate/Fund's primary grid so the daily-use items there
+// aren't competing for attention with a multi-year forecast or a sample-
+// listing marketplace. Nothing here was removed or had its logic changed;
+// this is purely where it sits in the nav.
+const ADVANCED_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string }[] = [
+    { label: 'navForecast',  icon: 'compass', screen: 'future-statements', color: '#a855f7' },
+    { label: 'navFinancing', icon: 'search',  screen: 'financing-marketplace', color: '#14b8a6' },
 ];
 
 const ACCOUNT_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey }[] = [
@@ -220,6 +228,7 @@ export default function FooterNav() {
     const visibleDecide = useMemo(() => DECIDE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
     const visibleImprove = useMemo(() => IMPROVE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
     const visibleFund = useMemo(() => FUND_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
+    const visibleAdvanced = useMemo(() => ADVANCED_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
 
     const visibleAccount = useMemo(() =>
         ACCOUNT_ITEMS.filter(item => isScreenAllowedForRole(item.screen, userRole)),
@@ -497,6 +506,31 @@ export default function FooterNav() {
                                 </TouchableOpacity>
                             ))}
                         </View>
+
+                        {/* ── Advanced ──────────────────────────────────── */}
+                        {visibleAdvanced.length > 0 && (
+                            <>
+                                <Text style={styles.sectionHeader}>{t(language, 'sectionAdvanced')}</Text>
+                                <Text style={styles.sectionSubtitle}>{t(language, 'subAdvanced')}</Text>
+                                <View style={styles.gridCard}>
+                                    {visibleAdvanced.map(item => (
+                                        <TouchableOpacity
+                                            key={item.label}
+                                            style={styles.gridItem}
+                                            onPress={() => goTo(item.screen)}
+                                            activeOpacity={0.75}
+                                            accessibilityRole="button"
+                                            accessibilityLabel={t(language, item.label)}
+                                        >
+                                            <View style={[styles.gridIconBox, { backgroundColor: item.color + '22' }]}>
+                                                <Icon name={item.icon} size={19} color={item.color} />
+                                            </View>
+                                            <Text style={styles.gridLabel}>{t(language, item.label)}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </>
+                        )}
 
                         {/* ── Account ───────────────────────────────────── */}
                         <Text style={styles.sectionHeader}>{t(language, 'sectionAccount')}</Text>
