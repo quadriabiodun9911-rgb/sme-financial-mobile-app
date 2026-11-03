@@ -24,7 +24,6 @@ import RetentionNudges, { StreakBadge, RecordProgressBadge } from '../components
 import FirstRunWizard from '../components/FirstRunWizard';
 import GlobalSearch from '../components/GlobalSearch';
 import DailyTargetCard from '../components/DailyTargetCard';
-import MacroShieldSimulator from '../components/MacroShieldSimulator';
 import MonthlyReview from '../components/MonthlyReview';
 import CashPocketsModal from '../components/CashPocketsModal';
 import DailyReportModal from '../components/DailyReportModal';
@@ -1827,11 +1826,12 @@ export default function DashboardScreen() {
                     numbers) -- everything below this toggle is a real,
                     working feature, just not something every owner needs on
                     every visit. showFullDashboard gates every "advanced"
-                    card from here down (Macro Shield, Decision Centre
-                    preview, If You Need Capital, Before You Borrow, Risk
-                    Radar, Quick Actions, AI Financial Engine, beta
-                    spotlight) -- nothing is deleted or moved, each section
-                    simply doesn't render until the owner asks for it. */}
+                    card from here down (Decision Centre preview, If You
+                    Need Capital, Before You Borrow, Risk Radar, Quick
+                    Actions, AI Financial Engine, beta spotlight) -- nothing
+                    is deleted or moved, each section simply doesn't render
+                    until the owner asks for it. MacroShield itself moved to
+                    Risk > Economic -- see that screen's own comment. */}
                 {canViewFinancials && (
                   <PressScale
                     style={styles.showMoreToggle}
@@ -1848,29 +1848,6 @@ export default function DashboardScreen() {
                     </View>
                     <Icon name={showFullDashboard ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.textMuted} />
                   </PressScale>
-                )}
-
-                {/* MacroShield — most tools only show what already happened;
-                    this is the forward-looking layer right below the Cash
-                    in Hand / runway numbers above: drag an inflation or FX
-                    -devaluation shock and see exactly which month it would
-                    put cash below zero. See macroShield.ts. */}
-                {canViewFinancials && showFullDashboard && (
-                  <MacroShieldSimulator
-                    currency={currency}
-                    transactions={transactions}
-                    loans={loans}
-                    finance={finance}
-                    staff={staff}
-                    minReserve={parseFloat(settings?.minReserve || '') || DEFAULT_THRESHOLDS.lowCashThreshold}
-                    macroAssumptions={settings?.macroAssumptions ?? []}
-                    onAddMacroAssumption={() => setCurrentScreen('macro-assumptions')}
-                    onSeeFullImpact={(shock) => navigate('macroshield-detail', {
-                        macroShieldInflationPct: shock.inflationPct,
-                        macroShieldFxDevaluationPct: shock.fxDevaluationPct,
-                        macroShieldRevenueImpactPct: shock.revenueImpactPct,
-                    })}
-                  />
                 )}
 
                 {/* WHAT QUAD360 SEES — the plain-language "what does this

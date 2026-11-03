@@ -26,6 +26,8 @@ import { loadFxSnapshots, saveFxSnapshots } from '../utils/storage';
 import { MacroDriver } from '../types';
 import { computeSupplierIntelligence } from '../utils/supplierIntelligence';
 import { localDateStr } from '../utils/localDate';
+import MacroShieldSimulator from '../components/MacroShieldSimulator';
+import { DEFAULT_THRESHOLDS } from '../utils/alertEngine';
 
 type Tab = 'overview' | 'concentration' | 'seasonal' | 'economic';
 
@@ -103,7 +105,7 @@ function MiniBar({ pct, color }: { pct: number; color: string }) {
  * (DSCR detail, Interest Rate Shock, Debt Optimizer) now live there.
  */
 export default function RiskManagementScreen() {
-    const { transactions, loans, finance, inventory, settings, navigate, setCurrentScreen, navParams, assets } = useApp();
+    const { transactions, loans, finance, inventory, settings, navigate, setCurrentScreen, navParams, assets, staff } = useApp();
     const currency = settings.currency || '₦';
 
     const [tab, setTab] = useState<Tab>(
@@ -552,6 +554,31 @@ export default function RiskManagementScreen() {
                             )}
                             <NextStepLink text="See the full forward cost trajectory → Cost Exposure" onPress={() => navigate('transactions', { tab: 'exposure' })} />
                         </View>
+
+                        {/* MacroShield -- moved here from the Dashboard's
+                            "Show More Insights" fold. It answers the same
+                            question this tab's assumptions list is already
+                            asking ("what's happening with inflation/FX/
+                            demand"), just made concrete: drag a shock and
+                            see exactly which month it would put cash below
+                            zero. One home for "what external economics do to
+                            this business," not a card bolted onto the
+                            Dashboard that most owners never asked for. */}
+                        <MacroShieldSimulator
+                            currency={currency}
+                            transactions={transactions}
+                            loans={loans}
+                            finance={finance}
+                            staff={staff}
+                            minReserve={parseFloat(settings?.minReserve || '') || DEFAULT_THRESHOLDS.lowCashThreshold}
+                            macroAssumptions={settings?.macroAssumptions ?? []}
+                            onAddMacroAssumption={() => setCurrentScreen('macro-assumptions')}
+                            onSeeFullImpact={(shock) => navigate('macroshield-detail', {
+                                macroShieldInflationPct: shock.inflationPct,
+                                macroShieldFxDevaluationPct: shock.fxDevaluationPct,
+                                macroShieldRevenueImpactPct: shock.revenueImpactPct,
+                            })}
+                        />
                     </>
                 )}
 
