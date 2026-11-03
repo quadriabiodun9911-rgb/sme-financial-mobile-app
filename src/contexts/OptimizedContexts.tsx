@@ -10,7 +10,7 @@
 
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Platform } from 'react-native';
-import { User, Invoice, InvoiceStatus, Bill, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CurrencyAccount, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, HealthScoreSnapshot, UserRole, Screen, Account, JournalEntry, JournalLine, BadDebtProvision, ReceivableWriteOff, InventoryWriteDown } from '../types';
+import { User, Invoice, InvoiceStatus, Bill, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CurrencyAccount, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, HealthScoreSnapshot, UserRole, Screen, Account, JournalEntry, JournalLine, BadDebtProvision, ReceivableWriteOff, InventoryWriteDown, ProductionCycle } from '../types';
 import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore, computeLoanPaymentSplit } from '../utils/finance';
 import { buildDefaultChartOfAccounts } from '../utils/chartOfAccounts';
 import {
@@ -55,6 +55,7 @@ import {
   loadBadDebtProvisions, saveBadDebtProvisions,
   loadReceivableWriteOffs, saveReceivableWriteOffs,
   loadInventoryWriteDowns, saveInventoryWriteDowns,
+  loadProductionCycles, saveProductionCycles,
   clearLocalFinancialCache,
   syncFinancingToSupabase,
   saveProfile, loadProfile, savePin, loadPin, verifyPin as verifyPinStored,
@@ -274,6 +275,16 @@ interface FinanceContextValue {
   addInventoryWriteDown: (inventoryItemId: string, nrvPerUnit: number, date: string, itemNameLabel?: string, note?: string) => void;
   reverseInventoryWriteDown: (id: string) => void;
 
+  // A batch/run of production over a date range -- see ProductionCycle's
+  // own doc comment. No journal entry, no balance, nothing to reverse: a
+  // cycle is pure metadata (a date range + a unit count) that
+  // computeProductionCycleSummary reads real transactions against, so it's
+  // freely editable/deletable unlike the judgment records above.
+  productionCycles: ProductionCycle[];
+  addProductionCycle: (cycle: Omit<ProductionCycle, 'id' | 'createdAt'>) => void;
+  updateProductionCycle: (id: string, updates: Partial<Omit<ProductionCycle, 'id' | 'createdAt'>>) => void;
+  deleteProductionCycle: (id: string) => void;
+
   // True once this provider's own async load (AsyncStorage + Supabase) has
   // resolved for the current identity -- see useAppReady below, which
   // combines this with the other three data-owning providers' own flags so
@@ -319,6 +330,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [badDebtProvisions, setBadDebtProvisions] = useState<BadDebtProvision[]>([]);
   const [receivableWriteOffs, setReceivableWriteOffs] = useState<ReceivableWriteOff[]>([]);
   const [inventoryWriteDowns, setInventoryWriteDowns] = useState<InventoryWriteDown[]>([]);
+  const [productionCycles, setProductionCycles] = useState<ProductionCycle[]>([]);
   const [financing, setFinancing] = useState<FinancingContextData>({
     isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
     maxQualifiedAmount: undefined, application: undefined,
@@ -407,7 +419,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setHydrated(false);
     setTransactions([]); setAssets([]); setLoans([]); setBudgets([]); setInventory([]);
     setStaff([]); setPayrollRuns([]); setCashPockets([]); setCurrencyAccounts([]); setCapitalCommitments([]); setReadinessHistory([]);
-    setForecastHistory([]); setDataConfidenceHistory([]); setAccounts([]); setJournalEntries([]); setBadDebtProvisions([]); setReceivableWriteOffs([]); setInventoryWriteDowns([]);
+    setForecastHistory([]); setDataConfidenceHistory([]); setAccounts([]); setJournalEntries([]); setBadDebtProvisions([]); setReceivableWriteOffs([]); setInventoryWriteDowns([]); setProductionCycles([]);
     setFinancing({
       isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
       maxQualifiedAmount: undefined, application: undefined,
@@ -454,7 +466,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (l) setLoans(l.map((x) => ({ ...x, payments: x.payments ?? [] })));
         if (b) setBudgets(b);
         if (inv) setInventory(inv);
-        const [st, pr, cp, ca, cc, rh, fh, dch, hsh, bdp, rwo, iwd] = await Promise.all([
+        const [st, pr, cp, ca, cc, rh, fh, dch, hsh, bdp, rwo, iwd, pc] = await Promise.all([
           isStaffRole ? Promise.resolve(null) : loadStaff(),
           isStaffRole ? Promise.resolve(null) : loadPayrollRuns(),
           isStaffRole ? Promise.resolve(null) : loadCashPockets(),
@@ -464,6 +476,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           isStaffRole ? Promise.resolve(null) : loadBadDebtProvisions(),
           isStaffRole ? Promise.resolve(null) : loadReceivableWriteOffs(),
           isStaffRole ? Promise.resolve(null) : loadInventoryWriteDowns(),
+          isStaffRole ? Promise.resolve(null) : loadProductionCycles(),
         ]);
         if (st) setStaff(st);
         if (pr) setPayrollRuns(pr);
@@ -477,6 +490,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (bdp) setBadDebtProvisions(bdp);
         if (rwo) setReceivableWriteOffs(rwo);
         if (iwd) setInventoryWriteDowns(iwd);
+        if (pc) setProductionCycles(pc);
 
         // Chart of Accounts: seed the default set the first time this
         // business ever hydrates (no accounts row yet, anywhere) so the
@@ -556,6 +570,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveBadDebtProvisions(badDebtProvisions).catch(() => {}); }, [badDebtProvisions, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveReceivableWriteOffs(receivableWriteOffs).catch(() => {}); }, [receivableWriteOffs, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveInventoryWriteDowns(inventoryWriteDowns).catch(() => {}); }, [inventoryWriteDowns, hydrated, isDemoMode, isStaffRole]);
+  useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveProductionCycles(productionCycles).catch(() => {}); }, [productionCycles, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => {
     // Never loaded for 'staff' (see the hydrate effect above), so `financing`
     // is still just the never-qualified default here -- writing that would
@@ -755,6 +770,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       },
       reverseInventoryWriteDown: (id) => {
         setInventoryWriteDowns((prev) => prev.map((w) => (w.id === id ? { ...w, reversedAt: new Date().toISOString() } : w)));
+      },
+      productionCycles,
+      addProductionCycle: (cycle) => {
+        const newCycle: ProductionCycle = { ...cycle, id: genId(), createdAt: new Date().toISOString() };
+        setProductionCycles((prev) => [...prev, newCycle]);
+      },
+      updateProductionCycle: (id, updates) => {
+        setProductionCycles((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)));
+      },
+      deleteProductionCycle: (id) => {
+        setProductionCycles((prev) => prev.filter((c) => c.id !== id));
       },
       transactions,
       assets,
@@ -1184,7 +1210,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         });
       },
     }),
-    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, currencyAccounts, capitalCommitments, readinessHistory, forecastHistory, dataConfidenceHistory, healthScoreHistory, recordHealthScoreSnapshot, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency, hydrated, accounts, journalEntries, badDebtProvisions, receivableWriteOffs, inventoryWriteDowns]
+    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, currencyAccounts, capitalCommitments, readinessHistory, forecastHistory, dataConfidenceHistory, healthScoreHistory, recordHealthScoreSnapshot, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency, hydrated, accounts, journalEntries, badDebtProvisions, receivableWriteOffs, inventoryWriteDowns, productionCycles]
   );
 
   return (
@@ -2841,6 +2867,7 @@ export function useApp() {
   const badDebtProvisions = finance?.badDebtProvisions ?? [];
   const receivableWriteOffs = finance?.receivableWriteOffs ?? [];
   const inventoryWriteDowns = finance?.inventoryWriteDowns ?? [];
+  const productionCycles = finance?.productionCycles ?? [];
   // Recomputes currentValue/progress/status against live finance/transaction
   // data on every read instead of trusting whatever was stored at creation
   // (or last edit) time — GoalProvider's addGoal/updateGoal never refresh
@@ -2967,6 +2994,10 @@ export function useApp() {
     inventoryWriteDowns,
     addInventoryWriteDown: finance?.addInventoryWriteDown || (() => {}),
     reverseInventoryWriteDown: finance?.reverseInventoryWriteDown || (() => {}),
+    productionCycles,
+    addProductionCycle: finance?.addProductionCycle || (() => {}),
+    updateProductionCycle: finance?.updateProductionCycle || (() => {}),
+    deleteProductionCycle: finance?.deleteProductionCycle || (() => {}),
     postManualJournalEntry: finance?.postManualJournalEntry || (() => ({ ok: false, error: 'Not ready yet.' })),
     deleteLedgerAccount: finance?.deleteLedgerAccount || (() => {}),
     deleteJournalEntry: finance?.deleteJournalEntry || (() => {}),

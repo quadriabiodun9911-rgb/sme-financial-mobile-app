@@ -143,7 +143,7 @@ const EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS: Screen[] = [
     // role and 'viewer' below) -- the screen itself gates posting a manual
     // journal entry behind that same check, the same pattern DataIntegrityScreen
     // already uses for its own delete action.
-    'general-ledger',
+    'general-ledger', 'production-cycles',
 ];
 
 // Screens a pure viewer can open -- EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS

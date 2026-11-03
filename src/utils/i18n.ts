@@ -231,6 +231,7 @@ const T = {
         navPayroll: 'Payroll', navPayrollDesc: 'Staff & monthly pay runs',
         navReconciliation: 'Reconciliation', navReconciliationDesc: 'Confirm the numbers above match your bank',
         navGeneralLedger: 'General Ledger', navGeneralLedgerDesc: 'Trial Balance & journal entries — for a bookkeeper',
+        navProductionCycles: 'Production Cycles', navProductionCyclesDesc: 'Cost & profit per bird, batch, or unit — from your real records',
         navPortfolio: 'Portfolio', navPortfolioDesc: 'Combined cash, revenue & profit across every business you own',
         navRisk: 'Risk', navForecast: 'Forecast',
         navInsightsDesc: 'What actually needs a decision right now',

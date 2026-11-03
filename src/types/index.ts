@@ -11,6 +11,7 @@ export type Screen =
     | 'bills'
     | 'margin-watch'
     | 'general-ledger'
+    | 'production-cycles'
     | 'assets'
     | 'loans'
     | 'inventory'
@@ -936,6 +937,32 @@ export interface InventoryWriteDown {
     date: string;
     note?: string;
     reversedAt?: string;
+    createdAt: string;
+}
+
+// A batch/run of production over a date range -- a poultry broiler cycle, a
+// bakery production run, a farm harvest, anything where "how much did it
+// cost to produce each unit, and what did each unit actually earn" matters
+// but isn't answerable from the ordinary P&L alone (that gives COGS/revenue
+// for a period, never divided by how many units that period actually
+// produced). Deliberately NOT a financial record itself -- raising one posts
+// no journal entry and changes no balance -- it's a lens over transactions
+// that are already real and already recorded: pick a date range and a unit
+// count, and computeProductionCycleSummary (productionCycle.ts) reads the
+// real revenue/COGS/opex for that window via computeEnhancedPnL (never a
+// second, independently-derived P&L) and divides by the unit counts here.
+// unitsSold is optional -- when omitted, computeProductionCycleSummary
+// treats the whole unitsRaised count as sold (the common small-farm case:
+// "the batch sold out within the cycle"), never silently assumed without
+// the UI saying so.
+export interface ProductionCycle {
+    id: string;
+    name: string; // e.g. "Broiler Batch 3", "March Bake Run"
+    startDate: string;
+    endDate: string;
+    unitsRaised: number; // birds raised, loaves baked, units produced -- whatever this business's "unit" is
+    unitsSold?: number;
+    note?: string;
     createdAt: string;
 }
 
