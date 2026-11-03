@@ -1718,6 +1718,32 @@ export interface SupplierConcentration {
     risk: 'low' | 'medium' | 'high';
 }
 
+// Categories computeSupplierConcentration excludes -- counterparties that
+// are real expense recipients but not "a supplier" in the sense the card's
+// own description means ("relying on one supplier... exposed to their
+// price rises or a supply break"): a lender already gets its own dedicated
+// concentration view (computeLenderConcentration below, against loan
+// balances, not transaction spend -- including loan repayments here too
+// would double up the same risk under two different labels); a tax
+// authority is not a vendor whose price can "rise" or who can cause a
+// "supply break"; an employee is staffing risk, a completely different
+// category from vendor/supplier risk, and lumping a payroll run in here
+// (as "Staff Salaries" previously was, often the single largest expense
+// line and so almost always flagged HIGH) actively misled an owner into
+// thinking they had a vendor concentration problem when they didn't.
+const SUPPLIER_CONCENTRATION_EXCLUDED_CATEGORIES = new Set(['loan repayment', 'tax', 'salaries', 'salary', 'personnel expenses']);
+
+function isSupplierSpend(t: Transaction): boolean {
+    if (t.type !== 'expense') return false;
+    // Owner capital movements and internal transfers (e.g. "Transfer to
+    // Savings Account") are never a purchase from anyone -- finance.ts's
+    // own P&L (computeEnhancedPnL) excludes these from expenses for the
+    // identical reason; a figure already excluded from "what did I spend"
+    // has no business counting toward "what did I spend with one supplier".
+    if (t.equityMovement) return false;
+    return !SUPPLIER_CONCENTRATION_EXCLUDED_CATEGORIES.has((t.category || '').trim().toLowerCase());
+}
+
 /**
  * Mirrors computeCustomerConcentration's grouping + risk-tier logic
  * (including the case-insensitive entityKey grouping), applied to expense
@@ -1729,7 +1755,7 @@ export function computeSupplierConcentration(transactions: Transaction[]): Suppl
     const map = new Map<string, { display: string; amount: number }>();
     let total = 0;
     for (const t of transactions) {
-        if (t.type !== 'expense') continue;
+        if (!isSupplierSpend(t)) continue;
         const key = entityKey(t.vendorCustomer) || 'unknown';
         const display = entityDisplayName(t.vendorCustomer) || 'Unknown';
         const e = map.get(key) ?? { display, amount: 0 };

@@ -966,6 +966,39 @@ export interface ProductionCycle {
     createdAt: string;
 }
 
+// A customer return (stock comes back) or damaged/lost stock (stock is
+// gone) -- the two gaps a plain Stock Count adjustment can't label: Count
+// reconciles a physical total against records with no reason attached,
+// while this records a KNOWN, dated event with a known cause. Quantity is
+// always stored positive; `kind` gives the direction (return adds a new
+// batch at the item's current average cost, exactly like a Count surplus;
+// damaged consumes FIFO, exactly like a Count shortfall -- both reuse
+// inventoryCosting.ts's existing addCountSurplusBatch/consumeFifo rather
+// than new quantity-adjustment logic).
+//
+// Posts no journal entry for the stock movement itself, for the same
+// reason InventoryWriteDown doesn't: this app expenses inventory at
+// purchase time (periodic costing, see journalEntry.ts's own header
+// comment), so the damaged item's cost was already recognized as an
+// expense when it was bought -- recording it again here would double-count
+// it. What DOES post a real transaction (through the normal addTransaction
+// path, so it's a genuine, auditable expense like any other) is a customer
+// refund actually paid out on a return -- refundTransactionId links to it.
+export interface StockAdjustment {
+    id: string;
+    inventoryItemId: string;
+    itemNameLabel?: string;
+    kind: 'return' | 'damaged';
+    quantity: number;
+    costPricePerUnit: number; // snapshot at the time
+    value: number; // quantity * costPricePerUnit
+    refundIssued?: boolean; // 'return' only
+    refundTransactionId?: string; // set when refundIssued posted a real Transaction
+    date: string;
+    note?: string;
+    createdAt: string;
+}
+
 export type LoanStatus = 'active' | 'paid_off' | 'defaulted';
 
 export interface LoanPayment {
