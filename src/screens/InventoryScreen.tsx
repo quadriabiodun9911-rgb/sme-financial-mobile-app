@@ -140,7 +140,7 @@ function StockBar({ quantity, threshold, color }: { quantity: number; threshold:
 }
 
 export default function InventoryScreen() {
-    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, linkInventoryCostTransaction, settings, navigate, addTransaction, transactions, finance, navParams, canViewFinancials, inventoryWriteDowns, addInventoryWriteDown, reverseInventoryWriteDown } = useApp();
+    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, linkInventoryCostTransaction, settings, navigate, addTransaction, transactions, finance, navParams, canViewFinancials, inventoryWriteDowns, addInventoryWriteDown, reverseInventoryWriteDown, stockAdjustments, addStockAdjustment } = useApp();
     // 'staff' can open Inventory (STAFF_ALLOWED_SCREENS in rolePermissions.ts
     // -- "manage stock" is explicitly their job) but is documented app-wide
     // as having "no visibility into P&L, cash balance, bank/loan details"
@@ -187,6 +187,11 @@ export default function InventoryScreen() {
     const [countModal, setCountModal] = useState<{ item: InventoryItem } | null>(null);
     const [countQty, setCountQty] = useState('');
     const [countNote, setCountNote] = useState('');
+    const [adjustModal, setAdjustModal] = useState<{ item: InventoryItem } | null>(null);
+    const [adjustKind, setAdjustKind] = useState<'return' | 'damaged'>('return');
+    const [adjustQty, setAdjustQty] = useState('');
+    const [adjustRefund, setAdjustRefund] = useState(false);
+    const [adjustNote, setAdjustNote] = useState('');
     const [linkModal, setLinkModal] = useState<{ transactionId: string; date: string; description: string; amount: number } | null>(null);
     const [linkItemId, setLinkItemId] = useState<string | null>(null);
     const [linkQty, setLinkQty] = useState('');
@@ -621,6 +626,36 @@ export default function InventoryScreen() {
         showAlert(entry.differenceUnits === 0 ? 'Count Matches' : 'Count Recorded', describeStockCount(entry, item.unit));
     };
 
+    const openAdjust = (item: InventoryItem, kind: 'return' | 'damaged') => {
+        setAdjustModal({ item });
+        setAdjustKind(kind);
+        setAdjustQty('');
+        setAdjustRefund(false);
+        setAdjustNote('');
+    };
+
+    const confirmAdjust = () => {
+        if (!adjustModal) return;
+        const { item } = adjustModal;
+        const qty = parseFloat(adjustQty);
+        if (isNaN(qty) || qty <= 0) { showAlert('Validation', 'Enter how many units.'); return; }
+        if (adjustKind === 'damaged' && qty > item.quantity) { showAlert('Validation', `Only ${item.quantity} ${item.unit} on hand -- can't record more than that as damaged or lost.`); return; }
+        addStockAdjustment(item.id, adjustKind, qty, localDateStr(), {
+            refundIssued: adjustKind === 'return' ? adjustRefund : undefined,
+            note: adjustNote.trim() || undefined,
+        });
+        setAdjustModal(null);
+        setAdjustQty('');
+        setAdjustRefund(false);
+        setAdjustNote('');
+        showAlert(
+            adjustKind === 'return' ? 'Return Recorded' : 'Damaged/Lost Stock Recorded',
+            adjustKind === 'return'
+                ? `${qty} ${item.unit} of ${item.name} added back to stock.${adjustRefund ? ' Refund logged as an expense.' : ''}`
+                : `${qty} ${item.unit} of ${item.name} removed from stock.`
+        );
+    };
+
     // ── Stock colour helper ───────────────────────────────────────────────────
     const stockColor = (item: InventoryItem): string => {
         if (item.quantity <= item.lowStockThreshold) return Colors.expense;
@@ -819,6 +854,9 @@ export default function InventoryScreen() {
                                             )}
                                             <TouchableOpacity style={styles.actionBtn} onPress={() => openCount(item)}>
                                                 <Icon name="clipboard" size={14} color={Colors.textPrimary} />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={styles.actionBtn} onPress={() => openAdjust(item, 'return')}>
+                                                <Icon name="corner-up-left" size={14} color={Colors.textPrimary} />
                                             </TouchableOpacity>
                                             <TouchableOpacity style={styles.actionBtn} onPress={() => openEdit(item)}>
                                                 <Icon name="edit-2" size={14} color={Colors.textPrimary} />
@@ -1943,6 +1981,114 @@ export default function InventoryScreen() {
                 </KeyboardAvoidingView>
             </Modal>
 
+            {/* ── Return / Damaged or Lost Stock Modal ─────────────────────────── */}
+            <Modal visible={!!adjustModal} transparent animationType="slide" onRequestClose={() => setAdjustModal(null)}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setAdjustModal(null)} />
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
+                    <View style={styles.modalHandle} />
+                    <Text style={styles.modalTitle}>{adjustKind === 'return' ? 'Record a Return' : 'Record Damaged or Lost Stock'}</Text>
+                    {adjustModal && (() => {
+                        const { item } = adjustModal;
+                        const qty = parseFloat(adjustQty);
+                        const hasQty = !isNaN(qty) && qty > 0;
+                        const value = hasQty ? qty * (item.costPrice || 0) : 0;
+                        const refundAmount = hasQty ? qty * (item.sellingPrice || 0) : 0;
+                        const itemAdjustments = [...stockAdjustments].filter(a => a.inventoryItemId === item.id).reverse();
+
+                        return (
+                            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                                <View style={styles.reasonWrap}>
+                                    <TouchableOpacity
+                                        style={[styles.reasonPill, adjustKind === 'return' && styles.reasonPillActive]}
+                                        onPress={() => setAdjustKind('return')}
+                                    >
+                                        <Text style={[styles.reasonPillText, adjustKind === 'return' && styles.reasonPillTextActive]}>Customer Return</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.reasonPill, adjustKind === 'damaged' && styles.reasonPillActive]}
+                                        onPress={() => setAdjustKind('damaged')}
+                                    >
+                                        <Text style={[styles.reasonPillText, adjustKind === 'damaged' && styles.reasonPillTextActive]}>Damaged / Lost</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                <Text style={{ color: Colors.textSecondary, marginVertical: 8 }}>
+                                    {item.name} — {item.quantity} {item.unit} currently on hand.{' '}
+                                    {adjustKind === 'return'
+                                        ? 'Adds the returned units back to stock.'
+                                        : "Removes units that broke, spoiled, or went missing -- they're already counted in your costs, so this doesn't add a new expense."}
+                                </Text>
+
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder={`Quantity (${item.unit})`}
+                                    placeholderTextColor={Colors.textMuted}
+                                    keyboardType="decimal-pad"
+                                    value={adjustQty}
+                                    onChangeText={setAdjustQty}
+                                />
+
+                                {adjustKind === 'return' && (
+                                    <View style={styles.recurringRow}>
+                                        <Text style={styles.recurringLabel}>Refund given to the customer</Text>
+                                        <TouchableOpacity
+                                            style={[styles.toggleBtn, adjustRefund && styles.toggleBtnOn]}
+                                            onPress={() => setAdjustRefund(v => !v)}
+                                        >
+                                            <Text style={[styles.toggleBtnText, adjustRefund && styles.toggleBtnTextOn]}>{adjustRefund ? 'ON' : 'OFF'}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+
+                                <TextInput
+                                    style={[styles.input, { marginTop: Spacing.sm }]}
+                                    placeholder="Note (optional)"
+                                    placeholderTextColor={Colors.textMuted}
+                                    value={adjustNote}
+                                    onChangeText={setAdjustNote}
+                                />
+
+                                {hasQty && (
+                                    <View style={styles.previewCard}>
+                                        <View style={styles.previewRow}>
+                                            <Text style={styles.previewLabel}>{adjustKind === 'return' ? 'Stock value restored' : 'Loss at cost'}</Text>
+                                            <Text style={styles.previewVal}>{currency}{value.toLocaleString()}</Text>
+                                        </View>
+                                        {adjustKind === 'return' && adjustRefund && (
+                                            <View style={[styles.previewRow, styles.previewBorderTop]}>
+                                                <Text style={[styles.previewLabel, { fontWeight: '700', color: Colors.textPrimary }]}>Refund expense</Text>
+                                                <Text style={[styles.previewVal, { fontWeight: '700', color: Colors.expense }]}>{currency}{refundAmount.toLocaleString()}</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                )}
+
+                                {itemAdjustments.length > 0 && (
+                                    <View style={styles.previewCard}>
+                                        <Text style={[styles.discountLabel, { marginBottom: 8 }]}>Recent Returns & Damaged/Lost</Text>
+                                        {itemAdjustments.slice(0, 10).map(a => (
+                                            <View key={a.id} style={styles.historyRow}>
+                                                <Text style={[styles.historyCell, { flex: 1.4, color: Colors.textSecondary }]}>{a.date}</Text>
+                                                <Text style={[styles.historyCell, { flex: 1.2 }]}>{a.kind === 'return' ? 'Return' : 'Damaged/Lost'}</Text>
+                                                <Text style={styles.historyCell}>{a.kind === 'return' ? '+' : '-'}{a.quantity}</Text>
+                                                <Text style={[styles.historyCell, { color: Colors.textMuted }]}>{currency}{a.value.toLocaleString()}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
+
+                                <TouchableOpacity style={styles.submitBtn} onPress={confirmAdjust}>
+                                    <Text style={styles.submitBtnText}>{adjustKind === 'return' ? 'Confirm Return' : 'Confirm Damaged/Lost'}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.cancelBtn} onPress={() => setAdjustModal(null)}>
+                                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                                </TouchableOpacity>
+                            </ScrollView>
+                        );
+                    })()}
+                </KeyboardAvoidingView>
+            </Modal>
+
             <BarcodeScannerModal
                 visible={skuScannerOpen}
                 onClose={() => setSkuScannerOpen(false)}
@@ -2126,6 +2272,13 @@ const styles = StyleSheet.create({
     reasonPillActive:    { backgroundColor: Colors.primary, borderColor: Colors.primary },
     reasonPillText:      { fontSize: 12, color: Colors.textSecondary },
     reasonPillTextActive:{ color: '#fff', fontWeight: '600' },
+
+    recurringRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
+    recurringLabel: { fontSize: 13, color: Colors.textSecondary, flex: 1, marginRight: Spacing.sm },
+    toggleBtn:      { backgroundColor: Colors.muted ?? Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: 12, paddingVertical: 6 },
+    toggleBtnOn:    { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    toggleBtnText:  { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
+    toggleBtnTextOn:{ color: '#fff' },
 
     historyHeaderRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 6, marginBottom: 4 },
     historyHeaderText:{ fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' as const, fontSize: 10 },

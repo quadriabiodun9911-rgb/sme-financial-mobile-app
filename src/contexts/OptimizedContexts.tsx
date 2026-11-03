@@ -10,7 +10,7 @@
 
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Platform } from 'react-native';
-import { User, Invoice, InvoiceStatus, Bill, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CurrencyAccount, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, HealthScoreSnapshot, UserRole, Screen, Account, JournalEntry, JournalLine, BadDebtProvision, ReceivableWriteOff, InventoryWriteDown, ProductionCycle } from '../types';
+import { User, Invoice, InvoiceStatus, Bill, Transaction, Loan, Asset, Budget, InventoryItem, FinanceData, BusinessSettings, FinancialGoal, FinancingContextData, MerchantFinancingApplication, FinancingOutcomeInput, LoanPurpose, StaffMember, PayrollRun, PayrollItem, CashPocket, CurrencyAccount, CapitalCommitment, ReadinessSnapshot, ForecastSnapshot, DataConfidenceSnapshot, HealthScoreSnapshot, UserRole, Screen, Account, JournalEntry, JournalLine, BadDebtProvision, ReceivableWriteOff, InventoryWriteDown, ProductionCycle, StockAdjustment } from '../types';
 import { computeFinance, computeAssetCurrentValue, countActiveMonths, getMonthlyExpenseAverage, computeRiskScore, computeLoanPaymentSplit } from '../utils/finance';
 import { buildDefaultChartOfAccounts } from '../utils/chartOfAccounts';
 import {
@@ -56,6 +56,7 @@ import {
   loadReceivableWriteOffs, saveReceivableWriteOffs,
   loadInventoryWriteDowns, saveInventoryWriteDowns,
   loadProductionCycles, saveProductionCycles,
+  loadStockAdjustments, saveStockAdjustments,
   clearLocalFinancialCache,
   syncFinancingToSupabase,
   saveProfile, loadProfile, savePin, loadPin, verifyPin as verifyPinStored,
@@ -73,7 +74,7 @@ import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { canViewFinancials as computeCanViewFinancials } from '../utils/rolePermissions';
 import { getMyLenderMembership, joinLenderWithCode } from '../utils/lenderAuth';
 import { Language } from '../utils/i18n';
-import { applyStockIn, getEffectiveBatches, addBatch } from '../utils/inventoryCosting';
+import { applyStockIn, getEffectiveBatches, addBatch, consumeFifo, addCountSurplusBatch, recomputeCostPrice } from '../utils/inventoryCosting';
 import { computeAutoPayrollRun } from '../utils/payrollAutoRun';
 import CryptoJS from 'crypto-js';
 import { localDateStr } from '../utils/localDate';
@@ -285,6 +286,21 @@ interface FinanceContextValue {
   updateProductionCycle: (id: string, updates: Partial<Omit<ProductionCycle, 'id' | 'createdAt'>>) => void;
   deleteProductionCycle: (id: string) => void;
 
+  // A customer return (adds stock back) or damaged/lost stock (removes
+  // it) -- see StockAdjustment's own doc comment. Value is computed from
+  // the item's current cost at raise time. A return with a refund actually
+  // paid also posts a real Transaction (expense, "Sales Returns &
+  // Refunds") through the same journal-posting path addTransaction uses,
+  // so it shows up on the P&L and ledger like any other real expense.
+  stockAdjustments: StockAdjustment[];
+  addStockAdjustment: (
+    inventoryItemId: string,
+    kind: 'return' | 'damaged',
+    quantity: number,
+    date: string,
+    options?: { refundIssued?: boolean; note?: string },
+  ) => void;
+
   // True once this provider's own async load (AsyncStorage + Supabase) has
   // resolved for the current identity -- see useAppReady below, which
   // combines this with the other three data-owning providers' own flags so
@@ -331,6 +347,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [receivableWriteOffs, setReceivableWriteOffs] = useState<ReceivableWriteOff[]>([]);
   const [inventoryWriteDowns, setInventoryWriteDowns] = useState<InventoryWriteDown[]>([]);
   const [productionCycles, setProductionCycles] = useState<ProductionCycle[]>([]);
+  const [stockAdjustments, setStockAdjustments] = useState<StockAdjustment[]>([]);
   const [financing, setFinancing] = useState<FinancingContextData>({
     isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
     maxQualifiedAmount: undefined, application: undefined,
@@ -419,7 +436,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setHydrated(false);
     setTransactions([]); setAssets([]); setLoans([]); setBudgets([]); setInventory([]);
     setStaff([]); setPayrollRuns([]); setCashPockets([]); setCurrencyAccounts([]); setCapitalCommitments([]); setReadinessHistory([]);
-    setForecastHistory([]); setDataConfidenceHistory([]); setAccounts([]); setJournalEntries([]); setBadDebtProvisions([]); setReceivableWriteOffs([]); setInventoryWriteDowns([]); setProductionCycles([]);
+    setForecastHistory([]); setDataConfidenceHistory([]); setAccounts([]); setJournalEntries([]); setBadDebtProvisions([]); setReceivableWriteOffs([]); setInventoryWriteDowns([]); setProductionCycles([]); setStockAdjustments([]);
     setFinancing({
       isQualified: false, qualification: undefined, minQualifiedAmount: undefined,
       maxQualifiedAmount: undefined, application: undefined,
@@ -466,7 +483,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (l) setLoans(l.map((x) => ({ ...x, payments: x.payments ?? [] })));
         if (b) setBudgets(b);
         if (inv) setInventory(inv);
-        const [st, pr, cp, ca, cc, rh, fh, dch, hsh, bdp, rwo, iwd, pc] = await Promise.all([
+        const [st, pr, cp, ca, cc, rh, fh, dch, hsh, bdp, rwo, iwd, pc, sa] = await Promise.all([
           isStaffRole ? Promise.resolve(null) : loadStaff(),
           isStaffRole ? Promise.resolve(null) : loadPayrollRuns(),
           isStaffRole ? Promise.resolve(null) : loadCashPockets(),
@@ -477,6 +494,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           isStaffRole ? Promise.resolve(null) : loadReceivableWriteOffs(),
           isStaffRole ? Promise.resolve(null) : loadInventoryWriteDowns(),
           isStaffRole ? Promise.resolve(null) : loadProductionCycles(),
+          isStaffRole ? Promise.resolve(null) : loadStockAdjustments(),
         ]);
         if (st) setStaff(st);
         if (pr) setPayrollRuns(pr);
@@ -491,6 +509,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (rwo) setReceivableWriteOffs(rwo);
         if (iwd) setInventoryWriteDowns(iwd);
         if (pc) setProductionCycles(pc);
+        if (sa) setStockAdjustments(sa);
 
         // Chart of Accounts: seed the default set the first time this
         // business ever hydrates (no accounts row yet, anywhere) so the
@@ -571,6 +590,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveReceivableWriteOffs(receivableWriteOffs).catch(() => {}); }, [receivableWriteOffs, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveInventoryWriteDowns(inventoryWriteDowns).catch(() => {}); }, [inventoryWriteDowns, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveProductionCycles(productionCycles).catch(() => {}); }, [productionCycles, hydrated, isDemoMode, isStaffRole]);
+  useEffect(() => { if (hydrated && !isDemoMode && !isStaffRole) saveStockAdjustments(stockAdjustments).catch(() => {}); }, [stockAdjustments, hydrated, isDemoMode, isStaffRole]);
   useEffect(() => {
     // Never loaded for 'staff' (see the hydrate effect above), so `financing`
     // is still just the never-qualified default here -- writing that would
@@ -781,6 +801,53 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       },
       deleteProductionCycle: (id) => {
         setProductionCycles((prev) => prev.filter((c) => c.id !== id));
+      },
+      stockAdjustments,
+      addStockAdjustment: (inventoryItemId, kind, quantity, date, options) => {
+        const item = inventory.find((i) => i.id === inventoryItemId);
+        if (!item || !(quantity > 0)) return;
+        const costPricePerUnit = item.costPrice || 0;
+        const currentBatches = getEffectiveBatches(item);
+        const newBatches = kind === 'damaged'
+          ? consumeFifo(currentBatches, quantity).batches
+          : addCountSurplusBatch(currentBatches, quantity, costPricePerUnit, date);
+        const newQuantity = kind === 'damaged' ? Math.max(0, item.quantity - quantity) : item.quantity + quantity;
+        setInventory((prev) => prev.map((i) => (i.id === item.id ? {
+          ...i, quantity: newQuantity, batches: newBatches,
+          costPrice: recomputeCostPrice(newBatches, costPricePerUnit),
+          updatedAt: new Date().toISOString(),
+        } : i)));
+
+        let refundTransactionId: string | undefined;
+        const refundIssued = kind === 'return' && !!options?.refundIssued;
+        if (refundIssued) {
+          // Mirrors addTransaction's own posting logic above (setTransactions
+          // + buildJournalEntryDraftForNewTransaction + postEntry) rather than
+          // calling it directly -- addTransaction is defined as a sibling
+          // property on this same object literal, not a locally named
+          // function, so it isn't callable from here.
+          refundTransactionId = genId();
+          const refundTx: Transaction = {
+            id: refundTransactionId, type: 'expense', category: 'Sales Returns & Refunds',
+            amount: quantity * (item.sellingPrice || 0), description: `Refund — ${item.name}`,
+            date, status: 'paid',
+          };
+          if (!isDemoMode) trackTransactionAdded(refundTx.type, refundTx.amount, settingsForFinance?.settings?.currency ?? '₦');
+          setTransactions((prev) => [...prev, refundTx]);
+          if (!isDemoMode) {
+            const draft = buildJournalEntryDraftForNewTransaction(refundTx);
+            if (draft) postEntry(draft);
+          }
+        }
+
+        const adjustment: StockAdjustment = {
+          id: genId(), inventoryItemId, itemNameLabel: item.name, kind, quantity,
+          costPricePerUnit, value: quantity * costPricePerUnit,
+          refundIssued: kind === 'return' ? refundIssued : undefined,
+          refundTransactionId, date, note: options?.note,
+          createdAt: new Date().toISOString(),
+        };
+        setStockAdjustments((prev) => [...prev, adjustment]);
       },
       transactions,
       assets,
@@ -1210,7 +1277,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         });
       },
     }),
-    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, currencyAccounts, capitalCommitments, readinessHistory, forecastHistory, dataConfidenceHistory, healthScoreHistory, recordHealthScoreSnapshot, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency, hydrated, accounts, journalEntries, badDebtProvisions, receivableWriteOffs, inventoryWriteDowns, productionCycles]
+    [transactions, assets, loans, budgets, inventory, staff, payrollRuns, cashPockets, currencyAccounts, capitalCommitments, readinessHistory, forecastHistory, dataConfidenceHistory, healthScoreHistory, recordHealthScoreSnapshot, financing, syncUserId, finance, isDemoMode, settingsForFinance?.settings?.currency, hydrated, accounts, journalEntries, badDebtProvisions, receivableWriteOffs, inventoryWriteDowns, productionCycles, stockAdjustments]
   );
 
   return (
@@ -2868,6 +2935,7 @@ export function useApp() {
   const receivableWriteOffs = finance?.receivableWriteOffs ?? [];
   const inventoryWriteDowns = finance?.inventoryWriteDowns ?? [];
   const productionCycles = finance?.productionCycles ?? [];
+  const stockAdjustments = finance?.stockAdjustments ?? [];
   // Recomputes currentValue/progress/status against live finance/transaction
   // data on every read instead of trusting whatever was stored at creation
   // (or last edit) time — GoalProvider's addGoal/updateGoal never refresh
@@ -2998,6 +3066,8 @@ export function useApp() {
     addProductionCycle: finance?.addProductionCycle || (() => {}),
     updateProductionCycle: finance?.updateProductionCycle || (() => {}),
     deleteProductionCycle: finance?.deleteProductionCycle || (() => {}),
+    stockAdjustments,
+    addStockAdjustment: finance?.addStockAdjustment || (() => {}),
     postManualJournalEntry: finance?.postManualJournalEntry || (() => ({ ok: false, error: 'Not ready yet.' })),
     deleteLedgerAccount: finance?.deleteLedgerAccount || (() => {}),
     deleteJournalEntry: finance?.deleteJournalEntry || (() => {}),
