@@ -270,13 +270,28 @@ export default function ProductPerformance({ transactions, inventory, currency }
                     const lowMarginProducts = productMetrics.filter(p => p.margin < 25);
                     const highRevenueProducts = productMetrics.slice(0, 2);
                     const slowMovingProducts = productMetrics.filter(p => p.stockValue > 1000 && p.unitsPerDay < 1);
+                    // A fast seller isn't automatically a profitable one --
+                    // this names that gap explicitly instead of leaving it to
+                    // be inferred from the margin/revenue columns or the
+                    // Profitability Matrix's top-right-vs-bottom-right quadrant.
+                    // "High revenue" is relative to this business's own mix
+                    // (above its own average), not a fixed naira cutoff that
+                    // would never trigger for a small shop or always trigger
+                    // for a large one.
+                    const avgRevenue = productMetrics.length > 0 ? totals.revenue / productMetrics.length : 0;
+                    const sellsWellThinMargin = productMetrics
+                        .filter(p => p.margin < 25 && p.totalRevenue > avgRevenue)
+                        .sort((a, b) => b.totalRevenue - a.totalRevenue);
 
                     if (highMarginProducts.length > 0) {
                         const top = highMarginProducts[0];
                         insights.push(`⭐ Focus on "${top.category}" - highest margin (${top.margin.toFixed(1)}%, ${currency}${top.netProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} profit). Scale this line.`);
                     }
 
-                    if (lowMarginProducts.length > 0) {
+                    if (sellsWellThinMargin.length > 0) {
+                        const worst = sellsWellThinMargin[0];
+                        insights.push(`📈 "${worst.category}" sells well (${currency}${worst.totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })} revenue, above your average) but only ${worst.margin.toFixed(1)}% margin -- high sales isn't the same as high profit here. Review pricing or cost before restocking more of it.`);
+                    } else if (lowMarginProducts.length > 0) {
                         const worst = lowMarginProducts[0];
                         insights.push(`⚠️ "${worst.category}" has low margin (<25%) on ${currency}${worst.totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })} in revenue. Review pricing or reduce costs.`);
                     }
@@ -290,7 +305,7 @@ export default function ProductPerformance({ transactions, inventory, currency }
                         insights.push('📊 Well-balanced product mix. Consider expanding top revenue generators.');
                     }
 
-                    return insights.slice(0, 3).map((insight, i) => (
+                    return insights.slice(0, 4).map((insight, i) => (
                         <Text key={i} style={styles.insight}>{insight}</Text>
                     ));
                 })()}

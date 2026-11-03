@@ -49,6 +49,10 @@ import { computeProductCashContribution, ProductCashContribution } from '../util
 import { computeDiscretionaryCash } from '../utils/discretionaryCash';
 import { computeFxPurchaseImpact } from '../utils/fxPurchaseImpact';
 import { computeHiddenGrowthRisk } from '../utils/hiddenGrowthRisk';
+import { computeCashRunway } from '../utils/cashRunway';
+import { loanMonthlyPayment, latestTransactionDate } from '../utils/finance';
+import { localDateStr } from '../utils/localDate';
+import StockInvestmentPlanner from '../components/StockInvestmentPlanner';
 
 function fmt(currency: string, value: number): string {
     const sign = value < 0 ? '-' : '';
@@ -76,7 +80,7 @@ function SectionCard({ icon, title, subtitle, children }: { icon: string; title:
 export default function MarginWatchScreen() {
     const { inventory, transactions, finance, settings, loans, bills, invoices, cashPockets } = useApp();
     const cur = settings.currency || '';
-    const [sortBy, setSortBy] = useState<'efficiency' | 'revenue' | 'tiedUp'>('efficiency');
+    const [sortBy, setSortBy] = useState<'efficiency' | 'revenue' | 'tiedUp' | 'profit'>('efficiency');
     const [fxAmount, setFxAmount] = useState('');
     const [fxRate, setFxRate] = useState('');
 
@@ -125,6 +129,7 @@ export default function MarginWatchScreen() {
         const sorted = [...rows].sort((a, b) => {
             if (sortBy === 'revenue') return b.revenue - a.revenue;
             if (sortBy === 'tiedUp') return b.cashTiedUp - a.cashTiedUp;
+            if (sortBy === 'profit') return b.grossProfit - a.grossProfit;
             // 'efficiency' -- items with no cash tied up (null efficiency) sort last, not first.
             const ae = a.cashEfficiency ?? -Infinity;
             const be = b.cashEfficiency ?? -Infinity;
@@ -132,6 +137,37 @@ export default function MarginWatchScreen() {
         });
         return sorted.slice(0, 8);
     }, [inventory, transactions, sortBy]);
+
+    // "Sells well but thin margin" -- a fast seller isn't automatically a
+    // profitable one. Flagged against this business's own average revenue
+    // per item (not a fixed naira cutoff) so it scales to the business,
+    // the same relative threshold ProductPerformance.tsx's category-level
+    // version of this insight uses.
+    const thinMarginHighRevenue = useMemo(() => {
+        const rows = computeProductCashContribution(inventory, transactions);
+        if (rows.length === 0) return [];
+        const avgRevenue = rows.reduce((s, p) => s + p.revenue, 0) / rows.length;
+        return rows
+            .filter(p => p.marginPct < 20 && p.revenue > avgRevenue)
+            .sort((a, b) => b.revenue - a.revenue)
+            .slice(0, 3);
+    }, [inventory, transactions]);
+
+    // Same trailing-30-day burn/profit clock LoansAndDebt.tsx uses for its
+    // own Loan Affordability Checker -- one canonical source for "how much
+    // does this business make/spend a month" so the Stock Investment
+    // Planner below never disagrees with Loans & Debt about it.
+    const { dailyBurn } = computeCashRunway(transactions, finance.cashBalance, latestTransactionDate(transactions) ?? new Date());
+    const monthlyBurn = dailyBurn * 30;
+    const last30 = new Date();
+    last30.setDate(last30.getDate() - 30);
+    const income30 = transactions
+        .filter(t => t.type === 'income' && t.status === 'paid' && t.date >= localDateStr(last30) && t.date <= localDateStr())
+        .reduce((s, t) => s + (t.amount ?? 0), 0);
+    const monthlyProfit = income30 - monthlyBurn;
+    const existingMonthlyDebtService = (loans ?? [])
+        .filter(l => l.status === 'active')
+        .reduce((s, l) => s + loanMonthlyPayment(l.principal, l.interestRate, l.termMonths), 0);
 
     return (
         <SafeAreaView style={s.safe}>
@@ -351,10 +387,10 @@ export default function MarginWatchScreen() {
                         subtitle="Revenue is only half the story — which products convert to real cash fastest"
                     >
                         <View style={s.sortRow}>
-                            {(['efficiency', 'revenue', 'tiedUp'] as const).map(key => (
+                            {(['efficiency', 'profit', 'revenue', 'tiedUp'] as const).map(key => (
                                 <TouchableOpacity key={key} onPress={() => setSortBy(key)} style={[s.sortChip, sortBy === key && s.sortChipActive]}>
                                     <Text style={[s.sortChipText, sortBy === key && s.sortChipTextActive]}>
-                                        {key === 'efficiency' ? 'Cash efficiency' : key === 'revenue' ? 'Revenue' : 'Cash tied up'}
+                                        {key === 'efficiency' ? 'Cash efficiency' : key === 'profit' ? 'Profit' : key === 'revenue' ? 'Revenue' : 'Cash tied up'}
                                     </Text>
                                 </TouchableOpacity>
                             ))}
@@ -383,6 +419,32 @@ export default function MarginWatchScreen() {
                         <Text style={s.footnote}>
                             Cash efficiency = gross profit ÷ cash tied up in that product's stock. Higher means a product turns working capital into profit faster.
                         </Text>
+
+                        {thinMarginHighRevenue.length > 0 && (
+                            <View style={s.warnBox}>
+                                <Icon name="alert-triangle" size={16} color={Colors.warning} />
+                                <Text style={s.warnText}>
+                                    Sells well but thin margin: {thinMarginHighRevenue.map(p => `${p.itemName} (${p.marginPct.toFixed(0)}%)`).join(', ')}. Above-average revenue doesn't mean above-average profit here.
+                                </Text>
+                            </View>
+                        )}
+                    </SectionCard>
+
+                    {/* 6. Stock Investment Planner */}
+                    <SectionCard
+                        icon="trending-up"
+                        title="Stock Investment Planner"
+                        subtitle="Which products justify new stock, how much capital it needs, and whether cash flow can carry the loan"
+                    >
+                        <StockInvestmentPlanner
+                            currency={cur}
+                            inventory={inventory}
+                            transactions={transactions}
+                            currentCashBalance={finance.cashBalance}
+                            monthlyProfit={monthlyProfit}
+                            existingMonthlyDebtService={existingMonthlyDebtService}
+                            monthlyOperatingBurn={monthlyBurn}
+                        />
                     </SectionCard>
                 </View>
             </ScrollView>
