@@ -400,7 +400,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       // addTransaction/updateTransaction above) its own journal entry from
       // wherever it actually entered the ledger; this only posts for a
       // transaction this run itself just created.
-      if (!isDemoMode) {
+      // Posts regardless of isDemoMode -- this is an in-memory-only update
+      // (postEntry never touches storage; the separate saveJournalEntries
+      // effect already skips demo mode on its own), and bad debt
+      // provisions/manual entries elsewhere in this file already post
+      // unconditionally. Gating this specific call left the demo ledger
+      // out of sync with the demo statements the moment a demo session
+      // added anything -- exactly the "does the ledger agree with the
+      // statements" check Reconciliation (ledgerReconciliation.ts) exists
+      // to catch, and it did.
+      {
         const draft = buildJournalEntryDraftForNewTransaction(payrollTx);
         if (draft) postEntry(draft);
       }
@@ -834,7 +843,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           };
           if (!isDemoMode) trackTransactionAdded(refundTx.type, refundTx.amount, settingsForFinance?.settings?.currency ?? '₦');
           setTransactions((prev) => [...prev, refundTx]);
-          if (!isDemoMode) {
+          // Posts regardless of isDemoMode -- see addTransaction's own
+          // comment on the identical fix for why.
+          {
             const draft = buildJournalEntryDraftForNewTransaction(refundTx);
             if (draft) postEntry(draft);
           }
@@ -863,7 +874,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (!isDemoMode) trackTransactionAdded(tx.type, tx.amount, settingsForFinance?.settings?.currency ?? '₦');
         const resolved = { ...tx, id: tx.id || genId() } as Transaction;
         setTransactions((prev) => [...prev, resolved]);
-        if (!isDemoMode) {
+        // Posts regardless of isDemoMode -- postEntry is purely in-memory
+        // (saveJournalEntries' own effect already skips persisting while
+        // isDemoMode), and bad debt provisions/manual journal entries
+        // elsewhere in this file already post unconditionally. Gating this
+        // specific call left a demo session's ledger silently out of sync
+        // with its own statements the moment anything was added -- exactly
+        // what ledgerReconciliation.ts's Reconciliation panel exists to
+        // catch, and it did.
+        {
           const draft = buildJournalEntryDraftForNewTransaction(resolved);
           if (draft) postEntry(draft);
         }
@@ -883,7 +902,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         // so it correctly posts nothing. See reconcileTransactionEntries's
         // own comment for why this single path also covers the plain
         // settle case without a separate clearing-entry function.
-        if (!isDemoMode && before) {
+        if (before) {
           const after = { ...before, ...tx } as Transaction;
           const relevantFields: (keyof Transaction)[] = ['amount', 'type', 'category', 'status', 'principalPortion'];
           const financiallyRelevant = relevantFields.some((k) => tx[k] !== undefined && tx[k] !== before[k]);
@@ -960,7 +979,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             status: 'paid',
           };
           setTransactions((prev) => [repaymentTx, ...prev]);
-          if (!isDemoMode) {
+          // Posts regardless of isDemoMode -- see addTransaction's own
+          // comment on the identical fix for why.
+          {
             const draft = buildJournalEntryDraftForNewTransaction(repaymentTx);
             if (draft) postEntry(draft);
           }
@@ -1003,7 +1024,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
               status: 'paid',
             };
             setTransactions((prev) => [disposalTx, ...prev]);
-            if (!isDemoMode) {
+            // Posts regardless of isDemoMode -- see addTransaction's own
+            // comment on the identical fix for why.
+            {
               const draft = buildJournalEntryDraftForNewTransaction(disposalTx);
               if (draft) postEntry(draft);
             }
@@ -1084,7 +1107,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             inventoryItemId: id,
           };
           setTransactions((prev) => [...prev, purchaseTx]);
-          if (!isDemoMode) {
+          // Posts regardless of isDemoMode -- see addTransaction's own
+          // comment on the identical fix for why.
+          {
             const draft = buildJournalEntryDraftForNewTransaction(purchaseTx);
             if (draft) postEntry(draft);
           }
