@@ -20,7 +20,7 @@ import { t } from '../utils/i18n';
 import { validateAmount, validateDescription } from '../utils/validation';
 import { Language, Screen } from '../types';
 import ProfitShareCard from '../components/ProfitShareCard';
-import RetentionNudges, { StreakBadge } from '../components/RetentionNudges';
+import RetentionNudges, { StreakBadge, RecordProgressBadge } from '../components/RetentionNudges';
 import FirstRunWizard from '../components/FirstRunWizard';
 import GlobalSearch from '../components/GlobalSearch';
 import DailyTargetCard from '../components/DailyTargetCard';
@@ -1640,6 +1640,7 @@ export default function DashboardScreen() {
                     so the "keep your streak alive" loss-aversion cue is
                     actually seen on a daily open, not scrolled past. */}
                 {!isDemoMode && <StreakBadge transactions={transactions} onAddTransaction={() => openFab()} />}
+                {!isDemoMode && <RecordProgressBadge transactions={transactions} />}
 
                 <View style={isWideDashboard && styles.dashboardRow}>
                 {/* BUSINESS HEALTH -- the single "how is my business doing"
@@ -2600,6 +2601,7 @@ export default function DashboardScreen() {
                         currency={currency}
                         profit={finance.profit}
                         onAddTransaction={() => openFab()}
+                        onNavigate={(screen) => setCurrentScreen(screen as Screen)}
                     />
                 )}
 

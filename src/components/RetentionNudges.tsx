@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet, Modal, Animated,
 } from 'react-native';
@@ -7,6 +7,7 @@ import { Colors } from '../theme/colors';
 import { Shadow } from '../theme/tokens';
 import { Transaction } from '../types';
 import { localDateStr, localMonthStr } from '../utils/localDate';
+import { computeDataQuality } from '../utils/dataQuality';
 
 const KEYS = {
     lastSeen:        '@quad360/retention_last_seen',
@@ -92,6 +93,12 @@ type Milestone = {
     emoji: string;
     title: string;
     body: string;
+    // Only the three-months-of-history milestone below carries this -- the
+    // one milestone that's actually about something a bank cares about
+    // (vs. a transaction-count/revenue vanity number), so it's the one
+    // worth a real next step instead of just "Keep it up!".
+    ctaLabel?: string;
+    ctaScreen?: string;
 };
 
 export async function detectMilestones(
@@ -145,9 +152,33 @@ export async function detectMilestones(
         monthProfit > 0 && thisMonth && { id: `profitable_${thisMonth}`, emoji: '📈', title: 'Profitable month!', body: `You made more than you spent in ${new Date().toLocaleString('default', { month: 'long' })}. That's what it's about.` },
     ].filter(Boolean) as Milestone[];
 
+    // Three distinct calendar months with real recorded activity -- NOT the
+    // same as "90 days since signup" (an account can sit idle for 3 months
+    // and age into that) or a transaction-COUNT rung above (50 transactions
+    // entered in one bulk import in a single afternoon proves nothing about
+    // consistency). monthsWithData is the one figure that actually answers
+    // "has this owner kept real records over time," which is the specific
+    // thing a lender reading a Funding Readiness Pack looks for -- see
+    // dataQuality.ts's own header comment. Reuses computeDataQuality rather
+    // than re-deriving month coverage a second way.
+    const monthsWithData = computeDataQuality(transactions).monthsWithData;
+    const threeMonthMilestone: Milestone | null = (monthsWithData >= 3 && !seen.includes('three_months_history'))
+        ? {
+            id: 'three_months_history',
+            emoji: '🏦',
+            title: '3 months of real financial history!',
+            body: 'This is exactly what a bank or lender looks for before saying yes to a loan. Keep logging to make it even stronger.',
+            ctaLabel: 'View My Business Passport',
+            ctaScreen: 'business-passport',
+        }
+        : null;
+
     // Revenue news is the more meaningful single takeaway when both ladders
-    // advance in the same save (e.g. a bulk-imported statement).
-    const unseen = highestUnseen(revenueLadder) ?? highestUnseen(txCountLadder) ?? standalone.find(m => !seen.includes(m.id)) ?? null;
+    // advance in the same save (e.g. a bulk-imported statement). The
+    // three-month history milestone takes priority over all of them when
+    // it's newly reached -- it's the one with a real external payoff, not
+    // just an internal vanity number.
+    const unseen = threeMonthMilestone ?? highestUnseen(revenueLadder) ?? highestUnseen(txCountLadder) ?? standalone.find(m => !seen.includes(m.id)) ?? null;
     if (!unseen) return null;
 
     const newlySeen = new Set([...seen, ...reachedLadderIds, unseen.id]);
@@ -204,6 +235,34 @@ export function StreakBadge({ transactions, onAddTransaction }: StreakBadgeProps
     );
 }
 
+// ─── Record progress badge ──────────────────────────────────────────────────
+// The ongoing nudge toward three_months_history (see detectMilestones below)
+// -- a persistent, low-key reminder of WHY logging matters (same "banks
+// check this" stakes as the milestone's own copy) seen on every open while
+// working toward it, not just a one-time popup at the end. Disappears once
+// the milestone is reached (that's the payoff moment, this is the pull)
+// or once there's nothing to show yet.
+interface RecordProgressBadgeProps {
+    transactions: Transaction[];
+}
+
+export function RecordProgressBadge({ transactions }: RecordProgressBadgeProps) {
+    const monthsWithData = useMemo(() => computeDataQuality(transactions).monthsWithData, [transactions]);
+    if (monthsWithData < 1 || monthsWithData >= 3) return null;
+
+    return (
+        <View style={styles.progressBanner}>
+            <Text style={styles.progressIcon}>🏦</Text>
+            <View style={{ flex: 1 }}>
+                <Text style={styles.progressTitle}>{monthsWithData} of 3 months toward a bank-ready record</Text>
+                <Text style={styles.progressSub}>
+                    Keep logging real activity each month — this is exactly what a lender checks before approving a loan.
+                </Text>
+            </View>
+        </View>
+    );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface Props {
@@ -211,9 +270,14 @@ interface Props {
     currency: string;
     profit: number;
     onAddTransaction: () => void;
+    // Only used by the three-months-history milestone's CTA today -- every
+    // other milestone just dismisses. Optional so a caller without a
+    // navigate function can still render this (the CTA button simply won't
+    // show).
+    onNavigate?: (screen: string) => void;
 }
 
-export default function RetentionNudges({ transactions, currency, profit, onAddTransaction }: Props) {
+export default function RetentionNudges({ transactions, currency, profit, onAddTransaction, onNavigate }: Props) {
     const [inactivityDays, setInactivityDays]   = useState<number | null>(null);
     const [weekSummary, setWeekSummary]         = useState<{ thisWeek: number; lastWeek: number } | null>(null);
     const [milestone, setMilestone]             = useState<Milestone | null>(null);
@@ -304,8 +368,21 @@ export default function RetentionNudges({ transactions, currency, profit, onAddT
                         <Text style={styles.milestoneEmoji}>{milestone?.emoji}</Text>
                         <Text style={styles.milestoneTitle}>{milestone?.title}</Text>
                         <Text style={styles.milestoneBody}>{milestone?.body}</Text>
-                        <TouchableOpacity style={styles.milestoneDismiss} onPress={() => setShowMilestone(false)}>
-                            <Text style={styles.milestoneDismissText}>Keep it up!</Text>
+                        {milestone?.ctaScreen && milestone?.ctaLabel && onNavigate && (
+                            <TouchableOpacity
+                                style={styles.milestoneDismiss}
+                                onPress={() => { setShowMilestone(false); onNavigate(milestone.ctaScreen!); }}
+                            >
+                                <Text style={styles.milestoneDismissText}>{milestone.ctaLabel} →</Text>
+                            </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                            style={milestone?.ctaScreen && onNavigate ? styles.milestoneSecondaryDismiss : styles.milestoneDismiss}
+                            onPress={() => setShowMilestone(false)}
+                        >
+                            <Text style={milestone?.ctaScreen && onNavigate ? styles.milestoneSecondaryDismissText : styles.milestoneDismissText}>
+                                {milestone?.ctaScreen && onNavigate ? 'Maybe later' : 'Keep it up!'}
+                            </Text>
                         </TouchableOpacity>
                     </Animated.View>
                 </View>
@@ -329,6 +406,17 @@ const styles = StyleSheet.create({
     streakSub:     { fontSize: 11, color: Colors.textMuted, marginTop: 1 },
     streakBtn:     { backgroundColor: Colors.warning, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 },
     streakBtnText: { fontSize: 11, fontWeight: '700', color: '#fff' },
+
+    progressBanner: {
+        flexDirection: 'row', alignItems: 'center', gap: 10,
+        backgroundColor: 'rgba(0,102,204,0.08)', borderWidth: 1,
+        borderColor: Colors.primary, borderRadius: 10,
+        paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10,
+        ...Shadow.sm,
+    },
+    progressIcon: { fontSize: 20 },
+    progressTitle: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+    progressSub:   { fontSize: 11, color: Colors.textMuted, marginTop: 2, lineHeight: 15 },
 
     inactivityBanner: {
         flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -368,4 +456,6 @@ const styles = StyleSheet.create({
     milestoneBody:        { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, marginBottom: 24 },
     milestoneDismiss:     { backgroundColor: Colors.primary, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12, width: '100%', alignItems: 'center' },
     milestoneDismissText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 15 },
+    milestoneSecondaryDismiss:     { paddingVertical: 12, paddingHorizontal: 32, width: '100%', alignItems: 'center', marginTop: 4 },
+    milestoneSecondaryDismissText: { color: Colors.textMuted, fontWeight: '600', fontSize: 13 },
 });
