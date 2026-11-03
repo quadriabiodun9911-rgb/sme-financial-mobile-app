@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
-    TouchableOpacity, StyleSheet, Modal, Share, Platform, useWindowDimensions, Linking,
+    TouchableOpacity, StyleSheet, Modal, Share, Platform, useWindowDimensions, Linking, findNodeHandle,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors, ColorThemeMode, getColorThemeMode, setColorThemeMode } from '../theme/colors';
@@ -91,7 +91,7 @@ export default function SettingsScreen() {
     const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const {
-        settings, updateSettings, setCurrentScreen, navigate,
+        settings, updateSettings, setCurrentScreen, navigate, navParams,
         changePin, exportData, importData, clearData, resetBusinessData, deleteAccount, logout,
         userRole, teamMembers, inviteMember, removeMember, refreshTeam,
         language, setLanguage,
@@ -100,6 +100,27 @@ export default function SettingsScreen() {
         invoices, bills, inventory, goals, budgets, accounts, journalEntries,
         currencyAccounts,
     } = useApp() as ReturnType<typeof useApp>;
+
+    // "Export Data" in the More menu used to just open this screen with no
+    // way to tell it apart from tapping "Settings" itself -- this scrolls to
+    // and force-opens the Data & Backup section instead, the same
+    // deep-link-then-scroll pattern BeforeYouDecideContent uses for its own
+    // navParams.decideFocusTool.
+    const scrollRef = useRef<ScrollView>(null);
+    const dataBackupRef = useRef<View>(null);
+    useEffect(() => {
+        if (!navParams?.openDataBackup) return;
+        const timer = setTimeout(() => {
+            const scrollNode = findNodeHandle(scrollRef.current);
+            if (!scrollNode) return;
+            dataBackupRef.current?.measureLayout(
+                scrollNode,
+                (_x, y) => scrollRef.current?.scrollTo({ y: Math.max(0, y - 16), animated: true }),
+                () => {},
+            );
+        }, 150);
+        return () => clearTimeout(timer);
+    }, [navParams?.openDataBackup]);
 
     // Drives the Data & Backup card below -- it must never claim data is
     // safely backed up while records it can't actually decrypt are sitting
@@ -452,7 +473,7 @@ export default function SettingsScreen() {
     return (
         <SafeAreaView style={styles.safe}>
             <Header />
-            <ScrollView style={styles.scroll}>
+            <ScrollView style={styles.scroll} ref={scrollRef}>
                 <View style={styles.pad}>
                     <Text style={styles.title}>Settings</Text>
                     <Text style={styles.titleSubtitle}>
@@ -1047,7 +1068,8 @@ export default function SettingsScreen() {
                     <SectionHeader icon="upload" title="DATA & EXPORT" />
 
                     {/* Data & Backup */}
-                    <CollapsibleSection title="Data & Backup" icon="package" defaultOpen={false}>
+                    <View ref={dataBackupRef} collapsable={false}>
+                    <CollapsibleSection title="Data & Backup" icon="package" defaultOpen={false} forceOpen={navParams?.openDataBackup}>
                         {/* Must never claim everything is fine while
                             integrityIssueCount says otherwise -- that exact
                             contradiction (a green "synced to cloud" checkmark
@@ -1103,6 +1125,7 @@ export default function SettingsScreen() {
                             </TouchableOpacity>
                         </Section>
                     </CollapsibleSection>
+                    </View>
 
                     {/* Help & Support */}
                     <SectionHeader icon="help-circle" title="SUPPORT" />
@@ -1405,10 +1428,13 @@ function SectionHeader({ icon, title }: { icon: IconName; title: string }) {
     );
 }
 
-function CollapsibleSection({ title, children, defaultOpen = false, icon, tone = 'default' }: {
-    title: string; children: React.ReactNode; defaultOpen?: boolean; icon?: IconName; tone?: 'default' | 'danger';
+function CollapsibleSection({ title, children, defaultOpen = false, icon, tone = 'default', forceOpen }: {
+    title: string; children: React.ReactNode; defaultOpen?: boolean; icon?: IconName; tone?: 'default' | 'danger'; forceOpen?: boolean;
 }) {
     const [open, setOpen] = useState(defaultOpen);
+    useEffect(() => {
+        if (forceOpen) setOpen(true);
+    }, [forceOpen]);
     const isDanger = tone === 'danger';
     return (
         <View style={[styles.section, isDanger && styles.sectionDanger]}>

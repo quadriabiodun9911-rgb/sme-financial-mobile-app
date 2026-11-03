@@ -490,6 +490,7 @@ export interface NavParams {
     openMonthlyReview?: boolean; // open the Monthly Review modal on the Dashboard screen
     openDailyReport?: boolean; // open the Daily (End of Day) Report modal on the Dashboard screen
     openEventsManager?: boolean; // open the Known Future Events modal on the Future Financial Statements screen
+    openDataBackup?: boolean; // scroll to and expand the Data & Backup section on the Settings screen
     // "Turn into a budget" from a cost_reduction goal on GoalsScreen --
     // opens Budget's existing Auto-Generate flow directly, with the goal's
     // own target total to compare the suggestion against.

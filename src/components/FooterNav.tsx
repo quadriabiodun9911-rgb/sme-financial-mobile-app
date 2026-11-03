@@ -9,7 +9,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Icon, { IconName } from './ui/Icon';
-import { Screen } from '../types';
+import { Screen, NavParams } from '../types';
 import { isScreenAllowedForRole } from '../utils/rolePermissions';
 import { accountDisplayName, isUsernameAccountEmail } from '../utils/storage';
 import { t, TranslationKey } from '../utils/i18n';
@@ -102,7 +102,7 @@ const ANTICIPATE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen;
     { label: 'growth',      icon: 'trending-up',     screen: 'growth',   color: '#10b981' },
 ];
 
-const DECIDE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey; params?: { tab: string } }[] = [
+const DECIDE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey; params?: NavParams }[] = [
     { label: 'insights', icon: 'zap',             screen: 'insights', color: '#f59e0b', desc: 'navInsightsDesc' },
     // Was a 5-tab "Fractional CFO" screen (Pulse/Forecast/Finance/Quick
     // Wins/Q&A); all but Q&A turned out to duplicate content already shown
@@ -133,9 +133,11 @@ const ADVANCED_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; c
     { label: 'navFinancing', icon: 'search',  screen: 'financing-marketplace', color: '#14b8a6' },
 ];
 
-const ACCOUNT_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey }[] = [
+const ACCOUNT_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey; params?: NavParams }[] = [
     { label: 'settings', icon: 'settings', screen: 'settings', color: '#94a3b8', desc: 'navSettingsDesc' },
-    { label: 'navExportData', icon: 'download', screen: 'settings', color: '#10b981', desc: 'navExportDataDesc' },
+    // Used to open the exact same undifferentiated Settings screen as
+    // "Settings" above -- now a real shortcut straight to Data & Backup.
+    { label: 'navExportData', icon: 'download', screen: 'settings', color: '#10b981', desc: 'navExportDataDesc', params: { openDataBackup: true } },
 ];
 
 // ─── Footer tabs ─────────────────────────────────────────────────────────────
@@ -164,7 +166,7 @@ export default function FooterNav() {
     const enableTeam = process.env.EXPO_PUBLIC_ENABLE_TEAM !== 'false';
     const enableFinancing = process.env.EXPO_PUBLIC_ENABLE_FINANCING !== 'false';
 
-    const goTo = (screen: Screen, params?: { tab: string }) => {
+    const goTo = (screen: Screen, params?: NavParams) => {
         if (params) navigate(screen, params);
         else setCurrentScreen(screen);
         setMoreOpen(false);
@@ -541,7 +543,7 @@ export default function FooterNav() {
                                 <TouchableOpacity
                                     key={item.label}
                                     style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
-                                    onPress={() => goTo(item.screen)}
+                                    onPress={() => goTo(item.screen, item.params)}
                                     activeOpacity={0.75}
                                     accessibilityRole="button"
                                     accessibilityLabel={`${t(language, item.label)}. ${t(language, item.desc)}`}
