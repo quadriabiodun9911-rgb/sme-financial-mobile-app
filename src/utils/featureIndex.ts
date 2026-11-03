@@ -271,9 +271,9 @@ export const FEATURE_INDEX: FeatureEntry[] = [
     },
     {
         id: 'mission-vision', label: 'Mission, Vision & Values', icon: '🧭',
-        description: 'Set your destination, how you get there daily, and how your team behaves — shown alongside your weekly priorities',
+        description: 'Set your destination, how you get there daily, and how your team behaves — shown on your Business Passport and weekly priorities',
         keywords: ['mission', 'vision', 'values', 'purpose', 'guideline', 'north star', 'culture'],
-        screen: 'settings',
+        screen: 'business-passport',
     },
     {
         id: 'financial-assessment', label: 'Financial Assessment', icon: '🔍',

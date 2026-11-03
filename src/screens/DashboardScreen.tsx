@@ -2840,7 +2840,7 @@ export default function DashboardScreen() {
             <WeeklyReportModal
                 visible={showWeeklyReport}
                 onClose={() => setShowWeeklyReport(false)}
-                onEditMission={() => { setShowWeeklyReport(false); setCurrentScreen('settings'); }}
+                onEditMission={() => { setShowWeeklyReport(false); setCurrentScreen('business-passport'); }}
                 transactions={transactions}
                 invoices={invoices}
                 finance={finance}

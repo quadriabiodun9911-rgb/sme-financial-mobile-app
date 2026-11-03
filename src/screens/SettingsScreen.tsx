@@ -629,41 +629,12 @@ export default function SettingsScreen() {
                             </View>
                         </Section>
 
-                        <Section title="Mission, Vision & Values">
-                            <Text style={styles.hint}>
-                                The vision is your destination, the mission is how you get there daily, and your values are the rules of the road for how your team behaves along the way. Shown alongside your weekly priorities and strategy — a guideline to check decisions against, not just a statement to file away.
-                            </Text>
-                            <FieldLabel>Mission — how you get there, daily</FieldLabel>
-                            <TextInput
-                                style={[styles.input, { minHeight: 70 }]}
-                                value={form.missionStatement ?? ''}
-                                onChangeText={v => setForm((f: typeof form) => ({ ...f, missionStatement: v }))}
-                                multiline
-                                textAlignVertical="top"
-                                placeholder="e.g. We deliver fresh produce to every small shop owner in our city, every day, at a fair price"
-                                placeholderTextColor={Colors.muted}
-                            />
-                            <FieldLabel>Vision — your long-term destination</FieldLabel>
-                            <TextInput
-                                style={[styles.input, { minHeight: 70 }]}
-                                value={form.visionStatement ?? ''}
-                                onChangeText={v => setForm((f: typeof form) => ({ ...f, visionStatement: v }))}
-                                multiline
-                                textAlignVertical="top"
-                                placeholder="e.g. The most trusted produce supplier in every neighbourhood in the state"
-                                placeholderTextColor={Colors.muted}
-                            />
-                            <FieldLabel>Values — how your team behaves getting there</FieldLabel>
-                            <TextInput
-                                style={[styles.input, { minHeight: 50 }]}
-                                value={form.coreValues ?? ''}
-                                onChangeText={v => setForm((f: typeof form) => ({ ...f, coreValues: v }))}
-                                multiline
-                                textAlignVertical="top"
-                                placeholder="e.g. Integrity, reliability, community focus"
-                                placeholderTextColor={Colors.muted}
-                            />
-                        </Section>
+                        {/* Mission/Vision/Values moved to Business Passport --
+                            it's actually used there (and on the Weekly
+                            Report) as a lender-facing "who we are" summary,
+                            not a standing section every owner needs to see
+                            on every Settings visit. Edit it from the
+                            Passport's own guideline card. */}
 
                         <Section title="Macro Assumptions">
                             <Text style={styles.hint}>

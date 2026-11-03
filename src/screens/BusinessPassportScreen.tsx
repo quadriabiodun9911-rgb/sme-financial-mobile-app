@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, TextInput, Animated, Easing } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import Header from '../components/Header';
@@ -42,9 +42,28 @@ function fmtCompact(currency: string, amount: number): string {
 }
 
 export default function BusinessPassportScreen() {
-    const { transactions, invoices, loans, inventory, assets, finance, settings, user, navigate, setCurrentScreen, budgets, staff, goals, financing } = useApp();
+    const { transactions, invoices, loans, inventory, assets, finance, settings, user, navigate, setCurrentScreen, updateSettings, budgets, staff, goals, financing } = useApp();
     const { currency } = settings;
     const [exporting, setExporting] = useState(false);
+
+    // Mission/Vision/Values edit -- moved here from Settings, since this
+    // (and the Weekly Report, via the same MissionVisionCard) is actually
+    // where it's read, not a standing Settings section every owner sees on
+    // every visit whether they're touching it or not.
+    const [editingMission, setEditingMission] = useState(false);
+    const [missionDraft, setMissionDraft] = useState('');
+    const [visionDraft, setVisionDraft] = useState('');
+    const [valuesDraft, setValuesDraft] = useState('');
+    const openMissionEdit = () => {
+        setMissionDraft(settings.missionStatement ?? '');
+        setVisionDraft(settings.visionStatement ?? '');
+        setValuesDraft(settings.coreValues ?? '');
+        setEditingMission(true);
+    };
+    const saveMissionEdit = () => {
+        updateSettings({ missionStatement: missionDraft, visionStatement: visionDraft, coreValues: valuesDraft });
+        setEditingMission(false);
+    };
 
     const passport = useMemo(
         () => buildBusinessPassport(transactions, invoices, loans, inventory, assets, finance, settings, user, budgets, staff, goals, financing),
@@ -155,12 +174,59 @@ export default function BusinessPassportScreen() {
                     </View>
                 )}
 
-                <MissionVisionCard
-                    missionStatement={settings.missionStatement}
-                    visionStatement={settings.visionStatement}
-                    coreValues={settings.coreValues}
-                    onEdit={() => setCurrentScreen('settings')}
-                />
+                {editingMission ? (
+                    <View style={s.missionEditCard}>
+                        <Text style={s.cardTitle}>Mission, Vision & Values</Text>
+                        <Text style={s.readinessNote}>
+                            The vision is your destination, the mission is how you get there daily, and your values are the rules of the road for how your team behaves along the way.
+                        </Text>
+                        <Text style={s.missionFieldLabel}>Mission — how you get there, daily</Text>
+                        <TextInput
+                            style={s.missionInput}
+                            value={missionDraft}
+                            onChangeText={setMissionDraft}
+                            multiline
+                            textAlignVertical="top"
+                            placeholder="e.g. We deliver fresh produce to every small shop owner in our city, every day, at a fair price"
+                            placeholderTextColor={Colors.textMuted}
+                        />
+                        <Text style={s.missionFieldLabel}>Vision — your long-term destination</Text>
+                        <TextInput
+                            style={s.missionInput}
+                            value={visionDraft}
+                            onChangeText={setVisionDraft}
+                            multiline
+                            textAlignVertical="top"
+                            placeholder="e.g. The most trusted produce supplier in every neighbourhood in the state"
+                            placeholderTextColor={Colors.textMuted}
+                        />
+                        <Text style={s.missionFieldLabel}>Values — how your team behaves getting there</Text>
+                        <TextInput
+                            style={[s.missionInput, { minHeight: 44 }]}
+                            value={valuesDraft}
+                            onChangeText={setValuesDraft}
+                            multiline
+                            textAlignVertical="top"
+                            placeholder="e.g. Integrity, reliability, community focus"
+                            placeholderTextColor={Colors.textMuted}
+                        />
+                        <View style={s.missionEditRow}>
+                            <TouchableOpacity style={s.missionSaveBtn} onPress={saveMissionEdit}>
+                                <Text style={s.missionSaveBtnText}>Save</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={s.missionCancelBtn} onPress={() => setEditingMission(false)}>
+                                <Text style={s.missionCancelBtnText}>Cancel</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                ) : (
+                    <MissionVisionCard
+                        missionStatement={settings.missionStatement}
+                        visionStatement={settings.visionStatement}
+                        coreValues={settings.coreValues}
+                        onEdit={openMissionEdit}
+                    />
+                )}
 
                 {/* 1. Business Identity */}
                 <Section title="Business Identity" subtitle="Who are you?" teaser={`${passport.identity.businessType} · ${passport.identity.industry}`}>
@@ -583,6 +649,14 @@ const s = StyleSheet.create({
     trackRecordValue: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4, textTransform: 'capitalize' },
     trackRecordDetail: { fontSize: 11, color: Colors.textMuted },
     snapshotCard: { backgroundColor: Colors.card, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.primary, ...Shadow.sm },
+    missionEditCard: { backgroundColor: Colors.card, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.primary, ...Shadow.sm },
+    missionFieldLabel: { fontSize: 11.5, fontWeight: '700', color: Colors.textSecondary, marginTop: 8, marginBottom: 6 },
+    missionInput: { borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 10, fontSize: 13, color: Colors.textPrimary, backgroundColor: Colors.bg, minHeight: 64 },
+    missionEditRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
+    missionSaveBtn: { flex: 1, backgroundColor: Colors.primary, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
+    missionSaveBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+    missionCancelBtn: { flex: 1, backgroundColor: Colors.bg, borderRadius: 8, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+    missionCancelBtnText: { color: Colors.textSecondary, fontWeight: '700', fontSize: 13 },
     card: { backgroundColor: Colors.card, borderRadius: 14, padding: Spacing.lg, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     cardTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
     cardSubtitle: { fontSize: 11.5, color: Colors.textMuted, marginBottom: 4, fontStyle: 'italic' },
