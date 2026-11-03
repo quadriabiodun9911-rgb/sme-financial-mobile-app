@@ -509,7 +509,7 @@ function ScenarioResultCard({ result, currency, currentCashBalance, navigate }: 
 
 // ─── Main screen ───────────────────────────────────────────────────────────────
 export default function AnalysisScreen() {
-    const { transactions, finance, settings, navigate, navParams } = useApp();
+    const { transactions, finance, settings, navigate, navParams, invoices, loans, inventory, assets } = useApp();
     const { currency } = settings;
 
     // Lets a deep link (e.g. "I want to grow" → What if?, or "Test an idea"
@@ -529,7 +529,10 @@ export default function AnalysisScreen() {
     const [savedScenarios, setSavedScenarios] = useState<SavedAnalysisScenario[]>([]);
     const [saveNameDraft, setSaveNameDraft] = useState('');
 
-    const analysis = useMemo(() => analyseRootCause(transactions, period, settings), [transactions, period, settings]);
+    const analysis = useMemo(
+        () => analyseRootCause(transactions, period, settings, finance, invoices, loans, inventory, assets),
+        [transactions, period, settings, finance, invoices, loans, inventory, assets]
+    );
 
     const hasData = transactions.length >= 2;
 
@@ -743,6 +746,19 @@ export default function AnalysisScreen() {
                             <TouchableOpacity style={s.crossLinkChip} onPress={() => navigate('reports', { reportSection: 'growth', reportTab: 'growth' })}>
                                 <Icon name="trending-up" size={12} color={Colors.primary} />
                                 <Text style={s.crossLinkText}>Multi-month trajectory → Growth Trends & Scenarios</Text>
+                            </TouchableOpacity>
+                            {/* These levers give an instant, one-off result;
+                                Forecast's own What If? instead adjusts an
+                                ongoing growth-rate assumption that compounds
+                                across the full multi-month projection -- a
+                                different question ("what would this one
+                                decision do right now" vs "how does this
+                                change the trajectory"), pointed at explicitly
+                                rather than left for the owner to discover two
+                                different "what if a loan" tools on their own. */}
+                            <TouchableOpacity style={s.crossLinkChip} onPress={() => navigate('future-statements', { tab: 'whatIf' })}>
+                                <Icon name="trending-up" size={12} color={Colors.primary} />
+                                <Text style={s.crossLinkText}>How this plays out over months → Forecast's What If?</Text>
                             </TouchableOpacity>
                         </View>
 

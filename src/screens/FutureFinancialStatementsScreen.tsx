@@ -74,7 +74,10 @@ export default function FutureFinancialStatementsScreen() {
     // (the one interactive tool), and Statements (the existing 6/12-month
     // detail with its own P&L/Cash Flow/Balance Sheet sub-tabs, unchanged).
     // No card's content or logic changed -- only which tab it renders under.
-    const [screenTab, setScreenTab] = useState<'summary' | 'byArea' | 'whatIf' | 'statements'>('summary');
+    const initialScreenTab = (['summary', 'byArea', 'whatIf', 'statements'] as const).includes(navParams?.tab as any)
+        ? (navParams!.tab as 'summary' | 'byArea' | 'whatIf' | 'statements')
+        : 'summary';
+    const [screenTab, setScreenTab] = useState<'summary' | 'byArea' | 'whatIf' | 'statements'>(initialScreenTab);
 
     // Future Events used to be its own top-level screen; it only ever
     // existed to feed this one, so it's now a modal launched from here (and
@@ -967,6 +970,20 @@ export default function FutureFinancialStatementsScreen() {
                                 real records. Baseline: {fmt(forecast.baselineMonthlyRevenue)}/mo revenue, {fmt(forecast.baselineMonthlyExpense)}/mo
                                 expenses — averaged over your last {forecast.baselineMonthsUsed} recorded month{forecast.baselineMonthsUsed === 1 ? '' : 's'}.
                             </Text>
+                            {/* This adjusts ongoing growth-rate assumptions
+                                that compound across the whole multi-month
+                                forecast below -- a different mechanism from
+                                Analysis & Decisions' What If? tab, which runs
+                                one-off lever calculators (Hire, Loan, Price...)
+                                with an instant profit/margin/runway result you
+                                can save and compare. Pointed at explicitly so
+                                "model a loan" doesn't silently mean two
+                                different things depending which screen you
+                                happened to open. */}
+                            <NextStepLink
+                                text="Want an instant result for one specific decision instead? Try Analysis & Decisions' What If?"
+                                onPress={() => navigate('analysis', { tab: 'scenarios' })}
+                            />
                             <AdjustmentInput label="Sales change" value={revenueGrowth} onChange={setRevenueGrowth} suffix="%/mo" />
                             <AdjustmentInput label="Expense change" value={expenseGrowth} onChange={setExpenseGrowth} suffix="%/mo" />
                             <AdjustmentInput label="Discount change" value={discountChange} onChange={setDiscountChange} suffix="pp" />

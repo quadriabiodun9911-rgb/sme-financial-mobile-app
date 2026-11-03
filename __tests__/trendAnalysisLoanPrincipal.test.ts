@@ -7,7 +7,7 @@
 // for the same period whenever a loan payment was recorded.
 import { computeAllTimeMonthlyBuckets, computeDailyTrend } from '../src/utils/trendAnalysis';
 import { computePeriodMetrics, analyseRootCause } from '../src/utils/analysis';
-import { Transaction, BusinessSettings } from '../src/types';
+import { Transaction, BusinessSettings, FinanceData } from '../src/types';
 
 const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
 
@@ -48,8 +48,9 @@ describe('analysis.ts excludes loan principal from profit', () => {
     });
 
     it('analyseRootCause driver breakdown', () => {
-        const settings: Pick<BusinessSettings, 'currency' | 'targetMargin'> = { currency: '₦', targetMargin: '20' };
-        const result = analyseRootCause(withLoanPayment, 'month', settings);
+        const settings: Pick<BusinessSettings, 'currency' | 'targetMargin' | 'industry'> = { currency: '₦', targetMargin: '20' };
+        const finance: FinanceData = { income: 0, expense: 0, profit: 0, cashBalance: 0 } as FinanceData;
+        const result = analyseRootCause(withLoanPayment, 'month', settings, finance);
         const loanDriver = result.expenseDrivers.find(d => d.category === 'Loan Repayment');
         expect(loanDriver?.current).toBe(50_000);
     });

@@ -8,9 +8,10 @@
 // present in the data, mirroring financialDiagnosisEngine.ts's own
 // "latest data month" fix.
 import { analyseRootCause } from '../src/utils/analysis';
-import { Transaction, BusinessSettings } from '../src/types';
+import { Transaction, BusinessSettings, FinanceData } from '../src/types';
 
-const settings: Pick<BusinessSettings, 'currency' | 'targetMargin'> = { currency: '₦', targetMargin: '20' };
+const settings: Pick<BusinessSettings, 'currency' | 'targetMargin' | 'industry'> = { currency: '₦', targetMargin: '20' };
+const finance: FinanceData = { income: 0, expense: 0, profit: 0, cashBalance: 0 } as FinanceData;
 
 describe('analyseRootCause anchors "current period" to the latest data, not real-world now', () => {
     it('reports real revenue/profit for data dated months before the real current date', () => {
@@ -26,7 +27,7 @@ describe('analyseRootCause anchors "current period" to the latest data, not real
             { id: '4', date: '2020-02-10', description: 'Rent',  type: 'expense', category: 'Rent',  amount: 180_000, status: 'paid' },
         ];
 
-        const result = analyseRootCause(transactions, 'month', settings);
+        const result = analyseRootCause(transactions, 'month', settings, finance);
 
         expect(result.currentIncome).toBe(500_000);
         expect(result.currentExpense).toBe(200_000);
@@ -35,7 +36,7 @@ describe('analyseRootCause anchors "current period" to the latest data, not real
     });
 
     it('still falls back to real "now" when there is no data at all (no false anchor invented)', () => {
-        const result = analyseRootCause([], 'month', settings);
+        const result = analyseRootCause([], 'month', settings, finance);
         expect(result.currentIncome).toBe(0);
         expect(result.currentExpense).toBe(0);
     });

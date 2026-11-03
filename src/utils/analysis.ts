@@ -1,6 +1,7 @@
-import { Transaction, Loan, FinanceData, BusinessSettings } from '../types';
-import { filterByDateRange, getPreviousPeriodRange, ReportPeriod } from './finance';
+import { Transaction, Loan, FinanceData, BusinessSettings, Invoice, InventoryItem, Asset } from '../types';
+import { filterByDateRange, getPreviousPeriodRange, ReportPeriod, getMonthlyExpenseAverage } from './finance';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
+import { performFinancialDiagnosis } from './financialDiagnosisEngine';
 
 // ─── Period comparison ─────────────────────────────────────────────────────────
 export interface PeriodMetrics {
@@ -67,12 +68,30 @@ export interface RootCauseAnalysis {
     severity: 'positive' | 'neutral' | 'warning' | 'critical';
 }
 
+// Everything above (period comparison, income/expense drivers) is a real,
+// period-specific computation the canonical diagnosis engine doesn't do --
+// it has no concept of "this month vs last month," only "what's wrong right
+// now across all 10 dimensions." That stays local. What used to ALSO be
+// local was severity/primaryCause/recommendations, each independently
+// derived here from only the profit/revenue/expense trend -- so this tab
+// could say "performing well" in the same breath Financial Assessment's
+// Early Warning Signals or Financial Insights' Decision Centre were
+// flagging something critical elsewhere (debt, concentration, cash). Those
+// three now share one engine (performFinancialDiagnosis) for the actual
+// verdict, so they can't disagree about whether something is wrong -- only
+// about which period-specific story explains it, which is this tab's own
+// job.
 export function analyseRootCause(
     transactions: Transaction[],
     period: ReportPeriod = 'month',
-    settings: Pick<BusinessSettings, 'currency' | 'targetMargin'>,
+    settings: Pick<BusinessSettings, 'currency' | 'targetMargin' | 'industry'>,
+    finance: FinanceData,
+    invoices: Invoice[] = [],
+    loans: Loan[] = [],
+    inventory: InventoryItem[] = [],
+    assets: Asset[] = [],
 ): RootCauseAnalysis {
-    const { currency, targetMargin } = settings;
+    const { currency, targetMargin, industry } = settings;
     const target = parseFloat(targetMargin) || 20;
     // Anchored to the latest date actually present in the data, not the
     // real-world "now" -- the same fix financialDiagnosisEngine.ts already
@@ -141,16 +160,38 @@ export function analyseRootCause(
     const biggestExpCat  = expenseDrivers.find(d => d.change > 0);
     const biggestIncDrop = incomeDrivers.find(d => d.change < 0);
 
-    let severity: RootCauseAnalysis['severity'] = 'positive';
-    if (profitDropped && cur.profit < 0) severity = 'critical';
-    else if (profitDropped || marginBad) severity = 'warning';
-    else if (Math.abs(profitChangePct) < 5) severity = 'neutral';
+    // Same engine Financial Assessment's Early Warning Signals and
+    // Financial Insights' Decision Centre already run -- the overall
+    // verdict below is anchored to it (see this function's own doc comment)
+    // rather than a second, independently-tuned read of just this period's
+    // profit/revenue/cost trend, which has no visibility into debt,
+    // concentration, inventory or cash issues the canonical engine checks.
+    const canonical = performFinancialDiagnosis(
+        transactions, invoices, finance.cashBalance,
+        getMonthlyExpenseAverage(finance.expense, transactions),
+        currency, loans, inventory, assets, industry,
+    );
+    const topCanonicalDiagnosis = canonical.diagnoses[0];
+
+    let severity: RootCauseAnalysis['severity'];
+    if (canonical.healthStatus === 'critical') severity = 'critical';
+    else if (canonical.healthStatus === 'warning') severity = 'warning';
+    else severity = Math.abs(profitChangePct) < 5 ? 'neutral' : 'positive';
 
     let primaryCause = 'Business is performing well — profit improved this period.';
     if (incomeDropped && expenseRose) primaryCause = `Double pressure: revenue fell while costs rose.`;
     else if (incomeDropped && biggestIncDrop) primaryCause = `Revenue dropped — ${biggestIncDrop.category} is down ${currency}${Math.abs(biggestIncDrop.change).toLocaleString()}.`;
     else if (expenseRose && biggestExpCat) primaryCause = `Costs increased — ${biggestExpCat.category} rose ${currency}${biggestExpCat.change.toLocaleString()} (${biggestExpCat.changePct.toFixed(0)}%).`;
     else if (!profitDropped) primaryCause = `Profit improved by ${currency}${Math.abs(profitChange).toLocaleString()} — driven by ${incomeDrivers[0]?.category ?? 'higher revenue'}.`;
+
+    // This period's own profit/revenue/cost movement looks fine or neutral
+    // on its own, but the canonical engine is flagging something real the
+    // period comparison above has no way to see (debt, concentration, cash,
+    // inventory...) -- surface that instead of a falsely reassuring
+    // headline that would contradict Early Warning Signals on the same
+    // business.
+    const canonicalOverride = (severity === 'critical' || severity === 'warning') && !incomeDropped && !expenseRose && topCanonicalDiagnosis;
+    if (canonicalOverride) primaryCause = topCanonicalDiagnosis.problem;
 
     // Diagnosis — 2–4 plain English sentences
     const diagnosis: string[] = [];
@@ -179,11 +220,18 @@ export function analyseRootCause(
         if (marginBad) {
             diagnosis.push(`Your profit margin is ${cur.margin.toFixed(1)}%, below your ${target}% target — every ${currency}100 of revenue is only generating ${currency}${cur.margin.toFixed(0)} in profit.`);
         }
+
+        if (canonicalOverride) {
+            diagnosis.push(`${topCanonicalDiagnosis.problem} ${topCanonicalDiagnosis.rootCause}`);
+        }
     }
 
     // Recommendations
     const recommendations: string[] = [];
 
+    if (canonicalOverride) {
+        recommendations.push(topCanonicalDiagnosis.opportunity);
+    }
     if (incomeDropped && biggestIncDrop) {
         recommendations.push(`Review ${biggestIncDrop.category}: down ${currency}${Math.abs(biggestIncDrop.change).toLocaleString()} — identify which clients or products stopped contributing.`);
     }

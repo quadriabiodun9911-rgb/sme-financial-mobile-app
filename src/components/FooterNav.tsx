@@ -81,7 +81,9 @@ const DIAGNOSIS_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; 
 ];
 
 const UNDERSTAND_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey }[] = [
-    { label: 'navScoreboard',     icon: 'activity',      screen: 'scoreboard',     color: '#22d3ee', desc: 'navScoreboardDesc' },
+    // Scoreboard is already a persistent bottom tab -- listing it again
+    // here was the exact "same destination, two places in the nav" problem
+    // the rest of this app's nav has been cleaned up to avoid.
     { label: 'navCashFlow',       icon: 'droplet',       screen: 'cashflow',       color: '#3b82f6', desc: 'navCashFlowDesc' },
     { label: 'navInventory',      icon: 'package',       screen: 'inventory',      color: '#f59e0b', desc: 'navInventoryDesc' },
     { label: 'navMarginWatch',    icon: 'shield',        screen: 'margin-watch',   color: '#fb7185', desc: 'navMarginWatchDesc' },
