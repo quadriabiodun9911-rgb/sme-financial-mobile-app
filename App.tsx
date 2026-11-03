@@ -61,6 +61,7 @@ import FinancingAdminScreen from './src/screens/FinancingAdminScreen';
 import UpgradeScreen from './src/screens/UpgradeScreen';
 import ProGate from './src/components/ProGate';
 import OnboardingChoiceScreen from './src/screens/OnboardingChoiceScreen';
+import GettingStartedScreen from './src/screens/GettingStartedScreen';
 import DataIntegrityScreen from './src/screens/DataIntegrityScreen';
 import AuditLogScreen from './src/screens/AuditLogScreen';
 import SecurityCenterScreen from './src/screens/SecurityCenterScreen';
@@ -266,6 +267,7 @@ function NavigatorContent() {
                 -- only what a blocked visitor sees. */}
             {currentScreen === 'financing-admin' && <FinancingAdminScreen />}
             {currentScreen === 'onboarding-choice' && <OnboardingChoiceScreen />}
+            {currentScreen === 'getting-started' && <GettingStartedScreen />}
             {currentScreen === 'data-integrity' && <DataIntegrityScreen />}
             {currentScreen === 'audit-log' && <AuditLogScreen />}
             {currentScreen === 'security-center' && <SecurityCenterScreen />}

@@ -76,11 +76,14 @@ import { t, TranslationKey } from '../utils/i18n';
 // render time), not literal display strings -- these arrays are module-level
 // constants built before `language` is known, so translation must happen
 // where they're rendered, not where they're declared.
-const DIAGNOSIS_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey }[] = [
+// Exported so GettingStartedScreen's feature tour can list the exact same
+// items, in the exact same order, instead of hand-copying a second list
+// that would silently drift out of sync with this one.
+export const DIAGNOSIS_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey }[] = [
     { label: 'navFinancialHealthScore', icon: 'clipboard', screen: 'financial-assessment', color: '#f43f5e', desc: 'navFinancialHealthScoreDesc' },
 ];
 
-const UNDERSTAND_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey }[] = [
+export const UNDERSTAND_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey }[] = [
     // Scoreboard is already a persistent bottom tab -- listing it again
     // here was the exact "same destination, two places in the nav" problem
     // the rest of this app's nav has been cleaned up to avoid.
@@ -97,12 +100,12 @@ const UNDERSTAND_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen;
     { label: 'navPortfolio',      icon: 'layers',        screen: 'portfolio',      color: '#6366f1', desc: 'navPortfolioDesc' },
 ];
 
-const ANTICIPATE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string }[] = [
+export const ANTICIPATE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string }[] = [
     { label: 'navRisk',     icon: 'radio',          screen: 'risk-management', color: '#ef4444' },
     { label: 'growth',      icon: 'trending-up',     screen: 'growth',   color: '#10b981' },
 ];
 
-const DECIDE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey; params?: NavParams }[] = [
+export const DECIDE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey; params?: NavParams }[] = [
     { label: 'insights', icon: 'zap',             screen: 'insights', color: '#f59e0b', desc: 'navInsightsDesc' },
     // Was a 5-tab "Fractional CFO" screen (Pulse/Forecast/Finance/Quick
     // Wins/Q&A); all but Q&A turned out to duplicate content already shown
@@ -115,11 +118,11 @@ const DECIDE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; col
     { label: 'navBudget',   icon: 'dollar-sign',     screen: 'budget',   color: '#10b981', desc: 'navBudgetDesc' },
 ];
 
-const IMPROVE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey }[] = [
+export const IMPROVE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey }[] = [
     { label: 'navActionTracker', icon: 'check-circle', screen: 'action-tracker', color: '#ef4444', desc: 'navActionTrackerDesc' },
 ];
 
-const FUND_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string }[] = [
+export const FUND_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string }[] = [
     { label: 'navCredit',      icon: 'credit-card',  screen: 'credit-worthiness', color: '#eab308' },
 ];
 
@@ -128,7 +131,7 @@ const FUND_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color
 // aren't competing for attention with a multi-year forecast or a sample-
 // listing marketplace. Nothing here was removed or had its logic changed;
 // this is purely where it sits in the nav.
-const ADVANCED_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string }[] = [
+export const ADVANCED_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string }[] = [
     { label: 'navForecast',  icon: 'compass', screen: 'future-statements', color: '#a855f7' },
     { label: 'navFinancing', icon: 'search',  screen: 'financing-marketplace', color: '#14b8a6' },
 ];
@@ -138,6 +141,7 @@ const ACCOUNT_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; co
     // Used to open the exact same undifferentiated Settings screen as
     // "Settings" above -- now a real shortcut straight to Data & Backup.
     { label: 'navExportData', icon: 'download', screen: 'settings', color: '#10b981', desc: 'navExportDataDesc', params: { openDataBackup: true } },
+    { label: 'navGettingStarted', icon: 'compass', screen: 'getting-started', color: '#0ea5e9', desc: 'navGettingStartedDesc' },
 ];
 
 // ─── Footer tabs ─────────────────────────────────────────────────────────────

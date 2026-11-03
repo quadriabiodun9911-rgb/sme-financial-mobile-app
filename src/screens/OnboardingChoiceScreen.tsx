@@ -88,6 +88,15 @@ export default function OnboardingChoiceScreen() {
                 <TouchableOpacity style={s.skip} onPress={() => choose('dashboard')}>
                     <Text style={s.skipText}>Skip for now</Text>
                 </TouchableOpacity>
+
+                {/* Doesn't call choose() -- this is just reading a guide, not
+                    answering "how do I get my first data in," so it leaves
+                    the first-run flag untouched and FirstRunWizard/this
+                    screen can still do their job afterward. */}
+                <TouchableOpacity style={s.guideLink} onPress={() => setCurrentScreen('getting-started')}>
+                    <Icon name="compass" size={13} color={Colors.primary} />
+                    <Text style={s.guideLinkText}>New here? See how Quad360 works first</Text>
+                </TouchableOpacity>
             </View>
         </SafeAreaView>
     );
@@ -120,4 +129,7 @@ const s = StyleSheet.create({
 
     skip:     { alignItems: 'center', paddingVertical: 14 },
     skipText: { fontSize: 13, color: Colors.textMuted, fontWeight: '600' },
+
+    guideLink:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10 },
+    guideLinkText: { fontSize: 12.5, color: Colors.primary, fontWeight: '700' },
 });
