@@ -197,7 +197,7 @@ export default function ReportsScreen() {
     // computeEnhancedPnL's own revenue line -- so the P&L's drill-down
     // panel can never disagree with the total it's explaining.
     const revenueTransactions = useMemo(() => filteredTx.filter(t => t.type === 'income'), [filteredTx]);
-    const wcMetrics  = useMemo(() => computeWorkingCapitalMetrics(filteredTx), [filteredTx]);
+    const wcMetrics  = useMemo(() => computeWorkingCapitalMetrics(filteredTx, invoices, receivableWriteOffs), [filteredTx, invoices, receivableWriteOffs]);
     const revenueByPaymentMethod = useMemo(() => computeRevenueByPaymentMethod(filteredTx), [filteredTx]);
     const bizSize    = classifyBusinessSize(enhPnL.revenue);
 
@@ -868,6 +868,8 @@ export default function ReportsScreen() {
                                 inventory={inventory}
                                 currency={currency}
                                 cashBalance={allFinance.cashBalance}
+                                invoices={invoices}
+                                receivableWriteOffs={receivableWriteOffs}
                             />
                             {/* This tab's own "Tied up in stock" line is one
                                 total, not a real inventory breakdown -- the

@@ -140,7 +140,7 @@ function StockBar({ quantity, threshold, color }: { quantity: number; threshold:
 }
 
 export default function InventoryScreen() {
-    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, linkInventoryCostTransaction, settings, navigate, addTransaction, transactions, finance, navParams, canViewFinancials, inventoryWriteDowns, addInventoryWriteDown, reverseInventoryWriteDown, stockAdjustments, addStockAdjustment } = useApp();
+    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, linkInventoryCostTransaction, settings, navigate, addTransaction, transactions, finance, navParams, canViewFinancials, inventoryWriteDowns, addInventoryWriteDown, reverseInventoryWriteDown, stockAdjustments, addStockAdjustment, invoices } = useApp();
     // 'staff' can open Inventory (STAFF_ALLOWED_SCREENS in rolePermissions.ts
     // -- "manage stock" is explicitly their job) but is documented app-wide
     // as having "no visibility into P&L, cash balance, bank/loan details"
@@ -300,7 +300,7 @@ export default function InventoryScreen() {
     // perishability needs a separate signal from Inventory Health's
     // cash-tied-up framing above.
     const expiringStock = useMemo(() => computeExpiringStock(inventory), [inventory]);
-    const workingCapital = useMemo(() => computeWorkingCapitalMetrics(transactions), [transactions]);
+    const workingCapital = useMemo(() => computeWorkingCapitalMetrics(transactions, invoices), [transactions, invoices]);
     const totalWorkingCapitalTiedUp = (finance?.cashBalance ?? 0) + totalStockValue + workingCapital.accountsReceivable;
 
     const inventoryInsights: InventoryInsight[] = useMemo(() => {

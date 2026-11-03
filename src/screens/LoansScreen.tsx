@@ -349,7 +349,7 @@ export default function LoansScreen() {
     // AR/AP and inventory value feed the Debt Structure & Leverage section
     // below (LoansAndDebt) -- same computation Reports > Planning used to
     // run for its now-removed "Loans & Debt" tab.
-    const wcMetrics = useMemo(() => computeWorkingCapitalMetrics(transactions), [transactions]);
+    const wcMetrics = useMemo(() => computeWorkingCapitalMetrics(transactions, invoices), [transactions, invoices]);
     const inventoryValueForLeverage = useMemo(() => computeInventoryValue(inventory), [inventory]);
     // Total outstanding debt against annualized operating cash flow (2x/4x
     // mirror the conventional debt-to-EBITDA caution lines lenders use) --

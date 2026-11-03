@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow } from '../theme/tokens';
-import { Transaction, InventoryItem } from '../types';
+import { Transaction, InventoryItem, Invoice, ReceivableWriteOff } from '../types';
 import { computeWorkingCapitalHealth, WorkingCapitalHealthBand, WorkingCapitalRiskFlag, WorkingCapitalTrendPoint } from '../utils/workingCapitalHealth';
 import { computeSupplierPaymentPressure, SupplierPaymentPressureLevel } from '../utils/supplierPaymentPressure';
 import { fmtCompact } from './CashFlowHealthTab';
@@ -14,6 +14,8 @@ interface Props {
     inventory: InventoryItem[];
     currency: string;
     cashBalance: number;
+    invoices?: Invoice[];
+    receivableWriteOffs?: ReceivableWriteOff[];
 }
 
 const PRESSURE_COLOR: Record<SupplierPaymentPressureLevel, string> = {
@@ -30,10 +32,10 @@ const BAND_COLOR: Record<WorkingCapitalHealthBand, string> = {
     Critical: Colors.expense,
 };
 
-export default function WorkingCapitalHealthTab({ transactions, inventory, currency, cashBalance }: Props) {
+export default function WorkingCapitalHealthTab({ transactions, inventory, currency, cashBalance, invoices = [], receivableWriteOffs = [] }: Props) {
     const result = useMemo(
-        () => computeWorkingCapitalHealth(transactions, inventory, currency),
-        [transactions, inventory, currency]
+        () => computeWorkingCapitalHealth(transactions, inventory, currency, invoices, receivableWriteOffs),
+        [transactions, inventory, currency, invoices, receivableWriteOffs]
     );
     const pressure = useMemo(
         () => computeSupplierPaymentPressure(transactions, cashBalance, currency),

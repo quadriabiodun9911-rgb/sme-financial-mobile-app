@@ -104,7 +104,7 @@ export function buildFundingReadinessPack(
 ): FundingReadinessPack {
     const ttmTransactions = trailingTwelveMonths(transactions);
     const pnl = computeEnhancedPnL(ttmTransactions, assets);
-    const wc = computeWorkingCapitalMetrics(transactions);
+    const wc = computeWorkingCapitalMetrics(transactions, invoices);
 
     let activeDebt = 0, debtCurrentPortion = 0, debtNonCurrentPortion = 0;
     for (const l of loans.filter(l => l.status === 'active')) {

@@ -27,7 +27,7 @@
  * shared facts, not forcing every composite to collapse to one factor.
  */
 
-import { Transaction, InventoryItem } from '../types';
+import { Transaction, InventoryItem, Invoice, ReceivableWriteOff } from '../types';
 import { computeWorkingCapitalMetrics } from './finance';
 import { computeInventoryValue } from './stockVelocity';
 import { computeAllTimeMonthlyBuckets, computeQuarterlyTrend } from './trendAnalysis';
@@ -129,6 +129,8 @@ export function computeWorkingCapitalHealth(
     transactions: Transaction[],
     inventory: InventoryItem[],
     currency: string = '₦',
+    invoices: Invoice[] = [],
+    writeOffs: ReceivableWriteOff[] = [],
 ): WorkingCapitalHealthResult {
     if (transactions.length === 0) {
         return UNAVAILABLE('No transaction history yet — import a bank statement or start recording transactions to see working capital health.');
@@ -141,7 +143,11 @@ export function computeWorkingCapitalHealth(
     }
 
     // ── Current-state signals (as of now, all-time trailing) ─────────────
-    const wc = computeWorkingCapitalMetrics(transactions);
+    // Same invoice-aware, write-off-aware AR/AP population the Aging Report
+    // and Cash Flow Safety's own Working Capital card use -- so this
+    // engine's "cash trapped" figure can never disagree with those for the
+    // same business.
+    const wc = computeWorkingCapitalMetrics(transactions, invoices, writeOffs);
     const hasWcData = transactions.some(t => t.status === 'paid');
     const inventoryValue = computeInventoryValue(inventory);
     const trappedCash = wc.accountsReceivable + inventoryValue - wc.accountsPayable;

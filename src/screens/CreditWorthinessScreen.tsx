@@ -522,7 +522,7 @@ export default function CreditWorthinessScreen() {
     // AR/AP folded in the same way LoansAndDebt (Reports > Loans & Debt) and
     // Reports > "What I Own & Owe" already do, so Capital's net worth agrees
     // with those screens instead of a narrower figure.
-    const wcMetrics = useMemo(() => computeWorkingCapitalMetrics(transactions), [transactions]);
+    const wcMetrics = useMemo(() => computeWorkingCapitalMetrics(transactions, invoices), [transactions, invoices]);
     const leverage = useMemo(
         () => computeLeverageRatios(finance, loans, wcMetrics.accountsReceivable, wcMetrics.accountsPayable, inventoryValue),
         [finance, loans, wcMetrics, inventoryValue],

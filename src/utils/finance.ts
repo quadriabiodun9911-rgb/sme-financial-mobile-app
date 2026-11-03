@@ -274,8 +274,30 @@ export interface WorkingCapitalMetrics {
     ccc: number;
 }
 
-export function computeWorkingCapitalMetrics(transactions: Transaction[]): WorkingCapitalMetrics {
-    const ar = transactions.filter(t => t.type === 'income'  && (t.status === 'pending' || t.status === 'overdue')).reduce((s, t) => s + (t.amount ?? 0), 0);
+// Same AR population the Aging Report and Cash Flow Safety's own Working
+// Capital card use -- invoice-aware (counts real unlinked invoices, not
+// just transactions already logged against them) and write-off-aware
+// (excludes receivables already written off). Deliberately does NOT reuse
+// getOutstandingReceivables/computeAgingBuckets verbatim, though: those
+// also require a due date, because they need one to sort each item into an
+// aging bucket. A plain total has no such need, and most pending/overdue
+// transactions recorded by hand never get a due date filled in -- requiring
+// one here silently dropped them from AR/AP entirely (caught by this
+// file's own test suite immediately after trying it). The previous version
+// had no due-date requirement and no write-off exclusion -- a separate,
+// looser figure that could silently disagree with the Aging Report on
+// invoice-only receivables and already-written-off ones. invoices/
+// writeOffs default to empty for call sites that don't have them in scope;
+// AR there undercounts any invoice-only receivable, same caveat as before.
+export function computeWorkingCapitalMetrics(
+    transactions: Transaction[],
+    invoices: Invoice[] = [],
+    writeOffs: ReceivableWriteOff[] = [],
+): WorkingCapitalMetrics {
+    const writtenOffIds = new Set(writeOffs.map(w => w.transactionId));
+    const ar = transactions.concat(unlinkedInvoiceReceivables(transactions, invoices))
+        .filter(t => t.type === 'income' && (t.status === 'pending' || t.status === 'overdue') && !writtenOffIds.has(t.id))
+        .reduce((s, t) => s + (t.amount ?? 0), 0);
     const ap = transactions.filter(t => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue')).reduce((s, t) => s + (t.amount ?? 0), 0);
 
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90);
