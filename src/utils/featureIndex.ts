@@ -324,6 +324,12 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'general-ledger',
     },
     {
+        id: 'production-cycles', label: 'Production Cycles', icon: '🔁',
+        description: 'Cost and profit per unit (bird, loaf, batch) for a production run, built from your real recorded transactions',
+        keywords: ['production', 'cost per unit', 'cost per bird', 'batch', 'cycle', 'break even', 'break-even', 'poultry', 'broiler', 'manufacturing cost', 'unit economics'],
+        screen: 'production-cycles',
+    },
+    {
         id: 'bills', label: 'Vendor Bills', icon: '📥',
         description: 'Collect, review and record supplier invoices — with duplicate, threshold and cash-impact checks',
         keywords: ['bills', 'vendor', 'supplier invoice', 'accounts payable', 'ap', 'expense intake'],

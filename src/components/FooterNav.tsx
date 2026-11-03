@@ -91,6 +91,7 @@ const UNDERSTAND_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen;
     { label: 'navPayroll',        icon: 'users',         screen: 'payroll',        color: '#10b981', desc: 'navPayrollDesc' },
     { label: 'navReconciliation', icon: 'link-2',        screen: 'reconciliation', color: '#8b5cf6', desc: 'navReconciliationDesc' },
     { label: 'navGeneralLedger',  icon: 'book-open',     screen: 'general-ledger', color: '#64748b', desc: 'navGeneralLedgerDesc' },
+    { label: 'navProductionCycles', icon: 'repeat',      screen: 'production-cycles', color: '#ca8a04', desc: 'navProductionCyclesDesc' },
     { label: 'navPortfolio',      icon: 'layers',        screen: 'portfolio',      color: '#6366f1', desc: 'navPortfolioDesc' },
 ];
 
