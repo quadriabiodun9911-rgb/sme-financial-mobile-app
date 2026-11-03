@@ -6,6 +6,7 @@ import { Shadow } from '../theme/tokens';
 import { computeCustomerConcentration, CustomerConcentration } from '../utils/finance';
 import RadialGauge from './RadialGauge';
 import BarList from './BarList';
+import NextStepLink from './NextStepLink';
 
 const RISK_COLOR: Record<CustomerConcentration['risk'], string> = {
     low: Colors.income,
@@ -35,7 +36,7 @@ function fmtCompact(currency: string, amount: number): string {
  * next to Cost Exposure instead of only surfacing as a single chip elsewhere.
  */
 export default function RevenueExposureTab() {
-    const { transactions, settings } = useApp();
+    const { transactions, settings, navigate } = useApp();
     const currency = settings.currency || '₦';
 
     const customers = useMemo(() => computeCustomerConcentration(transactions), [transactions]);
@@ -132,6 +133,16 @@ export default function RevenueExposureTab() {
                     {fmtCompact(currency, totalRevenue)} across {namedCustomers.length || customers.length} customer{(namedCustomers.length || customers.length) === 1 ? '' : 's'}.
                 </Text>
             </View>
+
+            {/* Same computeCustomerConcentration data Risk Management's own
+                "Customer Dependency Risk" card shows, paired there with
+                Supplier Dependency Risk instead of Cost Exposure -- pointed
+                at explicitly so finding concentration risk here doesn't mean
+                missing the supplier-side half of the picture. */}
+            <NextStepLink
+                text="See this alongside supplier concentration → Risk Management"
+                onPress={() => navigate('risk-management', { tab: 'concentration' })}
+            />
         </View>
     );
 }

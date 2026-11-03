@@ -302,6 +302,15 @@ export default function RiskManagementScreen() {
                                     <NextStepLink text="Review this customer's invoices" onPress={() => navigate('invoices')} />
                                 );
                             })()}
+                            {/* Same ranked customer list, paired there with
+                                Cost Exposure instead of Supplier Dependency
+                                Risk below -- pointed at explicitly so the two
+                                full views of the same concentration data
+                                don't read as unrelated. */}
+                            <NextStepLink
+                                text="Full ranked breakdown with revenue totals → Revenue Exposure"
+                                onPress={() => navigate('transactions', { tab: 'revenue' })}
+                            />
                         </View>
 
                         <View style={s.card}>
