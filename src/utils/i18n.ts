@@ -244,7 +244,6 @@ const T = {
         navCredit: 'Credit', navFinancing: 'Financing',
         navSettingsDesc: 'Business, team & account',
         navExportData: 'Export Data', navExportDataDesc: 'Download reports & backups',
-        navGettingStarted: 'Getting Started', navGettingStartedDesc: 'How to use Quad360, step by step',
 
         // Dashboard -- Vital Signs / Business Health (top of screen)
         dashboardSearchPlaceholder: 'Search transactions, invoices, assets...',

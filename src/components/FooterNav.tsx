@@ -141,7 +141,6 @@ const ACCOUNT_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; co
     // Used to open the exact same undifferentiated Settings screen as
     // "Settings" above -- now a real shortcut straight to Data & Backup.
     { label: 'navExportData', icon: 'download', screen: 'settings', color: '#10b981', desc: 'navExportDataDesc', params: { openDataBackup: true } },
-    { label: 'navGettingStarted', icon: 'compass', screen: 'getting-started', color: '#0ea5e9', desc: 'navGettingStartedDesc' },
 ];
 
 // ─── Footer tabs ─────────────────────────────────────────────────────────────

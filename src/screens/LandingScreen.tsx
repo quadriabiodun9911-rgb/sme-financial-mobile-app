@@ -120,6 +120,7 @@ export default function LandingScreen() {
     const goLenderDemo = () => enterLenderDemo();
     const goContact = () => navigate('contact');
     const goBlog = () => navigate('blog');
+    const goGuide = () => navigate('getting-started');
 
     return (
         <SafeAreaView style={s.safe}>
@@ -132,6 +133,9 @@ export default function LandingScreen() {
                     <View style={s.navActions}>
                         {!isNarrow && (
                             <>
+                                <TouchableOpacity onPress={goGuide} style={s.navContactBtn}>
+                                    <Text style={[s.navContactText, body('semibold')]}>How It Works</Text>
+                                </TouchableOpacity>
                                 <TouchableOpacity onPress={goBlog} style={s.navContactBtn}>
                                     <Text style={[s.navContactText, body('semibold')]}>Blog</Text>
                                 </TouchableOpacity>
@@ -396,6 +400,10 @@ export default function LandingScreen() {
                 <View style={s.footer}>
                     <Text style={[s.footerText, body('regular')]}>Quad360 is built to help business owners and their teams understand their business, navigate its challenges, and enjoy the milestones along the way — from managing daily finance and solving problems, to improving performance, accessing opportunities, and growing with confidence.</Text>
                     <View style={s.footerLinks}>
+                        <TouchableOpacity onPress={goGuide} style={s.footerContactLink}>
+                            <Icon name="compass" size={13} color={Colors.primary} />
+                            <Text style={[s.footerContactLinkText, body('bold')]}>How It Works →</Text>
+                        </TouchableOpacity>
                         <TouchableOpacity onPress={goBlog} style={s.footerContactLink}>
                             <Icon name="file-text" size={13} color={Colors.primary} />
                             <Text style={[s.footerContactLinkText, body('bold')]}>Blog →</Text>
