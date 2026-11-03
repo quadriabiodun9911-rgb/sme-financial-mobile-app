@@ -126,17 +126,19 @@ export default function CashFlowSafety({ finance, transactions, invoices, curren
                 />
             </View>
 
-            <View style={styles.card}>
-                <Text style={styles.cardTitle}>Working Capital</Text>
+            <Collapsible title="Working Capital">
                 <Row label="Outstanding Receivables (AR)" value={`${currency}${totalAR.toLocaleString()}`} color={Colors.income} />
                 <Row label="Outstanding Payables (AP)" value={`${currency}${totalAP.toLocaleString()}`} color={Colors.expense} />
                 <Row label="Net Working Capital" value={`${currency}${(totalAR - totalAP).toLocaleString()}`} color={(totalAR - totalAP) >= 0 ? Colors.income : Colors.expense} />
                 <Row label="Potential Cash (if AR collected)" value={`${currency}${potentialCash.toLocaleString()}`} color={Colors.primary} />
-            </View>
+            </Collapsible>
 
+            {/* Same aging buckets as the AR Risk tab's per-invoice cards,
+                just the aggregate view -- collapsed by default so it reads
+                as "more detail on the same receivables," not a second,
+                separate thing to review. */}
             {totalAR > 0 && (
-                <View style={styles.card}>
-                    <Text style={styles.cardTitle}>Receivables Aging</Text>
+                <Collapsible title="Receivables Aging">
                     <BarList
                         items={arBuckets
                             .map((b, i) => ({
@@ -148,11 +150,10 @@ export default function CashFlowSafety({ finance, transactions, invoices, curren
                             .filter(item => item.value > 0)}
                     />
                     <Text style={styles.hint}>Collect aged receivables to improve cash position immediately.</Text>
-                </View>
+                </Collapsible>
             )}
 
-            <View style={styles.card}>
-                <Text style={styles.cardTitle}>Cash Flow Actions</Text>
+            <Collapsible title="Cash Flow Actions">
                 {surplusShortfall < 0 && (
                     <ActionItem color={Colors.expense} text={`Cash is ${currency}${Math.abs(surplusShortfall).toLocaleString()} below your minimum reserve. Prioritise collecting outstanding AR or reducing near-term expenses.`} />
                 )}
@@ -165,7 +166,7 @@ export default function CashFlowSafety({ finance, transactions, invoices, curren
                 {surplusShortfall >= 0 && totalAR === 0 && (
                     <ActionItem color={Colors.income} text="Cash position is healthy and above reserve. Consider deploying surplus into growth or short-term investments." />
                 )}
-            </View>
+            </Collapsible>
 
             {/* ── 2. WHAT'S LIKELY TO HAPPEN (AUTOMATIC) ───────────────── */}
             <Text style={styles.sectionLabel}>AUTOMATIC FORECAST</Text>
@@ -190,26 +191,24 @@ export default function CashFlowSafety({ finance, transactions, invoices, curren
                 </Text>
             </View>
 
-            <View style={styles.card}>
-                <Text style={styles.cardTitle}>Scenario Comparison</Text>
+            <Collapsible title="Scenario Comparison">
                 <Text style={styles.cardSub}>
                     How your cash position could play out over the next {forecast.forecastPeriod.months} months.
                 </Text>
                 {scenarios.map(({ type, proj }) => (
                     <ScenarioRow key={type} proj={proj} currency={currency} highlight={type === 'base'} currentCashBalance={finance.cashBalance} />
                 ))}
-            </View>
+            </Collapsible>
 
             {forecast.recommendations.length > 0 && (
-                <View style={styles.card}>
-                    <Text style={styles.cardTitle}>What This Means For You</Text>
+                <Collapsible title="What This Means For You">
                     {forecast.recommendations.map(rec => (
                         <View key={rec.id} style={[styles.recItem, { borderLeftColor: PRIORITY_COLOR[rec.priority] }]}>
                             <Text style={styles.recTitle}>{rec.title}</Text>
                             <Text style={styles.recDesc}>{rec.description}</Text>
                         </View>
                     ))}
-                </View>
+                </Collapsible>
             )}
 
             {/* ── 3. GO DEEPER (MANUAL) ────────────────────────────────── */}

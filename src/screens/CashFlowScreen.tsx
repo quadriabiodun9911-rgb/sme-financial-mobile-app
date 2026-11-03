@@ -19,6 +19,7 @@ import { computeBurnRateAnalysis } from '../utils/burnRateAnalysis';
 import { computeBreakeven } from '../utils/profitability';
 import BreakevenAnalysis from '../components/BreakevenAnalysis';
 import NextStepLink from '../components/NextStepLink';
+import Collapsible from '../components/Collapsible';
 import { suggestSolution } from '../utils/impactChain';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
@@ -623,10 +624,7 @@ export default function CashFlowScreen() {
                             this one nets in actual revenue and explains
                             WHY the trend is moving. */}
                         {burnRate.available && (
-                            <View style={[styles.runwayCard, { borderColor: burnRateColor }]}>
-                                <Text style={styles.runwayLabel}>
-                                    {burnRate.status === 'danger' ? '🔴' : burnRate.status === 'warning' ? '🟡' : '🟢'} {burnRate.headline}
-                                </Text>
+                            <Collapsible title={`${burnRate.status === 'danger' ? '🔴' : burnRate.status === 'warning' ? '🟡' : '🟢'} Startup Burn Rate — ${burnRate.headline}`}>
                                 <Text style={styles.runwaySub}>{burnRate.narrative}</Text>
 
                                 <View style={[styles.row2, { marginTop: Spacing.md }]}>
@@ -664,11 +662,10 @@ export default function CashFlowScreen() {
                                         <Text style={styles.runwaySub}>{burnRate.trend.insight}</Text>
                                     </View>
                                 )}
-                            </View>
+                            </Collapsible>
                         )}
 
-                        <Text style={styles.sectionTitle}>What Affects Your Runway</Text>
-                        <View style={styles.infoCard}>
+                        <Collapsible title="What Affects Your Runway">
                             {([
                                 { icon: 'trending-down' as IconName, text: 'Reduce burn rate by cutting non-essential recurring expenses' },
                                 {
@@ -690,7 +687,7 @@ export default function CashFlowScreen() {
                                     <Text style={styles.infoRow}>{item.text}</Text>
                                 </View>
                             ))}
-                        </View>
+                        </Collapsible>
 
                         <TouchableOpacity style={styles.actionBtn} onPress={() => setCurrentScreen('invoices')}>
                             <Text style={styles.actionBtnText}>Chase Outstanding Invoices →</Text>

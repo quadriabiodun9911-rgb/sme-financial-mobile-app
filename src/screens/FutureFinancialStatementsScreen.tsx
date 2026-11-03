@@ -65,6 +65,17 @@ export default function FutureFinancialStatementsScreen() {
     const [selectedMonthIdx, setSelectedMonthIdx] = useState(0);
     const [forecastPeriod, setForecastPeriod] = useState<ForecastPeriod>('90d');
 
+    // This screen used to be one continuous scroll of every forecast-related
+    // card in the app -- headline numbers, five separate per-area forecasts,
+    // the What If? planner, and the full month-by-month statements all
+    // stacked in sequence. Split into four short tabs instead: Summary (the
+    // read-only headline + what's driving it), By Area (the detailed
+    // per-statement forecasts and their own context/risk cards), What If?
+    // (the one interactive tool), and Statements (the existing 6/12-month
+    // detail with its own P&L/Cash Flow/Balance Sheet sub-tabs, unchanged).
+    // No card's content or logic changed -- only which tab it renders under.
+    const [screenTab, setScreenTab] = useState<'summary' | 'byArea' | 'whatIf' | 'statements'>('summary');
+
     // Future Events used to be its own top-level screen; it only ever
     // existed to feed this one, so it's now a modal launched from here (and
     // from Settings, via this same nav-param deep link) instead of a
@@ -336,19 +347,43 @@ export default function FutureFinancialStatementsScreen() {
                     </View>
                 ) : (
                     <>
-                        {/* Period selector */}
-                        <View style={s.periodRow}>
-                            {(Object.keys(PERIOD_LABELS) as ForecastPeriod[]).map(p => (
+                        {/* Screen tabs -- see screenTab's own doc comment above
+                            for why this screen is split this way. */}
+                        <View style={s.outerTabRow}>
+                            {([
+                                { key: 'summary', label: 'Summary' },
+                                { key: 'byArea', label: 'By Area' },
+                                { key: 'whatIf', label: 'What If?' },
+                                { key: 'statements', label: 'Statements' },
+                            ] as { key: typeof screenTab; label: string }[]).map(t => (
                                 <TouchableOpacity
-                                    key={p}
-                                    style={[s.periodBtn, forecastPeriod === p && s.periodBtnActive]}
-                                    onPress={() => setForecastPeriod(p)}
+                                    key={t.key}
+                                    style={[s.outerTab, screenTab === t.key && s.outerTabActive]}
+                                    onPress={() => setScreenTab(t.key)}
                                 >
-                                    <Text style={[s.periodBtnText, forecastPeriod === p && s.periodBtnTextActive]}>{PERIOD_LABELS[p]}</Text>
+                                    <Text style={[s.outerTabText, screenTab === t.key && s.outerTabTextActive]}>{t.label}</Text>
                                 </TouchableOpacity>
                             ))}
                         </View>
 
+                        {/* Period selector -- feeds Summary, By Area and What
+                            If?'s numbers; Statements uses its own 6/12-month
+                            horizon toggle instead, so this is hidden there. */}
+                        {screenTab !== 'statements' && (
+                            <View style={s.periodRow}>
+                                {(Object.keys(PERIOD_LABELS) as ForecastPeriod[]).map(p => (
+                                    <TouchableOpacity
+                                        key={p}
+                                        style={[s.periodBtn, forecastPeriod === p && s.periodBtnActive]}
+                                        onPress={() => setForecastPeriod(p)}
+                                    >
+                                        <Text style={[s.periodBtnText, forecastPeriod === p && s.periodBtnTextActive]}>{PERIOD_LABELS[p]}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
+
+                        {screenTab === 'summary' && (<>
                         {/* Headline numbers — each shown with its range, not
                             just a single false-precise figure, since a
                             projection this far out is never exactly right.
@@ -505,7 +540,9 @@ export default function FutureFinancialStatementsScreen() {
                                 </Text>
                             </View>
                         )}
+                        </>)}
 
+                        {screenTab === 'byArea' && (<>
                         {/* Cash Flow Forecast — the centerpiece */}
                         <View style={s.card}>
                             <Text style={s.cardTitle}>💵 Cash Flow Forecast</Text>
@@ -920,7 +957,9 @@ export default function FutureFinancialStatementsScreen() {
                             </View>
                         )}
                         </Collapsible>
+                        </>)}
 
+                        {screenTab === 'whatIf' && (<>
                         <View style={s.card}>
                             <Text style={s.cardTitle}>🧪 What If? Scenario Planner</Text>
                             <Text style={s.baselineNote}>
@@ -1091,7 +1130,9 @@ export default function FutureFinancialStatementsScreen() {
                                 </TouchableOpacity>
                             </View>
                         )}
+                        </>)}
 
+                        {screenTab === 'statements' && (<>
                         <View style={s.card}>
                             <Text style={s.cardTitle}>Detailed month-by-month statements</Text>
                             <Text style={s.baselineNote}>The same scenario above, broken out by full statement (P&L, Cash Flow, Balance Sheet) over a longer 6/12-month horizon.</Text>
@@ -1196,6 +1237,7 @@ export default function FutureFinancialStatementsScreen() {
                             tracked individually. Equity is assets minus liabilities, not independently tracked.
                             This is a planning tool, not an accounting record or a promise of future performance.
                         </Text>
+                        </>)}
                     </>
                 )}
             </ScrollView>
@@ -1214,6 +1256,12 @@ const s = StyleSheet.create({
     titleEmoji: { fontSize: 22 },
     title: { fontSize: 24, fontWeight: 'bold', color: Colors.textPrimary },
     subtitle: { fontSize: 13, color: Colors.textSecondary, marginBottom: Spacing.lg, lineHeight: 18 },
+
+    outerTabRow: { flexDirection: 'row', borderBottomWidth: 1, borderColor: Colors.border, marginBottom: Spacing.md },
+    outerTab: { flex: 1, paddingVertical: Spacing.sm, alignItems: 'center' },
+    outerTabActive: { borderBottomWidth: 2, borderColor: Colors.primary },
+    outerTabText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' },
+    outerTabTextActive: { color: Colors.primary },
 
     periodRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
     periodBtn: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.sm, backgroundColor: Colors.surfaceVariant, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
