@@ -100,13 +100,12 @@ const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Suppl
 
 const PRIORITY_TIER_ORDER: PriorityTier[] = ['attention', 'watch', 'opportunity'];
 const TOP_PRIORITY_COUNT = 3;
-const NUMBER_EMOJI = ['1️⃣', '2️⃣', '3️⃣'];
 
-const RISK_LEVEL_META: Record<RiskLevel, { color: string; dot: string }> = {
-    high:      { color: Colors.expense,    dot: '🔴' },
-    medium:    { color: Colors.warning,    dot: '🟡' },
-    low:       { color: Colors.income,     dot: '🟢' },
-    'no-data': { color: Colors.textMuted,  dot: '⚪' },
+const RISK_LEVEL_META: Record<RiskLevel, { color: string }> = {
+    high:      { color: Colors.expense },
+    medium:    { color: Colors.warning },
+    low:       { color: Colors.income },
+    'no-data': { color: Colors.textMuted },
 };
 
 // Same band/status colors the Scoreboard screen uses for computeRiskScore's
@@ -131,10 +130,10 @@ const EXPENSE_TIER_META: Record<ExpenseTier, { label: string; color: string }> =
     reduce: { label: 'Reduce', color: Colors.expense },
 };
 
-const PRIORITY_TIER_META: Record<PriorityTier, { emoji: string; label: string; color: string; tinted: boolean }> = {
-    attention:   { emoji: '🔴', label: 'Attention',   color: Colors.expense, tinted: true },
-    watch:       { emoji: '🟠', label: 'Watch',       color: Colors.warning, tinted: true },
-    opportunity: { emoji: '🟢', label: 'Opportunity', color: Colors.primary, tinted: false },
+const PRIORITY_TIER_META: Record<PriorityTier, { label: string; color: string; tinted: boolean }> = {
+    attention:   { label: 'Attention',   color: Colors.expense, tinted: true },
+    watch:       { label: 'Watch',       color: Colors.warning, tinted: true },
+    opportunity: { label: 'Opportunity', color: Colors.primary, tinted: false },
 };
 
 const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen; params?: Record<string, any> }> = {
@@ -1740,7 +1739,7 @@ export default function DashboardScreen() {
                                     ))}
 
                                     <Text style={styles.healthWhyLabel}>{t(language, 'triggerLabel')}</Text>
-                                    <Text style={[styles.healthWhyText, { color: Colors.warning, fontWeight: '700' }]}>⚠️ {healthIntelligence.trigger}</Text>
+                                    <Text style={[styles.healthWhyText, { color: Colors.warning, fontWeight: '700' }]}>{healthIntelligence.trigger}</Text>
                                 </TouchableOpacity>
                             )}
 
@@ -2086,7 +2085,7 @@ export default function DashboardScreen() {
                           onPress={() => navigate(kindMeta.screen, kindMeta.params)}
                           activeOpacity={0.75}
                         >
-                          <Text style={styles.topPriorityNumber}>{NUMBER_EMOJI[i]}</Text>
+                          <View style={styles.topPriorityNumber}><Text style={styles.topPriorityNumberText}>{i + 1}</Text></View>
                           <View style={[styles.priorityIconBadge, { backgroundColor: tierMeta.color + '22' }]}>
                             <Icon name={kindMeta.icon} size={16} color={tierMeta.color} />
                           </View>
@@ -2144,7 +2143,10 @@ export default function DashboardScreen() {
                       const tierMeta = PRIORITY_TIER_META[tier];
                       return (
                         <View key={tier} style={styles.priorityTierGroup}>
-                          <Text style={[styles.priorityTierLabel, { color: tierMeta.color }]}>{tierMeta.emoji} {tierMeta.label}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                            <View style={[styles.priorityTierDot, { backgroundColor: tierMeta.color }]} />
+                            <Text style={[styles.priorityTierLabel, { color: tierMeta.color }]}>{tierMeta.label}</Text>
+                          </View>
                           {tierItems.map(item => {
                             const kindMeta = PRIORITY_KIND_META[item.kind];
                             return (
@@ -2381,10 +2383,13 @@ export default function DashboardScreen() {
                     had no other easy entry point. */}
                 {canViewFinancials && showFullDashboard && (
                 <View style={styles.operationsSection}>
-                  <Text style={styles.operationsSectionTitle}>⚡ QUICK ACTIONS</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Icon name="zap" size={13} color={Colors.textMuted} />
+                    <Text style={styles.operationsSectionTitle}>QUICK ACTIONS</Text>
+                  </View>
                   <View style={styles.actionsGrid}>
                     <TouchableOpacity style={[styles.actionCard, styles.actionCardFull]} activeOpacity={0.7} onPress={() => setCurrentScreen('import-transactions')}>
-                      <Text style={styles.actionEmoji}>🏦</Text>
+                      <View style={styles.actionEmoji}><Icon name="file-text" size={28} color={Colors.primary} /></View>
                       <Text style={styles.actionLabel}>Import Bank Statement</Text>
                     </TouchableOpacity>
                   </View>
@@ -2396,13 +2401,16 @@ export default function DashboardScreen() {
                     tracking) is a financial-performance view — not shown to staff. */}
                 {canViewFinancials && showFullDashboard && (
                 <View style={styles.operationsSection}>
-                  <Text style={styles.operationsSectionTitle}>🤖 AI Financial Engine</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Icon name="cpu" size={13} color={Colors.textMuted} />
+                    <Text style={styles.operationsSectionTitle}>AI Financial Engine</Text>
+                  </View>
                   <View style={styles.engineCardsGrid}>
                     <TouchableOpacity
                       style={styles.engineCard}
                       onPress={() => setCurrentScreen('financial-assessment')}
                     >
-                      <Text style={styles.engineEmoji}>🔍</Text>
+                      <Icon name="search" size={26} color={Colors.primary} />
                       <Text style={styles.engineTitle}>{'Financial\nAssessment'}</Text>
                       <Text style={styles.engineSubtext}>Diagnose issues</Text>
                     </TouchableOpacity>
@@ -2410,7 +2418,7 @@ export default function DashboardScreen() {
                       style={styles.engineCard}
                       onPress={() => setCurrentScreen('action-tracker')}
                     >
-                      <Text style={styles.engineEmoji}>⚡</Text>
+                      <Icon name="zap" size={26} color={Colors.primary} />
                       <Text style={styles.engineTitle}>Action<br/>Tracker</Text>
                       <Text style={styles.engineSubtext}>Prioritized tactics</Text>
                     </TouchableOpacity>
@@ -2418,19 +2426,22 @@ export default function DashboardScreen() {
                       style={styles.engineCard}
                       onPress={() => setCurrentScreen('goals')}
                     >
-                      <Text style={styles.engineEmoji}>🌉</Text>
+                      <Icon name="git-merge" size={26} color={Colors.primary} />
                       <Text style={styles.engineTitle}>Goal<br/>Bridge</Text>
                       <Text style={styles.engineSubtext}>Connect to goals</Text>
                     </TouchableOpacity>
                   </View>
-                  <TouchableOpacity style={[styles.btn, { marginTop: 10 }]} onPress={() => setShowWeeklyReport(true)}>
-                    <Text style={styles.btnText}>🗓️ Weekly Dashboard — Wins, Problems & Priorities</Text>
+                  <TouchableOpacity style={[styles.btn, styles.btnWithIcon, { marginTop: 10 }]} onPress={() => setShowWeeklyReport(true)}>
+                    <Icon name="calendar" size={15} color={Colors.textPrimary} />
+                    <Text style={styles.btnText}>Weekly Dashboard — Wins, Problems & Priorities</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.btn, { marginTop: 10 }]} onPress={() => setShowMonthlyReview(true)}>
-                    <Text style={styles.btnText}>📊 Monthly Review — Recap & Recommendation</Text>
+                  <TouchableOpacity style={[styles.btn, styles.btnWithIcon, { marginTop: 10 }]} onPress={() => setShowMonthlyReview(true)}>
+                    <Icon name="bar-chart-2" size={15} color={Colors.textPrimary} />
+                    <Text style={styles.btnText}>Monthly Review — Recap & Recommendation</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.btn, { marginTop: 10 }]} onPress={() => setShowDailyReport(true)}>
-                    <Text style={styles.btnText}>📆 Daily Report — Today's Recap</Text>
+                  <TouchableOpacity style={[styles.btn, styles.btnWithIcon, { marginTop: 10 }]} onPress={() => setShowDailyReport(true)}>
+                    <Icon name="sun" size={15} color={Colors.textPrimary} />
+                    <Text style={styles.btnText}>Daily Report — Today's Recap</Text>
                   </TouchableOpacity>
                 </View>
                 )}
@@ -2439,14 +2450,15 @@ export default function DashboardScreen() {
                 {!isDemoMode && showFullDashboard && !betaCardDismissed && (
                     <View style={styles.betaCard}>
                         <View style={styles.betaCardHeader}>
-                            <View style={styles.betaBadge}>
-                                <Text style={styles.betaBadgeText}>🚀 NEW FEATURES</Text>
+                            <View style={[styles.betaBadge, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
+                                <Icon name="star" size={11} color={Colors.primary} />
+                                <Text style={styles.betaBadgeText}>NEW FEATURES</Text>
                             </View>
                             <TouchableOpacity onPress={() => {
                                 setBetaCardDismissed(true);
                                 AsyncStorage.setItem('@quad360/beta_card_dismissed', '1');
                             }}>
-                                <Text style={styles.betaDismiss}>✕</Text>
+                                <Icon name="x" size={16} color={Colors.textMuted} />
                             </TouchableOpacity>
                         </View>
                         <Text style={styles.betaTitle}>Try these features now</Text>
@@ -2455,7 +2467,7 @@ export default function DashboardScreen() {
                         {/* Feature 1 — Paystack */}
                         <TouchableOpacity style={styles.betaFeature} onPress={() => navigate('payment-link')}>
                             <View style={[styles.betaFeatureIcon, { backgroundColor: '#00C3F722' }]}>
-                                <Text style={{ fontSize: 22 }}>💳</Text>
+                                <Icon name="credit-card" size={20} color="#00C3F7" />
                             </View>
                             <View style={{ flex: 1 }}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -2470,7 +2482,7 @@ export default function DashboardScreen() {
                         {/* Feature 2 — CSV Export */}
                         <TouchableOpacity style={styles.betaFeature} onPress={() => navigate('transactions')}>
                             <View style={[styles.betaFeatureIcon, { backgroundColor: '#10b98122' }]}>
-                                <Text style={{ fontSize: 22 }}>📊</Text>
+                                <Icon name="download" size={20} color="#10b981" />
                             </View>
                             <View style={{ flex: 1 }}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -2484,7 +2496,7 @@ export default function DashboardScreen() {
 
                         <TouchableOpacity style={styles.betaFeature} onPress={() => setCurrentScreen('cashflow')} activeOpacity={0.75}>
                             <View style={[styles.betaFeatureIcon, { backgroundColor: '#3b82f622' }]}>
-                                <Text style={{ fontSize: 22 }}>💧</Text>
+                                <Icon name="droplet" size={20} color="#3b82f6" />
                             </View>
                             <View style={{ flex: 1 }}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -2498,7 +2510,7 @@ export default function DashboardScreen() {
 
                         <TouchableOpacity style={styles.betaFeature} onPress={() => setCurrentScreen('payroll')} activeOpacity={0.75}>
                             <View style={[styles.betaFeatureIcon, { backgroundColor: '#10b98122' }]}>
-                                <Text style={{ fontSize: 22 }}>👥</Text>
+                                <Icon name="users" size={20} color="#10b981" />
                             </View>
                             <View style={{ flex: 1 }}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -2512,7 +2524,7 @@ export default function DashboardScreen() {
 
                         <TouchableOpacity style={styles.betaFeature} onPress={() => setCurrentScreen('reconciliation')} activeOpacity={0.75}>
                             <View style={[styles.betaFeatureIcon, { backgroundColor: '#8b5cf622' }]}>
-                                <Text style={{ fontSize: 22 }}>🔗</Text>
+                                <Icon name="link-2" size={20} color="#8b5cf6" />
                             </View>
                             <View style={{ flex: 1 }}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -2530,11 +2542,11 @@ export default function DashboardScreen() {
                     <View style={styles.onboardCard}>
                         <View style={styles.onboardHeader}>
                             <View>
-                                <Text style={styles.onboardTitle}>👋 Welcome to Quad360</Text>
+                                <Text style={styles.onboardTitle}>Welcome to Quad360</Text>
                                 <Text style={styles.onboardSub}>Your business finance tracker — let's get you set up in 2 minutes</Text>
                             </View>
                             <TouchableOpacity onPress={dismissOnboarding} style={styles.onboardDismissBtn}>
-                                <Text style={styles.onboardDismissText}>✕</Text>
+                                <Icon name="x" size={16} color={Colors.textMuted} />
                             </TouchableOpacity>
                         </View>
                         <View style={styles.onboardStep}>
@@ -2575,20 +2587,25 @@ export default function DashboardScreen() {
 
                 {/* ── Alert banners ──────────────────────────────────────────– */}
                 {overdueInvoices.length > 0 && (
-                    <TouchableOpacity style={styles.alertBanner} onPress={() => setCurrentScreen('invoices')}>
-                        <Text style={styles.alertText}>💰 {overdueInvoices.length} unpaid invoice{overdueInvoices.length > 1 ? 's' : ''} overdue — tap to chase →</Text>
+                    <TouchableOpacity style={[styles.alertBanner, styles.alertBannerRow]} onPress={() => setCurrentScreen('invoices')}>
+                        <Icon name="dollar-sign" size={14} color={Colors.warning} />
+                        <Text style={styles.alertText}>{overdueInvoices.length} unpaid invoice{overdueInvoices.length > 1 ? 's' : ''} overdue — tap to chase →</Text>
                     </TouchableOpacity>
                 )}
                 {overdueCount > 0 && (
-                    <TouchableOpacity style={styles.alertBanner} onPress={() => navigate('reports', { reportSection: 'customers', reportTab: 'aging' })}>
-                        <Text style={styles.alertText}>⚠ {overdueCount} overdue transaction{overdueCount > 1 ? 's' : ''} — tap to review →</Text>
+                    <TouchableOpacity style={[styles.alertBanner, styles.alertBannerRow]} onPress={() => navigate('reports', { reportSection: 'customers', reportTab: 'aging' })}>
+                        <Icon name="alert-triangle" size={14} color={Colors.warning} />
+                        <Text style={styles.alertText}>{overdueCount} overdue transaction{overdueCount > 1 ? 's' : ''} — tap to review →</Text>
                     </TouchableOpacity>
                 )}
 
                 {/* Loss guidance */}
                 {finance.profit < 0 && hasTransaction && (
                     <View style={styles.lossGuide}>
-                        <Text style={styles.lossGuideTitle}>💡 Recommended Action</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                          <Icon name="zap" size={13} color={Colors.expense} />
+                          <Text style={[styles.lossGuideTitle, { marginBottom: 0 }]}>Recommended Action</Text>
+                        </View>
                         {biggestLossCategory ? (
                             <Text style={styles.lossGuideText}>
                                 Your biggest cost is <Text style={styles.lossGuideHighlight}>{biggestLossCategory[0]} ({currency}{biggestLossCategory[1].toLocaleString()})</Text>.{'\n'}
@@ -2812,7 +2829,7 @@ export default function DashboardScreen() {
                     {qaAiSuggestion && (
                         <View style={styles.aiSuggestionBox}>
                             <View style={styles.aiSuggestionTop}>
-                                <Text style={styles.aiSuggestionCategory}>✨ {qaAiSuggestion.category}</Text>
+                                <Text style={styles.aiSuggestionCategory}>{qaAiSuggestion.category}</Text>
                                 <Text style={[
                                     styles.aiConfidenceBadge,
                                     qaAiSuggestion.confidence === 'high' && styles.aiConfidenceHigh,
@@ -2832,11 +2849,16 @@ export default function DashboardScreen() {
                         {(['cash', 'bank'] as const).map(m => (
                             <TouchableOpacity
                                 key={m}
-                                style={[styles.eodPaymentChip, qaPaymentMethod === m && styles.eodPaymentChipActive]}
+                                style={[styles.eodPaymentChip, styles.eodPaymentChipRow, qaPaymentMethod === m && styles.eodPaymentChipActive]}
                                 onPress={() => setQaPaymentMethod(prev => prev === m ? undefined : m)}
                             >
+                                <Icon
+                                    name={m === 'cash' ? 'dollar-sign' : 'credit-card'}
+                                    size={13}
+                                    color={qaPaymentMethod === m ? styles.eodPaymentChipTextActive.color : styles.eodPaymentChipText.color}
+                                />
                                 <Text style={[styles.eodPaymentChipText, qaPaymentMethod === m && styles.eodPaymentChipTextActive]}>
-                                    {m === 'cash' ? '💵 Cash' : '🏦 Bank'}
+                                    {m === 'cash' ? 'Cash' : 'Bank'}
                                 </Text>
                             </TouchableOpacity>
                         ))}
@@ -2889,7 +2911,10 @@ export default function DashboardScreen() {
                 <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setEodOpen(false)} />
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
                     <View style={styles.modalHandle} />
-                    <Text style={styles.modalTitle}>🌙 End of Day Check-In</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, justifyContent: 'center', marginBottom: 16 }}>
+                      <Icon name="moon" size={16} color={Colors.textPrimary} />
+                      <Text style={[styles.modalTitle, { marginBottom: 0 }]}>End of Day Check-In</Text>
+                    </View>
                     <Text style={[styles.insightAction, { marginBottom: 16 }]}>
                         {todayTxns.length > 0
                             ? "Here's what Quad360 has recorded for today — does this match what actually happened?"
@@ -2907,17 +2932,20 @@ export default function DashboardScreen() {
                         </View>
                     </View>
 
-                    <TouchableOpacity style={[styles.modalSubmit, { backgroundColor: Colors.primary, marginTop: 20 }]} onPress={confirmEod}>
-                        <Text style={styles.modalSubmitText}>✅ Yes, that's everything</Text>
+                    <TouchableOpacity style={[styles.modalSubmit, styles.modalSubmitRow, { backgroundColor: Colors.primary, marginTop: 20 }]} onPress={confirmEod}>
+                        <Icon name="check" size={16} color="#fff" />
+                        <Text style={styles.modalSubmitText}>Yes, that's everything</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.modalSubmit, { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: Colors.border, marginTop: 10 }]} onPress={eodSomethingMissing}>
-                        <Text style={[styles.modalSubmitText, { color: Colors.textPrimary }]}>✏️ Something's missing</Text>
+                    <TouchableOpacity style={[styles.modalSubmit, styles.modalSubmitRow, { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: Colors.border, marginTop: 10 }]} onPress={eodSomethingMissing}>
+                        <Icon name="edit-2" size={15} color={Colors.textPrimary} />
+                        <Text style={[styles.modalSubmitText, { color: Colors.textPrimary }]}>Something's missing</Text>
                     </TouchableOpacity>
                 </KeyboardAvoidingView>
             </Modal>
             {toast !== null && (
-                <View style={styles.toast} pointerEvents="none">
-                    <Text style={styles.toastText}>✅ {toast}</Text>
+                <View style={[styles.toast, { flexDirection: 'row', gap: 8 }]} pointerEvents="none">
+                    <Icon name="check-circle" size={15} color="#fff" />
+                    <Text style={styles.toastText}>{toast}</Text>
                 </View>
             )}
         </SafeAreaView>
@@ -3026,7 +3054,6 @@ const styles = StyleSheet.create({
     betaCardHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
     betaBadge:          { backgroundColor: Colors.primary + '22', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
     betaBadgeText:      { color: Colors.primary, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-    betaDismiss:        { color: Colors.textMuted, fontSize: 16, paddingLeft: 12 },
     betaTitle:          { fontSize: 17, fontWeight: '800', color: Colors.textPrimary, marginBottom: 2 },
     betaSubtitle:       { fontSize: 12, color: Colors.textMuted, marginBottom: 14 },
     betaFeature:        { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: Colors.border },
@@ -3042,7 +3069,6 @@ const styles = StyleSheet.create({
     onboardTitle:       { fontSize: 15, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
     onboardSub:         { fontSize: 12, color: Colors.textMuted },
     onboardDismissBtn:  { padding: 4 },
-    onboardDismissText: { fontSize: 16, color: Colors.textMuted },
     onboardStep:        { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10, gap: 10 },
     onboardCheck:       { width: 22, alignItems: 'center', justifyContent: 'flex-start' },
     onboardStepText:    { fontSize: 14, color: Colors.textPrimary, fontWeight: '600' },
@@ -3050,7 +3076,8 @@ const styles = StyleSheet.create({
     onboardStepHint:    { fontSize: 11, color: Colors.primary, marginTop: 1 },
 
     alertBanner:  { backgroundColor: 'rgba(245,158,11,0.12)', borderWidth: 1, borderColor: Colors.warning, borderRadius: 8, padding: 10, marginBottom: 8, ...Shadow.sm },
-    alertText:    { color: Colors.warning, fontSize: 12, fontWeight: '600' },
+    alertBannerRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+    alertText:    { color: Colors.warning, fontSize: 12, fontWeight: '600', flex: 1 },
     dangerBanner: { backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 8, padding: 10, marginBottom: 8 },
     dangerText:   { color: Colors.expense, fontSize: 12, fontWeight: '600' },
 
@@ -3156,6 +3183,7 @@ const styles = StyleSheet.create({
 
     btn:     { backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 10, alignItems: 'center', marginTop: 4 },
     btnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
+    btnWithIcon: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
 
     // Fixed dark background (not Colors.surface) on purpose: toastText is
     // always white, and Colors.surface is a light cream on the Warm Paper
@@ -3429,7 +3457,11 @@ const styles = StyleSheet.create({
       borderBottomColor: Colors.border,
     },
     topPriorityNumber: {
-      fontSize: 15,
+      width: 22, height: 22, borderRadius: 11, backgroundColor: Colors.textPrimary,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    topPriorityNumberText: {
+      fontSize: 11, fontWeight: '800', color: Colors.bg,
     },
     nextActionRow: {
       flexDirection: 'row',
@@ -3449,9 +3481,11 @@ const styles = StyleSheet.create({
     priorityTierLabel: {
       fontSize: 11,
       fontWeight: '700',
-      marginBottom: 6,
       textTransform: 'uppercase',
       letterSpacing: 0.4,
+    },
+    priorityTierDot: {
+      width: 7, height: 7, borderRadius: 4,
     },
     priorityCard: {
       flexDirection: 'row',
@@ -3517,7 +3551,6 @@ const styles = StyleSheet.create({
       width: '100%',
     },
     actionEmoji: {
-      fontSize: 32,
       marginBottom: 8,
     },
     actionLabel: {
@@ -3542,9 +3575,6 @@ const styles = StyleSheet.create({
       borderWidth: 1.5,
       borderColor: Colors.primary,
       gap: 6,
-    },
-    engineEmoji: {
-      fontSize: 32,
     },
     engineTitle: {
       fontSize: 11,
@@ -3648,6 +3678,7 @@ const styles = StyleSheet.create({
     aiConfidenceLow:  { color: Colors.warning },
     aiSuggestionReason: { fontSize: 12, color: Colors.textMuted, marginTop: 4, lineHeight: 17 },
     eodPaymentChip:       { flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg, alignItems: 'center' },
+    eodPaymentChipRow:    { flexDirection: 'row', justifyContent: 'center', gap: 6 },
     eodPaymentChipActive: { backgroundColor: Colors.primary + '22', borderColor: Colors.primary },
     eodPaymentChipText:       { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' },
     eodPaymentChipTextActive: { color: Colors.primary },
@@ -3657,6 +3688,7 @@ const styles = StyleSheet.create({
     eodSummaryLabel: { fontSize: 12, color: Colors.textMuted, marginBottom: 4 },
     eodSummaryValue: { fontSize: 20, fontWeight: '800' },
     modalSubmit:      { paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 4 },
+    modalSubmitRow:   { flexDirection: 'row', justifyContent: 'center', gap: 8 },
     modalSubmitText:  { color: '#fff', fontWeight: 'bold', fontSize: 15 },
 
     // Daily Pulse's greeting + "Ask AI Advisor" action, folded into Vital
