@@ -751,7 +751,7 @@ export default function FinancialAssessmentScreen() {
               <Text style={styles.resolvedTitle}>Resolved Since Last Check</Text>
             </View>
             {resolvedDiagnoses.map((r, i) => (
-              <Text key={i} style={styles.resolvedItemText}>✓ {r.problem}</Text>
+              <Text key={i} style={styles.resolvedItemText}>{r.problem}</Text>
             ))}
           </View>
         )}
@@ -822,7 +822,7 @@ export default function FinancialAssessmentScreen() {
                 <>
                   <Text style={styles.diagnosisLabel}>Trigger to Watch</Text>
                   <Text style={[styles.diagnosisText, { color: Colors.warning }]}>
-                    ⚠️ {diagnosis.diagnoses[selectedDiagnosis].trigger}
+                    {diagnosis.diagnoses[selectedDiagnosis].trigger}
                   </Text>
                 </>
               )}

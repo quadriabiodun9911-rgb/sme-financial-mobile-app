@@ -607,7 +607,10 @@ export default function CreditWorthinessScreen() {
                     <Text style={{ color: Colors.primary, fontSize: 14, marginBottom: 12 }}>← Dashboard</Text>
                 </TouchableOpacity>
 
-                <Text style={s.title}>💳 Credit-Worthiness</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <Icon name="credit-card" size={22} color={Colors.textPrimary} />
+                  <Text style={[s.title, { marginBottom: 0 }]}>Credit-Worthiness</Text>
+                </View>
                 <Text style={s.subtitle}>How your business looks against what lenders evaluate — not a loan decision, and not a guarantee.</Text>
 
                 {dataQuality.confidence !== 'none' && (
@@ -634,7 +637,8 @@ export default function CreditWorthinessScreen() {
                 <LowDataNotice transactionCount={transactions.length} label="your credit-worthiness score" />
 
                 <TouchableOpacity style={s.exportButton} onPress={handleExportLenderSummary} disabled={exporting}>
-                    <Text style={s.exportButtonText}>{exporting ? 'Preparing…' : '📄 Export Lender-Ready Summary'}</Text>
+                    {!exporting && <Icon name="file-text" size={15} color="#fff" />}
+                    <Text style={s.exportButtonText}>{exporting ? 'Preparing…' : 'Export Lender-Ready Summary'}</Text>
                 </TouchableOpacity>
                 <Text style={s.exportHint}>
                     A shareable document banks and lenders can actually review — your score, what it's built on, and where you stand against what they check for.
@@ -674,7 +678,7 @@ export default function CreditWorthinessScreen() {
                             further down -- instead of the full 8-section
                             lender-framework breakdown at once. */}
                         <View style={s.section}>
-                            <Text style={s.sectionTitle}>⚡ What Matters Right Now</Text>
+                            <SectionTitle icon="zap" text="What Matters Right Now" />
                             <Text style={s.readinessBlockLabel}>Financing Readiness</Text>
                             <Text style={s.readinessSummary}>
                                 <Text style={{ fontWeight: '800', color: FP_BAND_COLOR[dynamicReadiness.band] }}>{dynamicReadiness.score}/100 · {dynamicReadiness.band}</Text>
@@ -713,7 +717,7 @@ export default function CreditWorthinessScreen() {
                     -- see dynamicFinancingReadiness.ts for exactly what each
                     one reuses. */}
                 <View style={s.section}>
-                    <Text style={s.sectionTitle}>🎯 Financing Readiness</Text>
+                    <SectionTitle icon="target" text="Financing Readiness" />
                     <View style={s.readinessHeaderRow}>
                         <Text style={[s.readinessScore, { color: FP_BAND_COLOR[dynamicReadiness.band] }]}>{dynamicReadiness.score}</Text>
                         <View style={[s.readinessBandBadge, { backgroundColor: FP_BAND_COLOR[dynamicReadiness.band] + '22' }]}>
@@ -729,7 +733,7 @@ export default function CreditWorthinessScreen() {
                         <View style={s.readinessBlock}>
                             <Text style={s.readinessBlockLabel}>Strengths</Text>
                             {dynamicReadiness.strengths.map((line, i) => (
-                                <Text key={i} style={[s.readinessBullet, { color: Colors.income }]}>✓ {line}</Text>
+                                <Text key={i} style={[s.readinessBullet, { color: Colors.income }]}>{line}</Text>
                             ))}
                         </View>
                     )}
@@ -738,7 +742,7 @@ export default function CreditWorthinessScreen() {
                         <View style={s.readinessBlock}>
                             <Text style={s.readinessBlockLabel}>Risks</Text>
                             {dynamicReadiness.risks.map((line, i) => (
-                                <Text key={i} style={[s.readinessBullet, { color: Colors.warning }]}>! {line}</Text>
+                                <Text key={i} style={[s.readinessBullet, { color: Colors.warning }]}>{line}</Text>
                             ))}
                         </View>
                     )}
@@ -747,7 +751,7 @@ export default function CreditWorthinessScreen() {
                         <View style={s.readinessBlock}>
                             <Text style={s.readinessBlockLabel}>Evidence of Improvement</Text>
                             {dynamicReadiness.evidenceOfImprovement.map((line, i) => (
-                                <Text key={i} style={[s.readinessBullet, { color: Colors.income }]}>↗ {line}</Text>
+                                <Text key={i} style={[s.readinessBullet, { color: Colors.income }]}>{line}</Text>
                             ))}
                         </View>
                     )}
@@ -756,7 +760,7 @@ export default function CreditWorthinessScreen() {
                         <View style={s.readinessBlock}>
                             <Text style={s.readinessBlockLabel}>Unresolved</Text>
                             {dynamicReadiness.unresolvedIssues.map((line, i) => (
-                                <Text key={i} style={[s.readinessBullet, { color: Colors.expense }]}>⚠ {line}</Text>
+                                <Text key={i} style={[s.readinessBullet, { color: Colors.expense }]}>{line}</Text>
                             ))}
                         </View>
                     )}
@@ -770,7 +774,7 @@ export default function CreditWorthinessScreen() {
 
                     <TouchableOpacity style={s.readinessWhyBtn} onPress={() => setReadinessWhyOpen(o => !o)}>
                         <Text style={s.readinessWhyBtnText}>Why? What is this built on?</Text>
-                        <Text style={s.readinessWhyBtnText}>{readinessWhyOpen ? '▲' : '▼'}</Text>
+                        <Icon name={readinessWhyOpen ? 'chevron-up' : 'chevron-down'} size={13} color={Colors.textMuted} />
                     </TouchableOpacity>
                     {readinessWhyOpen && (
                         <View style={s.readinessWhyBox}>
@@ -784,7 +788,7 @@ export default function CreditWorthinessScreen() {
                             ))}
 
                             <Text style={s.readinessBlockLabel}>Trigger</Text>
-                            <Text style={[s.readinessWhyText, { color: Colors.warning, fontWeight: '700' }]}>⚠️ {readinessIntelligence.trigger}</Text>
+                            <Text style={[s.readinessWhyText, { color: Colors.warning, fontWeight: '700' }]}>{readinessIntelligence.trigger}</Text>
                         </View>
                     )}
                 </View>
@@ -793,7 +797,7 @@ export default function CreditWorthinessScreen() {
                     score above is often read against. Honest about which
                     of the five it can and can't actually evidence. */}
                 <View style={s.fiveCsCard}>
-                    <Text style={s.sectionTitle}>🔤 The Five C's of Credit</Text>
+                    <SectionTitle icon="list" text="The Five C's of Credit" />
                     <Text style={s.visibilitySub}>
                         How your score maps onto what a lender actually asks — and where the gaps genuinely are, not papered over.
                     </Text>
@@ -851,7 +855,7 @@ export default function CreditWorthinessScreen() {
 
                 {/* Visibility Score */}
                 <View style={s.visibilityCard}>
-                    <Text style={s.sectionTitle}>👁️ Visibility Score</Text>
+                    <SectionTitle icon="eye" text="Visibility Score" />
                     <Text style={s.visibilitySub}>
                         How much of your business's real history is actually visible right now — the more a lender can see, the more they can act on it before a problem becomes a missed payment.
                     </Text>
@@ -880,7 +884,7 @@ export default function CreditWorthinessScreen() {
 
                 {/* Estimated Lending Capacity */}
                 <View style={[s.capacityCard, lendingCapacity.tier === 'not-yet-bankable' && s.capacityCardMuted]}>
-                    <Text style={s.sectionTitle}>💰 Estimated Lending Capacity</Text>
+                    <SectionTitle icon="dollar-sign" text="Estimated Lending Capacity" />
                     <Text style={s.capacitySub}>{RANGE_NOT_OFFER}</Text>
                     {lendingCapacity.maxAmount > 0 ? (
                         <>
@@ -912,7 +916,10 @@ export default function CreditWorthinessScreen() {
 
                     {lendingCapacity.inventoryBacked && (
                         <View style={s.inventoryBackedBox}>
-                            <Text style={s.inventoryBackedTitle}>📦 + Inventory-Backed Potential</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                              <Icon name="package" size={12} color={Colors.textSecondary} />
+                              <Text style={[s.inventoryBackedTitle, { marginBottom: 0 }]}>+ Inventory-Backed Potential</Text>
+                            </View>
                             <Text style={s.capacityRange}>
                                 {currency}{lendingCapacity.inventoryBacked.minAmount.toLocaleString()} – {currency}{lendingCapacity.inventoryBacked.maxAmount.toLocaleString()}
                             </Text>
@@ -924,7 +931,7 @@ export default function CreditWorthinessScreen() {
 
                     <TouchableOpacity style={s.readinessWhyBtn} onPress={() => setCapacityWhyOpen(o => !o)}>
                         <Text style={s.readinessWhyBtnText}>Why? What is this built on?</Text>
-                        <Text style={s.readinessWhyBtnText}>{capacityWhyOpen ? '▲' : '▼'}</Text>
+                        <Icon name={capacityWhyOpen ? 'chevron-up' : 'chevron-down'} size={13} color={Colors.textMuted} />
                     </TouchableOpacity>
                     {capacityWhyOpen && (
                         <View style={s.readinessWhyBox}>
@@ -938,7 +945,7 @@ export default function CreditWorthinessScreen() {
                             ))}
 
                             <Text style={s.readinessBlockLabel}>Trigger</Text>
-                            <Text style={[s.readinessWhyText, { color: Colors.warning, fontWeight: '700' }]}>⚠️ {lendingCapacityIntelligence.trigger}</Text>
+                            <Text style={[s.readinessWhyText, { color: Colors.warning, fontWeight: '700' }]}>{lendingCapacityIntelligence.trigger}</Text>
                         </View>
                     )}
 
@@ -950,7 +957,7 @@ export default function CreditWorthinessScreen() {
                     {forwardReadiness.available && (
                         <>
                             <Text style={[s.capacitySub, { marginTop: Spacing.md, fontWeight: '700', color: Colors.textPrimary }]}>
-                                🔮 Forward-looking: what's likely to happen next, and under a downside
+                                Forward-looking: what's likely to happen next, and under a downside
                             </Text>
                             <View style={s.improvementCard}>
                                 <View style={s.improvementHeader}>
@@ -983,7 +990,7 @@ export default function CreditWorthinessScreen() {
 
                 {/* Readiness Over Time */}
                 <View style={s.section}>
-                    <Text style={s.sectionTitle}>📈 Readiness Over Time</Text>
+                    <SectionTitle icon="trending-up" text="Readiness Over Time" />
                     {readinessHistory.length === 0 && (
                         <Text style={s.trendEmpty}>
                             Quad360 starts tracking your readiness trend from today. Check back in about a week to see your first data point.
@@ -1023,10 +1030,10 @@ export default function CreditWorthinessScreen() {
                                     {(readinessDelta.improvedFactors.length > 0 || readinessDelta.worsenedFactors.length > 0) && (
                                         <View style={s.trendFactorsBox}>
                                             {readinessDelta.improvedFactors.map(f => (
-                                                <Text key={f.name} style={s.trendFactorGood}>✅ {f.name} improved ({f.from} → {f.to})</Text>
+                                                <Text key={f.name} style={s.trendFactorGood}>{f.name} improved ({f.from} → {f.to})</Text>
                                             ))}
                                             {readinessDelta.worsenedFactors.map(f => (
-                                                <Text key={f.name} style={s.trendFactorBad}>❌ {f.name} weakened ({f.from} → {f.to})</Text>
+                                                <Text key={f.name} style={s.trendFactorBad}>{f.name} weakened ({f.from} → {f.to})</Text>
                                             ))}
                                         </View>
                                     )}
@@ -1040,7 +1047,7 @@ export default function CreditWorthinessScreen() {
                 {/* Areas to Improve */}
                 {topFactors.length > 0 && (
                     <View style={s.section}>
-                        <Text style={s.sectionTitle}>⚡ Top Priorities to Improve</Text>
+                        <SectionTitle icon="zap" text="Top Priorities to Improve" />
                         {topFactors.map((factor, idx) => (
                             <View key={idx} style={s.improvementCard}>
                                 <View style={s.improvementHeader}>
@@ -1071,7 +1078,7 @@ export default function CreditWorthinessScreen() {
                     goal to assess. */}
                 {activeGoals.length > 0 && (
                     <View style={s.section}>
-                        <Text style={s.sectionTitle}>🎯 Growth Goals & Risk</Text>
+                        <SectionTitle icon="target" text="Growth Goals & Risk" />
                         {activeGoals.map(g => {
                             const goalRisk = goalRiskByGoalId[g.id];
                             if (!goalRisk) return null;
@@ -1105,7 +1112,7 @@ export default function CreditWorthinessScreen() {
                     worth the same always-visible weight as the checklist
                     above -- tucked behind a tap instead. */}
                 <View style={s.section}>
-                    <Text style={s.sectionTitle}>🏦 What Lenders Look For</Text>
+                    <SectionTitle icon="search" text="What Lenders Look For" />
                     {lenderCheckpoints.map((c, idx) => (
                         <LenderCheckpoint key={idx} label={c.label} status={c.met} description={c.description} />
                     ))}
@@ -1115,13 +1122,13 @@ export default function CreditWorthinessScreen() {
                     {!(finance.cashBalance > 0 && finance.runway && finance.runway >= 90) && (
                         <NextStepLink text="Improve your cash runway" onPress={() => navigate('cashflow')} />
                     )}
-                    <Collapsible title="💡 How to Improve Your Credit Profile">
-                        <TipItem emoji="💳" text="Make all payments on time - set up payment reminders" />
-                        <TipItem emoji="📊" text="Keep credit utilization low - use less than 30% of available credit" />
-                        <TipItem emoji="📈" text="Maintain consistent revenue - log all transactions" />
-                        <TipItem emoji="💰" text="Build cash reserves - aim for 3-6 months runway" />
-                        <TipItem emoji="📝" text="Document business records - keep receipts and contracts" />
-                        <TipItem emoji="🎯" text="Show growth - increase revenue and profitability" />
+                    <Collapsible title="How to Improve Your Credit Profile">
+                        <TipItem icon="credit-card" text="Make all payments on time - set up payment reminders" />
+                        <TipItem icon="bar-chart-2" text="Keep credit utilization low - use less than 30% of available credit" />
+                        <TipItem icon="trending-up" text="Maintain consistent revenue - log all transactions" />
+                        <TipItem icon="dollar-sign" text="Build cash reserves - aim for 3-6 months runway" />
+                        <TipItem icon="file-text" text="Document business records - keep receipts and contracts" />
+                        <TipItem icon="target" text="Show growth - increase revenue and profitability" />
                     </Collapsible>
                 </View>
                 </>
@@ -1137,7 +1144,8 @@ export default function CreditWorthinessScreen() {
                 <LowDataNotice transactionCount={transactions.length} label="your Funding Readiness Pack" />
 
                 <TouchableOpacity style={s.exportButton} onPress={handleExportFundingPack} disabled={exporting}>
-                    <Text style={s.exportButtonText}>{exporting ? 'Preparing…' : '📄 Export Funding Readiness Pack'}</Text>
+                    {!exporting && <Icon name="file-text" size={15} color="#fff" />}
+                    <Text style={s.exportButtonText}>{exporting ? 'Preparing…' : 'Export Funding Readiness Pack'}</Text>
                 </TouchableOpacity>
                 <Text style={s.exportHint}>A shareable document a lender can actually review.</Text>
 
@@ -1305,10 +1313,19 @@ function LenderCheckpoint({ label, status, description }: { label: string; statu
     );
 }
 
-function TipItem({ emoji, text }: { emoji: string; text: string }) {
+function SectionTitle({ icon, text }: { icon: IconName; text: string }) {
+    return (
+        <View style={s.sectionTitleRow}>
+            <Icon name={icon} size={15} color={Colors.textMuted} />
+            <Text style={[s.sectionTitle, { marginBottom: 0 }]}>{text}</Text>
+        </View>
+    );
+}
+
+function TipItem({ icon, text }: { icon: IconName; text: string }) {
     return (
         <View style={s.tipItem}>
-            <Text style={s.tipEmoji}>{emoji}</Text>
+            <View style={s.tipIconBox}><Icon name={icon} size={15} color={Colors.primary} /></View>
             <Text style={s.tipText}>{text}</Text>
         </View>
     );
@@ -1329,7 +1346,7 @@ const s = StyleSheet.create({
     tabBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
     tabBtnText: { fontSize: 13, fontWeight: '700', color: Colors.textMuted },
     tabBtnTextActive: { color: '#fff' },
-    exportButton: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginBottom: 6 },
+    exportButton: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginBottom: 6, flexDirection: 'row', justifyContent: 'center', gap: 8 },
     exportButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
     exportHint: { fontSize: 11.5, color: Colors.textMuted, marginBottom: 20, lineHeight: 16 },
     fiveCsCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
@@ -1377,6 +1394,7 @@ const s = StyleSheet.create({
     scoreRating: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary, marginBottom: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.muted, width: '100%', textAlign: 'center' },
     section: { marginBottom: 24, backgroundColor: Colors.surface, borderRadius: 12, padding: 16, borderLeftWidth: 4, borderLeftColor: Colors.primary, ...Shadow.sm },
     sectionTitle: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary, marginBottom: 12 },
+    sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 12 },
     linkRow: { paddingVertical: Spacing.sm, marginBottom: Spacing.sm },
     linkText: { fontSize: 12.5, color: Colors.primary, fontWeight: '700' },
 
@@ -1429,7 +1447,7 @@ const s = StyleSheet.create({
     checkpointDesc: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
     tipsBox: { backgroundColor: Colors.primary + '15', borderRadius: 12, padding: 16, borderLeftWidth: 4, borderLeftColor: Colors.primary, ...Shadow.sm },
     tipsTitle: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary, marginBottom: 12 },
-    tipEmoji: { fontSize: 16, marginRight: 8, marginTop: 4 },
+    tipIconBox: { width: 22, alignItems: 'center', marginTop: 2 },
     tipText: { fontSize: 12, color: Colors.textPrimary, flex: 1, lineHeight: 18 },
 });
 

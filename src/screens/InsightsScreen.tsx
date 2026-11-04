@@ -197,7 +197,7 @@ export default function InsightsScreen() {
                                                     <Text style={[styles.metricText, { color: cfg.color }]}>{item.evidence}</Text>
                                                 </View>
                                                 {item.trigger && (
-                                                    <Text style={styles.triggerText}>⚠️ {item.trigger}</Text>
+                                                    <Text style={styles.triggerText}>{item.trigger}</Text>
                                                 )}
                                                 {/* Act Now/Watch items come straight from the diagnosis engine's
                                                     root-cause analysis (see decisionCentre.ts) -- Analysis &

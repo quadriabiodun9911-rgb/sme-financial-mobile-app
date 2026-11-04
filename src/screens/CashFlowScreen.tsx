@@ -578,7 +578,7 @@ export default function CashFlowScreen() {
                                     )}
 
                                     <Text style={styles.runwayWhyLabel}>Trigger</Text>
-                                    <Text style={[styles.runwayWhyText, { color: Colors.warning, fontWeight: '700' }]}>⚠️ {runwayIntelligence.trigger}</Text>
+                                    <Text style={[styles.runwayWhyText, { color: Colors.warning, fontWeight: '700' }]}>{runwayIntelligence.trigger}</Text>
                                 </View>
                             )}
                         </View>
@@ -624,7 +624,7 @@ export default function CashFlowScreen() {
                             this one nets in actual revenue and explains
                             WHY the trend is moving. */}
                         {burnRate.available && (
-                            <Collapsible title={`${burnRate.status === 'danger' ? '🔴' : burnRate.status === 'warning' ? '🟡' : '🟢'} Startup Burn Rate — ${burnRate.headline}`}>
+                            <Collapsible title={`Startup Burn Rate — ${burnRate.headline}`}>
                                 <Text style={styles.runwaySub}>{burnRate.narrative}</Text>
 
                                 <View style={[styles.row2, { marginTop: Spacing.md }]}>

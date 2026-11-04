@@ -102,7 +102,7 @@ const emptyPriceChangeForm = (item: InventoryItem): PriceChangeForm => ({
 });
 
 type InventoryInsightTier = 'good' | 'warning' | 'critical';
-interface InventoryInsight { tier: InventoryInsightTier; icon: string; title: string; detail: string; }
+interface InventoryInsight { tier: InventoryInsightTier; title: string; detail: string; }
 
 const PRICE_CHANGE_REASONS = [
     'Supplier cost increased',
@@ -308,25 +308,25 @@ export default function InventoryScreen() {
         const riskyCount = inventory.filter(i => i.quantity <= i.lowStockThreshold).length;
         if (riskyCount > 0) {
             list.push({
-                tier: 'critical', icon: '🔴', title: 'Low-stock risk',
+                tier: 'critical', title: 'Low-stock risk',
                 detail: `${riskyCount} product${riskyCount !== 1 ? 's are' : ' is'} approaching or at stock-out.`,
             });
         }
         if (slowMovingValue > 0) {
             list.push({
-                tier: 'warning', icon: '🟠', title: 'Cash tied up in slow-moving stock',
+                tier: 'warning', title: 'Cash tied up in slow-moving stock',
                 detail: `${currency}${slowMovingValue.toLocaleString(undefined, { maximumFractionDigits: 0 })} of inventory has had limited movement over the last 30 days.`,
             });
         }
         const { purchaseGrowthPct, salesGrowthPct } = inventoryPace;
         if (purchaseGrowthPct !== null && salesGrowthPct !== null && purchaseGrowthPct > salesGrowthPct) {
             list.push({
-                tier: 'warning', icon: '⚠️', title: 'Inventory growing faster than sales',
+                tier: 'warning', title: 'Inventory growing faster than sales',
                 detail: `Stock purchases ${purchaseGrowthPct >= 0 ? 'rose' : 'fell'} ${Math.abs(purchaseGrowthPct).toFixed(0)}% this month, while sales ${salesGrowthPct >= 0 ? 'grew' : 'fell'} ${Math.abs(salesGrowthPct).toFixed(0)}%.`,
             });
         }
         if (list.length === 0) {
-            list.push({ tier: 'good', icon: '🟢', title: 'Healthy Stock', detail: 'Your inventory level is within a healthy range, and nothing is moving unusually slowly.' });
+            list.push({ tier: 'good', title: 'Healthy Stock', detail: 'Your inventory level is within a healthy range, and nothing is moving unusually slowly.' });
         }
         return list;
     }, [inventory, slowMovingValue, inventoryPace, currency]);
@@ -946,14 +946,17 @@ export default function InventoryScreen() {
                             stock that's merely slow to sell. */}
                         {(expiringStock.itemsExpired.length > 0 || expiringStock.itemsExpiringSoon.length > 0) && (
                             <View style={[styles.analyticsCard, { borderColor: Colors.expense, borderWidth: 1 }]}>
-                                <Text style={styles.analyticsCardTitle}>⏰ Expiring Stock</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                                  <Icon name="clock" size={14} color={Colors.expense} />
+                                  <Text style={[styles.analyticsCardTitle, { marginBottom: 0 }]}>Expiring Stock</Text>
+                                </View>
                                 <Text style={styles.cardSubtitle}>
                                     {currency}{Math.round(expiringStock.totalValueAtRisk).toLocaleString()} at risk of becoming a total write-off, not just a slow sale.
                                 </Text>
                                 {expiringStock.itemsExpired.map(e => (
                                     <View key={`${e.item.id}-${e.batchId}`} style={[styles.insightBanner, { borderColor: Colors.expense }]}>
                                         <Text style={[styles.insightTitle, { color: Colors.expense }]}>
-                                            🔴 {e.item.name} — expired {Math.abs(e.daysUntilExpiry)} day{Math.abs(e.daysUntilExpiry) === 1 ? '' : 's'} ago
+                                            {e.item.name} — expired {Math.abs(e.daysUntilExpiry)} day{Math.abs(e.daysUntilExpiry) === 1 ? '' : 's'} ago
                                         </Text>
                                         <Text style={styles.insightDetail}>{e.remainingQuantity} {e.item.unit} · {currency}{Math.round(e.valueAtRisk).toLocaleString()} at cost</Text>
                                     </View>
@@ -961,7 +964,7 @@ export default function InventoryScreen() {
                                 {expiringStock.itemsExpiringSoon.map(e => (
                                     <View key={`${e.item.id}-${e.batchId}`} style={[styles.insightBanner, { borderColor: Colors.warning }]}>
                                         <Text style={[styles.insightTitle, { color: Colors.warning }]}>
-                                            🟡 {e.item.name} — expires {e.daysUntilExpiry === 0 ? 'today' : `in ${e.daysUntilExpiry} day${e.daysUntilExpiry === 1 ? '' : 's'}`}
+                                            {e.item.name} — expires {e.daysUntilExpiry === 0 ? 'today' : `in ${e.daysUntilExpiry} day${e.daysUntilExpiry === 1 ? '' : 's'}`}
                                         </Text>
                                         <Text style={styles.insightDetail}>{e.remainingQuantity} {e.item.unit} · {currency}{Math.round(e.valueAtRisk).toLocaleString()} at cost</Text>
                                     </View>
@@ -989,7 +992,7 @@ export default function InventoryScreen() {
                                     {inventoryHealth.topDecisions.map(decision => (
                                         <View key={decision.itemId} style={[styles.insightBanner, { borderColor: decision.action === 'reorder' ? Colors.income : decision.action === 'reduce' ? Colors.warning : Colors.expense }]}>
                                             <Text style={[styles.insightTitle, { color: decision.action === 'reorder' ? Colors.income : decision.action === 'reduce' ? Colors.warning : Colors.expense }]}>
-                                                {decision.action === 'reorder' ? '🔁 Reorder' : decision.action === 'reduce' ? '⏸️ Hold off reordering' : '🛑 Discontinue'} — {decision.itemName}
+                                                {decision.action === 'reorder' ? 'Reorder' : decision.action === 'reduce' ? 'Hold off reordering' : 'Discontinue'} — {decision.itemName}
                                             </Text>
                                             <Text style={styles.insightDetail}>{decision.detail}</Text>
                                         </View>
@@ -1030,7 +1033,7 @@ export default function InventoryScreen() {
 
                             {inventoryInsights.map((insight, i) => (
                                 <View key={i} style={[styles.insightBanner, { borderColor: insightColor(insight.tier) }]}>
-                                    <Text style={[styles.insightTitle, { color: insightColor(insight.tier) }]}>{insight.icon} {insight.title}</Text>
+                                    <Text style={[styles.insightTitle, { color: insightColor(insight.tier) }]}>{insight.title}</Text>
                                     <Text style={styles.insightDetail}>{insight.detail}</Text>
                                 </View>
                             ))}
@@ -1397,7 +1400,7 @@ export default function InventoryScreen() {
                                                 </Text>
                                             </View>
                                             <Text style={styles.marginPreviewSolution}>
-                                                💡 {suggestSolution('pricing').title} — {suggestSolution('pricing').detail}
+                                                {suggestSolution('pricing').title} — {suggestSolution('pricing').detail}
                                             </Text>
                                         </>
                                     )}
