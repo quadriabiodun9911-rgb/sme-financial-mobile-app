@@ -583,7 +583,7 @@ export default function SettingsScreen() {
                                     }}
                                 />
                                 <Opt
-                                    label="Warm Paper"
+                                    label="Light"
                                     active={colorTheme === 'warm-paper'}
                                     onPress={async () => {
                                         if (colorTheme === 'warm-paper' || applyingTheme) return;

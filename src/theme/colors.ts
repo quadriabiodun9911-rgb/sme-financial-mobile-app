@@ -40,40 +40,41 @@ const DARK_PALETTE = {
     healthyBorder: '#10b981',
 };
 
-// "Warm Paper" — a light theme option, born from the same palette used on
-// the marketing site's "Today's Review" card. The dark theme's income/
-// expense colors (bright emerald, bright red) are tuned to pop against
-// near-black and read harshly on cream, so those two are deliberately
-// muted here rather than reused as-is — everything else carries over
-// directly.
+// "Light" (internal key stays 'warm-paper' — every persisted user
+// preference, AsyncStorage value and theme-mode type literal already
+// spells it that way, and renaming the key would need a migration for
+// zero visible benefit). Was a cream/beige "warm paper" look; replaced
+// with a restrained navy-and-blue premium SaaS palette per the 2026
+// design-system direction — white cards on a cool slate-white canvas,
+// navy ink, one brand blue, instead of beige dominating every screen.
 const WARM_PAPER_PALETTE = {
-    bg: '#fffdf8',
-    surface: '#f0ead9',
-    surfaceVariant: '#e9e2cd',
-    border: '#ddd3ba',
-    muted: '#8a8272',
-    card: '#f0ead9',
+    bg: '#f8fafc',
+    surface: '#ffffff',
+    surfaceVariant: '#f1f5f9',
+    border: '#e2e8f0',
+    muted: '#94a3b8',
+    card: '#ffffff',
 
-    textPrimary: '#1b1f2b',
-    textSecondary: '#3f3a2f',
-    textMuted: '#6c6659',
-    text: '#1b1f2b',
+    textPrimary: '#0f172a',
+    textSecondary: '#334155',
+    textMuted: '#64748b',
+    text: '#0f172a',
 
-    income: '#2e9e64',
-    expense: '#c94f38',
-    asset: '#2a52d6',
-    liability: '#b5641f',
-    equity: '#7c53c8',
-    warning: '#b5791f',
-    primary: '#2a52d6',
-    secondary: '#7c53c8',
+    income: '#16a34a',
+    expense: '#dc2626',
+    asset: '#0066cc',
+    liability: '#b45309',
+    equity: '#7c3aed',
+    warning: '#d97706',
+    primary: '#0066cc',
+    secondary: '#7c3aed',
 
-    danger: '#c94f38',
-    success: '#2e9e64',
+    danger: '#dc2626',
+    success: '#16a34a',
 
-    criticalBorder: '#b23a26',
-    warningBorder: '#b5791f',
-    healthyBorder: '#2e9e64',
+    criticalBorder: '#dc2626',
+    warningBorder: '#d97706',
+    healthyBorder: '#16a34a',
 };
 
 // Most screens build their StyleSheet.create(...) objects at module scope,

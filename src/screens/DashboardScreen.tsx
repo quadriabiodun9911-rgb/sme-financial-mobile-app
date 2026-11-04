@@ -93,6 +93,7 @@ import { localDateStr, localMonthStr } from '../utils/localDate';
 
 const CELEBRATED_GOALS_KEY = '@quad360/celebrated_goal_ids';
 const MONTHLY_MISSION_KEY = '@quad360/monthly_mission';
+const LOG_TODAY_DISMISSED_KEY = '@quad360/log_today_dismissed_date';
 
 const INCOME_CATEGORIES = ['Sales', 'Service', 'Consulting', 'Rental', 'Interest', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Supplies', 'Transport', 'Meals', 'Software', 'Tax', 'Other'];
@@ -272,6 +273,22 @@ export default function DashboardScreen() {
     // on top of the banner instead of above it. Real measurement instead of
     // a guessed constant so it stays correct if the banner's text wraps.
     const [logTodayBannerHeight, setLogTodayBannerHeight] = useState(0);
+    // Was permanently un-dismissable -- the only way to make it go away was
+    // to actually log a transaction. Scoped to today's date (not a one-time
+    // flag) so dismissing it doesn't silently opt out of the reminder
+    // forever; it comes back tomorrow like a fresh nudge should.
+    const todayDateStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+    const [logTodayDismissedDate, setLogTodayDismissedDate] = useState<string | null>(null);
+    useEffect(() => {
+        AsyncStorage.getItem(LOG_TODAY_DISMISSED_KEY).then(v => {
+            if (v) setLogTodayDismissedDate(v);
+        }).catch(() => {});
+    }, []);
+    const dismissLogTodayBanner = () => {
+        setLogTodayDismissedDate(todayDateStr);
+        AsyncStorage.setItem(LOG_TODAY_DISMISSED_KEY, todayDateStr).catch(() => {});
+    };
+    const logTodayDismissed = logTodayDismissedDate === todayDateStr;
     const [eodOpen, setEodOpen]                 = useState(false);
     const [lastSynced, setLastSynced]           = useState<Date>(new Date());
     // Which achieved goals have already had their "what's next" banner shown
@@ -1650,7 +1667,10 @@ export default function DashboardScreen() {
                     Tapping through goes to the full breakdown. */}
                 {canViewFinancials && (
                     <View style={[styles.operationsSection, isWideDashboard && styles.dashboardCol]}>
-                      <Text style={styles.operationsSectionTitle}>{t(language, 'businessHealthTitle')}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Icon name="heart" size={13} color={Colors.textMuted} />
+                        <Text style={styles.operationsSectionTitle}>{t(language, 'businessHealthTitle')}</Text>
+                      </View>
                       {healthIntelligence.dataQuality.totalTransactions === 0 ? (
                         // A blank account has nothing to score yet -- showing
                         // a confident number/grade here (the old behaviour)
@@ -1687,7 +1707,7 @@ export default function DashboardScreen() {
                                 />
                                 <View style={[styles.healthBandBadge, { backgroundColor: healthBandMeta.color + '22' }]}>
                                     <Text style={[styles.healthBandBadgeText, { color: healthBandMeta.color }]}>
-                                        {healthBandMeta.emoji} {healthBandMeta.label} · {businessHealth.grade}
+                                        {healthBandMeta.label} · {businessHealth.grade}
                                     </Text>
                                 </View>
                             </View>
@@ -1784,7 +1804,10 @@ export default function DashboardScreen() {
                       onPress={() => navigate('margin-watch')}
                     >
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.safeToSpendLabel}>🔓 Safe to Spend</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                          <Icon name="unlock" size={12} color={Colors.textPrimary} />
+                          <Text style={styles.safeToSpendLabel}>Safe to Spend</Text>
+                        </View>
                         <Text style={styles.safeToSpendSub}>of {currency}{Math.round(finance.cashBalance + totalCash).toLocaleString()} in the bank · tap for breakdown</Text>
                       </View>
                       <Text style={[styles.safeToSpendValue, { color: safeToSpend.discretionaryCash > 0 ? Colors.income : Colors.expense }]}>
@@ -1840,7 +1863,7 @@ export default function DashboardScreen() {
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={styles.showMoreToggleTitle}>
-                        {showFullDashboard ? 'Show Fewer Details' : '📊 Show More Insights'}
+                        {showFullDashboard ? 'Show Fewer Details' : 'Show More Insights'}
                       </Text>
                       {!showFullDashboard && (
                         <Text style={styles.showMoreToggleSub}>Stress test, financing capacity, risk radar & more</Text>
@@ -1872,7 +1895,10 @@ export default function DashboardScreen() {
                     onPress={() => navigate('transactions', { filter: 'personal' })}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.personalSpendingBannerTitle}>⚠️ Mixed Personal & Business Spending</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                      <Icon name="alert-triangle" size={13} color={Colors.warning} />
+                      <Text style={styles.personalSpendingBannerTitle}>Mixed Personal & Business Spending</Text>
+                    </View>
                     <Text style={styles.personalSpendingBannerText}>{personalSpending.summary}</Text>
                   </TouchableOpacity>
                 )}
@@ -1883,7 +1909,10 @@ export default function DashboardScreen() {
                     onPress={() => navigate('transactions', { filter: 'nonrevenue' })}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.personalSpendingBannerTitle}>💰 Non-Revenue Money Counted as Income</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                      <Icon name="alert-triangle" size={13} color={Colors.warning} />
+                      <Text style={styles.personalSpendingBannerTitle}>Non-Revenue Money Counted as Income</Text>
+                    </View>
                     <Text style={styles.personalSpendingBannerText}>{nonRevenueInflows.summary}</Text>
                   </TouchableOpacity>
                 )}
@@ -2043,7 +2072,10 @@ export default function DashboardScreen() {
                     scrolling through. Nothing new is computed here. */}
                 {priorities.length > 0 && (
                   <View style={styles.topPrioritiesCard}>
-                    <Text style={styles.topPrioritiesEyebrow}>👉 START HERE — YOUR TOP PRIORIT{priorities.length > 1 ? 'IES' : 'Y'}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                      <Icon name="arrow-right-circle" size={12} color={Colors.primary} />
+                      <Text style={styles.topPrioritiesEyebrow}>START HERE — YOUR TOP PRIORIT{priorities.length > 1 ? 'IES' : 'Y'}</Text>
+                    </View>
                     {priorities.slice(0, TOP_PRIORITY_COUNT).map((item, i, arr) => {
                       const kindMeta = PRIORITY_KIND_META[item.kind];
                       const tierMeta = PRIORITY_TIER_META[item.tier];
@@ -2592,13 +2624,13 @@ export default function DashboardScreen() {
 
             {/* ── FAB ─────────────────────────────────────────────────────── */}
             {canWrite && (
-            <TouchableOpacity style={[styles.fab, { bottom: 80 + (!loggedToday ? logTodayBannerHeight : 0) }]} onPress={() => openFab()} accessibilityRole="button" accessibilityLabel="Add transaction">
+            <TouchableOpacity style={[styles.fab, { bottom: 80 + (!loggedToday && !logTodayDismissed ? logTodayBannerHeight : 0) }]} onPress={() => openFab()} accessibilityRole="button" accessibilityLabel="Add transaction">
                 <Text style={styles.fabText}>+</Text>
             </TouchableOpacity>
             )}
             {canWrite && (
             <TouchableOpacity
-                style={[styles.eodFab, { bottom: 140 + (!loggedToday ? logTodayBannerHeight : 0) }]}
+                style={[styles.eodFab, { bottom: 140 + (!loggedToday && !logTodayDismissed ? logTodayBannerHeight : 0) }]}
                 onPress={() => setEodOpen(true)}
                 accessibilityLabel="End of Day quick log"
             >
@@ -2607,14 +2639,18 @@ export default function DashboardScreen() {
             )}
 
             {/* ── Daily log-today banner ───────────────────────────────────── */}
-            {canWrite && !loggedToday && (
+            {canWrite && !loggedToday && !logTodayDismissed && (
                 <View style={styles.logTodayBanner} onLayout={e => setLogTodayBannerHeight(e.nativeEvent.layout.height)}>
+                    <Icon name="moon" size={15} color={Colors.textPrimary} />
                     <View style={styles.logTodayLeft}>
-                        <Text style={styles.logTodayTitle}>🌙 Log today's sales before you sleep</Text>
+                        <Text style={styles.logTodayTitle}>Log today's sales before you sleep</Text>
                         <Text style={styles.logTodaySub}>Takes 30 seconds</Text>
                     </View>
                     <TouchableOpacity style={styles.logTodayBtn} onPress={() => openFab()}>
                         <Text style={styles.logTodayBtnText}>Log →</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.logTodayDismiss} onPress={dismissLogTodayBanner} accessibilityRole="button" accessibilityLabel="Dismiss for today">
+                        <Icon name="x" size={14} color={Colors.textMuted} />
                     </TouchableOpacity>
                 </View>
             )}
@@ -3566,12 +3602,13 @@ const styles = StyleSheet.create({
     fab:     { position: 'absolute', right: 20, bottom: 80, width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.income, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 8 },
     fabText: { fontSize: 30, color: Colors.textPrimary, lineHeight: 34 },
 
-    logTodayBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(245,158,11,0.15)', borderTopWidth: 1, borderBottomWidth: 1, borderColor: Colors.warning, paddingHorizontal: 16, paddingVertical: 10 },
+    logTodayBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, backgroundColor: 'rgba(245,158,11,0.15)', borderTopWidth: 1, borderBottomWidth: 1, borderColor: Colors.warning, paddingHorizontal: 16, paddingVertical: 10 },
     logTodayLeft:   { flex: 1 },
     logTodayTitle:  { fontSize: 13, fontWeight: '700', color: Colors.warning, marginBottom: 2 },
     logTodaySub:    { fontSize: 11, color: Colors.textMuted },
-    logTodayBtn:    { backgroundColor: Colors.warning, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, marginLeft: 12 },
+    logTodayBtn:    { backgroundColor: Colors.warning, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
     logTodayBtnText:{ color: '#fff', fontWeight: '700', fontSize: 13 },
+    logTodayDismiss:{ padding: 4 },
 
     modalOverlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
     modalSheet:       { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },

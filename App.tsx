@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
-import { View, ActivityIndicator, Platform, BackHandler, Alert, useWindowDimensions, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, Platform, BackHandler, Alert, useWindowDimensions, StyleSheet } from 'react-native';
+import { useFonts, PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold } from '@expo-google-fonts/plus-jakarta-sans';
 import { Colors } from './src/theme/colors';
 import * as Updates from 'expo-updates';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -382,6 +383,30 @@ function OtaUpdater() {
 initSentry();
 
 export default function App() {
+    // App-wide type system: Plus Jakarta Sans is already the real brand
+    // body face (see LandingScreen's own useFonts call) -- loading it once
+    // here and defaulting every Text to it retires the system font across
+    // the whole product instead of only the marketing page, with no
+    // per-screen StyleSheet changes needed. No loading gate, same as
+    // LandingScreen -- falls back to the system font instantly and
+    // upgrades once loaded, rather than blocking first paint.
+    //
+    // expo-google-fonts registers each weight as its own distinct font
+    // name, not a weight variant of one family, so a single default here
+    // can't make every existing fontWeight: 'bold'/'700'/'800' style
+    // across the app resolve to a matching bold file on native -- web
+    // (this app's primary target) still reads correctly via the browser's
+    // own synthetic-bold fallback when no matching weight is registered.
+    const [fontsLoaded] = useFonts({
+        PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold,
+        PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold,
+    });
+    useEffect(() => {
+        if (!fontsLoaded) return;
+        (Text as any).defaultProps = (Text as any).defaultProps || {};
+        (Text as any).defaultProps.style = [{ fontFamily: 'PlusJakartaSans_400Regular' }, (Text as any).defaultProps.style];
+    }, [fontsLoaded]);
+
     return (
         <SafeAreaProvider>
             <ErrorBoundary>
