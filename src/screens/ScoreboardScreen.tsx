@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, useWindowDimensions, Platform, Animated, Easing } from 'react-native';
 import { useApp } from '../contexts/AppContext';
+import { useDiagnosis } from '../contexts/OptimizedContexts';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Header from '../components/Header';
@@ -10,9 +11,10 @@ import LowDataNotice from '../components/LowDataNotice';
 import NextStepLink from '../components/NextStepLink';
 import Icon, { IconName } from '../components/ui/Icon';
 import RadialGauge from '../components/RadialGauge';
-import { computeRiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage, computeWeeklyCFOSummary } from '../utils/finance';
+import { computeRiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage, computeWeeklyCFOSummary, computeFinancingReadinessScore } from '../utils/finance';
 import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
 import { computeReadinessDelta } from '../utils/readinessHistory';
+import { computeHealthScoreDelta } from '../utils/healthScoreHistory';
 import { computeBusinessExposure, computeBusinessResilience, describeHealthResilienceGap, ExposureLevel } from '../utils/businessExposure';
 import { performFinancialDiagnosis, computeRevenueRecurringPct } from '../utils/financialDiagnosisEngine';
 import { computeFinancialHealthPillars, diagnoseFinancialHealth, PillarStatus } from '../utils/financialHealthPillars';
@@ -22,6 +24,7 @@ import { computeCashReserveIntelligence } from '../utils/metricIntelligence';
 import { computeQualityOfGrowth } from '../utils/qualityOfGrowth';
 import DirectionVsStatusCard from '../components/DirectionVsStatusCard';
 import { computeFinancialChangeExplanation } from '../utils/financialChangeExplanation';
+import { computeDirectionVsStatus } from '../utils/directionVsStatus';
 import { analyzeTrend } from '../utils/trendAnalysis';
 import { buildFinancialBehaviour } from '../utils/businessFinancialDNA';
 import { computeExpenseLeaks } from '../utils/expenseLeakDetection';
@@ -32,6 +35,13 @@ import { calculateGoalBridge, mapSavedGoalToBridge } from '../utils/goalBridgeEn
 import { assessGoalRisk, GoalRiskAssessment } from '../utils/goalRiskLinkage';
 import { computeExternalFactorsPanel } from '../utils/externalFactorsPanel';
 import { buildInventoryGoalSignal } from '../utils/inventoryIntelligence';
+import { computeDataQuality } from '../utils/dataQuality';
+import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
+import { buildFinancingFitInput } from '../utils/financingFit';
+import { computeInventoryValue } from '../utils/stockVelocity';
+import { recommendFinancingTypes } from '../utils/financingRecommendation';
+import { buildDiagnosticDimensions } from '../utils/diagnosticDimensions';
+import BusinessHealthReportCard from '../components/BusinessHealthReportCard';
 import { GoalStatus } from '../types';
 
 const BAND_COLOR: Record<string, string> = {
@@ -119,7 +129,7 @@ function GoalBar({ pct, color }: { pct: number; color: string }) {
 }
 
 export default function ScoreboardScreen() {
-    const { transactions, invoices, loans, inventory, finance, settings, goals, readinessHistory, navigate, setCurrentScreen, assets, navParams } = useApp();
+    const { transactions, invoices, loans, inventory, finance, settings, goals, readinessHistory, healthScoreHistory, navigate, setCurrentScreen, assets, navParams, budgets, user } = useApp();
     const { currency } = settings;
 
     // Every colored dot on this screen already carries a real, computed
@@ -152,6 +162,31 @@ export default function ScoreboardScreen() {
     const risk = useMemo(() => computeRiskScore(finance, loans, transactions, inventory), [finance, loans, transactions, inventory]);
     const bandMeta = useMemo(() => ({ ...RISK_BAND_STYLE[risk.band], color: BAND_COLOR[risk.band] }), [risk.band]);
     const readinessDelta = useMemo(() => computeReadinessDelta(readinessHistory), [readinessHistory]);
+    // Same aggregate trend the Business Health Report card below reads --
+    // computed once here, not inside the card, so Financial Assessment and
+    // Scoreboard both feed it the exact same healthScoreHistory read.
+    const healthScoreDelta = useMemo(() => computeHealthScoreDelta(healthScoreHistory), [healthScoreHistory]);
+
+    // sharedDiagnosis (DiagnosisContext, computed once in App.tsx) covers
+    // the overwhelming majority of real usage; the fallback below only
+    // applies for the <5-transaction case DiagnosisContext returns null
+    // for. Same pattern FinancialAssessmentScreen already uses -- never a
+    // second, independently-computed diagnosis.
+    const sharedDiagnosis = useDiagnosis();
+    const diagnosis = useMemo(() => {
+        if (sharedDiagnosis) return sharedDiagnosis;
+        return performFinancialDiagnosis(
+            transactions,
+            invoices,
+            finance.cashBalance,
+            getMonthlyExpenseAverage(finance.expense, transactions),
+            currency,
+            loans,
+            inventory,
+            assets,
+            settings.industry,
+        );
+    }, [sharedDiagnosis, transactions, invoices, finance, currency, loans, inventory, assets, settings.industry]);
 
     // This Week's Performance -- formerly Fractional CFO's "Pulse" tab.
     // That tab's own Debt & Risk Score card was a straight duplicate of the
@@ -253,6 +288,68 @@ export default function ScoreboardScreen() {
     // diagnosis below, never recomputed.
     const growthQuality = useMemo(() => computeQualityOfGrowth(transactions, assets, loans), [transactions, assets, loans]);
     const changeExplanation = useMemo(() => computeFinancialChangeExplanation(transactions, assets, loans), [transactions, assets, loans]);
+
+    // The remaining inputs buildDiagnosticDimensions needs for the Business
+    // Health Report below -- exact same calls/args FinancialAssessmentScreen
+    // already makes for its own copy of this report.
+    const directionVsStatus = useMemo(() => computeDirectionVsStatus(risk, growthQuality), [risk, growthQuality]);
+    const financingReadinessScore = useMemo(() => computeFinancingReadinessScore(risk.factors).score, [risk.factors]);
+    const fitInput = useMemo(
+        () => buildFinancingFitInput(transactions, loans, settings, user),
+        [transactions, loans, settings, user],
+    );
+    const lendingCapacity = useMemo(() => {
+        if (transactions.length < 5) return null;
+        const dataQuality = computeDataQuality(transactions, settings.industry);
+        const inventoryValue = computeInventoryValue(inventory);
+        return computeLendingCapacityEstimate({
+            overallCreditScore: financingReadinessScore,
+            avgMonthlyRevenue: fitInput.avgMonthlyRevenue,
+            dscr: diagnosis.metrics.dscr,
+            hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',
+            inventoryValue,
+        });
+    }, [transactions, settings, financingReadinessScore, diagnosis.metrics.dscr, inventory, fitInput]);
+    const financingRecommendations = useMemo(() => {
+        if (transactions.length < 5) return [];
+        return recommendFinancingTypes(
+            { fitInput, invoices, assets, readinessTrend: readinessDelta?.trend ?? null, transactions, inventory },
+            currency,
+        );
+    }, [transactions, fitInput, invoices, assets, readinessDelta, inventory, currency]);
+
+    // "Your Business Health Report" -- the exact same buildDiagnosticDimensions
+    // call FinancialAssessmentScreen makes, fed from this screen's own
+    // already-computed inputs, so the two screens can never show a second,
+    // independently-computed version of this report.
+    const { report: businessHealthReport } = useMemo(
+        () => buildDiagnosticDimensions({
+            diagnosis,
+            currency,
+            directionVsStatus,
+            riskRadar,
+            resilience,
+            reserveCoverageMonths: financialResilience.available ? financialResilience.reserveCoverageMonths : null,
+            financingReadinessScore,
+            lendingCapacity,
+            financingRecommendations,
+            transactions,
+            loans,
+            invoices,
+            budgets,
+        }),
+        [diagnosis, currency, directionVsStatus, riskRadar, resilience, financialResilience, financingReadinessScore, lendingCapacity, financingRecommendations, transactions, loans, invoices, budgets],
+    );
+
+    // If the owner already set up a goal matching what this report would
+    // suggest, show its real, already-tracked progress -- same lookup
+    // FinancialAssessmentScreen uses for its own copy of this report.
+    const trackedGoalForReport = useMemo(
+        () => (businessHealthReport.suggestedGoalType
+            ? goals.find(g => g.type === businessHealthReport.suggestedGoalType && g.status !== 'achieved') ?? null
+            : null),
+        [goals, businessHealthReport.suggestedGoalType],
+    );
     // Budgeting connects directly to the Financial Health Score: strongest/
     // weakest pillar plus the concrete facts behind them, instead of the
     // score and the budgeting-adjacent signals living as separate features.
@@ -288,7 +385,6 @@ export default function ScoreboardScreen() {
     const goalRiskByGoalId = useMemo(() => {
         if (transactions.length < 5 || activeGoals.length === 0) return {};
         const avgMonthlyExpense = getMonthlyExpenseAverage(finance.expense, transactions);
-        const diagnosis = performFinancialDiagnosis(transactions, invoices, finance.cashBalance, avgMonthlyExpense, currency, loans, inventory, assets, settings.industry);
         const externalFactorsPanel = computeExternalFactorsPanel(transactions, settings?.macroAssumptions ?? []);
         const inventorySignal = buildInventoryGoalSignal(inventory, transactions, avgMonthlyExpense);
         const tactics = generateActionPlan(diagnosis, diagnosis.metrics, currency, [], undefined, transactions);
@@ -299,7 +395,7 @@ export default function ScoreboardScreen() {
             map[g.id] = assessGoalRisk(g.type, diagnosis.diagnoses, riskRadar, bridge.successProbability, externalFactorsPanel, inventorySignal);
         }
         return map;
-    }, [transactions, invoices, finance, currency, loans, inventory, assets, activeGoals, riskRadar, settings?.macroAssumptions]);
+    }, [transactions, diagnosis, finance, currency, inventory, activeGoals, riskRadar, settings?.macroAssumptions]);
 
     // The single most useful thing to say about goals at a glance: which one
     // is least ready, in its own words -- not a repeat of every goal's list.
@@ -415,6 +511,17 @@ export default function ScoreboardScreen() {
                         <Text style={s.linkText}>See full readiness trend & breakdown →</Text>
                     </TouchableOpacity>
                 </View>
+
+                {/* "Your Business Health Report" -- same shared component,
+                    same buildDiagnosticDimensions call, FinancialAssessment
+                    renders under its own score card. Never a second,
+                    independently-computed version of this report. */}
+                <BusinessHealthReportCard
+                    report={businessHealthReport}
+                    healthScoreDelta={healthScoreDelta}
+                    trackedGoal={trackedGoalForReport}
+                    navigate={navigate}
+                />
 
                 {/* This Week's Performance -- see weeklySummary/todayFocus
                     above for why this moved here from Fractional CFO's

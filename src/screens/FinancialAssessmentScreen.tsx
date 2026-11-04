@@ -39,6 +39,7 @@ import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
 import { computeHealthScoreDelta } from '../utils/healthScoreHistory';
 import { buildDiagnosticDimensions } from '../utils/diagnosticDimensions';
+import BusinessHealthReportCard from '../components/BusinessHealthReportCard';
 import { GoalStatus } from '../types';
 
 // Same four states GoalsScreen's own goal cards use (goals.ts
@@ -414,111 +415,16 @@ export default function FinancialAssessmentScreen() {
             to do, and the one decision it bears on. Built from whichever
             of cash/profitability/debt/trends is most urgent right now --
             never a fifth, separately-written assessment layered on top of
-            the 8-Dimension Diagnosis below. */}
-        <View style={[styles.reportCard, { borderLeftColor: businessHealthReport.status === 'critical' ? Colors.expense : businessHealthReport.status === 'warning' ? Colors.warning : Colors.income }]}>
-          <View style={styles.reportHeaderRow}>
-            <Text style={styles.reportTitle}>Your Business Health Report</Text>
-            <View style={[styles.reportStatusBadge, { backgroundColor: (businessHealthReport.status === 'critical' ? Colors.expense : businessHealthReport.status === 'warning' ? Colors.warning : Colors.income) + '22' }]}>
-              <Text style={[styles.reportStatusText, { color: businessHealthReport.status === 'critical' ? Colors.expense : businessHealthReport.status === 'warning' ? Colors.warning : Colors.income }]}>
-                {businessHealthReport.statusLabel}
-              </Text>
-            </View>
-          </View>
-
-          {/* "Is this getting better" -- the trend behind the score above,
-              not just today's snapshot. Same healthScoreHistory.ts trend
-              the Dashboard's own progress card teases; the category
-              attribution (which dimension moved) only shows here, where
-              there's room for it. Null until a second snapshot exists
-              (roughly a week after the first real activity). */}
-          {healthScoreDelta && healthScoreDelta.trend !== 'stable' && (
-            <View style={[styles.trendSummaryBox, { borderColor: healthScoreDelta.trend === 'improving' ? Colors.income : Colors.expense }]}>
-              <Icon name={healthScoreDelta.trend === 'improving' ? 'trending-up' : 'trending-down'} size={14} color={healthScoreDelta.trend === 'improving' ? Colors.income : Colors.expense} />
-              <Text style={[styles.trendSummaryText, { color: healthScoreDelta.trend === 'improving' ? Colors.income : Colors.expense }]}>
-                {healthScoreDelta.trend === 'improving'
-                  ? `Overall health improved ${healthScoreDelta.fromScore}→${healthScoreDelta.toScore} over ${healthScoreDelta.periodLabel}${healthScoreDelta.improvedCategories.length > 0 ? ` — ${healthScoreDelta.improvedCategories.map(c => c.label).join(', ')} led the way.` : '.'}`
-                  : `Overall health dropped ${healthScoreDelta.fromScore}→${healthScoreDelta.toScore} over ${healthScoreDelta.periodLabel}${healthScoreDelta.worsenedCategories.length > 0 ? ` — ${healthScoreDelta.worsenedCategories.map(c => c.label).join(', ')} needs attention.` : '.'}`}
-              </Text>
-            </View>
-          )}
-
-          <Text style={styles.reportSectionLabel}>What we found</Text>
-          <Text style={styles.reportText}>{businessHealthReport.whatWeFound}</Text>
-
-          <View style={styles.narrativeMetricsRow}>
-            {businessHealthReport.metrics.map((mt, i) => (
-              <View key={i} style={styles.narrativeMetricTile}>
-                <Text style={styles.narrativeMetricLabel}>{mt.label}</Text>
-                <Text style={[styles.narrativeMetricValue, mt.tone === 'negative' ? { color: Colors.expense } : mt.tone === 'positive' ? { color: Colors.income } : null]}>{mt.value}</Text>
-                {mt.compareLabel && <Text style={styles.diagnosisMetricCompareLabel}>{mt.compareLabel}</Text>}
-              </View>
-            ))}
-          </View>
-
-          <Text style={styles.reportSectionLabel}>Why this matters</Text>
-          <Text style={styles.reportText}>{businessHealthReport.whyThisMatters}</Text>
-
-          {businessHealthReport.investigate.length > 0 && (
-            <View style={styles.investigateBox}>
-              <Text style={styles.reportSectionLabel}>What you can investigate</Text>
-              {businessHealthReport.investigate.map((q, i) => (
-                <Text key={i} style={styles.investigateItem}>• {q}</Text>
-              ))}
-            </View>
-          )}
-
-          <Text style={styles.reportSectionLabel}>What you should do next</Text>
-          <Text style={styles.reportStepsHint}>Tap a step to go do it.</Text>
-          {businessHealthReport.nextSteps.map((step, i) => (
-            step.screen ? (
-              <TouchableOpacity key={i} style={styles.stepRow} onPress={() => navigate(step.screen!, { ...step.params, focusTask: step.text })} activeOpacity={0.7}>
-                <Icon name="check-circle" size={14} color={Colors.income} />
-                <Text style={styles.reportStep}>{step.text}</Text>
-                <Icon name="chevron-right" size={16} color={Colors.textMuted} />
-              </TouchableOpacity>
-            ) : (
-              <View key={i} style={styles.stepRow}>
-                <Icon name="check-circle" size={14} color={Colors.income} />
-                <Text style={styles.reportStep}>{step.text}</Text>
-              </View>
-            )
-          ))}
-
-          {/* Where a diagnosis actually goes once you act on it -- the same
-              findings above are already what Insights' Decision Centre is
-              built from (decisionCentre.ts reads diagnosis.diagnoses
-              directly), which is where "Set a goal" turns a finding into a
-              tracked FinancialGoal, and a cost-reduction goal's own "Turn
-              into a budget" carries it into Budget. Named explicitly here
-              since that chain isn't otherwise visible from this screen. */}
-          <View style={styles.reportDecisionBox}>
-            {trackedGoalForReport ? (
-              <>
-                <Text style={styles.reportSectionLabel}>Tracking this as a goal</Text>
-                <Text style={styles.reportText}>
-                  "{trackedGoalForReport.title}" is {Math.round(trackedGoalForReport.progress)}% there -- {GOAL_STATUS_LABEL[trackedGoalForReport.status]}. This report will keep reflecting its real progress as your numbers change.
-                </Text>
-                <NextStepLink text="View or adjust this goal" onPress={() => navigate('goals', { goalId: trackedGoalForReport.id })} />
-              </>
-            ) : businessHealthReport.suggestedGoalType ? (
-              <>
-                <Text style={styles.reportSectionLabel}>Turn this into a tracked plan</Text>
-                <Text style={styles.reportText}>
-                  Set this up as a goal with one tap -- prefilled from your own numbers, still yours to adjust before saving. Once it exists, this report tracks its real progress automatically.
-                </Text>
-                <NextStepLink text="Set this up as a goal" onPress={() => navigate('goals', { goalType: businessHealthReport.suggestedGoalType })} />
-              </>
-            ) : (
-              <>
-                <Text style={styles.reportSectionLabel}>Turn this into a tracked plan</Text>
-                <Text style={styles.reportText}>
-                  Every finding above also lives in your Decision Centre, where you can set it as a goal and -- for a cost-cutting goal -- turn that goal straight into a budget.
-                </Text>
-                <NextStepLink text="Open your Decision Centre" onPress={() => navigate('insights')} />
-              </>
-            )}
-          </View>
-        </View>
+            the 8-Dimension Diagnosis below. Extracted to
+            BusinessHealthReportCard so Scoreboard can show the exact same
+            card (same buildDiagnosticDimensions call) under its own score,
+            not a second hand-maintained copy. */}
+        <BusinessHealthReportCard
+          report={businessHealthReport}
+          healthScoreDelta={healthScoreDelta}
+          trackedGoal={trackedGoalForReport}
+          navigate={navigate}
+        />
 
         {/* The 8-Dimension Diagnosis -- Quad360's Diagnostic Engine
             connecting the numbers to what they mean, dimension by
@@ -1047,27 +953,6 @@ const styles = StyleSheet.create({
   healthDescriptionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
   healthDescription: { flex: 1, fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
 
-  reportCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    borderLeftWidth: 4,
-    padding: Spacing.lg,
-    marginBottom: Spacing.xl,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    ...Shadow.sm,
-  },
-  reportHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  reportTitle: { fontSize: 15.5, fontWeight: '800', color: Colors.textPrimary, flex: 1 },
-  reportStatusBadge: { borderRadius: Radius.pill, paddingHorizontal: Spacing.md, paddingVertical: 6 },
-  reportStatusText: { fontSize: 12, fontWeight: '800' },
-  reportSectionLabel: { fontSize: 10.5, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 8 },
-  reportText: { fontSize: 13, color: Colors.textPrimary, lineHeight: 19, marginTop: 2 },
-  trendSummaryBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, borderWidth: 1, borderRadius: Radius.sm, padding: 10, marginTop: 10 },
-  trendSummaryText: { flex: 1, fontSize: 12, fontWeight: '600', lineHeight: 17 },
-  reportStep: { flex: 1, fontSize: 13, color: Colors.textPrimary, lineHeight: 19 },
-  reportDecisionBox: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border },
   stepRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   reportStepsHint: { fontSize: 10.5, color: Colors.textMuted, fontStyle: 'italic', marginTop: 2 },
 
