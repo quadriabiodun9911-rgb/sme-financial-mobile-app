@@ -2164,12 +2164,21 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 14,
         marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm,
     },
-    itemHeader:   { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.md },
+    // Was a single `flexDirection: 'row'` with the name/category block
+    // (flex: 1, flexBasis 0%) racing 8 action buttons (itemActions, no
+    // flexShrink/flexWrap -- RN's default flexShrink is 0, not web's 1) for
+    // the same row. The actions never shrank, so on a phone-width card the
+    // name column was squeezed to ~0 width, and long names like "Ankara
+    // fabric (yards)" rendered one character per line down the whole card.
+    // Stacking name-block-then-actions removes the race entirely: the name
+    // always gets the card's full width to wrap normally, and the actions
+    // get their own row with flexWrap as a safety net if they ever overflow.
+    itemHeader:   { marginBottom: Spacing.md },
     itemName:     { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 2 },
     itemCategory: { fontSize: 11, color: Colors.textMuted },
     writeDownBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
     writeDownBadgeText: { fontSize: 10, color: Colors.expense, fontWeight: '600' },
-    itemActions:  { flexDirection: 'row', gap: 6 },
+    itemActions:  { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
     actionBtn:    { backgroundColor: Colors.muted, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
     deleteBtn:    { backgroundColor: 'rgba(239,68,68,0.2)' },
     actionBtnText:{ fontSize: 14 },
