@@ -244,6 +244,13 @@ const T = {
         navCredit: 'Credit', navFinancing: 'Financing',
         navSettingsDesc: 'Business, team & account',
         navExportData: 'Export Data', navExportDataDesc: 'Download reports & backups',
+        navRiskDesc: 'Identify potential threats', growthDesc: 'Discover growth opportunities',
+        navCreditDesc: 'Understand financing readiness',
+        navOperationsGroup: 'Vendor Bills, Payroll, Reconciliation and General Ledger',
+        navOperationsGroupDesc: 'Financial operations and accounting tools',
+        navDecideAdvisorGroup: 'Insights & Ask Advisor', navDecideAdvisorGroupDesc: 'Understand what needs attention, or just ask',
+        navAnalysisGroup: 'Analysis, Goals & Budget', navAnalysisGroupDesc: 'Test decisions and set targets',
+        sectionDecideActFund: 'Decide · Act · Fund',
 
         // Dashboard -- Vital Signs / Business Health (top of screen)
         dashboardSearchPlaceholder: 'Search transactions, invoices, assets...',

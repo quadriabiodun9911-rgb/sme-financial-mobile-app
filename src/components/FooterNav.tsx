@@ -76,6 +76,18 @@ import { t, TranslationKey } from '../utils/i18n';
 // render time), not literal display strings -- these arrays are module-level
 // constants built before `language` is known, so translation must happen
 // where they're rendered, not where they're declared.
+//
+// Presentational grouping below (render-time only, not a data change):
+// Understand's four lowest-frequency record-keeping screens (Vendor Bills,
+// Payroll, Reconciliation, General Ledger) collapse into one "Financial
+// operations" row, expandable in place rather than always taking four full
+// rows. Decide's five items pair into two rows the same way (Insights +
+// Advisor; Analysis + Goals + Budget), and Decide/Act & Results/Fund share
+// one "Decide · Act · Fund" header with a stage range (04-06) instead of
+// three separate ones -- still three distinct stages underneath (this
+// file's own loop/ordering reasoning above is unchanged), just one less
+// visually competing header block in a sheet that was reading as a long
+// settings list rather than a small set of destinations.
 // Exported so GettingStartedScreen's feature tour can list the exact same
 // items, in the exact same order, instead of hand-copying a second list
 // that would silently drift out of sync with this one.
@@ -100,9 +112,9 @@ export const UNDERSTAND_ITEMS: { label: TranslationKey; icon: IconName; screen: 
     { label: 'navPortfolio',      icon: 'layers',        screen: 'portfolio',      color: '#6366f1', desc: 'navPortfolioDesc' },
 ];
 
-export const ANTICIPATE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string }[] = [
-    { label: 'navRisk',     icon: 'radio',          screen: 'risk-management', color: '#ef4444' },
-    { label: 'growth',      icon: 'trending-up',     screen: 'growth',   color: '#10b981' },
+export const ANTICIPATE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey }[] = [
+    { label: 'navRisk',     icon: 'radio',          screen: 'risk-management', color: '#ef4444', desc: 'navRiskDesc' },
+    { label: 'growth',      icon: 'trending-up',     screen: 'growth',   color: '#10b981', desc: 'growthDesc' },
 ];
 
 export const DECIDE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey; params?: NavParams }[] = [
@@ -122,8 +134,8 @@ export const IMPROVE_ITEMS: { label: TranslationKey; icon: IconName; screen: Scr
     { label: 'navActionTracker', icon: 'check-circle', screen: 'action-tracker', color: '#ef4444', desc: 'navActionTrackerDesc' },
 ];
 
-export const FUND_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string }[] = [
-    { label: 'navCredit',      icon: 'credit-card',  screen: 'credit-worthiness', color: '#eab308' },
+export const FUND_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey }[] = [
+    { label: 'navCredit',      icon: 'credit-card',  screen: 'credit-worthiness', color: '#eab308', desc: 'navCreditDesc' },
 ];
 
 // Deeper tools most businesses reach for occasionally, not every cycle --
@@ -155,6 +167,15 @@ const TABS: { label: TranslationKey; screen: Screen; icon: IconName }[] = [
 export default function FooterNav() {
     const { currentScreen, setCurrentScreen, navigate, user, pendingSyncCount, transactions, goals, invoices, finance, userRole, canViewFinancials, settings, language, teamMemberships } = useApp();
     const [moreOpen, setMoreOpen] = useState(false);
+    // Which grouped rows (Financial Operations, Insights & Advisor,
+    // Analysis/Goals/Budget) are expanded in place -- local-only, resets
+    // when the sheet closes, same as moreOpen itself.
+    const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+    const toggleGroup = (key: string) => setOpenGroups(prev => {
+        const next = new Set(prev);
+        if (next.has(key)) next.delete(key); else next.add(key);
+        return next;
+    });
     // Modal renders via a portal on web (react-native-web), completely
     // outside App.tsx's centeredAppColumn wrapper -- so unlike every
     // regular screen, this sheet was stretching full-bleed on desktop
@@ -233,6 +254,18 @@ export default function FooterNav() {
     );
     const visibleAnticipate = useMemo(() => ANTICIPATE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
     const visibleDecide = useMemo(() => DECIDE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
+
+    // Understand splits into the six primary feature-card items and the
+    // four lower-frequency ones folded into the "Financial operations" row.
+    const OPERATIONS_SCREENS: Screen[] = ['bills', 'payroll', 'reconciliation', 'general-ledger'];
+    const visibleUnderstandGrid = useMemo(() => visibleUnderstand.filter(i => !OPERATIONS_SCREENS.includes(i.screen)), [visibleUnderstand]);
+    const visibleUnderstandOps  = useMemo(() => visibleUnderstand.filter(i => OPERATIONS_SCREENS.includes(i.screen)), [visibleUnderstand]);
+
+    // Decide's five items pair into two rows -- Insights+Advisor both answer
+    // "what needs attention," Analysis/Goals/Budget are the three "decide
+    // and plan" tools.
+    const visibleDecideAdvisorGroup = useMemo(() => visibleDecide.filter(i => i.screen === 'insights' || i.screen === 'cfo'), [visibleDecide]);
+    const visibleDecideAnalysisGroup = useMemo(() => visibleDecide.filter(i => i.screen === 'analysis' || i.screen === 'goals' || i.screen === 'budget'), [visibleDecide]);
     const visibleImprove = useMemo(() => IMPROVE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
     const visibleFund = useMemo(() => FUND_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
     const visibleAdvanced = useMemo(() => ADVANCED_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
@@ -241,6 +274,88 @@ export default function FooterNav() {
         ACCOUNT_ITEMS.filter(item => isScreenAllowedForRole(item.screen, userRole)),
         [userRole]
     );
+
+    // A 2-column grid of bordered feature cards (icon badge, bold title,
+    // muted one-line description) -- the primary-destination treatment for
+    // Understand/Anticipate/Fund, replacing the old small centered-icon
+    // chip grid (still used by Advanced, which is deliberately lower-key).
+    const renderFeatureGrid = (items: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey }[]) => (
+        <View style={styles.featureGrid}>
+            {items.map(item => (
+                <TouchableOpacity
+                    key={item.label}
+                    style={styles.featureCard}
+                    onPress={() => goTo(item.screen)}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t(language, item.label)}. ${t(language, item.desc)}`}
+                >
+                    <View style={[styles.featureIconBox, { backgroundColor: item.color + '22' }]}>
+                        <Icon name={item.icon} size={18} color={item.color} />
+                    </View>
+                    <Text style={styles.featureLabel}>{t(language, item.label)}</Text>
+                    <Text style={styles.featureDesc}>{t(language, item.desc)}</Text>
+                </TouchableOpacity>
+            ))}
+        </View>
+    );
+
+    // A single full-width row standing in for several real destinations at
+    // once (Financial Operations; Insights+Advisor; Analysis/Goals/Budget).
+    // Tapping expands it in place to reveal the real rows underneath, each
+    // still navigating to its own actual screen -- nothing here is a new
+    // destination, just a collapsed presentation of existing ones.
+    const renderGroupRow = (
+        groupKey: string, icon: IconName, color: string, title: string, desc: string,
+        subItems: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey; params?: NavParams }[],
+        isLast: boolean,
+    ) => {
+        const open = openGroups.has(groupKey);
+        return (
+            <View key={groupKey}>
+                <TouchableOpacity
+                    style={[styles.listRow, !isLast && !open && styles.listRowBorder]}
+                    onPress={() => toggleGroup(groupKey)}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${title}. ${desc}`}
+                    accessibilityState={{ expanded: open }}
+                >
+                    <View style={[styles.listIconBox, { backgroundColor: color + '22' }]}>
+                        <Icon name={icon} size={16} color={color} />
+                    </View>
+                    <View style={styles.listTextCol}>
+                        <Text style={styles.listLabel}>{title}</Text>
+                        <Text style={styles.listDesc}>{desc}</Text>
+                    </View>
+                    <Icon name={open ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.textMuted} />
+                </TouchableOpacity>
+                {open && (
+                    <View style={styles.groupSubList}>
+                        {subItems.map((item, i, arr) => (
+                            <TouchableOpacity
+                                key={item.label}
+                                style={[styles.groupSubRow, i < arr.length - 1 && styles.listRowBorder]}
+                                onPress={() => goTo(item.screen, item.params)}
+                                activeOpacity={0.75}
+                                accessibilityRole="button"
+                                accessibilityLabel={`${t(language, item.label)}. ${t(language, item.desc)}`}
+                            >
+                                <View style={[styles.listIconBox, styles.groupSubIconBox, { backgroundColor: item.color + '22' }]}>
+                                    <Icon name={item.icon} size={14} color={item.color} />
+                                </View>
+                                <View style={styles.listTextCol}>
+                                    <Text style={styles.groupSubLabel}>{t(language, item.label)}</Text>
+                                    <Text style={styles.listDesc}>{t(language, item.desc)}</Text>
+                                </View>
+                                <Icon name="chevron-right" size={16} color={Colors.textMuted} />
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                )}
+            </View>
+        );
+    };
 
     return (
         <>
@@ -366,7 +481,10 @@ export default function FooterNav() {
                         {/* ── Diagnosis ─────────────────────────────────── */}
                         {visibleDiagnosis.length > 0 && (
                             <>
-                                <Text style={styles.sectionHeader}>{t(language, 'sectionDiagnosis')}</Text>
+                                <View style={styles.sectionHeaderRow}>
+                                    <Text style={[styles.sectionHeader, styles.sectionHeaderInRow]}>{t(language, 'sectionDiagnosis')}</Text>
+                                    <Text style={styles.stageNum}>01</Text>
+                                </View>
                                 <Text style={styles.sectionSubtitle}>{t(language, 'subDiagnosis')}</Text>
                                 <View style={styles.listCard}>
                                     {visibleDiagnosis.map((item, i, arr) => (
@@ -393,88 +511,57 @@ export default function FooterNav() {
                         )}
 
                         {/* ── Understand ────────────────────────────────── */}
-                        <Text style={styles.sectionHeader}>{t(language, 'sectionUnderstand')}</Text>
+                        <View style={styles.sectionHeaderRow}>
+                            <Text style={[styles.sectionHeader, styles.sectionHeaderInRow]}>{t(language, 'sectionUnderstand')}</Text>
+                            <Text style={styles.stageNum}>02</Text>
+                        </View>
                         <Text style={styles.sectionSubtitle}>{t(language, 'subUnderstand')}</Text>
                         <Text style={styles.flowHint}>{t(language, 'hintUnderstand')}</Text>
-                        <View style={styles.listCard}>
-                            {visibleUnderstand.map((item, i, arr) => (
-                                <TouchableOpacity
-                                    key={item.label}
-                                    style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
-                                    onPress={() => goTo(item.screen)}
-                                    activeOpacity={0.75}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`${t(language, item.label)}. ${t(language, item.desc)}`}
-                                >
-                                    <View style={[styles.listIconBox, { backgroundColor: item.color + '22' }]}>
-                                        <Icon name={item.icon} size={16} color={item.color} />
-                                    </View>
-                                    <View style={styles.listTextCol}>
-                                        <Text style={styles.listLabel}>{t(language, item.label)}</Text>
-                                        <Text style={styles.listDesc}>{t(language, item.desc)}</Text>
-                                    </View>
-                                    <Icon name="chevron-right" size={18} color={Colors.textMuted} />
-                                </TouchableOpacity>
-                            ))}
-                        </View>
+                        {renderFeatureGrid(visibleUnderstandGrid)}
+                        {visibleUnderstandOps.length > 0 && (
+                            <View style={styles.listCard}>
+                                {renderGroupRow(
+                                    'understand-ops', 'inbox', '#c026d3',
+                                    t(language, 'navOperationsGroup'), t(language, 'navOperationsGroupDesc'),
+                                    visibleUnderstandOps, true,
+                                )}
+                            </View>
+                        )}
 
                         {/* ── Anticipate ────────────────────────────────── */}
-                        <Text style={styles.sectionHeader}>{t(language, 'sectionAnticipate')}</Text>
+                        <View style={styles.sectionHeaderRow}>
+                            <Text style={[styles.sectionHeader, styles.sectionHeaderInRow]}>{t(language, 'sectionAnticipate')}</Text>
+                            <Text style={styles.stageNum}>03</Text>
+                        </View>
                         <Text style={styles.sectionSubtitle}>{t(language, 'subAnticipate')}</Text>
                         <Text style={styles.flowHint}>{t(language, 'hintAnticipate')}</Text>
-                        <View style={styles.gridCard}>
-                            {visibleAnticipate.map(item => (
-                                <TouchableOpacity
-                                    key={item.label}
-                                    style={styles.gridItem}
-                                    onPress={() => goTo(item.screen)}
-                                    activeOpacity={0.75}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={t(language, item.label)}
-                                >
-                                    <View style={[styles.gridIconBox, { backgroundColor: item.color + '22' }]}>
-                                        <Icon name={item.icon} size={19} color={item.color} />
-                                    </View>
-                                    <Text style={styles.gridLabel}>{t(language, item.label)}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
+                        {renderFeatureGrid(visibleAnticipate)}
 
-                        {/* ── Decide ────────────────────────────────────── */}
-                        <Text style={styles.sectionHeader}>{t(language, 'sectionDecide')}</Text>
-                        <Text style={styles.sectionSubtitle}>{t(language, 'subDecide')}</Text>
-                        <Text style={styles.flowHint}>{t(language, 'hintDecide')}</Text>
-                        <View style={styles.listCard}>
-                            {visibleDecide.map((item, i, arr) => (
-                                <TouchableOpacity
-                                    key={item.label}
-                                    style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
-                                    onPress={() => goTo(item.screen, item.params)}
-                                    activeOpacity={0.75}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`${t(language, item.label)}. ${t(language, item.desc)}`}
-                                >
-                                    <View style={[styles.listIconBox, { backgroundColor: item.color + '22' }]}>
-                                        <Icon name={item.icon} size={16} color={item.color} />
-                                    </View>
-                                    <View style={styles.listTextCol}>
-                                        <Text style={styles.listLabel}>{t(language, item.label)}</Text>
-                                        <Text style={styles.listDesc}>{t(language, item.desc)}</Text>
-                                    </View>
-                                    <Icon name="chevron-right" size={18} color={Colors.textMuted} />
-                                </TouchableOpacity>
-                            ))}
+                        {/* ── Decide · Act · Fund ───────────────────────── */}
+                        {/* One shared header for three stages that each already
+                            narrow to very few items (5, 1, 1) -- three separate
+                            header blocks read as more sections than the sheet
+                            actually has. Still rendered as three visually
+                            distinct groups below, in loop order. */}
+                        <View style={styles.sectionHeaderRow}>
+                            <Text style={[styles.sectionHeader, styles.sectionHeaderInRow]}>{t(language, 'sectionDecideActFund')}</Text>
+                            <Text style={styles.stageNum}>04–06</Text>
                         </View>
-
-                        {/* ── Act & Results ─────────────────────────────── */}
-                        <Text style={styles.sectionHeader}>{t(language, 'sectionActResults')}</Text>
-                        <Text style={styles.sectionSubtitle}>{t(language, 'subActResults')}</Text>
-                        <Text style={styles.flowHint}>{t(language, 'hintActResults')}</Text>
                         <View style={styles.listCard}>
+                            {visibleDecideAdvisorGroup.length > 0 && renderGroupRow(
+                                'decide-advisor', 'zap', '#f59e0b',
+                                t(language, 'navDecideAdvisorGroup'), t(language, 'navDecideAdvisorGroupDesc'),
+                                visibleDecideAdvisorGroup, false,
+                            )}
+                            {visibleDecideAnalysisGroup.length > 0 && renderGroupRow(
+                                'decide-analysis', 'pie-chart', '#14b8a6',
+                                t(language, 'navAnalysisGroup'), t(language, 'navAnalysisGroupDesc'),
+                                visibleDecideAnalysisGroup, visibleImprove.length === 0 && visibleFund.length === 0,
+                            )}
                             {visibleImprove.map((item, i, arr) => (
                                 <TouchableOpacity
                                     key={item.label}
-                                    style={[styles.listRow, i < arr.length - 1 && styles.listRowBorder]}
+                                    style={[styles.listRow, styles.listRowBorder]}
                                     onPress={() => goTo(item.screen)}
                                     activeOpacity={0.75}
                                     accessibilityRole="button"
@@ -490,26 +577,23 @@ export default function FooterNav() {
                                     <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                                 </TouchableOpacity>
                             ))}
-                        </View>
-
-                        {/* ── Fund ──────────────────────────────────────── */}
-                        <Text style={styles.sectionHeader}>{t(language, 'sectionFund')}</Text>
-                        <Text style={styles.sectionSubtitle}>{t(language, 'subFund')}</Text>
-                        <Text style={styles.flowHint}>{t(language, 'hintFund')}</Text>
-                        <View style={styles.gridCard}>
-                            {visibleFund.map(item => (
+                            {visibleFund.map((item, i, arr) => (
                                 <TouchableOpacity
                                     key={item.label}
-                                    style={styles.gridItem}
+                                    style={[styles.listRow, styles.listRowBorder]}
                                     onPress={() => goTo(item.screen)}
                                     activeOpacity={0.75}
                                     accessibilityRole="button"
-                                    accessibilityLabel={t(language, item.label)}
+                                    accessibilityLabel={`${t(language, item.label)}. ${t(language, item.desc)}`}
                                 >
-                                    <View style={[styles.gridIconBox, { backgroundColor: item.color + '22' }]}>
-                                        <Icon name={item.icon} size={19} color={item.color} />
+                                    <View style={[styles.listIconBox, { backgroundColor: item.color + '22' }]}>
+                                        <Icon name={item.icon} size={16} color={item.color} />
                                     </View>
-                                    <Text style={styles.gridLabel}>{t(language, item.label)}</Text>
+                                    <View style={styles.listTextCol}>
+                                        <Text style={styles.listLabel}>{t(language, item.label)}</Text>
+                                        <Text style={styles.listDesc}>{t(language, item.desc)}</Text>
+                                    </View>
+                                    <Icon name="chevron-right" size={18} color={Colors.textMuted} />
                                 </TouchableOpacity>
                             ))}
                         </View>
@@ -662,6 +746,25 @@ const styles = StyleSheet.create({
         marginTop: Spacing.xl,
         marginLeft: Spacing.xl,
     },
+    // Wraps sectionHeader + a stage-number badge (01, 02, 03, 04-06) --
+    // owns the spacing itself so the Text inside can be reset to 0 margin
+    // without duplicating/colliding with it.
+    sectionHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginTop: Spacing.xl,
+        marginBottom: 2,
+        marginLeft: Spacing.xl,
+        marginRight: Spacing.xl,
+    },
+    stageNum: {
+        fontSize: 11,
+        fontWeight: '800',
+        color: Colors.textMuted,
+        letterSpacing: 0.4,
+    },
+    sectionHeaderInRow: { marginTop: 0, marginBottom: 0, marginLeft: 0 },
     sectionSubtitle: {
         fontSize: 11.5,
         color: Colors.textSecondary,
@@ -695,6 +798,29 @@ const styles = StyleSheet.create({
     gridIconBox: { width: 48, height: 48, borderRadius: Radius.md, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.sm },
     gridLabel:   { fontSize: 11, color: Colors.textSecondary, fontWeight: '600', textAlign: 'center' },
 
+    // Feature card grid -- the primary-destination treatment (Understand,
+    // Anticipate, Fund): each item is its own bordered card in a 2-column
+    // wrap, not a shared card of small centered-icon chips.
+    featureGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: Spacing.sm,
+        marginHorizontal: Spacing.lg,
+    },
+    featureCard: {
+        flexBasis: '47%',
+        flexGrow: 1,
+        backgroundColor: Colors.surface,
+        borderRadius: Radius.lg,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        padding: Spacing.lg,
+        ...Shadow.sm,
+    },
+    featureIconBox: { width: 38, height: 38, borderRadius: Radius.sm, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.sm },
+    featureLabel:   { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+    featureDesc:    { fontSize: 11.5, color: Colors.textMuted, lineHeight: 15 },
+
     // List card
     listCard:      { backgroundColor: Colors.surface, marginHorizontal: Spacing.lg, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', ...Shadow.sm },
     listRow:       { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.lg, paddingHorizontal: Spacing.lg, gap: Spacing.md },
@@ -703,6 +829,15 @@ const styles = StyleSheet.create({
     listTextCol:   { flex: 1 },
     listLabel:     { fontSize: 15, color: Colors.textPrimary, fontWeight: '700' },
     listDesc:      { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+
+    // Grouped row sub-items (Financial Operations; Insights & Advisor;
+    // Analysis/Goals/Budget) -- revealed in place under the collapsed row,
+    // same row shape but slightly indented and smaller to read as "inside"
+    // the group rather than a sibling of it.
+    groupSubList:   { backgroundColor: Colors.bg },
+    groupSubRow:    { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.md, paddingLeft: Spacing.xl + 10, paddingRight: Spacing.lg, gap: Spacing.md },
+    groupSubIconBox: { width: 30, height: 30 },
+    groupSubLabel:  { fontSize: 13, color: Colors.textPrimary, fontWeight: '600' },
 
     // Footer
     versionText: { textAlign: 'center', fontSize: 12, color: Colors.textMuted, marginTop: Spacing.xxxl },
