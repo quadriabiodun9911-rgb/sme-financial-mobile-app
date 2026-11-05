@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image, Modal, Platform, useWindowDimensions,
@@ -94,6 +94,25 @@ function detectLocaleCurrencyCode(): string {
         }
     } catch {}
     return 'USD';
+}
+
+// The Backup Password field (optional, Create Account step 1) is the one
+// real password in this screen -- the 6-digit PIN is a fixed-format local
+// unlock, not a password, so "strength" has no meaning for it. This is a
+// nicety on top of the existing length>=8 validation in handleSetup, never
+// a replacement for it -- it's already paired with an emailed one-time
+// code at sign-in (see handlePasswordLoginSubmit/OtpSubmit), so it's
+// already a second factor rather than a lone credential.
+function assessPasswordStrength(pw: string): { label: string; color: string; score: 1 | 2 | 3 } {
+    if (!pw || pw.length < 8) return { label: 'Weak', color: Colors.danger, score: 1 };
+    let variety = 0;
+    if (/[a-z]/.test(pw)) variety++;
+    if (/[A-Z]/.test(pw)) variety++;
+    if (/[0-9]/.test(pw)) variety++;
+    if (/[^a-zA-Z0-9]/.test(pw)) variety++;
+    if (pw.length >= 15 || (pw.length >= 12 && variety >= 3)) return { label: 'Strong', color: Colors.income, score: 3 };
+    if (pw.length >= 10 || variety >= 2) return { label: 'Fair', color: Colors.warning, score: 2 };
+    return { label: 'Weak', color: Colors.danger, score: 1 };
 }
 
 type Mode = 'owner-setup' | 'owner-login' | 'join-team' | 'join-lender' | 'reset-pin' | 'demo-pick' | 'recover' | 'password-login';
@@ -251,11 +270,34 @@ export default function LoginScreen() {
     // whenever the user gets around to it.
     const [setupBackupPassword, setSetupBackupPassword] = useState('');
     const [setupBackupPasswordConfirm, setSetupBackupPasswordConfirm] = useState('');
+    // Two steps: account & security (email/username, phone, PIN, optional
+    // backup password), then the business profile (name, currency,
+    // industry, size) -- see the Phase redesign brief this screen is being
+    // brought in line with. Same fields, same handleSetup/validation, just
+    // not all asked on one long page.
+    const [setupStep, setSetupStep] = useState<1 | 2>(1);
+    // Reveal toggles for the fields this redesign adds a show/hide eye icon
+    // to -- purely a display concern, never touches secureTextEntry's
+    // underlying value.
+    const [showPin, setShowPin] = useState(false);
+    const [showConfirmPin, setShowConfirmPin] = useState(false);
+    const [showBackupPassword, setShowBackupPassword] = useState(false);
+    const [showBackupPasswordConfirm, setShowBackupPasswordConfirm] = useState(false);
+    const backupPasswordStrength = useMemo(() => assessPasswordStrength(setupBackupPassword), [setupBackupPassword]);
+    useEffect(() => { if (mode === 'owner-setup') setSetupStep(1); }, [mode]);
+    // Without this, advancing from Step 1 (often scrolled down to reach the
+    // PIN fields) to Step 2 leaves the ScrollView at that same scroll
+    // offset, landing the owner mid-way down Step 2's fields instead of at
+    // its first one.
+    const setupScrollRef = React.useRef<ScrollView>(null);
+    useEffect(() => { setupScrollRef.current?.scrollTo({ y: 0, animated: false }); }, [setupStep]);
 
     // Owner return
     const [returnPin, setReturnPin] = useState('');
     const [emailLoginEmail, setEmailLoginEmail] = useState('');
     const [emailLoginPin, setEmailLoginPin] = useState('');
+    const [showReturnPin, setShowReturnPin] = useState(false);
+    const [showEmailLoginPin, setShowEmailLoginPin] = useState(false);
 
     // Switch Account — which of this device's other known accounts (if any)
     // is currently being switched to, and its inline PIN prompt. See
@@ -387,6 +429,29 @@ export default function LoginScreen() {
             return;
         }
         Alert.alert(title, message, buttons);
+    };
+
+    // Gates "Continue" from Step 1 (account & security) to Step 2 (business
+    // profile) -- the exact same checks handleSetup already runs on these
+    // same fields, just run earlier so a mistake here is caught before the
+    // owner has typed their whole business profile, not after.
+    const validateStep1 = (): boolean => {
+        if (useUsername) {
+            if (!/^[a-zA-Z0-9_]{3,20}$/.test(username.trim())) {
+                showAlert(t(setupLang, 'error'), 'Username must be 3-20 characters: letters, numbers, and underscores only.'); return false;
+            }
+        } else if (!email.trim()) {
+            showAlert(t(setupLang, 'missingFields'), t(setupLang, 'email')); return false;
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+            showAlert(t(setupLang, 'error'), 'Please enter a valid email address.'); return false;
+        }
+        if (!/^\d{6}$/.test(pin)) { showAlert(t(setupLang, 'error'), t(setupLang, 'invalidPin')); return false; }
+        if (pin !== confirmPin)   { showAlert(t(setupLang, 'error'), t(setupLang, 'pinMismatch')); return false; }
+        if (setupBackupPassword) {
+            if (setupBackupPassword.length < 8) { showAlert(t(setupLang, 'error'), 'Backup password must be at least 8 characters (or leave both boxes empty to skip it).'); return false; }
+            if (setupBackupPassword !== setupBackupPasswordConfirm) { showAlert(t(setupLang, 'error'), 'Backup passwords do not match.'); return false; }
+        }
+        return true;
     };
 
     const handleSetup = async () => {
@@ -1697,7 +1762,16 @@ export default function LoginScreen() {
             </>
         );
 
-        const formFields = (
+        const stepDots = (
+            <View style={styles.stepDotsRow}>
+                <View style={[styles.stepDot, setupStep >= 1 && styles.stepDotActive]} />
+                <View style={[styles.stepDot, setupStep >= 2 && styles.stepDotActive]} />
+            </View>
+        );
+
+        // Step 1 — Create your account: identity + the PIN that unlocks this
+        // device, plus the one optional real password this screen has.
+        const step1Fields = (
             <>
                 {isDemoMode && (
                     <View style={styles.guestCarryoverNote}>
@@ -1746,20 +1820,17 @@ export default function LoginScreen() {
                         placeholder="+1 555 000 1234" placeholderTextColor={Colors.muted}
                         keyboardType="phone-pad" />
                 </Field>
-                <Field label={t(setupLang, 'businessName')}>
-                    <TextInput style={styles.input} value={business} onChangeText={setBusiness}
-                        placeholder="Acme Corp" placeholderTextColor={Colors.muted} />
-                </Field>
                 <Field label={t(setupLang, 'createPin')}>
-                    <TextInput style={styles.input} value={pin} onChangeText={setPin}
-                        placeholder="••••••" placeholderTextColor={Colors.muted}
-                        secureTextEntry keyboardType="number-pad" maxLength={6} />
+                    <RevealInput value={pin} onChangeText={setPin} placeholder="••••••"
+                        visible={showPin} onToggleVisible={() => setShowPin(v => !v)}
+                        keyboardType="number-pad" maxLength={6} />
                 </Field>
                 <Field label={t(setupLang, 'confirmPin')}>
-                    <TextInput style={styles.input} value={confirmPin} onChangeText={setConfirm}
-                        placeholder="••••••" placeholderTextColor={Colors.muted}
-                        secureTextEntry keyboardType="number-pad" maxLength={6} />
+                    <RevealInput value={confirmPin} onChangeText={setConfirm} placeholder="••••••"
+                        visible={showConfirmPin} onToggleVisible={() => setShowConfirmPin(v => !v)}
+                        keyboardType="number-pad" maxLength={6} />
                 </Field>
+                <Text style={styles.fieldHint}>Exactly 6 digits. This PIN only unlocks Quad360 on this device.</Text>
 
                 {/* Optional -- the PIN above only ever unlocks THIS device;
                     a password set here works on any device (password, then
@@ -1767,17 +1838,48 @@ export default function LoginScreen() {
                     just left for Settings, since this is the one moment
                     every signup passes through. */}
                 <Field label="Backup Password (optional — works on any device)">
-                    <TextInput style={styles.input} value={setupBackupPassword} onChangeText={setSetupBackupPassword}
-                        placeholder="Leave blank to skip" placeholderTextColor={Colors.muted}
-                        secureTextEntry autoCapitalize="none" autoCorrect={false} />
+                    <RevealInput value={setupBackupPassword} onChangeText={setSetupBackupPassword} placeholder="Leave blank to skip"
+                        visible={showBackupPassword} onToggleVisible={() => setShowBackupPassword(v => !v)} />
                 </Field>
+                {!!setupBackupPassword ? (
+                    <View style={styles.strengthRow}>
+                        <View style={styles.strengthTrack}>
+                            <View style={[styles.strengthFill, { width: `${(backupPasswordStrength.score / 3) * 100}%`, backgroundColor: backupPasswordStrength.color }]} />
+                        </View>
+                        <Text style={[styles.strengthLabel, { color: backupPasswordStrength.color }]}>{backupPasswordStrength.label}</Text>
+                    </View>
+                ) : (
+                    <Text style={styles.fieldHint}>At least 8 characters. Confirmed with an emailed code at sign-in, so it's never a lone credential.</Text>
+                )}
                 {!!setupBackupPassword && (
                     <Field label="Confirm Backup Password">
-                        <TextInput style={styles.input} value={setupBackupPasswordConfirm} onChangeText={setSetupBackupPasswordConfirm}
-                            placeholder="••••••••" placeholderTextColor={Colors.muted}
-                            secureTextEntry autoCapitalize="none" autoCorrect={false} />
+                        <RevealInput value={setupBackupPasswordConfirm} onChangeText={setSetupBackupPasswordConfirm} placeholder="••••••••"
+                            visible={showBackupPasswordConfirm} onToggleVisible={() => setShowBackupPasswordConfirm(v => !v)} />
                     </Field>
                 )}
+
+                <TouchableOpacity style={styles.btn} onPress={() => { if (validateStep1()) setSetupStep(2); }}>
+                    <Text style={styles.btnText}>Continue →</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.switchBtn} onPress={() => { setEmailLoginEmail(email); setMode('recover'); }}>
+                    <Text style={styles.switchText}>Already have an account? Sign In →</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
+                    <Icon name="eye" size={13} color={Colors.primary} />
+                    <Text style={styles.demoBtnText}>Try Guest Mode (No sign-up needed)</Text>
+                </TouchableOpacity>
+            </>
+        );
+
+        // Step 2 — Set up your business: the profile that drives which
+        // tools (Inventory, Recipe Costing, ...) show up later, plus the
+        // actual account-creation submit.
+        const step2Fields = (
+            <>
+                <Field label={t(setupLang, 'businessName')}>
+                    <TextInput style={styles.input} value={business} onChangeText={setBusiness}
+                        placeholder="Acme Corp" placeholderTextColor={Colors.muted} />
+                </Field>
 
                 {/* Currency picker — compact single row */}
                 <Field label={t(setupLang, 'preferredCurrency')}>
@@ -1853,21 +1955,19 @@ export default function LoginScreen() {
                     <Icon name="lock" size={11} color={Colors.textMuted} />
                     <Text style={styles.trustNote}>Your data is encrypted and stored securely. We never share your information.</Text>
                 </View>
+                <TouchableOpacity style={styles.switchBtn} onPress={() => setSetupStep(1)}>
+                    <Text style={styles.switchText}>← Back</Text>
+                </TouchableOpacity>
                 <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-team')}>
                     <Text style={styles.switchText}>{t(setupLang, 'joiningTeam')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.switchBtn} onPress={() => setMode('join-lender')}>
                     <Text style={styles.switchText}>Are you a lender? Join with invite code →</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.switchBtn} onPress={() => { setEmailLoginEmail(email); setMode('recover'); }}>
-                    <Text style={styles.switchText}>Already have an account? Sign In →</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
-                    <Icon name="eye" size={13} color={Colors.primary} />
-                    <Text style={styles.demoBtnText}>Try Guest Mode (No sign-up needed)</Text>
-                </TouchableOpacity>
             </>
         );
+
+        const formFields = setupStep === 1 ? step1Fields : step2Fields;
 
         const currencyModal = (
             <Modal visible={currencyModalOpen} transparent animationType="slide" onRequestClose={() => setCurrencyModalOpen(false)}>
@@ -1918,11 +2018,12 @@ export default function LoginScreen() {
                             </View>
                         </View>
 
-                        <ScrollView style={styles.splitFormPanel} contentContainerStyle={styles.splitFormPanelContent} keyboardShouldPersistTaps="handled">
+                        <ScrollView ref={setupScrollRef} style={styles.splitFormPanel} contentContainerStyle={styles.splitFormPanelContent} keyboardShouldPersistTaps="handled">
                             <View style={styles.splitFormCard}>
-                                <Text style={styles.splitFormTitle}>{t(setupLang, 'createAccount')}</Text>
+                                {stepDots}
+                                <Text style={styles.splitFormTitle}>{setupStep === 1 ? 'Create your account' : 'Set up your business'}</Text>
                                 <Text style={[styles.subtitle, styles.splitFormSubtitle]}>{t(setupLang, 'setupSubtitle')}</Text>
-                                {languagePicker}
+                                {setupStep === 1 && languagePicker}
                                 {formFields}
                             </View>
                         </ScrollView>
@@ -1934,26 +2035,31 @@ export default function LoginScreen() {
 
         return (
             <SafeAreaView style={styles.safe}>
-                <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+                <ScrollView ref={setupScrollRef} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                     {backToHomeLink}
                     <View style={styles.card}>
-                        <Image source={require('../../assets/icon.png')} style={styles.logo} />
-                        <Text style={styles.brandTagline}>
-                            Quad360 helps you understand your business, know what you can afford, become financing-ready, and find the right capital — all in one place.
-                        </Text>
+                        <View style={styles.brandHeader}>
+                            <Image source={require('../../assets/icon.png')} style={styles.logoMark} />
+                            <Text style={styles.wordmark}>{t(setupLang, 'appName')}</Text>
+                            <Text style={styles.tagline}>Understand your business. Make better decisions.</Text>
+                        </View>
+                        {stepDots}
+                        <Text style={styles.screenTitle}>{setupStep === 1 ? 'Create your account' : 'Set up your business'}</Text>
                         <Text style={styles.subtitle}>{t(setupLang, 'setupSubtitle')}</Text>
 
                         {/* Social proof strip */}
-                        <View style={styles.socialProofSetup}>
-                            <View style={styles.socialProofPill}>
-                                <Text style={styles.socialProofPillText}>Built for SMEs across Africa & beyond</Text>
+                        {setupStep === 1 && (
+                            <View style={styles.socialProofSetup}>
+                                <View style={styles.socialProofPill}>
+                                    <Text style={styles.socialProofPillText}>Built for SMEs across Africa & beyond</Text>
+                                </View>
+                                <View style={styles.socialProofPill}>
+                                    <Text style={styles.socialProofPillText}>Your data stays private</Text>
+                                </View>
                             </View>
-                            <View style={styles.socialProofPill}>
-                                <Text style={styles.socialProofPillText}>Your data stays private</Text>
-                            </View>
-                        </View>
+                        )}
 
-                        {languagePicker}
+                        {setupStep === 1 && languagePicker}
                         {formFields}
                     </View>
                 </ScrollView>
@@ -2049,11 +2155,16 @@ export default function LoginScreen() {
                 // PIN Login Form
                 <>
                     <View style={styles.pinContainer}>
-                        <TextInput style={styles.pinInput}
-                            placeholder="••••••" placeholderTextColor={Colors.muted}
-                            secureTextEntry keyboardType="number-pad" maxLength={6}
-                            value={returnPin} onChangeText={setReturnPin}
-                            onSubmitEditing={handleLogin} autoFocus />
+                        <View style={styles.pinInputWrap}>
+                            <TextInput style={styles.pinInput}
+                                placeholder="••••••" placeholderTextColor={Colors.muted}
+                                secureTextEntry={!showReturnPin} keyboardType="number-pad" maxLength={6}
+                                value={returnPin} onChangeText={setReturnPin}
+                                onSubmitEditing={handleLogin} autoFocus />
+                            <TouchableOpacity onPress={() => setShowReturnPin(v => !v)} style={styles.pinInputIconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                <Icon name={showReturnPin ? 'eye-off' : 'eye'} size={17} color={Colors.textMuted} />
+                            </TouchableOpacity>
+                        </View>
                     </View>
                     <TouchableOpacity style={styles.btn} onPress={handleLogin}>
                         <Text style={styles.btnText}>{t(language, 'unlock')}</Text>
@@ -2076,16 +2187,9 @@ export default function LoginScreen() {
                         />
                     </Field>
                     <Field label="PIN">
-                        <TextInput style={styles.input}
-                            placeholder="••••••"
-                            placeholderTextColor={Colors.muted}
-                            secureTextEntry
-                            keyboardType="number-pad"
-                            maxLength={6}
-                            value={emailLoginPin}
-                            onChangeText={setEmailLoginPin}
-                            onSubmitEditing={handleEmailLogin}
-                        />
+                        <RevealInput value={emailLoginPin} onChangeText={setEmailLoginPin} placeholder="••••••"
+                            visible={showEmailLoginPin} onToggleVisible={() => setShowEmailLoginPin(v => !v)}
+                            keyboardType="number-pad" maxLength={6} onSubmitEditing={handleEmailLogin} />
                     </Field>
                     <TouchableOpacity style={[styles.btn, submitting && styles.btnDisabled]} onPress={handleEmailLogin} disabled={submitting}>
                         {submitting
@@ -2157,7 +2261,7 @@ export default function LoginScreen() {
 
                     <ScrollView style={styles.splitFormPanel} contentContainerStyle={styles.splitFormPanelContent} keyboardShouldPersistTaps="handled">
                         <View style={styles.splitFormCard}>
-                            <Text style={styles.splitFormTitle}>Welcome Back</Text>
+                            <Text style={styles.splitFormTitle}>Welcome back</Text>
                             <Text style={[styles.subtitle, styles.splitFormSubtitle]}>{t(language, 'loginSubtitle')}</Text>
                             {loginFormFields}
                         </View>
@@ -2172,10 +2276,12 @@ export default function LoginScreen() {
             <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                 {backToHomeLink}
                 <View style={styles.card}>
-                    <Image source={require('../../assets/icon.png')} style={styles.logo} />
-                    <Text style={styles.brandTagline}>
-                        Quad360 helps you understand your business, know what you can afford, become financing-ready, and find the right capital — all in one place.
-                    </Text>
+                    <View style={styles.brandHeader}>
+                        <Image source={require('../../assets/icon.png')} style={styles.logoMark} />
+                        <Text style={styles.wordmark}>{t(language, 'appName')}</Text>
+                        <Text style={styles.tagline}>Understand your business. Make better decisions.</Text>
+                    </View>
+                    <Text style={styles.screenTitle}>Welcome back</Text>
                     <Text style={styles.subtitle}>{t(language, 'loginSubtitle')}</Text>
 
                     {/* Social proof strip */}
@@ -2206,6 +2312,40 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     );
 }
 
+// A masked text input with a show/hide eye icon -- same input used for
+// every PIN and the one real password on this screen, just with a way to
+// check what you typed before submitting instead of trusting dots alone.
+function RevealInput({ value, onChangeText, placeholder, visible, onToggleVisible, maxLength, keyboardType, onSubmitEditing, autoFocus }: {
+    value: string;
+    onChangeText: (v: string) => void;
+    placeholder: string;
+    visible: boolean;
+    onToggleVisible: () => void;
+    maxLength?: number;
+    keyboardType?: 'number-pad' | 'default';
+    onSubmitEditing?: () => void;
+    autoFocus?: boolean;
+}) {
+    return (
+        <View style={styles.inputWrap}>
+            <TextInput
+                style={[styles.input, styles.inputHasIcon]}
+                value={value} onChangeText={onChangeText}
+                placeholder={placeholder} placeholderTextColor={Colors.muted}
+                secureTextEntry={!visible}
+                autoCapitalize="none" autoCorrect={false}
+                keyboardType={keyboardType}
+                maxLength={maxLength}
+                onSubmitEditing={onSubmitEditing}
+                autoFocus={autoFocus}
+            />
+            <TouchableOpacity onPress={onToggleVisible} style={styles.inputIconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Icon name={visible ? 'eye-off' : 'eye'} size={16} color={Colors.textMuted} />
+            </TouchableOpacity>
+        </View>
+    );
+}
+
 const styles = StyleSheet.create({
     safe:   { flex: 1, backgroundColor: Colors.bg },
     scroll: { flexGrow: 1, justifyContent: 'center', padding: 20 },
@@ -2215,7 +2355,7 @@ const styles = StyleSheet.create({
     },
     backLinkText: { fontSize: 12.5, color: Colors.textMuted, fontWeight: '600' },
     card: {
-        backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: Spacing.xxl,
+        backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.xxl,
         borderWidth: 1, borderColor: Colors.border,
         width: '100%', maxWidth: 480, alignSelf: 'center',
         ...Shadow.lg,
@@ -2224,6 +2364,34 @@ const styles = StyleSheet.create({
     title:    { fontSize: 26, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center' },
     brandTagline: { fontSize: 12.5, color: Colors.primary, textAlign: 'center', fontStyle: 'italic', lineHeight: 17, marginTop: 2, marginBottom: 6 },
     subtitle: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', marginBottom: 20, marginTop: 4 },
+
+    // Sign In / Create Account header -- Q mark, wordmark, one-line
+    // tagline, then the screen's own headline. Added alongside (not
+    // replacing) logo/title/brandTagline above, which every other mode on
+    // this screen (Recover, Join Team, Reset PIN, ...) still renders as-is.
+    brandHeader: { alignItems: 'center', marginBottom: 4 },
+    logoMark: { width: 52, height: 52, borderRadius: Radius.md, marginBottom: 10, ...Shadow.sm },
+    wordmark: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary, letterSpacing: -0.2 },
+    tagline: { fontSize: 12.5, color: Colors.textMuted, textAlign: 'center', marginTop: 2 },
+    screenTitle: { fontSize: 23, fontWeight: '800', color: Colors.textPrimary, textAlign: 'center', marginTop: 18 },
+
+    stepDotsRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 14 },
+    stepDot: { width: 22, height: 4, borderRadius: 2, backgroundColor: Colors.border },
+    stepDotActive: { backgroundColor: Colors.primary },
+
+    // Eye-icon reveal toggle, shared by every PIN field and the one real
+    // password field on this screen (see RevealInput).
+    inputWrap: { position: 'relative', justifyContent: 'center' },
+    inputHasIcon: { paddingRight: 44 },
+    inputIconBtn: { position: 'absolute', right: 2, top: 0, bottom: 0, width: 38, alignItems: 'center', justifyContent: 'center' },
+    pinInputWrap: { position: 'relative', justifyContent: 'center' },
+    pinInputIconBtn: { position: 'absolute', right: 10, top: 0, bottom: 0, justifyContent: 'center' },
+
+    fieldHint: { fontSize: 11, color: Colors.textMuted, lineHeight: 15, marginTop: -8, marginBottom: 14 },
+    strengthRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -8, marginBottom: 14 },
+    strengthTrack: { flex: 1, height: 4, borderRadius: 2, backgroundColor: Colors.border, overflow: 'hidden' },
+    strengthFill: { height: '100%', borderRadius: 2 },
+    strengthLabel: { fontSize: 11, fontWeight: '700' },
 
     // Wide-web-only split layout for owner-setup (see isWideWebSetup) --
     // reuses the same Colors tokens as the rest of the app, so it follows
@@ -2250,8 +2418,8 @@ const styles = StyleSheet.create({
     label: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
     input: {
         backgroundColor: Colors.bg, borderColor: Colors.border, borderWidth: 1,
-        borderRadius: Radius.md, paddingHorizontal: 12, paddingVertical: 10,
-        color: Colors.textPrimary, fontSize: 14,
+        borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 13,
+        color: Colors.textPrimary, fontSize: 15, minHeight: 48,
     },
     codeInput: { fontSize: 20, letterSpacing: 8, textAlign: 'center', fontWeight: 'bold' },
 
@@ -2319,7 +2487,7 @@ const styles = StyleSheet.create({
         textAlign: 'center', width: 180,
     },
 
-    btn:        { backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: Radius.md, alignItems: 'center', marginTop: 4, ...Shadow.sm },
+    btn:        { backgroundColor: Colors.primary, paddingVertical: 15, minHeight: 50, justifyContent: 'center', borderRadius: Radius.md, alignItems: 'center', marginTop: 4, ...Shadow.sm },
     btnDisabled: { opacity: 0.6 },
     btnText:    { color: '#fff', fontWeight: 'bold', fontSize: 15 },
     switchBtn:  { paddingVertical: 14, alignItems: 'center' },
