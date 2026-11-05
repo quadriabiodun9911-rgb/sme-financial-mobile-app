@@ -1,4 +1,4 @@
-import { computeCashRunway } from '../src/utils/cashRunway';
+import { computeCashRunway, describeRunwayForDisplay } from '../src/utils/cashRunway';
 import { Transaction } from '../src/types';
 
 const makeTx = (overrides: Partial<Transaction>): Transaction => ({
@@ -71,5 +71,32 @@ describe('computeCashRunway', () => {
         const r = computeCashRunway(txs, 10000, REF);
         // Counted once via the recurring projection, not again via burn30.
         expect(r.dailyBurn).toBeCloseTo((3650 * 12) / 365, 5);
+    });
+});
+
+describe('describeRunwayForDisplay', () => {
+    it('shows a modest "5+yrs" floor for genuinely no measurable burn, only when there is cash behind it', () => {
+        expect(describeRunwayForDisplay(Infinity, true)).toEqual({ value: '5+', unit: 'yrs', implausible: false });
+        expect(describeRunwayForDisplay(null, true)).toEqual({ value: '5+', unit: 'yrs', implausible: false });
+        expect(describeRunwayForDisplay(Infinity, false)).toEqual({ value: '—', unit: '', implausible: false });
+    });
+
+    it('caps an implausibly long but finite runway at 10 years and flags it', () => {
+        // Regression: this used to render as a bare "261.0yrs" with no cap
+        // and no warning -- the same business shown capped and flagged
+        // elsewhere on the same screen.
+        const r = describeRunwayForDisplay(95_000, true); // ~260 years
+        expect(r).toEqual({ value: '10+', unit: 'yrs', implausible: true });
+    });
+
+    it('shows a real, uncapped figure for a plausible multi-year runway', () => {
+        const r = describeRunwayForDisplay(1200, true); // ~3.3 years, under the 10-year ceiling
+        expect(r.implausible).toBe(false);
+        expect(r.unit).toBe('yrs');
+        expect(r.value).toBe((1200 / 365).toFixed(1));
+    });
+
+    it('shows whole days under a year', () => {
+        expect(describeRunwayForDisplay(45, true)).toEqual({ value: '45', unit: 'days', implausible: false });
     });
 });

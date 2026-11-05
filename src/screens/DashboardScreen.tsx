@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
-import { computeCashRunway } from '../utils/cashRunway';
+import { computeCashRunway, describeRunwayForDisplay } from '../utils/cashRunway';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Header from '../components/Header';
@@ -1330,21 +1330,22 @@ export default function DashboardScreen() {
         () => computeDiscretionaryCash(transactions, finance.cashBalance + totalCash, loans, bills, invoices, 0, new Date(), emergencyBufferTarget),
         [transactions, finance.cashBalance, totalCash, loans, bills, invoices, emergencyBufferTarget]
     );
-    const runwayColor = runwayDays === null
+    // Same shared cap/format StickyMetricsHeader's own Runway tile uses
+    // (cashRunway.ts) -- this gauge used to format runwayDays on its own,
+    // which is how it ended up showing a bare, uncapped "261.0 YRS" with no
+    // warning while the metrics header right above it correctly capped the
+    // same kind of figure at "10+yrs" and flagged it.
+    const runwayDisplay = useMemo(
+        () => describeRunwayForDisplay(runwayDays, hasCashCushion),
+        [runwayDays, hasCashCushion]
+    );
+    // An implausible-but-finite runway (e.g. 261 years) gets the same
+    // "not confidently good news" color treatment as genuinely-infinite/
+    // no-burn -- never the plain green a real long runway earns -- matching
+    // StickyMetricsHeader's own color rule for the identical situation.
+    const runwayColor = (runwayDays === null || runwayDisplay.implausible)
         ? (hasCashCushion ? Colors.income : Colors.textMuted)
         : runwayDays < 30 ? Colors.expense : runwayDays < 60 ? Colors.warning : Colors.income;
-    // The Vital Signs gauge shows a real number, never the bare "∞" glyph --
-    // a long-but-finite runway reads better in years than as a four-digit
-    // day count, and no measurable burn in the trailing window (runwayDays
-    // === null) genuinely has no day count to report, so it's shown as a
-    // capped "5+ yrs" floor rather than fabricating a specific figure --
-    // but only when there's an actual cash balance for that floor to mean
-    // anything; a blank account with ₦0 cash gets an honest "—" instead.
-    const runwayDisplay = useMemo(() => {
-        if (runwayDays === null) return hasCashCushion ? { value: '5+', unit: 'yrs' } : { value: '—', unit: '' };
-        if (runwayDays >= 365) return { value: (runwayDays / 365).toFixed(1), unit: 'yrs' };
-        return { value: String(runwayDays), unit: 'days' };
-    }, [runwayDays, hasCashCushion]);
 
     // Yesterday's actual revenue/expense bucket for the morning briefing's
     // pulse numbers below -- local Y-M-D, not toISOString() (see
@@ -1705,6 +1706,9 @@ export default function DashboardScreen() {
                         strokeWidth={6}
                       />
                     </View>
+                    {runwayDisplay.implausible && (
+                      <Text style={styles.runwayFlagText}>Check expenses — this looks too good</Text>
+                    )}
                     {cashTrend.length >= 2 && (
                       <View style={styles.cashTrendWrap}>
                         <TrendSparkline data={cashTrend} color={Colors.primary} height={44} />
@@ -2906,6 +2910,14 @@ const styles = StyleSheet.create({
     vitalSubtext: {
       fontSize: 10,
       color: Colors.textSecondary,
+    },
+    runwayFlagText: {
+      fontSize: 9.5,
+      color: Colors.textMuted,
+      textAlign: 'right',
+      paddingHorizontal: 16,
+      marginTop: -4,
+      marginBottom: 4,
     },
     cashTrendWrap: {
       paddingHorizontal: 16,

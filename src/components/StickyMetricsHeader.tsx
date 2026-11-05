@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Shadow } from '../theme/tokens';
 import { FinanceData } from '../types';
+import { describeRunwayForDisplay } from '../utils/cashRunway';
 import Icon, { IconName } from './ui/Icon';
 
 interface Props {
@@ -10,16 +11,14 @@ interface Props {
   currency: string;
 }
 
-// Beyond this, the exact year count reads as spurious precision, not good
-// news -- a business genuinely doesn't have meaningfully-verified visibility
-// into "14.2 years" of runway. In practice a number this large almost always
-// means recorded expenses are incomplete (not that burn is really near
-// zero), so it's capped and flagged rather than printed at face value.
-const PLAUSIBLE_RUNWAY_YEARS_CEILING = 10;
-
 export default function StickyMetricsHeader({ finance, currency }: Props) {
-  const runwayYears = (finance.runway || 0) / 365;
-  const runwayImplausible = Number.isFinite(finance.runway || 0) && runwayYears > PLAUSIBLE_RUNWAY_YEARS_CEILING;
+  // Same shared cap/format DashboardScreen's own Vital Signs gauge uses
+  // (cashRunway.ts) -- a long runway reads the same way everywhere it's
+  // shown, capped at 10 years and flagged rather than printed as spurious
+  // precision like "261.0yrs", which almost always means recorded expenses
+  // are incomplete, not that burn is really near zero.
+  const runwayDisplay = describeRunwayForDisplay(finance.runway ?? null, finance.cashBalance > 0);
+  const runwayImplausible = runwayDisplay.implausible;
 
   const metrics: { label: string; value: number; color: string; icon: IconName }[] = [
     {
@@ -59,13 +58,7 @@ export default function StickyMetricsHeader({ finance, currency }: Props) {
             <Text style={styles.metricLabel}>{metric.label}</Text>
             <Text style={[styles.metricValue, { color: metric.color }]}>
               {metric.label === 'Runway'
-                ? (!Number.isFinite(metric.value)
-                    ? (finance.cashBalance > 0 ? '5+yrs' : '—')
-                    : runwayImplausible
-                        ? `${PLAUSIBLE_RUNWAY_YEARS_CEILING}+yrs`
-                        : metric.value >= 365
-                            ? `${(metric.value / 365).toFixed(1)}yrs`
-                            : `${Math.floor(metric.value)}d`)
+                ? `${runwayDisplay.value}${runwayDisplay.unit === 'days' ? 'd' : runwayDisplay.unit}`
                 : `${currency}${Math.abs(metric.value).toLocaleString()}`}
             </Text>
             {metric.label === 'Runway' && runwayImplausible && (

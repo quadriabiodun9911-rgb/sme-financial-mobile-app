@@ -1,6 +1,49 @@
 import { Transaction } from '../types';
 import { localDateStr } from './localDate';
 
+// Beyond this, the exact year count reads as spurious precision, not good
+// news -- a business genuinely doesn't have meaningfully-verified visibility
+// into "14.2 years" of runway. In practice a number this large almost always
+// means recorded expenses are incomplete (not that burn is really near
+// zero), so it's capped and flagged rather than printed at face value.
+export const PLAUSIBLE_RUNWAY_YEARS_CEILING = 10;
+
+export interface RunwayDisplay {
+    value: string;
+    unit: 'yrs' | 'days' | '';
+    // True only for a FINITE runway past the plausibility ceiling (e.g. 261
+    // years because expenses are clearly under-recorded) -- never true for
+    // the genuine no-measurable-burn case below, which is a real "nothing to
+    // report" state, not a suspicious one.
+    implausible: boolean;
+}
+
+/**
+ * One shared "how do we show this runway number" -- StickyMetricsHeader and
+ * DashboardScreen's Vital Signs gauge each used to format and cap
+ * runwayDays independently, which is how the Vital Signs gauge ended up
+ * showing a literal "261.0 YRS" with no cap or warning while the metrics
+ * header right above it correctly capped the same kind of figure at
+ * "10+yrs" with a "check this" flag. Both now call this -- a long runway
+ * reads the same way everywhere it's shown.
+ */
+export function describeRunwayForDisplay(runwayDays: number | null, hasCashCushion: boolean): RunwayDisplay {
+    if (runwayDays === null || !Number.isFinite(runwayDays)) {
+        // No measurable burn in the window at all -- a real "nothing to
+        // report" floor, not a suspiciously-long figure, so it gets its own
+        // modest "5+" rather than the 10-year implausibility ceiling below.
+        return hasCashCushion ? { value: '5+', unit: 'yrs', implausible: false } : { value: '—', unit: '', implausible: false };
+    }
+    const years = runwayDays / 365;
+    if (years > PLAUSIBLE_RUNWAY_YEARS_CEILING) {
+        return { value: `${PLAUSIBLE_RUNWAY_YEARS_CEILING}+`, unit: 'yrs', implausible: true };
+    }
+    if (runwayDays >= 365) {
+        return { value: years.toFixed(1), unit: 'yrs', implausible: false };
+    }
+    return { value: String(Math.floor(runwayDays)), unit: 'days', implausible: false };
+}
+
 export interface CashRunway {
     // Infinity when dailyBurn <= 0 (cash isn't shrinking) — genuinely
     // unlimited runway, not a magnitude sentinel. Previously this used the
