@@ -365,9 +365,6 @@ export default function DashboardScreen() {
     const overdueCount = metrics.overdueCount;
     const overdueInvoices = metrics.overdueInvoices;
     const owedToYou = metrics.owedToYou;
-    const lastMonthProfit = metrics.lastMonthProfit;
-    const thisMonthProfit = metrics.thisMonthProfit;
-    const profitDelta = metrics.profitDelta;
     const loggedToday = metrics.loggedToday;
     const collectionsTotal = metrics.collectionsTotal;
     const collectionsCount = metrics.collectionsCount;
@@ -1748,28 +1745,70 @@ export default function DashboardScreen() {
                       </Text>
                     </PressScale>
                     <View style={styles.vitalDivider} />
-                    <View style={styles.vitalCardBottom}>
-                      {/* "Yesterday" replaces the old "Today's Profit" --
-                          that figure reads as ₦0 (uninformative, not
-                          reassuring) for most of any given morning, before
-                          anything's been logged for the day. Yesterday is
-                          always a complete, real number, which is exactly
-                          why dailyBriefing.ts's pulse was built around it. */}
-                      <View style={styles.vitalMetric}>
-                        <Text style={styles.vitalLabel}>{t(language, 'yesterdayLabel')}</Text>
-                        <Text style={[styles.vitalValue, { color: dailyBriefing.pulse.netMovement >= 0 ? Colors.income : Colors.expense }]}>
-                          {dailyBriefing.pulse.netMovement >= 0 ? '+' : '-'}{currency}{Math.round(Math.abs(dailyBriefing.pulse.netMovement)).toLocaleString()}
-                        </Text>
-                        <Text style={styles.vitalSubtext}>
-                          {currency}{Math.round(dailyBriefing.pulse.yesterdayRevenue).toLocaleString()} {t(language, 'inWord')} · {currency}{Math.round(dailyBriefing.pulse.yesterdayExpense).toLocaleString()} {t(language, 'outWord')}
-                        </Text>
+                    {/* Performance at a Glance, folded into this same card
+                        rather than a second one below -- Yesterday/This
+                        Week/This Month all answer the same "how am I doing"
+                        question the Cash Position numbers above do, just
+                        over different windows, so one card now owns all of
+                        it instead of two cards repeating "Yesterday" and
+                        "This Month" with different figures. Revenue/
+                        Expenses/Profit reuse the exact same figures shown
+                        elsewhere (yesterdayBucket feeds the morning
+                        briefing; computeWeeklyCFOSummary is the same engine
+                        Scoreboard's "This Week's Performance" card calls;
+                        computeMonthlyTrend(transactions, 1) is the same
+                        trend engine Reports' own monthly chart uses) --
+                        never a second, independently-computed set of
+                        numbers. */}
+                    <View style={styles.vitalGlanceWrap}>
+                      <View style={styles.glanceTabRow}>
+                        {([
+                          { key: 'yesterday' as const, label: 'Yesterday' },
+                          { key: 'week' as const, label: 'This Week' },
+                          { key: 'month' as const, label: 'This Month' },
+                        ]).map(tab => (
+                          <TouchableOpacity
+                            key={tab.key}
+                            style={[styles.glanceTab, glanceTab === tab.key && styles.glanceTabActive]}
+                            onPress={() => setGlanceTab(tab.key)}
+                            activeOpacity={0.75}
+                          >
+                            <Text style={[styles.glanceTabText, glanceTab === tab.key && styles.glanceTabTextActive]}>{tab.label}</Text>
+                          </TouchableOpacity>
+                        ))}
                       </View>
-                      <View style={styles.vitalMetric}>
-                        <Text style={styles.vitalLabel}>{t(language, 'thisMonthLabel')}</Text>
-                        <Text style={[styles.vitalValue, { color: thisMonthProfit >= 0 ? Colors.income : Colors.expense }]}>
-                          {thisMonthProfit >= 0 ? '+' : ''}{currency}{Math.round(thisMonthProfit).toLocaleString()}
-                        </Text>
-                      </View>
+                      {(() => {
+                        const period = glanceTab === 'yesterday'
+                          ? { revenue: yesterdayBucket.revenue, expense: yesterdayBucket.expense, sub: undefined as string | undefined }
+                          : glanceTab === 'week'
+                          ? {
+                              revenue: weeklySummary.thisWeekIncome,
+                              expense: weeklySummary.thisWeekExpense,
+                              sub: weeklySummary.lastWeekIncome > 0
+                                ? `${weeklySummary.weeklyChange >= 0 ? '+' : ''}${weeklySummary.weeklyChange.toFixed(1)}% vs last week`
+                                : undefined,
+                            }
+                          : { revenue: thisMonthBucket.income, expense: thisMonthBucket.expense, sub: undefined as string | undefined };
+                        const profit = period.revenue - period.expense;
+                        const profitColor = profit >= 0 ? Colors.income : Colors.expense;
+                        return (
+                          <>
+                            <View style={styles.glanceProfitRow}>
+                              <View>
+                                <Text style={styles.glanceProfitLabel}>Profit</Text>
+                                <Text style={[styles.glanceProfitValue, { color: profitColor }]}>
+                                  {profit >= 0 ? '+' : '-'}{currency}{Math.round(Math.abs(profit)).toLocaleString()}
+                                </Text>
+                              </View>
+                              {period.sub && <Text style={[styles.glanceSub, { color: weeklySummary.weeklyChange >= 0 ? Colors.income : Colors.expense }]}>{period.sub}</Text>}
+                            </View>
+                            <View style={styles.metricsGrid}>
+                              <StatTile icon="trending-up" iconColor={Colors.income} label="Revenue" value={`${currency}${Math.round(period.revenue).toLocaleString()}`} />
+                              <StatTile icon="trending-down" iconColor={Colors.expense} label="Expenses" value={`${currency}${Math.round(period.expense).toLocaleString()}`} />
+                            </View>
+                          </>
+                        );
+                      })()}
                     </View>
                   </View>
                 </View>
@@ -2077,73 +2116,6 @@ export default function DashboardScreen() {
                 )}
 
                 </>
-                )}
-
-                {/* PERFORMANCE AT A GLANCE -- "how did I do yesterday/this
-                    week/this month", always visible rather than tucked
-                    behind a report button, so checking it doesn't take a
-                    deliberate trip into a modal. Revenue/Expenses/Profit
-                    reuse the exact same figures shown elsewhere (yesterdayBucket
-                    feeds the morning briefing above; computeWeeklyCFOSummary
-                    is the same engine Scoreboard's "This Week's Performance"
-                    card calls; computeMonthlyTrend(transactions, 1) is the
-                    same trend engine Reports' own monthly chart uses) --
-                    never a second, independently-computed set of numbers. */}
-                {canViewFinancials && (
-                  <View style={styles.operationsSection}>
-                    <View style={styles.sectionTitleRow}>
-                      <Icon name="activity" size={13} color={Colors.textMuted} />
-                      <Text style={styles.operationsSectionTitle}>Performance at a Glance</Text>
-                    </View>
-                    <View style={styles.glanceTabRow}>
-                      {([
-                        { key: 'yesterday' as const, label: 'Yesterday' },
-                        { key: 'week' as const, label: 'This Week' },
-                        { key: 'month' as const, label: 'This Month' },
-                      ]).map(tab => (
-                        <TouchableOpacity
-                          key={tab.key}
-                          style={[styles.glanceTab, glanceTab === tab.key && styles.glanceTabActive]}
-                          onPress={() => setGlanceTab(tab.key)}
-                          activeOpacity={0.75}
-                        >
-                          <Text style={[styles.glanceTabText, glanceTab === tab.key && styles.glanceTabTextActive]}>{tab.label}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                    {(() => {
-                      const period = glanceTab === 'yesterday'
-                        ? { revenue: yesterdayBucket.revenue, expense: yesterdayBucket.expense, sub: undefined as string | undefined }
-                        : glanceTab === 'week'
-                        ? {
-                            revenue: weeklySummary.thisWeekIncome,
-                            expense: weeklySummary.thisWeekExpense,
-                            sub: weeklySummary.lastWeekIncome > 0
-                              ? `${weeklySummary.weeklyChange >= 0 ? '+' : ''}${weeklySummary.weeklyChange.toFixed(1)}% vs last week`
-                              : undefined,
-                          }
-                        : { revenue: thisMonthBucket.income, expense: thisMonthBucket.expense, sub: undefined as string | undefined };
-                      const profit = period.revenue - period.expense;
-                      const profitColor = profit >= 0 ? Colors.income : Colors.expense;
-                      return (
-                        <>
-                          <View style={styles.glanceProfitRow}>
-                            <View>
-                              <Text style={styles.glanceProfitLabel}>Profit</Text>
-                              <Text style={[styles.glanceProfitValue, { color: profitColor }]}>
-                                {profit >= 0 ? '+' : '-'}{currency}{Math.round(Math.abs(profit)).toLocaleString()}
-                              </Text>
-                            </View>
-                            {period.sub && <Text style={[styles.glanceSub, { color: weeklySummary.weeklyChange >= 0 ? Colors.income : Colors.expense }]}>{period.sub}</Text>}
-                          </View>
-                          <View style={styles.metricsGrid}>
-                            <StatTile icon="trending-up" iconColor={Colors.income} label="Revenue" value={`${currency}${Math.round(period.revenue).toLocaleString()}`} />
-                            <StatTile icon="trending-down" iconColor={Colors.expense} label="Expenses" value={`${currency}${Math.round(period.expense).toLocaleString()}`} />
-                          </View>
-                        </>
-                      );
-                    })()}
-                  </View>
                 )}
 
                 {/* SECTION 3: KEY METRICS - Monthly snapshot */}
@@ -3015,10 +2987,8 @@ const styles = StyleSheet.create({
       padding: 16,
       backgroundColor: Colors.primary + '08',
     },
-    vitalCardBottom: {
-      flexDirection: 'row',
+    vitalGlanceWrap: {
       padding: 16,
-      gap: 12,
     },
     vitalMetric: {
       flex: 1,
