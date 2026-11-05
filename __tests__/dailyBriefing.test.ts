@@ -100,6 +100,17 @@ describe('buildDailyBriefing', () => {
         expect(anonymous.greeting).toBe('Good morning');
     });
 
+    it('greets by the actual local hour, not a hardcoded "Good morning" all day', () => {
+        const morning = buildDailyBriefing([], NOT_AVAILABLE_PATTERN, PULSE, new Date('2026-06-15T06:00:00'));
+        expect(morning.greeting).toBe('Good morning');
+
+        const afternoon = buildDailyBriefing([], NOT_AVAILABLE_PATTERN, PULSE, new Date('2026-06-15T14:00:00'));
+        expect(afternoon.greeting).toBe('Good afternoon');
+
+        const evening = buildDailyBriefing([], NOT_AVAILABLE_PATTERN, PULSE, new Date('2026-06-15T19:00:00'));
+        expect(evening.greeting).toBe('Good evening');
+    });
+
     it('omits the runway clause in the notification body when runway is not meaningful', () => {
         const noRunway: DailyPulseInput = { ...PULSE, runwayDays: null };
         const result = buildDailyBriefing([], NOT_AVAILABLE_PATTERN, noRunway, new Date('2026-06-15T09:00:00'));

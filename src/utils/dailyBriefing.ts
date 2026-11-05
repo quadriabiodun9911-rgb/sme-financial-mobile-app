@@ -51,10 +51,22 @@ export interface DailyBriefingResult {
     topPriorities: PriorityItem[]; // capped at 3, for in-app rendering alongside the text
     weekdayNote: string | null;
     pulse: DailyPulse;
-    greeting: string; // "Good morning" / "Good morning, <Business Name>" -- for the in-app card's header
+    greeting: string; // "Good morning/afternoon/evening[, <Business Name>]" by `now`'s local hour -- for the in-app card's header
 }
 
 const MAX_PRIORITIES = 3;
+
+// Was hardcoded to "Good morning" regardless of `now` -- the Dashboard's
+// own Vital Signs header showed "Good morning" at 6pm, every visit, for
+// every owner in every timezone. `now` already flows in as a real local
+// Date (see buildDailyBriefing's own default `new Date()`); this just
+// actually reads it instead of ignoring it.
+function timeOfDayGreeting(now: Date): string {
+    const hour = now.getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+}
 
 function weekdayNoteFor(pattern: WeekdayPatternResult, now: Date): string | null {
     if (!pattern.available) return null;
@@ -124,6 +136,6 @@ export function buildDailyBriefing(
         topPriorities,
         weekdayNote,
         pulse,
-        greeting: pulseInput.businessName ? `Good morning, ${pulseInput.businessName}` : 'Good morning',
+        greeting: pulseInput.businessName ? `${timeOfDayGreeting(now)}, ${pulseInput.businessName}` : timeOfDayGreeting(now),
     };
 }
