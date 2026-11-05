@@ -28,7 +28,7 @@ import { DirectionVsStatusResult } from './directionVsStatus';
 import { RiskRadar } from './riskRadar';
 import { BusinessResilience } from './businessExposure';
 import { LendingCapacityEstimate } from './lendingCapacity';
-import { FinancingRecommendation, RECOMMENDATION_CATEGORY } from './financingRecommendation';
+import { FinancingRecommendation, RECOMMENDATION_CATEGORY, AlternativeCapitalRecommendation } from './financingRecommendation';
 
 export type DiagnosticStatus = 'strong' | 'watch' | 'high-risk' | 'info';
 
@@ -208,6 +208,14 @@ export interface BuildDiagnosticDimensionsInput {
     // recomputed here, just the same real signals FinancingMarketplaceScreen
     // already uses.
     financingRecommendations: FinancingRecommendation[];
+    // recommendAlternativeCapital's own output (financingRecommendation.ts)
+    // -- equity/grant, for when the business is pre-revenue or R&D-heavy
+    // and debt isn't the right answer regardless of what
+    // financingRecommendations matched. Empty in the overwhelmingly common
+    // case (an operating business with real revenue); never shown as a
+    // replacement for financingRecommendations' own top match, only an
+    // added consideration alongside it.
+    alternativeCapital: AlternativeCapitalRecommendation[];
     // Only needed to build the "known upcoming payments" figure in Cash
     // Health's narrative via computeCashFlowForecast -- the same real
     // 13-week forecast the Cash Flow screen uses, never a second estimate.
@@ -223,7 +231,7 @@ export interface BuildDiagnosticDimensionsResult {
 }
 
 export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput): BuildDiagnosticDimensionsResult {
-    const { diagnosis, currency, directionVsStatus, riskRadar, resilience, reserveCoverageMonths, financingReadinessScore, lendingCapacity, financingRecommendations, transactions, loans, invoices, budgets } = input;
+    const { diagnosis, currency, directionVsStatus, riskRadar, resilience, reserveCoverageMonths, financingReadinessScore, lendingCapacity, financingRecommendations, alternativeCapital, transactions, loans, invoices, budgets } = input;
     const m = diagnosis.metrics;
     const wcCategory = diagnosis.categories.find(c => c.key === 'workingCapital');
 
@@ -681,6 +689,9 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 { label: 'Estimated capacity', value: hasCapacityRange ? `${fmtMoney(currency, lendingCapacity.minAmount)}–${fmtMoney(currency, lendingCapacity.maxAmount)}` : 'Not applicable right now' },
                 { label: 'Best-fit financing type', value: showsFinancingType ? topFinancing!.label : 'Not applicable right now' },
                 { label: 'Verdict', value: lendingCapacity.reason },
+                ...(alternativeCapital.length > 0
+                    ? [{ label: 'Also worth considering', value: alternativeCapital.map(a => a.label).join(' or ') }]
+                    : []),
             ],
         relatedProblems: [],
         // Credit Worthiness shows the readiness breakdown itself (Five C's,
@@ -715,7 +726,8 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
             whatThisMeans: (hasCapacityRange
                 ? `Based on your real cash flow, profitability and debt position, Quad360 estimates you could responsibly take on ${fmtMoney(currency, lendingCapacity.minAmount)}–${fmtMoney(currency, lendingCapacity.maxAmount)} in financing -- the lower end reflects a conservative lender's view, the higher end a more generous one. Your overall readiness score is ${Math.round(financingReadinessScore)}/100, putting you in the "${lendingCapacity.tierLabel}" tier. ${lendingCapacity.reason}`
                 : `Your overall readiness score is ${Math.round(financingReadinessScore)}/100, putting you in the "${lendingCapacity.tierLabel}" tier. ${lendingCapacity.reason}`)
-                + (showsFinancingType ? ` The type that best fits your current profile is ${topFinancing!.label}${topFinancing!.confidence === 'strong' ? ' (a strong match)' : ''}: ${topFinancing!.reasons[0]}` : ''),
+                + (showsFinancingType ? ` The type that best fits your current profile is ${topFinancing!.label}${topFinancing!.confidence === 'strong' ? ' (a strong match)' : ''}: ${topFinancing!.reasons[0]}` : '')
+                + (alternativeCapital.length > 0 ? ` ${alternativeCapital[0].reason}` : ''),
             whyItMatters: (lendingCapacity.conclusion === 'ready'
                 ? 'This means financing could genuinely help you grow, not just plug a gap -- the kind of borrowing that expands what the business can do, rather than borrowing to survive a shortfall you could have avoided.'
                 : lendingCapacity.conclusion === 'improve'
@@ -724,7 +736,8 @@ export function buildDiagnosticDimensions(input: BuildDiagnosticDimensionsInput)
                 ? 'Taking on new debt now could strain cash flow that is already under pressure. A loan adds a fixed monthly obligation on top of whatever is already straining the business, which can turn a recoverable situation into a harder one.'
                 : 'Log a few more transactions so this estimate reflects your real numbers.')
                 + ' This score and range update automatically as your numbers change -- there\'s no separate application or check to run to see it move.'
-                + (showsFinancingType ? ` Matching the TYPE to your actual need matters as much as the amount -- a working capital facility and an asset loan solve very different problems even at the same size, and applying for the wrong one wastes time and can hurt your application history.` : ''),
+                + (showsFinancingType ? ` Matching the TYPE to your actual need matters as much as the amount -- a working capital facility and an asset loan solve very different problems even at the same size, and applying for the wrong one wastes time and can hurt your application history.` : '')
+                + (alternativeCapital.length > 1 ? ` ${alternativeCapital[1].reason}` : ''),
             // "Compare X options" deep-links straight into Financing
             // Marketplace's results for that matched category (via
             // RECOMMENDATION_CATEGORY, the same lookup the Marketplace's own

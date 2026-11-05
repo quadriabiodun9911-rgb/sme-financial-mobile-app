@@ -217,6 +217,26 @@ export interface Transaction {
     externalId?: string;
     reference?: string;
     vendorCustomer?: string;
+    // Free-text project/programme tag -- a business running several
+    // distinct products or initiatives off one set of books (e.g. a
+    // technology company developing multiple products) uses this to see
+    // each project's own revenue/cost/profit under Reports → Projects
+    // (projectProfitability.ts), instead of everything landing in one
+    // undifferentiated P&L. Same "free text, no enforced list" design as
+    // category/vendorCustomer -- Quad360 has no concept of what a given
+    // business's projects are called. Propagated onto an invoice-linked
+    // income transaction from Invoice.project (see addInvoice/updateInvoice/
+    // markInvoiceStatus in OptimizedContexts.tsx) so a project's revenue and
+    // its tagged costs are both visible from this one field.
+    project?: string;
+    // Only meaningful on an expense transaction -- distinguishes R&D/
+    // development spend (building something not yet commercialised) from
+    // ordinary commercial/operating spend, so a project's cost breakdown
+    // can show "how much is pre-revenue investment vs. running the
+    // business" instead of one undifferentiated cost total. Optional and
+    // unenforced, same as project above -- most expenses have no reason to
+    // set this at all.
+    costNature?: 'rd' | 'commercial';
     taxRate?: number;
     taxAmount?: number;
     // Only meaningful when taxRate is 0 -- zero-rated and exempt both show
@@ -706,6 +726,14 @@ export interface Invoice {
     taxTotal: number;
     total: number;
     createdAt: string;
+    // Same free-text project tag as Transaction.project -- set here so the
+    // invoice's revenue flows into a project's profitability from the
+    // moment it's created, not only once paid. Propagated onto this
+    // invoice's linked income transaction by addInvoice/updateInvoice
+    // (OptimizedContexts.tsx); a 'sent'/'overdue' invoice's amount counts
+    // as that project's pipeline revenue, 'paid' as realized revenue -- see
+    // projectProfitability.ts.
+    project?: string;
     // Stamped the moment markInvoiceStatus transitions an invoice to 'paid'
     // (OptimizedContexts.tsx) -- the real date payment was recorded, not the
     // dueDate. Without this, "days to pay" can only ever be estimated off

@@ -169,6 +169,11 @@ export default function InvoicesScreen() {
     const [dueDate, setDueDate]             = useState('');
     const [issueDate, setIssueDate]         = useState('');
     const [notes, setNotes]                 = useState('');
+    // See Transaction.project's own comment -- propagated onto this
+    // invoice's linked income transaction by addInvoice/updateInvoice
+    // (OptimizedContexts.tsx), so a project's revenue shows up under
+    // Reports → Projects from the moment the invoice is created.
+    const [project, setProject]             = useState('');
     const [lineItems, setLineItems]         = useState<InvoiceLineItem[]>([{ ...EMPTY_LINE }]);
     const [earlyDiscountPct, setEarlyDiscountPct]   = useState('');
     const [earlyDiscountDays, setEarlyDiscountDays] = useState('');
@@ -237,7 +242,7 @@ export default function InvoicesScreen() {
 
     const resetForm = () => {
         setClientName(''); setClientEmail(''); setClientPhone(''); setClientAddress('');
-        setDueDate(''); setIssueDate(''); setNotes('');
+        setDueDate(''); setIssueDate(''); setNotes(''); setProject('');
         setLineItems([{ ...EMPTY_LINE }]);
         setEarlyDiscountPct(''); setEarlyDiscountDays('');
         setIsRecurring(false); setRecurringFrequency('monthly');
@@ -270,6 +275,7 @@ export default function InvoicesScreen() {
         setDueDate(inv.dueDate ?? '');
         setIssueDate(inv.issueDate ?? '');
         setNotes(inv.notes ?? '');
+        setProject(inv.project ?? '');
         setLineItems(inv.lineItems?.length ? inv.lineItems : [{ ...EMPTY_LINE }]);
         setEarlyDiscountPct(inv.earlyPaymentDiscountPct ? String(inv.earlyPaymentDiscountPct) : '');
         setEarlyDiscountDays(inv.earlyPaymentDiscountDays ? String(inv.earlyPaymentDiscountDays) : '');
@@ -365,6 +371,7 @@ export default function InvoicesScreen() {
             dueDate,
             lineItems,
             notes,
+            project: project.trim() || undefined,
             status: (preserveStatus ? 'paid' : (asDraft ? 'draft' : 'sent')) as InvoiceStatus,
             ...totals,
             earlyPaymentDiscountPct: parseFloat(earlyDiscountPct) || undefined,
@@ -446,6 +453,7 @@ export default function InvoicesScreen() {
             dueDate: nextDueStr,
             lineItems: inv.lineItems,
             notes: inv.notes,
+            project: inv.project,
             status: 'draft',
             subtotal: inv.subtotal,
             taxTotal: inv.taxTotal,
@@ -736,6 +744,9 @@ export default function InvoicesScreen() {
                             <Section title={t(language, 'invoiceDetailsSection')}>
                                 <FLabel>{t(language, 'dueDate')} *</FLabel>
                                 <DateInput value={dueDate} onChange={setDueDate} />
+                                <FLabel>Project (optional)</FLabel>
+                                <FInput value={project} onChangeText={setProject} placeholder="e.g. Project A" />
+                                <Text style={styles.fieldHint}>Tag this invoice to a project to see its revenue under Reports → Projects.</Text>
                                 <FLabel>{t(language, 'notes')}</FLabel>
                                 <FInput value={notes} onChangeText={setNotes} placeholder="Payment terms, bank details…" multiline />
 

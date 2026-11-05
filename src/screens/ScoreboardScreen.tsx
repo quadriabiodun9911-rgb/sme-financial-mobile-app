@@ -39,7 +39,7 @@ import { computeDataQuality } from '../utils/dataQuality';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { computeInventoryValue } from '../utils/stockVelocity';
-import { recommendFinancingTypes } from '../utils/financingRecommendation';
+import { recommendFinancingTypes, recommendAlternativeCapital } from '../utils/financingRecommendation';
 import { buildDiagnosticDimensions } from '../utils/diagnosticDimensions';
 import BusinessHealthReportCard from '../components/BusinessHealthReportCard';
 import { GoalStatus } from '../types';
@@ -318,6 +318,13 @@ export default function ScoreboardScreen() {
         );
     }, [transactions, fitInput, invoices, assets, readinessDelta, inventory, currency]);
 
+    // Same alternative-capital advisory FinancialAssessmentScreen computes --
+    // see recommendAlternativeCapital's own comment.
+    const alternativeCapital = useMemo(
+        () => recommendAlternativeCapital(fitInput, transactions, currency),
+        [fitInput, transactions, currency],
+    );
+
     // "Your Business Health Report" -- the exact same buildDiagnosticDimensions
     // call FinancialAssessmentScreen makes, fed from this screen's own
     // already-computed inputs, so the two screens can never show a second,
@@ -333,12 +340,13 @@ export default function ScoreboardScreen() {
             financingReadinessScore,
             lendingCapacity,
             financingRecommendations,
+            alternativeCapital,
             transactions,
             loans,
             invoices,
             budgets,
         }),
-        [diagnosis, currency, directionVsStatus, riskRadar, resilience, financialResilience, financingReadinessScore, lendingCapacity, financingRecommendations, transactions, loans, invoices, budgets],
+        [diagnosis, currency, directionVsStatus, riskRadar, resilience, financialResilience, financingReadinessScore, lendingCapacity, financingRecommendations, alternativeCapital, transactions, loans, invoices, budgets],
     );
 
     // If the owner already set up a goal matching what this report would

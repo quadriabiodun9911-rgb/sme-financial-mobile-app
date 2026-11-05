@@ -35,7 +35,7 @@ import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeDataQuality } from '../utils/dataQuality';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { computeInventoryValue } from '../utils/stockVelocity';
-import { recommendFinancingTypes } from '../utils/financingRecommendation';
+import { recommendFinancingTypes, recommendAlternativeCapital } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
 import { computeHealthScoreDelta } from '../utils/healthScoreHistory';
 import { buildDiagnosticDimensions } from '../utils/diagnosticDimensions';
@@ -205,6 +205,16 @@ export default function FinancialAssessmentScreen() {
     );
   }, [transactions, fitInput, invoices, assets, readinessHistory, inventory, settings.currency]);
 
+  // Equity/grant, for when the business is pre-revenue or R&D-heavy and
+  // debt isn't the right answer regardless of what financingRecommendations
+  // matched above -- see that function's own comment. Never gated on the
+  // same 5-transaction minimum: a genuinely pre-revenue business (zero
+  // transactions) is exactly the case this exists for.
+  const alternativeCapital = useMemo(
+    () => recommendAlternativeCapital(fitInput, transactions, settings.currency),
+    [fitInput, transactions, settings.currency]
+  );
+
   const { dimensions: diagnosticDimensions, report: businessHealthReport } = useMemo(
     () => buildDiagnosticDimensions({
       diagnosis,
@@ -216,12 +226,13 @@ export default function FinancialAssessmentScreen() {
       financingReadinessScore,
       lendingCapacity,
       financingRecommendations,
+      alternativeCapital,
       transactions,
       loans,
       invoices,
       budgets,
     }),
-    [diagnosis, settings.currency, directionVsStatus, riskRadar, resilience, financialResilience, financingReadinessScore, lendingCapacity, financingRecommendations, transactions, loans, invoices, budgets]
+    [diagnosis, settings.currency, directionVsStatus, riskRadar, resilience, financialResilience, financingReadinessScore, lendingCapacity, financingRecommendations, alternativeCapital, transactions, loans, invoices, budgets]
   );
   const [expandedDimension, setExpandedDimension] = useState<string | null>(null);
 

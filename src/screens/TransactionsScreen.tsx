@@ -58,6 +58,11 @@ type FormState = {
     reference: string;
     vendorCustomer: string;
     phone: string;
+    // See Transaction.project's own comment -- free text, shared with
+    // whichever invoice (if any) this transaction is linked to.
+    project: string;
+    // Only meaningful when type is 'expense' -- see Transaction.costNature.
+    costNature: '' | 'rd' | 'commercial';
     taxRate: string;
     // When on, `amount` below is treated as the tax-inclusive total (what
     // the customer actually paid/was charged) and split into the stored
@@ -133,6 +138,8 @@ const EMPTY_FORM: FormState = {
     reference: '',
     vendorCustomer: '',
     phone: '',
+    project: '',
+    costNature: '',
     taxRate: '',
     vatInclusive: false,
     vatCategory: '',
@@ -159,6 +166,8 @@ function formFromTx(tx: Transaction): FormState {
         reference:          tx.reference ?? '',
         vendorCustomer:     name,
         phone:              phone,
+        project:            tx.project ?? '',
+        costNature:         tx.costNature ?? '',
         taxRate:            tx.taxRate != null ? String(tx.taxRate) : '',
         // Always resets to exclusive-entry mode on edit -- what's stored is
         // always the exclusive amount, so there's nothing to "re-derive"
@@ -321,6 +330,20 @@ export default function TransactionsScreen() {
         for (let i = transactions.length - 1; i >= 0 && ordered.length < 20; i--) {
             const c = transactions[i].category?.trim();
             if (c && !seen.has(c)) { seen.add(c); ordered.push(c); }
+        }
+        return ordered;
+    }, [transactions]);
+
+    // Same "recently used, newest first" shortlist as recentCategories above --
+    // project is free text with no fixed list (see Transaction.project), so
+    // this is the only thing stopping "Project A" and "project a" from
+    // quietly becoming two different projects in projectProfitability.ts.
+    const recentProjects = useMemo(() => {
+        const seen = new Set<string>();
+        const ordered: string[] = [];
+        for (let i = transactions.length - 1; i >= 0 && ordered.length < 12; i--) {
+            const p = transactions[i].project?.trim();
+            if (p && !seen.has(p)) { seen.add(p); ordered.push(p); }
         }
         return ordered;
     }, [transactions]);
@@ -526,6 +549,11 @@ export default function TransactionsScreen() {
             category:           isEquityMovement ? "Owner's Capital" : (form.customCategory.trim() || form.category || 'Other'),
             reference:          form.reference || undefined,
             vendorCustomer:     joinVendorCustomer(form.vendorCustomer, form.phone) || undefined,
+            project:            form.project.trim() || undefined,
+            // Cost nature only means something on an expense -- dropped
+            // here rather than trusting the owner to have cleared the
+            // picker after switching Type to income.
+            costNature:         !isEquityMovement && form.type === 'expense' && form.costNature ? form.costNature : undefined,
             taxRate:            isEquityMovement ? undefined : taxRateNum,
             taxAmount:          isEquityMovement ? undefined : storedTaxAmount,
             // Only meaningful at 0% -- clears itself if the owner sets a
@@ -1448,6 +1476,41 @@ export default function TransactionsScreen() {
                                         onChangeText={v => setForm(f => ({ ...f, phone: v }))}
                                     />
                                 </Field>
+                                <Field label={t(language, 'projectLabel')}>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="e.g. Project A"
+                                        placeholderTextColor={Colors.muted}
+                                        value={form.project}
+                                        onChangeText={v => setForm(f => ({ ...f, project: v }))}
+                                    />
+                                </Field>
+                                {recentProjects.length > 0 && (
+                                    <View style={styles.categoryGrid}>
+                                        {recentProjects.map(p => (
+                                            <TouchableOpacity
+                                                key={p}
+                                                style={[styles.opt, form.project === p && styles.optActive]}
+                                                onPress={() => setForm(f => ({ ...f, project: p }))}
+                                            >
+                                                <Text style={[styles.optText, form.project === p && styles.optTextActive]}>{p}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                )}
+                                <Text style={styles.projectHint}>{t(language, 'projectHintLabel')}</Text>
+                                {form.type === 'expense' && (
+                                    <Field label={t(language, 'costNatureLabel')}>
+                                        <OptionRow
+                                            options={[
+                                                { key: 'rd', label: t(language, 'costNatureRd') },
+                                                { key: 'commercial', label: t(language, 'costNatureCommercial') },
+                                            ]}
+                                            value={form.costNature}
+                                            onChange={v => setForm(f => ({ ...f, costNature: f.costNature === v ? '' : (v as 'rd' | 'commercial') }))}
+                                        />
+                                    </Field>
+                                )}
                             </Section>
 
                             {/* ── Recurring ─────────────────────────────── */}
@@ -1845,6 +1908,7 @@ const styles = StyleSheet.create({
 
     optRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
     categoryGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+    projectHint:   { fontSize: 11, color: Colors.textMuted, lineHeight: 15, marginTop: 4, marginBottom: Spacing.sm },
     opt:       { paddingHorizontal: Spacing.md, paddingVertical: 7, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border, borderRadius: 6 },
     optActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
     optText:   { color: Colors.textMuted, fontSize: 12 },

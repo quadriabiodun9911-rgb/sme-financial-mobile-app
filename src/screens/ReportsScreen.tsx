@@ -21,6 +21,7 @@ import TaxPlanningTab from '../components/TaxPlanningTab';
 import { computeFinancialRatiosDashboard } from '../utils/financialRatiosEngine';
 import RatioReadingRow from '../components/RatioReadingRow';
 import CustomerProfitability from '../components/CustomerProfitability';
+import ProjectProfitability from '../components/ProjectProfitability';
 import ProductPerformance from '../components/ProductPerformance';
 import GrowthOutlook from '../components/GrowthOutlook';
 import MultiYearTrends from '../components/MultiYearTrends';
@@ -68,7 +69,7 @@ type SubTab =
     | 'aging'
     | 'tax' | 'tax-filing' | 'tax-planning'
     | 'cashflow' | 'cashhealth' | 'workingcapitalhealth'
-    | 'growth' | 'history' | 'quality' | 'customers' | 'products';
+    | 'growth' | 'history' | 'quality' | 'customers' | 'products' | 'projects';
 
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
     statements: [
@@ -95,6 +96,7 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
         { key: 'quality',   label: 'Quality of Growth' },
         { key: 'customers', label: 'Best Customers' },
         { key: 'products',  label: 'Best Products' },
+        { key: 'projects',  label: 'Projects' },
     ],
 };
 
@@ -921,6 +923,14 @@ export default function ReportsScreen() {
                         <ProductPerformance
                             transactions={transactions}
                             inventory={inventory}
+                            currency={currency}
+                        />
+                    )}
+
+                    {/* ── PROJECT PROFITABILITY ────────────────────────── */}
+                    {activeTab === 'projects' && (
+                        <ProjectProfitability
+                            transactions={transactions}
                             currency={currency}
                         />
                     )}

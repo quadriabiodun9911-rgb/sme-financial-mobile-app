@@ -182,6 +182,70 @@ export function recommendFinancingTypes(input: FinancingRecommendationInput, cur
         .slice(0, 3);
 }
 
+// "Do not assume that every technology-development expense should be
+// financed through a loan" -- recommendFinancingTypes above only ever
+// matches DEBT products (it feeds FinancingMarketplaceScreen's own
+// lender-product picker directly, via RECOMMENDATION_CATEGORY), so a
+// pre-revenue or R&D-heavy business -- which has no repayment capacity to
+// service a loan against -- would otherwise only ever be steered toward
+// Working Capital, its one always-available fallback. This is a second,
+// deliberately separate advisory signal: it never feeds the Marketplace
+// (there's no equity/grant inventory to match against there, just real
+// lender debt products), so it can't collide with recommendFinancingTypes'
+// own ranking or RECOMMENDATION_CATEGORY lookup. Consumed only where an
+// advisory note adds value (diagnosticDimensions.ts's Financing Readiness
+// dimension).
+export type AlternativeCapitalType = 'equity' | 'grant';
+
+export interface AlternativeCapitalRecommendation {
+    type: AlternativeCapitalType;
+    label: string;
+    reason: string;
+}
+
+export function recommendAlternativeCapital(
+    fitInput: FinancingFitInput,
+    transactions: Transaction[],
+    currency: string,
+): AlternativeCapitalRecommendation[] {
+    const recs: AlternativeCapitalRecommendation[] = [];
+
+    // R&D vs. commercial spend -- see Transaction.costNature. Only counts
+    // expenses the owner actually classified; unclassified spend is
+    // neither signal nor noise here, just absent.
+    let rdCost = 0, commercialCost = 0;
+    for (const tx of transactions) {
+        if (tx.type !== 'expense' || !tx.costNature) continue;
+        if (tx.costNature === 'rd') rdCost += tx.amount;
+        else if (tx.costNature === 'commercial') commercialCost += tx.amount;
+    }
+    const rdDominates = rdCost > 0 && rdCost > commercialCost;
+    const preRevenue = fitInput.avgMonthlyRevenue <= 0;
+
+    if (!preRevenue && !rdDominates) return recs;
+
+    if (preRevenue) {
+        recs.push({
+            type: 'equity',
+            label: 'Equity Investment',
+            reason: "You don't have revenue yet to service a loan's fixed monthly repayments — equity investors (angel or VC) are paid from a future exit or dividends instead, which fits a pre-revenue stage far better than debt.",
+        });
+        recs.push({
+            type: 'grant',
+            label: 'Grants / Non-Dilutive Funding',
+            reason: 'A grant or innovation-funding programme adds no repayment obligation and no equity dilution — worth checking before taking on debt or giving up equity to cover early-stage development costs.',
+        });
+    } else if (rdDominates) {
+        recs.push({
+            type: 'equity',
+            label: 'Equity Investment (for the R&D portion)',
+            reason: `${fmtAmt(currency, rdCost)} of your tagged spend is R&D/development, against ${fmtAmt(currency, commercialCost)} commercial — the R&D portion has no revenue behind it yet to service debt. Equity or grant funding fits that part better; a loan may still make sense for the commercial side once it has its own track record.`,
+        });
+    }
+
+    return recs;
+}
+
 function lowerFirst(s: string): string {
     return s.length === 0 ? s : s.charAt(0).toLowerCase() + s.slice(1);
 }

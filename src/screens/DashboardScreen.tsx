@@ -57,11 +57,10 @@ import { getUninvoicedOverdueTransactions } from '../utils/overdueTransactions';
 import { getTaxDeadlineStatus } from '../utils/taxDeadline';
 import { isRecurringTransactionOverdue, daysUntilRecurringDue, hasRecurringSchedule } from '../utils/recurringTransactions';
 import { isBudgetActiveForPeriod, isBudgetPeriodLapsed, currentPeriodString } from '../utils/budgetPeriod';
-import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyExpenseAverage, computeOneThingInsight, computeRiskScore, computeDSCR, computeFinancingReadinessScore, RISK_BAND_STYLE, latestTransactionDate } from '../utils/finance';
+import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyExpenseAverage, computeOneThingInsight, computeRiskScore, RISK_BAND_STYLE, latestTransactionDate } from '../utils/finance';
 import { computeBusinessHealthIntelligence } from '../utils/metricIntelligence';
 import { computeStockVelocity, computeInventoryValue } from '../utils/stockVelocity';
 import { computeExpiringStock } from '../utils/foodExpiry';
-import { computeDataQuality } from '../utils/dataQuality';
 import { computeCostExposure, MODEL as COST_EXPOSURE_MODEL } from '../utils/costExposure';
 import { computeDailyTrend } from '../utils/trendAnalysis';
 import { registerForPushNotificationsAsync, syncCashPositionSummary } from '../utils/pushRegistration';
@@ -74,16 +73,11 @@ import * as FileSystem from 'expo-file-system';
 import { Audio } from 'expo-av';
 import { classifyByDescription } from '../utils/transactionCategorization';
 import { computeExpenseIntelligence, ExpenseTier } from '../utils/expenseIntelligence';
-import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeTaxAbilityToPay } from '../utils/taxFilingReadiness';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
 import { computeDiscretionaryCash } from '../utils/discretionaryCash';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
-import { computeQualityOfGrowth } from '../utils/qualityOfGrowth';
-import { computeDirectionVsStatus } from '../utils/directionVsStatus';
-import { computeDecisionCentre } from '../utils/decisionCentre';
 import { buildNewGoal, goalDefaults } from '../utils/goals';
-import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
 import { detectPersonalSpending, DISMISSED_PERSONAL_KEY } from '../utils/personalSpendingDetector';
 import { detectNonRevenueInflows, DISMISSED_NON_REVENUE_KEY } from '../utils/nonRevenueInflowDetector';
 import { GoalType } from '../types';
@@ -100,13 +94,6 @@ const EXPENSE_CATEGORIES = ['Rent', 'Salaries', 'Utilities', 'Marketing', 'Suppl
 
 const PRIORITY_TIER_ORDER: PriorityTier[] = ['attention', 'watch', 'opportunity'];
 const TOP_PRIORITY_COUNT = 3;
-
-const RISK_LEVEL_META: Record<RiskLevel, { color: string }> = {
-    high:      { color: Colors.expense },
-    medium:    { color: Colors.warning },
-    low:       { color: Colors.income },
-    'no-data': { color: Colors.textMuted },
-};
 
 // Same band/status colors the Scoreboard screen uses for computeRiskScore's
 // output -- one canonical score shown consistently everywhere it appears.
@@ -253,9 +240,7 @@ export default function DashboardScreen() {
     // would just repeat the top item and add back the clutter that change
     // was meant to remove. Expand only on request.
     const [showAllPriorities, setShowAllPriorities] = useState(false);
-    const [betaCardDismissed, setBetaCardDismissed] = useState(false);
 
-    const [showFullDashboard, setShowFullDashboard] = useState(false);
     const [onboardingDismissed, setOnboardingDismissed] = useState(false);
     const [showShareCard, setShowShareCard]     = useState(false);
     const [showFirstRun, setShowFirstRun]       = useState(false);
@@ -321,9 +306,6 @@ export default function DashboardScreen() {
     useEffect(() => {
         AsyncStorage.getItem('@quad360/onboarding_dismissed').then(v => {
             if (v === '1') setOnboardingDismissed(true);
-        }).catch(() => {});
-        AsyncStorage.getItem('@quad360/beta_card_dismissed').then(v => {
-            if (v === '1') setBetaCardDismissed(true);
         }).catch(() => {});
     }, []);
 
@@ -494,32 +476,6 @@ export default function DashboardScreen() {
             .filter(r => r.confidence === 'strong' && r.productType !== 'working_capital');
         return recs[0] ?? null;
     }, [transactions, loans, settings, user, readinessHistory, invoices, assets, inventory]);
-
-    // "How much could my business realistically borrow" -- the same estimate
-    // Credit-Worthiness and the Financing Marketplace already compute, just
-    // surfaced ambiently here instead of only after a business owner goes
-    // looking for it. Same >=5-transaction noise gate as diagnosisForNextGoal
-    // (computeDataQuality's own 'none'/'limited' bands already return a
-    // "not enough history" estimate below that threshold, but skipping the
-    // card entirely is more honest than showing a hedge-everything result).
-    const financingCapacity = useMemo(() => {
-        if (transactions.length < 5) return null;
-        const fitInput = buildFinancingFitInput(transactions, loans, settings, user);
-        // Reweighted toward debt-service coverage and liquidity -- what
-        // actually predicts repayment ability -- same as Credit-Worthiness
-        // and the Financing Marketplace's own lending-capacity estimate.
-        const financingReadiness = computeFinancingReadinessScore(businessHealth.factors);
-        const dscr = computeDSCR(transactions, loans);
-        const dataQuality = computeDataQuality(transactions, settings.industry);
-        const inventoryValue = computeInventoryValue(inventory);
-        return computeLendingCapacityEstimate({
-            overallCreditScore: financingReadiness.score,
-            avgMonthlyRevenue: fitInput.avgMonthlyRevenue,
-            dscr: dscr.dscr,
-            hasReliableData: dataQuality.confidence !== 'none' && dataQuality.confidence !== 'limited',
-            inventoryValue,
-        });
-    }, [transactions, loans, settings, user, businessHealth, inventory]);
 
     // Best-effort device notification mirroring the dashboard card above —
     // notifyFinancingOpportunity throttles itself to once per 14 days, so
@@ -853,25 +809,6 @@ export default function DashboardScreen() {
         [transactions, invoices, finance.cashBalance, finance.expense, settings?.currency, loans, inventory, assets, settings?.industry]
     );
 
-    // Decision Centre preview -- the same Act Now/Watch/Improving combinator
-    // InsightsScreen's own Decision Centre card shows (see decisionCentre.ts),
-    // reusing businessHealth and diagnosisForNextGoal already computed above
-    // so this can never disagree with either the Scoreboard's Direction vs
-    // Status card or Insights' own Decision Centre for the same business.
-    // Previously this engine only rendered inside Insights, so a new user had
-    // no organic way to find it within their first few minutes.
-    const directionVsStatus = useMemo(
-        () => computeDirectionVsStatus(businessHealth, computeQualityOfGrowth(transactions, assets, loans)),
-        [businessHealth, transactions, assets, loans]
-    );
-    const decisionCentre = useMemo(
-        () => (diagnosisForNextGoal ? computeDecisionCentre(diagnosisForNextGoal, directionVsStatus) : null),
-        [diagnosisForNextGoal, directionVsStatus]
-    );
-    const topDecisionItem = decisionCentre
-        ? decisionCentre.actNow[0] ?? decisionCentre.watch[0] ?? decisionCentre.improving[0] ?? null
-        : null;
-
     // The first not-yet-celebrated achieved goal -- see celebratedGoalIds
     // above for why "achieved" alone isn't enough to gate this.
     const goalToCelebrate = useMemo(
@@ -927,17 +864,6 @@ export default function DashboardScreen() {
         if (!goalToCelebrate) return;
         markGoalCelebrated(goalToCelebrate.id);
     };
-
-    // "What could stop growth" -- distinct from "What Needs Your Attention"
-    // above: that section is acute/urgent items with a real dollar figure;
-    // this is a periodic strategic check-in across signals that already
-    // exist scattered on their own deep-dive screens (CFO > Risk tab's
-    // concentration/seasonal cards, Settings' macro assumptions), never
-    // otherwise summarized in one place.
-    const riskRadar = useMemo(
-        () => computeRiskRadar(transactions, loans, settings?.macroAssumptions ?? [], new Date(), assets),
-        [transactions, loans, settings?.macroAssumptions, assets]
-    );
 
     // Same "not personal" confirmations TransactionsScreen's row action
     // writes -- read independently here (not lifted to context) so this
@@ -1582,19 +1508,6 @@ export default function DashboardScreen() {
                 </TouchableOpacity>
                 <Text style={styles.title}>{t(language, 'dashboard')}</Text>
 
-                {/* One-tap entry to Collect Payment for a payment that isn't
-                    tied to any invoice -- invoice-linked payments already
-                    have their own "Collect Payment" button on each invoice
-                    row (InvoicesScreen), this is the ad-hoc path. */}
-                {canViewFinancials && (
-                    <View style={styles.quickActionsRow}>
-                        <TouchableOpacity style={styles.quickAction} onPress={() => navigate('payment-link')}>
-                            <Icon name="credit-card" size={18} color={Colors.primary} />
-                            <Text style={[styles.quickActionText, { color: Colors.textPrimary }]}>{t(language, 'collectPayment')}</Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
-
                 {/* ── Guest/Demo Mode banner ───────────────────────────────────
                     "Guest Mode" only applies to the blank entry (real numbers
                     the visitor typed/imported themselves, demoBusinessId ===
@@ -1841,36 +1754,6 @@ export default function DashboardScreen() {
                 </View>
                 )}
                 </View>
-
-                {/* Simplicity fold: by default the Dashboard shows only the
-                    essentials a new or non-expert owner needs (health score,
-                    cash position, today's one priority, this month's
-                    numbers) -- everything below this toggle is a real,
-                    working feature, just not something every owner needs on
-                    every visit. showFullDashboard gates every "advanced"
-                    card from here down (Decision Centre preview, If You
-                    Need Capital, Before You Borrow, Risk Radar, Quick
-                    Actions, AI Financial Engine, beta spotlight) -- nothing
-                    is deleted or moved, each section simply doesn't render
-                    until the owner asks for it. MacroShield itself moved to
-                    Risk > Economic -- see that screen's own comment. */}
-                {canViewFinancials && (
-                  <PressScale
-                    style={styles.showMoreToggle}
-                    onPress={() => setShowFullDashboard(v => !v)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.showMoreToggleTitle}>
-                        {showFullDashboard ? 'Show Fewer Details' : 'Show More Insights'}
-                      </Text>
-                      {!showFullDashboard && (
-                        <Text style={styles.showMoreToggleSub}>Stress test, financing capacity, risk radar & more</Text>
-                      )}
-                    </View>
-                    <Icon name={showFullDashboard ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.textMuted} />
-                  </PressScale>
-                )}
 
                 {/* WHAT QUAD360 SEES — the plain-language "what does this
                     mean" that Vital Signs' raw numbers above don't answer on
@@ -2172,184 +2055,7 @@ export default function DashboardScreen() {
                   </View>
                 )}
 
-                {/* DECISION CENTRE PREVIEW — the same Act Now/Watch/Improving
-                    combinator Insights' own Decision Centre card shows (see
-                    decisionCentre.ts), reusing the same diagnosis and
-                    direction-vs-status computed above so this preview can
-                    never disagree with the full card. Only the counts and
-                    the single highest-urgency item, not the whole list —
-                    this is a doorway into Insights, not a second copy of it. */}
-                {showFullDashboard && decisionCentre && (
-                  <TouchableOpacity
-                    style={styles.topPrioritiesCard}
-                    onPress={() => setCurrentScreen('insights')}
-                    activeOpacity={0.85}
-                  >
-                    <View style={styles.sectionTitleRow}>
-                      <Icon name="zap" size={13} color={Colors.textMuted} />
-                      <Text style={styles.operationsSectionTitle}>Decision Centre</Text>
-                    </View>
-                    {(decisionCentre.actNow.length + decisionCentre.watch.length + decisionCentre.improving.length) === 0 ? (
-                      <Text style={styles.priorityAmount}>
-                        {decisionCentre.directionAvailable
-                          ? 'Nothing urgent right now — check back as your numbers update.'
-                          : 'Log more transactions to populate your Decision Centre.'}
-                      </Text>
-                    ) : (
-                      <>
-                        <View style={styles.healthFactorsRow}>
-                          {decisionCentre.actNow.length > 0 && (
-                            <View style={styles.healthFactorChip}>
-                              <View style={[styles.healthFactorDot, { backgroundColor: Colors.expense }]} />
-                              <Text style={styles.healthFactorChipText}>{decisionCentre.actNow.length} Act Now</Text>
-                            </View>
-                          )}
-                          {decisionCentre.watch.length > 0 && (
-                            <View style={styles.healthFactorChip}>
-                              <View style={[styles.healthFactorDot, { backgroundColor: Colors.warning }]} />
-                              <Text style={styles.healthFactorChipText}>{decisionCentre.watch.length} Watch</Text>
-                            </View>
-                          )}
-                          {decisionCentre.improving.length > 0 && (
-                            <View style={styles.healthFactorChip}>
-                              <View style={[styles.healthFactorDot, { backgroundColor: Colors.income }]} />
-                              <Text style={styles.healthFactorChipText}>{decisionCentre.improving.length} Improving</Text>
-                            </View>
-                          )}
-                        </View>
-                        {topDecisionItem && (
-                          <View style={{ marginTop: Spacing.xs }}>
-                            <Text style={styles.priorityTitle}>{topDecisionItem.title}</Text>
-                            <Text style={styles.priorityAmount}>{topDecisionItem.evidence}</Text>
-                          </View>
-                        )}
-                      </>
-                    )}
-                    <Text style={[styles.healthLinkText, { marginTop: Spacing.sm }]}>See full Decision Centre →</Text>
-                  </TouchableOpacity>
-                )}
                 </>
-                )}
-
-                {/* IF YOU NEED CAPITAL — an ambient answer to "how much
-                    could my business realistically borrow", not just a
-                    marketplace listing to browse. Reuses financingCapacity
-                    (computeLendingCapacityEstimate — the exact same estimate
-                    Credit-Worthiness and the Financing Marketplace already
-                    show) so this is visible without going looking for
-                    financing first. Hidden below 'not-yet-bankable' since a
-                    ₦0–₦0 range with no encouraging framing isn't worth a
-                    dashboard card -- CreditWorthinessScreen is still the
-                    place that explains what to fix. */}
-                {canViewFinancials && showFullDashboard && financingCapacity && financingCapacity.tier !== 'not-yet-bankable' && (
-                  <TouchableOpacity
-                    style={styles.capacityCard}
-                    onPress={() => setCurrentScreen('financing-marketplace')}
-                    activeOpacity={0.85}
-                  >
-                    <View style={styles.sectionTitleRow}>
-                      <Icon name="briefcase" size={13} color={Colors.textMuted} />
-                      <Text style={styles.operationsSectionTitle}>If You Need Capital</Text>
-                    </View>
-                    <Text style={styles.capacityAmount}>
-                      {currency}{Math.round(financingCapacity.minAmount).toLocaleString()}–{currency}{Math.round(financingCapacity.maxAmount).toLocaleString()}
-                    </Text>
-                    <Text style={styles.capacitySubtext}>
-                      Estimated financing capacity ({financingCapacity.tierLabel.toLowerCase()}) based on your current financial performance — see matched options →
-                    </Text>
-                  </TouchableOpacity>
-                )}
-
-                {/* BEFORE YOU BORROW — the other side of "If You Need
-                    Capital". financingCapacity.conclusion distinguishes three
-                    genuinely different situations computeLendingCapacityEstimate
-                    can return for a 'not-yet-bankable' tier -- "can't safely
-                    service more debt" (risk) is not the same conclusion as
-                    "score needs work" (improve), and neither is the same as
-                    "not enough history yet" (a data gap, not a judgment on the
-                    business). Previously these three were shown as one
-                    identically-styled card; each now gets its own title, tone
-                    and color so the owner isn't given the same visual alarm
-                    for a data gap as for an active debt-service risk. */}
-                {canViewFinancials && showFullDashboard && financingCapacity && financingCapacity.conclusion === 'risk' && (
-                  <TouchableOpacity
-                    style={[styles.beforeYouBorrowCard, { borderLeftColor: Colors.expense }]}
-                    onPress={() => setCurrentScreen('financial-assessment')}
-                    activeOpacity={0.85}
-                  >
-                    <View style={styles.sectionTitleRow}>
-                      <Icon name="alert-triangle" size={13} color={Colors.expense} />
-                      <Text style={styles.operationsSectionTitle}>Borrowing May Increase Risk</Text>
-                    </View>
-                    <Text style={styles.beforeYouBorrowText}>{financingCapacity.reason}</Text>
-                    <Text style={styles.healthLinkText}>See the full picture →</Text>
-                  </TouchableOpacity>
-                )}
-
-                {canViewFinancials && showFullDashboard && financingCapacity && financingCapacity.conclusion === 'improve' && (
-                  <TouchableOpacity
-                    style={[styles.beforeYouBorrowCard, { borderLeftColor: Colors.warning }]}
-                    onPress={() => setCurrentScreen('financial-assessment')}
-                    activeOpacity={0.85}
-                  >
-                    <View style={styles.sectionTitleRow}>
-                      <Icon name="target" size={13} color={Colors.warning} />
-                      <Text style={styles.operationsSectionTitle}>Improve Before Applying</Text>
-                    </View>
-                    <Text style={styles.beforeYouBorrowText}>{financingCapacity.reason}</Text>
-                    <Text style={styles.healthLinkText}>See what to fix first →</Text>
-                  </TouchableOpacity>
-                )}
-
-                {canViewFinancials && showFullDashboard && financingCapacity && financingCapacity.conclusion === 'insufficient-data' && (
-                  <TouchableOpacity
-                    style={[styles.beforeYouBorrowCard, { borderLeftColor: Colors.textMuted }]}
-                    onPress={() => setCurrentScreen('financial-assessment')}
-                    activeOpacity={0.85}
-                  >
-                    <View style={styles.sectionTitleRow}>
-                      <Icon name="info" size={13} color={Colors.textMuted} />
-                      <Text style={styles.operationsSectionTitle}>Not Enough Data Yet</Text>
-                    </View>
-                    <Text style={styles.beforeYouBorrowText}>{financingCapacity.reason}</Text>
-                    <Text style={styles.healthLinkText}>Add more transaction history →</Text>
-                  </TouchableOpacity>
-                )}
-
-                {/* Risk Radar -- what could stop growth, not what needs
-                    action today. This used to render the full category-chip
-                    breakdown here AND on the Scoreboard, with two different
-                    destinations (this card went straight to CFO > Risk,
-                    bypassing Scoreboard entirely) -- the exact duplication
-                    "Your Progress" above was already written to avoid. Now
-                    it's the same one-line teaser pattern: a single summary
-                    line linking to the Scoreboard, which is the one place
-                    the full category breakdown lives; Scoreboard's own Risk
-                    Radar card still links onward to CFO > Risk for detail. */}
-                {canViewFinancials && showFullDashboard && (
-                <TouchableOpacity
-                  style={styles.riskRadarCard}
-                  onPress={() => setCurrentScreen('scoreboard')}
-                  activeOpacity={0.85}
-                >
-                  <View style={styles.sectionTitleRow}>
-                    <Icon name="radio" size={13} color={Colors.textMuted} />
-                    <Text style={styles.operationsSectionTitle}>Risk Radar</Text>
-                    <View style={[styles.riskOverallBadge, { backgroundColor: RISK_LEVEL_META[riskRadar.overallLevel].color + '22' }]}>
-                      <Text style={[styles.riskOverallBadgeText, { color: RISK_LEVEL_META[riskRadar.overallLevel].color }]}>
-                        {riskRadar.overallLevel === 'high' ? 'High' : riskRadar.overallLevel === 'medium' ? 'Moderate' : 'Low'}
-                      </Text>
-                    </View>
-                  </View>
-                  {riskRadar.topRisks.length > 0 ? (
-                    <Text style={styles.riskRadarSummary}>
-                      <Text style={{ fontWeight: '700', color: Colors.textPrimary }}>Biggest risk: </Text>
-                      {riskRadar.topRisks[0].summary} — see the full breakdown on your Scoreboard →
-                    </Text>
-                  ) : (
-                    <Text style={styles.riskRadarSummary}>Nothing standing out right now — a good window to focus on growth. See your Scoreboard →</Text>
-                  )}
-                </TouchableOpacity>
                 )}
 
                 {/* SECTION 3: KEY METRICS - Monthly snapshot */}
@@ -2376,167 +2082,6 @@ export default function DashboardScreen() {
                 </View>
                 )}
 
-                {/* SECTION 4: QUICK ACTIONS - One-tap operations.
-                    Log Sales/Send Invoice/Record Expense removed -- the
-                    floating + button (openFab) and the Invoices tab already
-                    cover those, so this section is just the one action that
-                    had no other easy entry point. */}
-                {canViewFinancials && showFullDashboard && (
-                <View style={styles.operationsSection}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Icon name="zap" size={13} color={Colors.textMuted} />
-                    <Text style={styles.operationsSectionTitle}>QUICK ACTIONS</Text>
-                  </View>
-                  <View style={styles.actionsGrid}>
-                    <TouchableOpacity style={[styles.actionCard, styles.actionCardFull]} activeOpacity={0.7} onPress={() => setCurrentScreen('import-transactions')}>
-                      <View style={styles.actionEmoji}><Icon name="file-text" size={28} color={Colors.primary} /></View>
-                      <Text style={styles.actionLabel}>Import Bank Statement</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-                )}
-
-                {/* SECTION 4B: AI FINANCIAL ENGINE - Assessment & Action Planning
-                    Every destination here (diagnosis, weekly priorities, goal
-                    tracking) is a financial-performance view — not shown to staff. */}
-                {canViewFinancials && showFullDashboard && (
-                <View style={styles.operationsSection}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Icon name="cpu" size={13} color={Colors.textMuted} />
-                    <Text style={styles.operationsSectionTitle}>AI Financial Engine</Text>
-                  </View>
-                  <View style={styles.engineCardsGrid}>
-                    <TouchableOpacity
-                      style={styles.engineCard}
-                      onPress={() => setCurrentScreen('financial-assessment')}
-                    >
-                      <Icon name="search" size={26} color={Colors.primary} />
-                      <Text style={styles.engineTitle}>{'Financial\nAssessment'}</Text>
-                      <Text style={styles.engineSubtext}>Diagnose issues</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.engineCard}
-                      onPress={() => setCurrentScreen('action-tracker')}
-                    >
-                      <Icon name="zap" size={26} color={Colors.primary} />
-                      <Text style={styles.engineTitle}>Action<br/>Tracker</Text>
-                      <Text style={styles.engineSubtext}>Prioritized tactics</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.engineCard}
-                      onPress={() => setCurrentScreen('goals')}
-                    >
-                      <Icon name="git-merge" size={26} color={Colors.primary} />
-                      <Text style={styles.engineTitle}>Goal<br/>Bridge</Text>
-                      <Text style={styles.engineSubtext}>Connect to goals</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <TouchableOpacity style={[styles.btn, styles.btnWithIcon, { marginTop: 10 }]} onPress={() => setShowWeeklyReport(true)}>
-                    <Icon name="calendar" size={15} color={Colors.textPrimary} />
-                    <Text style={styles.btnText}>Weekly Dashboard — Wins, Problems & Priorities</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.btn, styles.btnWithIcon, { marginTop: 10 }]} onPress={() => setShowMonthlyReview(true)}>
-                    <Icon name="bar-chart-2" size={15} color={Colors.textPrimary} />
-                    <Text style={styles.btnText}>Monthly Review — Recap & Recommendation</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.btn, styles.btnWithIcon, { marginTop: 10 }]} onPress={() => setShowDailyReport(true)}>
-                    <Icon name="sun" size={15} color={Colors.textPrimary} />
-                    <Text style={styles.btnText}>Daily Report — Today's Recap</Text>
-                  </TouchableOpacity>
-                </View>
-                )}
-
-                {/* ── Beta Features Spotlight ──────────────────────────────── */}
-                {!isDemoMode && showFullDashboard && !betaCardDismissed && (
-                    <View style={styles.betaCard}>
-                        <View style={styles.betaCardHeader}>
-                            <View style={[styles.betaBadge, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
-                                <Icon name="star" size={11} color={Colors.primary} />
-                                <Text style={styles.betaBadgeText}>NEW FEATURES</Text>
-                            </View>
-                            <TouchableOpacity onPress={() => {
-                                setBetaCardDismissed(true);
-                                AsyncStorage.setItem('@quad360/beta_card_dismissed', '1');
-                            }}>
-                                <Icon name="x" size={16} color={Colors.textMuted} />
-                            </TouchableOpacity>
-                        </View>
-                        <Text style={styles.betaTitle}>Try these features now</Text>
-                        <Text style={styles.betaSubtitle}>Available during beta — built for your business</Text>
-
-                        {/* Feature 1 — Paystack */}
-                        <TouchableOpacity style={styles.betaFeature} onPress={() => navigate('payment-link')}>
-                            <View style={[styles.betaFeatureIcon, { backgroundColor: '#00C3F722' }]}>
-                                <Icon name="credit-card" size={20} color="#00C3F7" />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                    <Text style={styles.betaFeatureName}>Collect Payment Online</Text>
-                                    <View style={styles.betaLiveBadge}><Text style={styles.betaLiveText}>LIVE</Text></View>
-                                </View>
-                                <Text style={styles.betaFeatureDesc}>Send a Paystack checkout link to your customer. They pay with card, bank transfer, or USSD — money goes straight to you.</Text>
-                            </View>
-                            <Text style={styles.betaArrow}>›</Text>
-                        </TouchableOpacity>
-
-                        {/* Feature 2 — CSV Export */}
-                        <TouchableOpacity style={styles.betaFeature} onPress={() => navigate('transactions')}>
-                            <View style={[styles.betaFeatureIcon, { backgroundColor: '#10b98122' }]}>
-                                <Icon name="download" size={20} color="#10b981" />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                    <Text style={styles.betaFeatureName}>Export to CSV / Excel</Text>
-                                    <View style={[styles.betaLiveBadge, { backgroundColor: '#10b981' }]}><Text style={styles.betaLiveText}>LIVE</Text></View>
-                                </View>
-                                <Text style={styles.betaFeatureDesc}>Download all your transactions as a spreadsheet. Open in Excel or Google Sheets — great for accountants and tax filing.</Text>
-                            </View>
-                            <Text style={styles.betaArrow}>›</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.betaFeature} onPress={() => setCurrentScreen('cashflow')} activeOpacity={0.75}>
-                            <View style={[styles.betaFeatureIcon, { backgroundColor: '#3b82f622' }]}>
-                                <Icon name="droplet" size={20} color="#3b82f6" />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                    <Text style={styles.betaFeatureName}>Cash Flow Forecast</Text>
-                                    <View style={[styles.betaLiveBadge, { backgroundColor: '#3b82f6' }]}><Text style={styles.betaLiveText}>NEW</Text></View>
-                                </View>
-                                <Text style={styles.betaFeatureDesc}>90-day weekly cash projection, runway calculator, and AR collection risk scoring.</Text>
-                            </View>
-                            <Text style={styles.betaArrow}>›</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.betaFeature} onPress={() => setCurrentScreen('payroll')} activeOpacity={0.75}>
-                            <View style={[styles.betaFeatureIcon, { backgroundColor: '#10b98122' }]}>
-                                <Icon name="users" size={20} color="#10b981" />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                    <Text style={styles.betaFeatureName}>Payroll</Text>
-                                    <View style={[styles.betaLiveBadge, { backgroundColor: '#10b981' }]}><Text style={styles.betaLiveText}>NEW</Text></View>
-                                </View>
-                                <Text style={styles.betaFeatureDesc}>Manage staff, run monthly payroll with automatic deductions, and track salary history.</Text>
-                            </View>
-                            <Text style={styles.betaArrow}>›</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.betaFeature} onPress={() => setCurrentScreen('reconciliation')} activeOpacity={0.75}>
-                            <View style={[styles.betaFeatureIcon, { backgroundColor: '#8b5cf622' }]}>
-                                <Icon name="link-2" size={20} color="#8b5cf6" />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                    <Text style={styles.betaFeatureName}>Bank Reconciliation</Text>
-                                    <View style={[styles.betaLiveBadge, { backgroundColor: '#8b5cf6' }]}><Text style={styles.betaLiveText}>NEW</Text></View>
-                                </View>
-                                <Text style={styles.betaFeatureDesc}>Import your bank statement and auto-match transactions to catch discrepancies instantly.</Text>
-                            </View>
-                            <Text style={styles.betaArrow}>›</Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
                 {/* ── Onboarding ───────────────────────────────────────────── */}
                 {showOnboarding && (
                     <View style={styles.onboardCard}>
@@ -3110,10 +2655,6 @@ const styles = StyleSheet.create({
     fullDashToggle:     { alignItems: 'center', paddingVertical: 12, marginBottom: 8, backgroundColor: Colors.surface, borderRadius: 10, borderWidth: 1, borderColor: Colors.border },
     fullDashToggleText: { color: Colors.primary, fontSize: 14, fontWeight: '700' },
 
-    quickActionsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-    quickAction:     { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: Colors.border },
-    quickActionIcon: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
-    quickActionText: { fontSize: 11, fontWeight: '600', marginTop: 2 },
 
     insightCard:   { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12, borderLeftWidth: 4 },
     insightHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },

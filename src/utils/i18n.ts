@@ -138,6 +138,8 @@ const T = {
         categoryLabel: 'Category', taxSectionLabel: 'Tax', taxRateLabel: 'Tax Rate (%)',
         optionalDetails: 'Optional Details', referenceLabel: 'Reference / Invoice No.',
         vendorCustomerLabel: 'Vendor / Customer name', phoneOptionalLabel: 'Phone number (optional — for calling customer)',
+        projectLabel: 'Project (optional)', projectHintLabel: 'Tag this to a project to see its own profitability under Reports → Projects.',
+        costNatureLabel: 'Cost type', costNatureRd: 'R&D / Development', costNatureCommercial: 'Commercial / Operating',
         recurringSectionLabel: 'Recurring', repeatTransactionLabel: 'Repeat this transaction',
         onLabel: 'ON', offLabel: 'OFF', frequencyLabel: 'Frequency',
         saveChanges: 'Save Changes', addTransactionBtn: 'Add Transaction',

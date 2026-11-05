@@ -3142,6 +3142,7 @@ export function useApp() {
           status: invoice.status === 'paid' ? 'paid' : invoice.status === 'overdue' ? 'overdue' : 'pending',
           reference: invoice.invoiceNumber,
           vendorCustomer: invoice.clientName || undefined,
+          project: invoice.project || undefined,
           dueDate: invoice.dueDate,
         } as any);
       }
@@ -3167,6 +3168,7 @@ export function useApp() {
           amount: after.total,
           description: `Invoice ${after.invoiceNumber}: ${after.clientName || 'Customer'}`,
           vendorCustomer: after.clientName || undefined,
+          project: after.project || undefined,
           dueDate: after.dueDate,
           ...(txStatus ? { status: txStatus } : {}),
         });
@@ -3183,6 +3185,7 @@ export function useApp() {
           status: txStatus,
           reference: after.invoiceNumber,
           vendorCustomer: after.clientName || undefined,
+          project: after.project || undefined,
           dueDate: after.dueDate,
         } as any);
       }
@@ -3378,6 +3381,7 @@ export function useApp() {
           status: txStatus,
           reference: inv.invoiceNumber,
           vendorCustomer: inv.clientName || undefined,
+          project: inv.project || undefined,
           dueDate: inv.dueDate,
         } as any);
       }
