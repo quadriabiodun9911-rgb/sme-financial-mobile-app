@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
+    <title>%WEB_TITLE%</title>
+
+    <!-- PWA: lets Chrome/Edge on Android (and desktop) offer "Install app" /
+         "Add to Home Screen", with Quad360's own icon, name and standalone
+         window instead of opening as a browser tab. -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- iOS Safari ignores the Web App Manifest for its home-screen icon and
+         standalone-window behavior -- these are the separate, iOS-specific
+         tags it actually reads. Without apple-mobile-web-app-capable, "Add
+         to Home Screen" on iPhone just bookmarks the page (opens inside
+         Safari's own chrome) instead of launching full-screen like a real
+         app. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Quad360" />
+    <!-- Older/other Chromium-based mobile browsers look for this instead of
+         (or in addition to) the manifest's own "display": "standalone". -->
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
+    <style id="expo-reset">
+      /* These styles make the body full-height */
+      html,
+      body {
+        height: 100%;
+      }
+      /* These styles disable body scrolling if you are using <ScrollView> */
+      body {
+        overflow: hidden;
+      }
+      /* These styles make the root element full-height */
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- Use static rendering with Expo Router to support running without JavaScript. -->
+    <noscript>
+      You need to enable JavaScript to run this app.
+    </noscript>
+    <!-- The root element for your Expo app. -->
+    <div id="root"></div>
+
+    <!-- Registers public/sw.js -- see that file's own comments for the
+         caching strategy (network-first for HTML/JS so a redeploy is never
+         invisible, cache-first for everything else so the app still opens,
+         offline, once it's been visited at least once). Deliberately a
+         plain inline script rather than wired through App.tsx: it has to
+         run on every page load regardless of whether/when the React bundle
+         finishes hydrating, and it only ever matters on web. -->
+    <script>
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/sw.js').catch(function () {
+            // Best-effort -- an unregistered service worker just means no
+            // offline support / install prompt this one visit, never a
+            // reason to block the app from loading.
+          });
+        });
+      }
+    </script>
+  </body>
+</html>
