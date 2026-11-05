@@ -108,11 +108,25 @@ export function generateBackupCodes(count: number = BACKUP_CODES_COUNT): string[
     return codes;
 }
 
+// Constant-time comparison -- same reasoning verifyTOTPCode's otplib call
+// already applies for TOTP codes: ordinary === / Array.includes short-
+// circuits on the first mismatched character, so response time leaks how
+// many leading characters of a guess were correct, letting a network-
+// adjacent attacker narrow down a valid code faster than brute force alone.
+function constantTimeEqual(a: string, b: string): boolean {
+    if (a.length !== b.length) return false;
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) {
+        diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    }
+    return diff === 0;
+}
+
 /**
  * Verify a backup code and consume it
  */
 export function verifyBackupCode(code: string, backupCodes: string[]): boolean {
-    return backupCodes.includes(code);
+    return backupCodes.some(c => constantTimeEqual(c, code));
 }
 
 /**
@@ -283,15 +297,26 @@ export function generateSMSOTP(): string {
     // CryptoJS's CSPRNG, not Math.random() -- same reasoning as
     // generateBackupCodes above: a predictable PRNG makes a code guessable
     // faster than its 6-digit space alone would suggest.
-    const n = CryptoJS.lib.WordArray.random(4).words[0] >>> 0;
-    return String(n % 1_000_000).padStart(6, '0');
+    //
+    // Rejection sampling avoids modulo bias: 2^32 isn't divisible by
+    // 1,000,000, so a plain `n % 1_000_000` very slightly favors the
+    // lower ~32,296 remainder values over the rest. Reject and redraw any
+    // value above the largest multiple of 1,000,000 that fits in 32 bits,
+    // instead of reducing a biased sample.
+    const RANGE = 1_000_000;
+    const MAX_UNBIASED = Math.floor(0x100000000 / RANGE) * RANGE;
+    let n: number;
+    do {
+        n = CryptoJS.lib.WordArray.random(4).words[0] >>> 0;
+    } while (n >= MAX_UNBIASED);
+    return String(n % RANGE).padStart(6, '0');
 }
 
 /**
  * Verify SMS OTP code
  */
 export function verifySMSOTP(enteredCode: string, actualCode: string): boolean {
-    return enteredCode === actualCode;
+    return constantTimeEqual(enteredCode, actualCode);
 }
 
 /**

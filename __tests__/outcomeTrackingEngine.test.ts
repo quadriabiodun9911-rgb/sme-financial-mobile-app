@@ -1,6 +1,7 @@
 import {
     recordTacticOutcome, evaluateProgressTracker, initiateTacticTracking,
     canMeasureOutcome, daysUntilMeasurable, OUTCOME_MEASUREMENT_WINDOW_DAYS,
+    calculateProgressMetric,
     TacticExecution, ProgressTracker,
 } from '../src/utils/outcomeTrackingEngine';
 import { ActionTactic } from '../src/utils/actionRecommendationEngine';
@@ -17,6 +18,25 @@ const makeExecution = (): TacticExecution => ({
     tacticId: 'tac1', tacticTitle: 'Cut expenses', startDate: '2024-01-01',
     targetEndDate: '2024-02-01', status: 'completed', progressPercentage: 100,
     completedSteps: [], notes: '',
+});
+
+describe('calculateProgressMetric', () => {
+    it('computes a normal trend against a real baseline', () => {
+        const tactic = makeTactic({ category: 'expenses', expectedImpact: 1000 });
+        const metric = calculateProgressMetric(tactic, 900, 0); // target=1000, current=900 -> 90% there
+        expect(metric.trend).toBe('improving');
+    });
+
+    it('does not divide by zero when expectedImpact is 0', () => {
+        // Same no-real-baseline case recordTacticOutcome guards above (e.g. a
+        // £0 recorded-expenses tactic) -- target === baseline here, so the
+        // raw formula divides by zero. Must fall back to 'stable' through an
+        // explicit branch, not report 'improving'/'declining' from NaN/Infinity.
+        const tactic = makeTactic({ category: 'expenses', expectedImpact: 0 });
+        const metric = calculateProgressMetric(tactic, 500, 500);
+        expect(metric.trend).toBe('stable');
+        expect(Number.isNaN(metric.target)).toBe(false);
+    });
 });
 
 describe('recordTacticOutcome', () => {

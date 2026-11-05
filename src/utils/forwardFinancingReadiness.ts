@@ -27,7 +27,7 @@
  */
 
 import { CashFlowMonth } from './forecastSummary';
-import { DSCRResult } from './finance';
+import { DSCRResult, DSCR_THRESHOLDS } from './finance';
 
 export type ForwardDSCRStatus = DSCRResult['status'];
 
@@ -54,7 +54,7 @@ export interface ForwardFinancingReadiness {
 const DOWNSIDE_REVENUE_DROP_PCT = 20;
 
 function dscrStatusFor(dscr: number): ForwardDSCRStatus {
-    return dscr >= 1.25 ? 'healthy' : dscr >= 1.0 ? 'warning' : 'danger';
+    return dscr >= DSCR_THRESHOLDS.healthy ? 'healthy' : dscr >= DSCR_THRESHOLDS.warning ? 'warning' : 'danger';
 }
 
 function buildScenario(label: string, cashFlowMonths: CashFlowMonth[], revenueMultiplier: number, monthsInPeriod: number, totalAnnualDebtService: number): ForwardScenario {

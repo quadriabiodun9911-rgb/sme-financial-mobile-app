@@ -116,12 +116,20 @@ export async function flushQueue(
                         const remoteMap = new Map<string, string>(
                             remoteRows.map((r: { id: string; updated_at: string }) => [r.id, r.updated_at])
                         );
+                        // Compare as epoch ms, not raw strings -- local
+                        // timestamps are millisecond ISO ("...123Z") while
+                        // Supabase's updated_at comes back with microsecond
+                        // precision and a numeric offset ("...123456+00:00").
+                        // 'Z' sorts above any digit lexicographically, so a
+                        // raw string compare always judged local "newer"
+                        // regardless of which timestamp actually was.
+                        const localUpdatedAtMs = new Date(localUpdatedAt).getTime();
                         rowsToUpsert = op.rows.filter((r: any) => {
                             const remoteUpdatedAt = remoteMap.get(r.id);
                             // No remote row exists → always upsert
                             if (!remoteUpdatedAt) return true;
                             // Local is newer or equal → upsert; remote is newer → skip
-                            return localUpdatedAt >= remoteUpdatedAt;
+                            return localUpdatedAtMs >= new Date(remoteUpdatedAt).getTime();
                         });
                     }
                 }

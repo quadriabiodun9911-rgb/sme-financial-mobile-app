@@ -917,6 +917,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       },
       deleteTransaction: (id) => {
         setTransactions((prev) => prev.filter((t) => t.id !== id));
+        // Reverse any still-open journal entry this transaction posted --
+        // without this, the General Ledger kept the entry forever after the
+        // transaction itself (and everything computed from `transactions`,
+        // like P&L and cash balance) stopped reflecting it.
+        try {
+          setJournalEntries((prev) => reverseEntriesForSource(prev, 'transaction', id));
+        } catch (e) {
+          console.error('[Ledger] failed to reverse journal entries on delete:', e);
+        }
         // Explicit, by-id remote delete -- saveTransactions' own sync no
         // longer infers deletions from a diff (see its header), so this is
         // now the only thing that actually removes the row server-side.
@@ -1171,6 +1180,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           const linkedTx = transactions.find((t) => t.id === run.transactionId);
           if (linkedTx?.category === 'Salaries') {
             setTransactions((txs) => txs.filter((t) => t.id !== run.transactionId));
+            // Same reversal deleteTransaction does -- this path removes the
+            // linked expense transaction directly rather than going through
+            // deleteTransaction, so it has to reverse the journal entry
+            // itself too.
+            try {
+              setJournalEntries((prev) => reverseEntriesForSource(prev, 'transaction', run.transactionId!));
+            } catch (e) {
+              console.error('[Ledger] failed to reverse journal entries on payroll run delete:', e);
+            }
             if (!isDemoMode) deleteTransactionRemote(run.transactionId).catch(() => {});
           }
         }

@@ -197,13 +197,13 @@ export default function AssetProductivityAnalysis({ finance, assets, currency, a
                 <MetricRow
                     label="Revenue per Asset"
                     value={`${currency}${revenuePerAsset.toLocaleString()}`}
-                    sublabel="Average revenue generated per asset"
+                    sublabel="All-time revenue ÷ today's active asset count -- recently added or disposed assets skew this"
                     color={revenuePerAsset > 10000 ? Colors.income : revenuePerAsset > 5000 ? Colors.warning : Colors.expense}
                 />
                 <MetricRow
                     label="Asset Turnover Ratio"
                     value={`${assetTurnover.toFixed(2)}x`}
-                    sublabel="Revenue ÷ Asset Value. Higher = more efficient"
+                    sublabel="All-time revenue ÷ today's asset value -- recently added or disposed assets skew this"
                     color={assetTurnover > 1.5 ? Colors.income : assetTurnover > 1 ? Colors.warning : Colors.expense}
                 />
                 <MetricRow

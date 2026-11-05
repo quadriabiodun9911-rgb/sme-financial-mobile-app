@@ -279,7 +279,7 @@ interface Props {
 
 export default function RetentionNudges({ transactions, currency, profit, onAddTransaction, onNavigate }: Props) {
     const [inactivityDays, setInactivityDays]   = useState<number | null>(null);
-    const [weekSummary, setWeekSummary]         = useState<{ thisWeek: number; lastWeek: number } | null>(null);
+    const [weekSummary, setWeekSummary]         = useState<{ lastWeek: number; weekBeforeLast: number } | null>(null);
     const [milestone, setMilestone]             = useState<Milestone | null>(null);
     const [showMilestone, setShowMilestone]     = useState(false);
     const scaleAnim                             = useRef(new Animated.Value(0.8)).current;
@@ -298,14 +298,18 @@ export default function RetentionNudges({ transactions, currency, profit, onAddT
         const gap = daysBetween(lastDate, today);
         if (gap >= 3) setInactivityDays(gap);
 
-        // ── Weekly summary — show on Mon/Tue, comparing this week to last ──
+        // ── Weekly summary — show on Sun/Mon/Tue, while last week's complete
+        // total is still fresh. Compares two fully-complete weeks (last week
+        // vs the week before it), not this week's still-partial total --
+        // early in the week "this week" only has 0-2 days of data, which
+        // would always read as a false, alarming drop against a full week. ──
         const dow = new Date().getDay();
-        if (dow <= 2) { // Mon=1, Tue=2
-            const thisWeekRange = getWeekRange(0);
+        if (dow <= 2) { // Sun=0, Mon=1, Tue=2
             const lastWeekRange = getWeekRange(1);
-            const thisWeek = sumIncome(transactions, thisWeekRange.from, thisWeekRange.to);
+            const weekBeforeRange = getWeekRange(2);
             const lastWeek = sumIncome(transactions, lastWeekRange.from, lastWeekRange.to);
-            if (lastWeek > 0) setWeekSummary({ thisWeek, lastWeek });
+            const weekBeforeLast = sumIncome(transactions, weekBeforeRange.from, weekBeforeRange.to);
+            if (weekBeforeLast > 0) setWeekSummary({ lastWeek, weekBeforeLast });
         }
 
         // ── Milestones ─────────────────────────────────────────────────────
@@ -320,8 +324,8 @@ export default function RetentionNudges({ transactions, currency, profit, onAddT
     }, [transactions.length]);
 
     const weekChange = weekSummary
-        ? weekSummary.lastWeek > 0
-            ? ((weekSummary.thisWeek - weekSummary.lastWeek) / weekSummary.lastWeek) * 100
+        ? weekSummary.weekBeforeLast > 0
+            ? ((weekSummary.lastWeek - weekSummary.weekBeforeLast) / weekSummary.weekBeforeLast) * 100
             : null
         : null;
 

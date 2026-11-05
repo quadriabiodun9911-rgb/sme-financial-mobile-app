@@ -12,7 +12,7 @@ import DateInput from '../components/DateInput';
 import Icon, { IconName } from '../components/ui/Icon';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { GoalType, FinancialGoal, Transaction } from '../types';
-import { generateStrategy, goalDefaults, buildNewGoal, computeGoalCheckpoints, GoalCheckpoint } from '../utils/goals';
+import { generateStrategy, goalDefaults, buildNewGoal, computeGoalCheckpoints, GoalCheckpoint, daysUntilDeadline } from '../utils/goals';
 import NextStepLink from '../components/NextStepLink';
 import { calculateGoalBridge, mapSavedGoalToBridge, formatGoalMetric } from '../utils/goalBridgeEngine';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
@@ -382,7 +382,7 @@ export default function GoalsScreen() {
     };
 
     const daysRemaining = (deadline: string) => {
-        const d = Math.ceil((new Date(deadline).getTime() - Date.now()) / 86400000);
+        const d = daysUntilDeadline(deadline);
         if (d < 0) return 'Overdue';
         if (d === 0) return 'Due today';
         return `${d} day${d !== 1 ? 's' : ''} left`;

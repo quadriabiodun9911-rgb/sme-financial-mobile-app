@@ -396,7 +396,7 @@ export class AlertEngine {
    * Detect large expenses coming soon
    */
   private detectLargeExpenseAlert(): ForecastAlert | null {
-    if (!this.forecast?.baseCase) return null;
+    if (!this.forecast?.baseCase || (this.forecast.baseCase.months ?? []).length === 0) return null;
 
     // Calculate average monthly expense
     const avgMonthlyExpense =
@@ -964,7 +964,16 @@ export class AlertEngine {
   }
 
   /**
-   * Get number of days of cash runway at current burn rate
+   * Get number of days of cash runway at current burn rate.
+   *
+   * Deliberately a second calculation from the canonical computeCashRunway
+   * (cashRunway.ts) -- that one uses trailing-30-day actual burn, while this
+   * alert is forward-looking: it needs to react to a forecasted expense
+   * spike before it actually happens, not only after it's landed in the
+   * trailing window. Only consumer is detectLowCashAlert's priority
+   * threshold (daysOfRunway < 14), already gated behind cash being below
+   * the low-cash threshold, so this never feeds a user-visible runway
+   * number directly.
    */
   private calculateRunway(): number {
     if (!this.forecast?.baseCase) return 0;
@@ -973,7 +982,9 @@ export class AlertEngine {
       (this.forecast.baseCase.months ?? []).reduce((sum, m) => sum + m.projectedExpenses, 0) /
       ((this.forecast.baseCase.months ?? []).length * 30);
 
-    if (avgDailyExpense <= 0) return 365; // Infinite runway if no expenses
+    // Genuinely unlimited runway, not a magic-number stand-in -- the same
+    // real-Infinity convention computeCashRunway uses.
+    if (avgDailyExpense <= 0) return Infinity;
 
     return Math.floor(this.currentCash / avgDailyExpense);
   }

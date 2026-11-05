@@ -6,6 +6,7 @@
 import { FinancialMetrics } from './financialDiagnosisEngine';
 import { ActionTactic } from './actionRecommendationEngine';
 import { FinancialGoal as SavedGoal, GoalType } from '../types';
+import { parseDeadlineLocal, monthsUntilDeadline } from './goals';
 
 export interface FinancialGoal {
   id: string;
@@ -311,12 +312,13 @@ export const BRIDGE_TYPE_TO_GOAL_TYPE: Record<FinancialGoal['type'], GoalType> =
 };
 
 export function mapSavedGoalToBridge(g: SavedGoal): FinancialGoal {
-  // Months remaining until the deadline (at least 1).
-  const msPerMonth = 30 * 24 * 60 * 60 * 1000;
-  const deadlineMs = new Date(g.deadline).getTime();
-  const monthsLeft = isNaN(deadlineMs)
+  // Months remaining until the deadline (at least 1) -- rounded here
+  // (unlike goals.ts's continuous monthsUntilDeadline) because this feeds
+  // timelineMonths, an integer monthly milestone-planning horizon, not a
+  // pace-check divisor.
+  const monthsLeft = isNaN(parseDeadlineLocal(g.deadline).getTime())
     ? 12
-    : Math.max(1, Math.round((deadlineMs - new Date().getTime()) / msPerMonth));
+    : Math.max(1, Math.round(monthsUntilDeadline(g.deadline, new Date())));
 
   return {
     id: g.id,

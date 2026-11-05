@@ -225,10 +225,51 @@ describe('flushQueue', () => {
         expect(progressCalls[1]).toEqual([2, 2]);
     });
 
-    // TODO: flushQueue does not currently implement conflict resolution
-    // (skipping items where remote updated_at is newer than local queuedAt).
-    // When that feature is added, add a test here that:
-    // 1. Enqueues an item with an old queuedAt
-    // 2. Mocks supabase.from().select() to return a row with a newer updated_at
-    // 3. Asserts the item is dequeued (skipped) without calling upsert
+    describe('conflict resolution', () => {
+        // Regression: this used to compare local/remote updatedAt as raw
+        // strings. Local timestamps come from toISOString() ("...123Z");
+        // Supabase's updated_at comes back in Postgres's own text format
+        // ("...123456+00:00", microsecond precision, numeric offset). Those
+        // two formats don't sort consistently against each other as plain
+        // strings, so the comparison now parses both to epoch ms first.
+
+        it('skips the upsert when the remote row is genuinely newer than local', async () => {
+            await enqueue(makeOp({ table: 'transactions', userId: 'u1', rows: [{ id: 'row1', data: { amount: 100 } }] }));
+            const remoteNewer = new Date(Date.now() + 60 * 60 * 1000).toISOString().replace('Z', '+00:00');
+
+            const upsertSpy = jest.fn().mockResolvedValue({ error: null });
+            const sb = {
+                from: jest.fn().mockReturnValue({
+                    upsert: upsertSpy,
+                    select: jest.fn().mockReturnValue({
+                        in: jest.fn().mockResolvedValue({ data: [{ id: 'row1', updated_at: remoteNewer }] }),
+                    }),
+                }),
+            };
+
+            const result = await flushQueue(sb);
+            expect(upsertSpy).not.toHaveBeenCalled();
+            expect(result.synced).toBe(1);
+            expect(await queueSize()).toBe(0);
+        });
+
+        it('proceeds with the upsert when local is newer than the remote row', async () => {
+            await enqueue(makeOp({ table: 'transactions', userId: 'u1', rows: [{ id: 'row1', data: { amount: 100 } }] }));
+            const remoteOlder = new Date(Date.now() - 60 * 60 * 1000).toISOString().replace('Z', '+00:00');
+
+            const upsertSpy = jest.fn().mockResolvedValue({ error: null });
+            const sb = {
+                from: jest.fn().mockReturnValue({
+                    upsert: upsertSpy,
+                    select: jest.fn().mockReturnValue({
+                        in: jest.fn().mockResolvedValue({ data: [{ id: 'row1', updated_at: remoteOlder }] }),
+                    }),
+                }),
+            };
+
+            const result = await flushQueue(sb);
+            expect(upsertSpy).toHaveBeenCalledTimes(1);
+            expect(result.synced).toBe(1);
+        });
+    });
 });

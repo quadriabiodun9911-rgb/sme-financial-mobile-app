@@ -30,6 +30,18 @@ describe('ManualPayrollProvider', () => {
         expect(run.totalGross).toBe(3000);
         expect(run.totalNet).toBe(2850);
     });
+
+    it('caps a deduction rate above 100% instead of letting netSalary go negative', async () => {
+        // Regression: a typo like 150 meant as 15.0 used to make netSalary
+        // negative, and that negative figure becomes the amount of a stored
+        // expense Transaction -- every downstream cash-balance/profit/runway
+        // calculation then reads it as a negative expense, silently
+        // inflating reported profit and cash balance.
+        const p = new ManualPayrollProvider();
+        const { run } = await p.runPayroll('2024-06', [makeStaff({ salary: 2000 })], 150);
+        expect(run.items[0].deductions).toBe(2000);
+        expect(run.items[0].netSalary).toBe(0);
+    });
 });
 
 describe('UnimplementedPayrollProvider', () => {

@@ -30,6 +30,7 @@
 import { Transaction } from '../types';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
 import { computeCostExposure, CostCategorySignal } from './costExposure';
+import { pctChange } from './cashFlowHealth';
 
 const TRAILING_WINDOW_MONTHS = 3;
 
@@ -87,11 +88,6 @@ function statusForRunway(runwayMonths: number): BurnRateStatus {
     if (runwayMonths <= 3) return 'danger';
     if (runwayMonths <= 6) return 'warning';
     return 'good';
-}
-
-function pctChange(current: number, prior: number): number | null {
-    if (prior === 0) return current === 0 ? 0 : null;
-    return ((current - prior) / Math.abs(prior)) * 100;
 }
 
 export function computeBurnRateAnalysis(

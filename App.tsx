@@ -4,7 +4,6 @@ import { useFonts, PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJa
 import { Colors } from './src/theme/colors';
 import * as Updates from 'expo-updates';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { ThemeProvider } from './src/contexts/ThemeContext';
 import { AuthProvider, SettingsProvider, FinanceProvider, GoalProvider, InvoiceProvider, BillProvider, useAuth, useAppReady, useFinance, useInvoices, useSettings, DiagnosisContext } from './src/contexts/OptimizedContexts';
 import { performFinancialDiagnosis } from './src/utils/financialDiagnosisEngine';
 import { getMonthlyExpenseAverage } from './src/utils/finance';
@@ -410,29 +409,27 @@ export default function App() {
     return (
         <SafeAreaProvider>
             <ErrorBoundary>
-                <ThemeProvider>
-                    <AuthProvider>
-                        <SettingsProvider>
-                            <FinanceProvider>
-                                <GoalProvider>
-                                    <InvoiceProvider>
-                                        <BillProvider>
-                                            <OtaUpdater />
-                                            <OfflineSyncWatcher />
-                                            <DiagnosisProvider>
-                                                <ErrorBoundary>
-                                                    <NavigatorContent />
-                                                </ErrorBoundary>
-                                            </DiagnosisProvider>
-                                            <AlertHost />
-                                            <SyncStatusBanner />
-                                        </BillProvider>
-                                    </InvoiceProvider>
-                                </GoalProvider>
-                            </FinanceProvider>
-                        </SettingsProvider>
-                    </AuthProvider>
-                </ThemeProvider>
+                <AuthProvider>
+                    <SettingsProvider>
+                        <FinanceProvider>
+                            <GoalProvider>
+                                <InvoiceProvider>
+                                    <BillProvider>
+                                        <OtaUpdater />
+                                        <OfflineSyncWatcher />
+                                        <DiagnosisProvider>
+                                            <ErrorBoundary>
+                                                <NavigatorContent />
+                                            </ErrorBoundary>
+                                        </DiagnosisProvider>
+                                        <AlertHost />
+                                        <SyncStatusBanner />
+                                    </BillProvider>
+                                </InvoiceProvider>
+                            </GoalProvider>
+                        </FinanceProvider>
+                    </SettingsProvider>
+                </AuthProvider>
             </ErrorBoundary>
         </SafeAreaProvider>
     );

@@ -780,6 +780,7 @@ export default function ReportsScreen() {
                                 invoices={invoices}
                                 finance={allFinance}
                                 currency={currency}
+                                receivableWriteOffs={receivableWriteOffs}
                             />
                         </View>
                     )}

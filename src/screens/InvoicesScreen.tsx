@@ -36,20 +36,31 @@ const STATUS_COLOR: Record<InvoiceStatus, string> = {
 
 const EMPTY_LINE: InvoiceLineItem = { description: '', quantity: 1, unitPrice: 0, taxRate: 0 };
 
+// Single source of "line total including tax" -- the PDF export, the
+// WhatsApp message, the View-Invoice modal, and the totals summary used to
+// each reimplement qty * unitPrice * (1 + taxRate/100) independently, which
+// meant a future change (e.g. a line-level discount) could silently diverge
+// between what's shown on screen and what's shared/exported. All four now
+// call this.
+function lineItemTotal(li: InvoiceLineItem): number {
+    const qty = li.quantity ?? 0;
+    const unitPrice = li.unitPrice ?? 0;
+    const taxRate = li.taxRate ?? 0;
+    return qty * unitPrice * (1 + taxRate / 100);
+}
+
 function buildInvoiceHtml(inv: Invoice, businessName: string, currency: string): string {
     const lineRows = (inv.lineItems ?? []).map(li => {
         const qty       = li.quantity ?? 0;
         const unitPrice = li.unitPrice ?? 0;
         const taxRate   = li.taxRate ?? 0;
-        const lineTotal = qty * unitPrice;
-        const lineTax   = lineTotal * (taxRate / 100);
         return `
         <tr>
             <td>${li.description ?? ''}</td>
             <td style="text-align:center">${qty}</td>
             <td style="text-align:right">${currency}${unitPrice.toFixed(2)}</td>
             <td style="text-align:center">${taxRate}%</td>
-            <td style="text-align:right">${currency}${(lineTotal + lineTax).toFixed(2)}</td>
+            <td style="text-align:right">${currency}${lineItemTotal(li).toFixed(2)}</td>
         </tr>`;
     }).join('');
 
@@ -193,9 +204,9 @@ export default function InvoicesScreen() {
 
     const totals = useMemo(() => {
         const items = lineItems ?? [];
-        const subtotal = items.reduce((s, li) => s + li.quantity * li.unitPrice, 0);
-        const taxTotal = items.reduce((s, li) => s + li.quantity * li.unitPrice * (li.taxRate / 100), 0);
-        return { subtotal, taxTotal, total: subtotal + taxTotal };
+        const subtotal = items.reduce((s, li) => s + (li.quantity ?? 0) * (li.unitPrice ?? 0), 0);
+        const total = items.reduce((s, li) => s + lineItemTotal(li), 0);
+        return { subtotal, taxTotal: total - subtotal, total };
     }, [lineItems]);
 
     useEffect(() => {
@@ -408,9 +419,7 @@ export default function InvoicesScreen() {
         const businessName = user?.businessName ?? 'My Business';
         const lineItemsText = (inv.lineItems ?? []).map(li => {
             const qty       = li.quantity ?? 0;
-            const unitPrice = li.unitPrice ?? 0;
-            const taxRate   = li.taxRate ?? 0;
-            const lineTotal = (qty * unitPrice * (1 + taxRate / 100)).toFixed(2);
+            const lineTotal = lineItemTotal(li).toFixed(2);
             return `- ${li.description ?? ''} x${qty} = ${currency}${lineTotal}`;
         }).join('\n');
         const message = `Hi ${inv.clientName || 'there'},\n\nYour invoice ${inv.invoiceNumber} is ready.\n\nAmount due: ${currency}${(inv.total ?? 0).toFixed(2)}\nDue date: ${inv.dueDate}\n\nItems:\n${lineItemsText}\n\nThank you for your business!\n${businessName}`;
@@ -905,7 +914,7 @@ export default function InvoicesScreen() {
                                                 {qty} × {currency}{unitPrice.toFixed(2)} + {taxRate}% tax
                                             </Text>
                                             <Text style={styles.viewLineTotal}>
-                                                {currency}{(qty * unitPrice * (1 + taxRate / 100)).toFixed(2)}
+                                                {currency}{lineItemTotal(li).toFixed(2)}
                                             </Text>
                                         </View>
                                         );

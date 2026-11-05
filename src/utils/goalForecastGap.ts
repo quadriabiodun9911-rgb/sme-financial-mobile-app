@@ -31,6 +31,7 @@
 
 import { FinancialGoal, Transaction } from '../types';
 import { computeRevenueForecast, latestTransactionDate } from './finance';
+import { parseDeadlineLocal, monthsUntilDeadline } from './goals';
 
 export interface GoalForecastGap {
     available: boolean;
@@ -55,16 +56,18 @@ export function computeGoalForecastGap(goal: FinancialGoal, transactions: Transa
         return UNAVAILABLE(goal.targetValue, goal.currentValue, `Forecast-based gaps aren't available yet for ${goal.type.replace(/_/g, ' ')} goals.`);
     }
 
-    const deadlineMs = new Date(goal.deadline).getTime();
-    if (isNaN(deadlineMs)) {
+    if (isNaN(parseDeadlineLocal(goal.deadline).getTime())) {
         return UNAVAILABLE(goal.targetValue, goal.currentValue, 'This goal has no valid deadline to forecast against.');
     }
 
     const anchor = latestTransactionDate(transactions) ?? new Date();
-    const msPerMonth = 30 * 24 * 60 * 60 * 1000;
-    const monthsRemaining = Math.max(0, Math.round((deadlineMs - anchor.getTime()) / msPerMonth));
+    // Continuous, not rounded to the nearest whole month -- see goals.ts's
+    // monthsUntilDeadline doc comment for why rounding was a real bug here
+    // (a deadline 10-15 days out used to round down to 0 and hit the
+    // "deadline has arrived" branch below even though it hadn't).
+    const monthsRemaining = Math.max(0, monthsUntilDeadline(goal.deadline, anchor));
 
-    if (monthsRemaining === 0) {
+    if (monthsRemaining <= 0) {
         // Deadline has arrived (or passed) -- the current value IS the
         // final value, nothing left to project.
         const gap = goal.targetValue - goal.currentValue;

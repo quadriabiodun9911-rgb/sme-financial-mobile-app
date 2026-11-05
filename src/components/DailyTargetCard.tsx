@@ -4,6 +4,7 @@ import { Colors } from '../theme/colors';
 import { FinancialGoal, Transaction } from '../types';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import { localDateStr } from '../utils/localDate';
+import { computeDailyGoalTargets } from '../utils/dailyGoalTarget';
 
 interface Props {
     goals: FinancialGoal[];
@@ -80,16 +81,7 @@ export default function DailyTargetCard({ goals, transactions, currency, onSetGo
         );
     }
 
-    const daysLeft = Math.max(1, Math.ceil((new Date(activeGoal.deadline).getTime() - Date.now()) / 86400000));
-    const daysTotal = Math.max(1, Math.ceil((new Date(activeGoal.deadline).getTime() - new Date(activeGoal.createdAt).getTime()) / 86400000));
-    const remaining = Math.max(0, activeGoal.targetValue - activeGoal.currentValue);
-
-    const dailyRevenueTarget = ['revenue_growth', 'custom'].includes(activeGoal.type)
-        ? remaining / daysLeft : 0;
-    const dailyCostBudget = activeGoal.type === 'cost_reduction'
-        ? activeGoal.targetValue / daysTotal : 0;
-    const dailyProfitTarget = activeGoal.type === 'margin_improvement'
-        ? (activeGoal.targetValue / 100) * (activeGoal.baselineValue / daysTotal) : 0;
+    const { daysLeft, dailyRevenueTarget, dailyCostBudget, dailyProfitTarget } = computeDailyGoalTargets(activeGoal);
 
     const checks = [
         dailyRevenueTarget > 0 ? todayRevenue >= dailyRevenueTarget : null,

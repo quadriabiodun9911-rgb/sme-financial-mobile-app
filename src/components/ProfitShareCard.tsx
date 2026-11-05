@@ -6,6 +6,7 @@ import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Shadow } from '../theme/tokens';
 import { showAlert } from '../utils/webAlert';
+import { localMonthStr } from '../utils/localDate';
 
 interface Props {
     visible: boolean;
@@ -13,21 +14,27 @@ interface Props {
 }
 
 export default function ProfitShareCard({ visible, onClose }: Props) {
-    const { finance, settings, user } = useApp();
+    const { transactions, settings, user } = useApp();
     const currency = settings.currency;
     const [shared, setShared] = useState(false);
 
     if (!visible) return null;
 
-    const profit  = finance.profit;
-    const income  = finance.income;
-    const expense = finance.expense;
-    const margin  = finance.margin;
-    const isProfit = profit >= 0;
-
     const now       = new Date();
     const monthName = now.toLocaleString('default', { month: 'long' });
     const year      = now.getFullYear();
+
+    // Filtered to the current calendar month, same pattern as
+    // MonthlyReview.tsx -- this card is headlined "{Month} {Year}" and must
+    // not show finance.income/expense/profit (all-time cumulative) under
+    // that label, especially since it's shared externally via Share.share().
+    const thisMonth = localMonthStr(now);
+    const thisTxs = transactions.filter(t => (t.date ?? '').startsWith(thisMonth));
+    const income  = thisTxs.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const expense = thisTxs.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const profit  = income - expense;
+    const margin  = income > 0 ? (profit / income) * 100 : 0;
+    const isProfit = profit >= 0;
 
     const handleShare = async () => {
         const emoji  = isProfit ? '📈' : '📉';

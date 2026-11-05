@@ -30,7 +30,6 @@ import DailyReportModal from '../components/DailyReportModal';
 import StickyMetricsHeader from '../components/StickyMetricsHeader';
 import { MetricsComputer } from '../utils/metricsComputer';
 import GreetingCard from '../components/GreetingCard';
-import TodaysNumbersCard from '../components/TodaysNumbersCard';
 import WeeklyReportModal from '../components/WeeklyReportModal';
 import { showAlert } from '../utils/webAlert';
 import Icon, { IconName } from '../components/ui/Icon';
@@ -234,7 +233,6 @@ export default function DashboardScreen() {
     const recordingRef = useRef<Audio.Recording | null>(null);
     const webMediaRecorderRef = useRef<MediaRecorder | null>(null);
     const webAudioChunksRef = useRef<Blob[]>([]);
-    const [showMore, setShowMore]               = useState(false);
     // Collapsed by default -- the #1 priority gets hero treatment (Next
     // Best Action) below, so re-showing the full ranked list right under it
     // would just repeat the top item and add back the clutter that change
@@ -2562,8 +2560,6 @@ const styles = StyleSheet.create({
     scroll: { flex: 1, backgroundColor: Colors.bg },
     pad:    { padding: 16, paddingBottom: 100 },
     title:  { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 14 },
-    row:    { flexDirection: 'row', gap: 12, marginBottom: 12 },
-    flex:   { flex: 1 },
 
     demoBanner: {
         backgroundColor: Colors.warning, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.lg,
@@ -2582,14 +2578,6 @@ const styles = StyleSheet.create({
     },
     progressCardText: { flex: 1, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
-    showMoreToggle: {
-        flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-        backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1,
-        borderColor: Colors.border, borderStyle: 'dashed',
-        padding: Spacing.md, marginBottom: Spacing.lg,
-    },
-    showMoreToggleTitle: { fontSize: 13.5, fontWeight: '700', color: Colors.textPrimary },
-    showMoreToggleSub: { fontSize: 11.5, color: Colors.textMuted, marginTop: 2 },
 
     narrativeCard: {
         backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1.5,
@@ -2599,21 +2587,7 @@ const styles = StyleSheet.create({
     narrativeEyebrow: { fontSize: 11, fontWeight: '800', color: Colors.primary, letterSpacing: 0.5, marginBottom: 6 },
     narrativeText: { fontSize: 13, color: Colors.textPrimary, lineHeight: 19 },
 
-    capacityCard: {
-        backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1,
-        borderColor: Colors.border, padding: Spacing.md, marginBottom: Spacing.lg,
-        ...Shadow.sm,
-    },
-    capacityAmount: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary, marginTop: 2, marginBottom: 4 },
-    capacitySubtext: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
-    beforeYouBorrowCard: {
-        backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1,
-        borderColor: Colors.border, borderLeftWidth: 3, borderLeftColor: Colors.warning,
-        padding: Spacing.md, marginBottom: Spacing.lg,
-        ...Shadow.sm,
-    },
-    beforeYouBorrowText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18, marginTop: 4, marginBottom: 6 },
 
     celebrationCard: {
         backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1.5,
@@ -2635,14 +2609,6 @@ const styles = StyleSheet.create({
     },
     celebrationSecondaryBtnText: { color: Colors.textSecondary, fontSize: 12.5, fontWeight: '600' },
 
-    riskRadarCard: {
-        backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1,
-        borderColor: Colors.border, padding: Spacing.md, marginBottom: Spacing.lg,
-        ...Shadow.sm,
-    },
-    riskOverallBadge: { borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 2, marginLeft: 'auto' },
-    riskOverallBadgeText: { fontSize: 11, fontWeight: '800' },
-    riskRadarSummary: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
     missionCard: {
         backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1,
@@ -2655,19 +2621,6 @@ const styles = StyleSheet.create({
     missionStatsRow: { flexDirection: 'row', justifyContent: 'space-between' },
     missionStat: { fontSize: 11.5, color: Colors.textMuted, fontWeight: '600' },
 
-    betaCard:           { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1.5, borderColor: Colors.primary + '55', ...Shadow.sm },
-    betaCardHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-    betaBadge:          { backgroundColor: Colors.primary + '22', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
-    betaBadgeText:      { color: Colors.primary, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-    betaTitle:          { fontSize: 17, fontWeight: '800', color: Colors.textPrimary, marginBottom: 2 },
-    betaSubtitle:       { fontSize: 12, color: Colors.textMuted, marginBottom: 14 },
-    betaFeature:        { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: Colors.border },
-    betaFeatureIcon:    { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    betaFeatureName:    { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 3 },
-    betaFeatureDesc:    { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
-    betaLiveBadge:      { backgroundColor: '#00C3F7', borderRadius: Radius.pill, paddingHorizontal: 6, paddingVertical: 2 },
-    betaLiveText:       { color: '#fff', fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
-    betaArrow:          { color: Colors.textMuted, fontSize: 22, alignSelf: 'center' },
 
     onboardCard:        { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: Colors.primary, ...Shadow.sm },
     onboardHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
@@ -2683,83 +2636,19 @@ const styles = StyleSheet.create({
     alertBanner:  { backgroundColor: 'rgba(245,158,11,0.12)', borderWidth: 1, borderColor: Colors.warning, borderRadius: 8, padding: 10, marginBottom: 8, ...Shadow.sm },
     alertBannerRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
     alertText:    { color: Colors.warning, fontSize: 12, fontWeight: '600', flex: 1 },
-    dangerBanner: { backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 8, padding: 10, marginBottom: 8 },
-    dangerText:   { color: Colors.expense, fontSize: 12, fontWeight: '600' },
-
-    heroCard:          { backgroundColor: Colors.surface, borderRadius: 14, padding: 18, marginBottom: 12, borderWidth: 2 },
-    heroStatus:        { fontSize: 13, fontWeight: '800', letterSpacing: 1, marginBottom: 4 },
-    heroProfit:        { fontSize: 36, fontWeight: 'bold', marginBottom: 4 },
-    heroSubRow:        { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
-    heroMargin:        { fontSize: 13, fontWeight: '700' },
-    heroTarget:        { fontSize: 12, color: Colors.textMuted },
-    heroMetricsRow:    { flexDirection: 'row', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 12 },
-    heroMetric:        { flex: 1, alignItems: 'center' },
-    heroMetricLabel:   { fontSize: 10, color: Colors.textMuted, marginBottom: 3 },
-    heroMetricVal:     { fontSize: 13, fontWeight: '700' },
-    heroMetricDivider: { width: 1, backgroundColor: Colors.border },
-    deprNote:          { fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: 8, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 8 },
-    shareWinBtn:       { marginTop: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: 'rgba(16,185,129,0.12)', alignItems: 'center', borderWidth: 1, borderColor: Colors.income },
-    shareWinText:      { fontSize: 12, color: Colors.income, fontWeight: '700' },
-
-    survivalRow:   { flexDirection: 'row', gap: 8, marginBottom: 12 },
-    survivalCard:  { flex: 1, backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: 12, alignItems: 'center' },
-    survivalLabel: { fontSize: 10, color: Colors.textMuted, marginBottom: 4, textAlign: 'center' },
-    survivalValue: { fontSize: 14, fontWeight: 'bold', textAlign: 'center' },
-
-    quickStatsRow:   { flexDirection: 'row', gap: 8, marginBottom: 12 },
-    quickStatCard:   { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-    quickStatIcon:   { fontSize: 22, marginBottom: 4 },
-    quickStatLabel:  { fontSize: 10, color: Colors.textMuted, marginBottom: 4, textAlign: 'center' },
-    quickStatValue:  { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, textAlign: 'center' },
-
-    fullDashToggle:     { alignItems: 'center', paddingVertical: 12, marginBottom: 8, backgroundColor: Colors.surface, borderRadius: 10, borderWidth: 1, borderColor: Colors.border },
-    fullDashToggleText: { color: Colors.primary, fontSize: 14, fontWeight: '700' },
 
 
-    insightCard:   { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12, borderLeftWidth: 4 },
-    insightHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-    tag:           { paddingVertical: 3, paddingHorizontal: 8, borderRadius: 10 },
-    tagText:       { fontSize: 10, fontWeight: 'bold', color: Colors.textPrimary },
-    insightLink:   { color: Colors.primary, fontSize: 12 },
-    insightTitle:  { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
+
+
+
+
     insightAction: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
 
-    goDeeperCard:       { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12, borderLeftWidth: 4 },
-    goDeeperHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
-    goDeeperLeft:       { flex: 1, gap: 6 },
-    goDeeperTitle:      { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary },
-    goDeeperToggle:     { fontSize: 12, color: Colors.primary, fontWeight: '600', marginLeft: 8, marginTop: 2 },
-    goDeeperOptions:    { marginTop: 12, borderTopWidth: 1, borderTopColor: Colors.border },
-    goDeeperOption:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 10 },
-    goDeeperOptionIcon: { fontSize: 20 },
-    goDeeperOptionLabel:{ fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 1 },
-    goDeeperOptionSub:  { fontSize: 11, color: Colors.textMuted },
 
-    card:         { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12 },
-    cardLabel:    { fontSize: 12, color: Colors.textMuted, marginBottom: 6 },
-    bigNum:       { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary },
-    hint:         { fontSize: 11, color: Colors.textMuted, marginTop: 4 },
-    reserveBadge: { marginTop: 6, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, alignSelf: 'flex-start' },
 
-    taxRow:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
-    taxItem:    { flex: 1, alignItems: 'center' },
-    taxLabel:   { fontSize: 10, color: Colors.textMuted, marginBottom: 4 },
-    taxVal:     { fontSize: 13, fontWeight: 'bold' },
-    taxDivider: { width: 1, height: 30, backgroundColor: Colors.border },
 
-    quickCard:     { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-    quickCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-    quickIcon:     { fontSize: 24 },
-    quickLabel:    { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 2 },
-    quickSub:      { fontSize: 11, color: Colors.textMuted },
-    quickArrow:    { fontSize: 22, color: Colors.textMuted },
 
-    discoverLink: { paddingVertical: 10, paddingHorizontal: 14, marginBottom: 10, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed' },
-    discoverText: { fontSize: 12, color: Colors.textMuted },
-    discoverCta:  { color: Colors.primary, fontWeight: '600' },
 
-    nudgeBanner: { backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, padding: 12, marginBottom: 10 },
-    nudgeText:   { color: Colors.primary, fontSize: 12, fontWeight: '600' },
 
     lossGuide:          { backgroundColor: 'rgba(239,68,68,0.07)', borderWidth: 1, borderColor: Colors.expense, borderRadius: 12, padding: 14, marginBottom: 12, ...Shadow.sm },
     lossGuideTitle:     { fontSize: 13, fontWeight: '700', color: Colors.expense, marginBottom: 6 },
@@ -2768,23 +2657,11 @@ const styles = StyleSheet.create({
     lossGuideBtn:       { alignSelf: 'flex-start' },
     lossGuideBtnText:   { fontSize: 12, color: Colors.expense, fontWeight: '600', textDecorationLine: 'underline' },
 
-    qaRow:      { flexDirection: 'row', gap: 8, marginBottom: 12 },
-    qaCard:     { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: Colors.border },
-    qaQuestion: { fontSize: 10, color: Colors.textMuted, marginBottom: 4, lineHeight: 13 },
-    qaAnswer:   { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
-    qaValue:    { fontSize: 10, color: Colors.textMuted },
 
-    seeMoreBtn:  { alignItems: 'center', paddingVertical: 12, marginBottom: 8 },
-    seeMoreText: { color: Colors.primary, fontSize: 13, fontWeight: '600' },
 
-    reviewBtn:     { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: Colors.primary, gap: 12 },
-    reviewBtnIcon: { fontSize: 22 },
-    reviewBtnText: { fontSize: 14, fontWeight: '700', color: Colors.primary },
-    reviewBtnSub:  { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
 
     btn:     { backgroundColor: Colors.primary, paddingVertical: 13, borderRadius: 10, alignItems: 'center', marginTop: 4 },
     btnText: { color: Colors.textPrimary, fontWeight: 'bold', fontSize: 14 },
-    btnWithIcon: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
 
     // Fixed dark background (not Colors.surface) on purpose: toastText is
     // always white, and Colors.surface is a light cream on the Warm Paper
@@ -2793,13 +2670,7 @@ const styles = StyleSheet.create({
     toast:     { position: 'absolute', bottom: 140, left: 20, right: 20, backgroundColor: '#1a1a2e', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 10 },
     toastText: { color: '#fff', fontSize: 13, fontWeight: '600', textAlign: 'center' },
 
-    syncLabel:  { fontSize: 10, color: Colors.income, marginTop: 8, textAlign: 'center' },
-    insightTimestamp: { fontSize: 10, color: Colors.textMuted, marginTop: 6, fontStyle: 'italic' },
 
-    recurringBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: 1, borderColor: Colors.primary, borderRadius: 10, padding: 12, marginBottom: 10, gap: 8 },
-    recurringIcon:   { fontSize: 16 },
-    recurringText:   { flex: 1, fontSize: 12, color: Colors.primary, fontWeight: '600' },
-    recurringArrow:  { fontSize: 18, color: Colors.primary },
 
     // Was a wide "🌙 End of Day" text pill -- fine in isolation, but as a
     // permanently fixed-position overlay (not scrolled with content, see the
@@ -2814,11 +2685,7 @@ const styles = StyleSheet.create({
     searchTrigger:     { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, marginBottom: Spacing.lg, gap: Spacing.sm, ...Shadow.sm },
     searchTriggerText: { fontSize: 13, color: Colors.textMuted, flex: 1 },
 
-    deltaRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-    deltaBadge: { fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-    deltaHint:  { fontSize: 11, color: Colors.textMuted },
 
-    insightStale: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 4 },
 
     // ── Operations Command Centre Styles ──
     operationsSection: {
@@ -3152,14 +3019,6 @@ const styles = StyleSheet.create({
       gap: Spacing.md,
       ...Shadow.sm,
     },
-    priorityCardAlert: {
-      borderLeftColor: Colors.expense,
-      backgroundColor: Colors.expense + '08',
-    },
-    priorityCardWarning: {
-      borderLeftColor: Colors.warning,
-      backgroundColor: Colors.warning + '08',
-    },
     priorityIconBadge: {
       width: 34, height: 34, borderRadius: Radius.sm,
       alignItems: 'center', justifyContent: 'center',
@@ -3185,102 +3044,8 @@ const styles = StyleSheet.create({
       marginBottom: Spacing.md,
     },
 
-    actionsGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 10,
-      justifyContent: 'space-between',
-    },
-    actionCard: {
-      width: '48%',
-      backgroundColor: Colors.primary + '12',
-      borderRadius: 12,
-      padding: 16,
-      alignItems: 'center',
-      borderWidth: 1.5,
-      borderColor: Colors.primary,
-    },
-    actionCardFull: {
-      width: '100%',
-    },
-    actionEmoji: {
-      marginBottom: 8,
-    },
-    actionLabel: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: Colors.primary,
-      textAlign: 'center',
-    },
 
-    engineCardsGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 10,
-      justifyContent: 'space-between',
-    },
-    engineCard: {
-      width: '32%',
-      backgroundColor: Colors.primary + '15',
-      borderRadius: 14,
-      padding: 12,
-      alignItems: 'center',
-      borderWidth: 1.5,
-      borderColor: Colors.primary,
-      gap: 6,
-    },
-    engineTitle: {
-      fontSize: 11,
-      fontWeight: '700',
-      color: Colors.primary,
-      textAlign: 'center',
-      lineHeight: 14,
-    },
-    engineSubtext: {
-      fontSize: 9,
-      color: Colors.textMuted,
-      textAlign: 'center',
-    },
 
-    importCard: {
-      backgroundColor: Colors.warning + '15',
-      borderRadius: 14,
-      padding: 14,
-      marginBottom: 16,
-      flexDirection: 'row',
-      alignItems: 'center',
-      borderWidth: 1.5,
-      borderColor: Colors.warning,
-      gap: 12,
-    },
-    importCardContent: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-    },
-    importCardEmoji: {
-      fontSize: 32,
-    },
-    importCardText: {
-      flex: 1,
-    },
-    importCardTitle: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: Colors.warning,
-      marginBottom: 2,
-    },
-    importCardSubtitle: {
-      fontSize: 10,
-      color: Colors.textSecondary,
-      lineHeight: 14,
-    },
-    importCardArrow: {
-      fontSize: 16,
-      color: Colors.warning,
-      fontWeight: '700',
-    },
 
     fab:     { position: 'absolute', right: 20, bottom: 80, width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.income, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 8 },
     fabText: { fontSize: 30, color: Colors.textPrimary, lineHeight: 34 },
@@ -3352,14 +3117,4 @@ const styles = StyleSheet.create({
 
     // Section Styles (7-Section Architecture)
     sectionHeader:    { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12, marginTop: 8 },
-    sectionGrid:      { flexDirection: 'row', gap: 10, marginBottom: 12 },
-    sectionCard:      { flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
-    sectionCardFlex:  { flex: 1 },
-    sectionCardLabel: { fontSize: 11, color: Colors.textMuted, marginBottom: 4, textAlign: 'center' },
-    sectionCardValue: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, textAlign: 'center' },
-    sectionActionCard: { backgroundColor: Colors.surface, borderRadius: 10, padding: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: Colors.border, gap: 12 },
-    sectionActionIcon: { fontSize: 22 },
-    sectionActionTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
-    sectionActionSub: { fontSize: 11, color: Colors.textMuted },
-    sectionActionArrow: { fontSize: 22, color: Colors.textMuted },
 });

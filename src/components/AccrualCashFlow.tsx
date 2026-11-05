@@ -1,26 +1,31 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Transaction, Invoice, FinanceData } from '../types';
+import { Transaction, Invoice, FinanceData, ReceivableWriteOff } from '../types';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow } from '../theme/tokens';
 import { trailingCutoffDateString } from '../utils/cfoMetrics';
+import { computeAgingBuckets } from '../utils/finance';
 
 interface Props {
     transactions: Transaction[];
     invoices: Invoice[];
     finance: FinanceData;
     currency: string;
+    receivableWriteOffs?: ReceivableWriteOff[];
 }
 
-export default function AccrualCashFlow({ transactions, invoices, finance, currency }: Props) {
+export default function AccrualCashFlow({ transactions, invoices, finance, currency, receivableWriteOffs = [] }: Props) {
     // ── Section 1 — Accrual Revenue ───────────────────────────────────────────
     const cashIncome = transactions
         .filter(t => t.type === 'income' && t.status === 'paid')
         .reduce((s, t) => s + (t.amount ?? 0), 0);
 
-    const unpaidInvoicesTotal = invoices
-        .filter(inv => inv.status === 'sent' || inv.status === 'overdue')
-        .reduce((s, inv) => s + (inv.total ?? (inv as any).totalAmount ?? 0), 0);
+    // computeAgingBuckets is the canonical outstanding-receivables source
+    // (same one AgingReport/CFOQuestionsTab use) -- it also counts
+    // pending/overdue income transactions with no linked invoice, which a
+    // plain "unpaid invoices" sum silently drops.
+    const unpaidInvoicesTotal = computeAgingBuckets(transactions, 'income', invoices, receivableWriteOffs)
+        .reduce((s, b) => s + b.total, 0);
 
     const accrualRevenue = cashIncome + unpaidInvoicesTotal;
 

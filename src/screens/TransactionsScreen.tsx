@@ -1499,7 +1499,7 @@ export default function TransactionsScreen() {
                                     </View>
                                 )}
                                 <Text style={styles.projectHint}>{t(language, 'projectHintLabel')}</Text>
-                                {form.type === 'expense' && (
+                                {form.type === 'expense' && !form.equityMovement && (
                                     <Field label={t(language, 'costNatureLabel')}>
                                         <OptionRow
                                             options={[

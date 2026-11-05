@@ -26,7 +26,12 @@ interface Props {
 }
 
 export default function BalanceSheetStatement({ businessName, asOfLabel, point, currency, cashTransactions, receivableTransactions }: Props) {
-    const totalCurrentAssets = point.cashOnHand + point.accountsReceivableNet + point.stockValue + point.otherAssets;
+    // point.shortTermAssets is the canonical figure (cashOnHand +
+    // accountsReceivableNet + stockValue) -- it deliberately excludes
+    // otherAssets, which balanceSheetTrend.ts only folds in at the
+    // totalAssets level. Recomputing locally with otherAssets added back in
+    // overstated this line vs. BalanceSheetComparisonTable's correct figure.
+    const totalCurrentAssets = point.shortTermAssets;
     const totalFixedAssets = point.equipmentValue + point.manualEquipment;
 
     return (

@@ -73,7 +73,13 @@ export class ManualPayrollProvider implements PayrollProvider {
     }
 
     async runPayroll(period: string, staff: StaffMember[], deductionRate: number): Promise<RunPayrollResult> {
-        const rate = Math.max(0, deductionRate) / 100;
+        // A rate above 100% (a typo, e.g. 150 meant as 15.0) would make
+        // netSalary negative -- that negative figure becomes the amount of a
+        // stored expense Transaction, which every downstream cash-balance/
+        // profit/runway calculation then reads as a NEGATIVE expense,
+        // silently inflating reported profit and cash balance. Same cap as
+        // the unattended payrollAutoRun.ts path, for the identical reason.
+        const rate = Math.min(100, Math.max(0, deductionRate)) / 100;
         const items: PayrollItem[] = staff.map(m => {
             const gross = m.salary;
             const deductions = gross * rate;

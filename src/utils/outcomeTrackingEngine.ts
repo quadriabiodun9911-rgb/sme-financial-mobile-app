@@ -251,11 +251,20 @@ export function calculateProgressMetric(
   const baseline = startingMetricValue;
   const target = startingMetricValue + tactic.expectedImpact;
   const current = currentMetricValue;
-  const progress = ((current - baseline) / (target - baseline)) * 100;
 
+  // Same "no real baseline" case recordTacticOutcome guards above
+  // (tactic.expectedImpact <= 0, e.g. a £0 recorded-expenses tactic) --
+  // target === baseline there, so the formula below would divide by zero
+  // and read as a confident 'improving'/'declining' trend for a tactic
+  // with nothing real to measure against. Falls back to 'stable' through
+  // this explicit branch, never through NaN/Infinity arithmetic.
+  const hasBaseline = tactic.expectedImpact > 0;
   let trend: 'improving' | 'declining' | 'stable' = 'stable';
-  if (progress > 0.05) trend = 'improving'; // 5% or more improvement
-  else if (progress < -0.05) trend = 'declining';
+  if (hasBaseline) {
+    const progress = ((current - baseline) / (target - baseline)) * 100;
+    if (progress > 0.05) trend = 'improving'; // 5% or more improvement
+    else if (progress < -0.05) trend = 'declining';
+  }
 
   return {
     metricName: tactic.category,

@@ -7,6 +7,7 @@ import Icon, { IconName } from './ui/Icon';
 import { Transaction, FinancialGoal, FinanceData, BusinessSettings } from '../types';
 import { Invoice } from '../types';
 import { localDateStr } from '../utils/localDate';
+import { computeDailyGoalTargets } from '../utils/dailyGoalTarget';
 
 interface Props {
     visible: boolean;
@@ -40,19 +41,17 @@ export default function DailyReportModal({ visible, onClose, transactions, goals
     // Active goal
     const activeGoal = goals.find(g => g.status !== 'achieved' && (g.type === 'revenue_growth' || g.type === 'custom' || g.type === 'margin_improvement' || g.type === 'cost_reduction'));
 
-    // Daily targets from active goal
+    // Daily targets from active goal -- same gated-by-goal-type, progress-aware
+    // calculation DailyTargetCard uses, so the two don't disagree about the
+    // same goal's "today's target" (see computeDailyGoalTargets).
     let dailyRevenueTarget = 0;
     let dailyCostBudget = 0;
     let dailyProfitTarget = 0;
     if (activeGoal) {
-        const deadline = new Date(activeGoal.deadline);
-        const created = new Date(activeGoal.createdAt);
-        const daysInPeriod = Math.max(1, Math.ceil((deadline.getTime() - created.getTime()) / 86400000));
-        dailyRevenueTarget = isNaN(activeGoal.targetValue / daysInPeriod) ? 0 : activeGoal.targetValue / daysInPeriod;
-        dailyCostBudget = activeGoal.type === 'cost_reduction'
-            ? (isNaN(activeGoal.targetValue / daysInPeriod) ? 0 : activeGoal.targetValue / daysInPeriod)
-            : (isNaN(activeGoal.baselineValue / daysInPeriod) ? 0 : activeGoal.baselineValue / daysInPeriod);
-        dailyProfitTarget = Math.max(0, dailyRevenueTarget - dailyCostBudget);
+        const targets = computeDailyGoalTargets(activeGoal, today);
+        dailyRevenueTarget = targets.dailyRevenueTarget;
+        dailyCostBudget = targets.dailyCostBudget;
+        dailyProfitTarget = targets.dailyProfitTarget;
     }
 
     // Verdicts

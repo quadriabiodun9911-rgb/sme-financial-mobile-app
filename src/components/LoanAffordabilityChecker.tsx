@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors } from '../theme/colors';
+import { LabeledMoneyField as Field } from './ui/LabeledMoneyField';
 import { Shadow } from '../theme/tokens';
 import { computeLoanAffordabilityCheck, LoanAffordabilityVerdict } from '../utils/loanAffordabilityCheck';
 import { computeTenorCycleCheck } from '../utils/tenorCycleMatch';
@@ -213,40 +214,13 @@ export default function LoanAffordabilityChecker({
     );
 }
 
-function Field({ label, value, onChange, placeholder, currency, suffix }: {
-    label: string; value: string; onChange: (v: string) => void; placeholder: string;
-    currency?: string; suffix?: string;
-}) {
-    return (
-        <View style={s.field}>
-            <Text style={s.fieldLabel}>{label}</Text>
-            <View style={s.inputWrap}>
-                {currency && <Text style={s.affix}>{currency}</Text>}
-                <TextInput
-                    style={s.input}
-                    value={value}
-                    onChangeText={onChange}
-                    keyboardType="decimal-pad"
-                    placeholder={placeholder}
-                    placeholderTextColor={Colors.textMuted}
-                />
-                {suffix && <Text style={s.affix}>{suffix}</Text>}
-            </View>
-        </View>
-    );
-}
-
 const s = StyleSheet.create({
     card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
     title: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
     subtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: 14, lineHeight: 17 },
 
     row: { flexDirection: 'row', gap: 10 },
-    field: { marginBottom: 12 },
     fieldLabel: { fontSize: 12.5, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
-    inputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.bg, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12 },
-    affix: { fontSize: 14, color: Colors.textMuted, fontWeight: '600' },
-    input: { flex: 1, paddingVertical: 10, paddingHorizontal: 6, fontSize: 15, color: Colors.textPrimary },
 
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
     chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border },

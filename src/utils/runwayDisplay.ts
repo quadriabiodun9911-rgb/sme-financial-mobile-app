@@ -16,7 +16,12 @@ import { DataConfidence } from './dataQuality';
 
 export type RunwayConfidenceLabel = 'Low' | 'Medium' | 'High';
 
-export interface RunwayDisplay {
+// Named RunwayConfidenceDisplay (not RunwayDisplay) to stay distinct from
+// cashRunway.ts's own RunwayDisplay export -- same general subject, a
+// completely different shape (that one is the capped/implausible-flagged
+// single value every other screen shows; this one is the confidence-range
+// reformatting used only here).
+export interface RunwayConfidenceDisplay {
     // false when runwayDays is Infinity -- "no immediate cash-out risk" is
     // a different claim than a range around a number that isn't shrinking.
     available: boolean;
@@ -42,7 +47,7 @@ const CONFIDENCE_LABEL: Record<DataConfidence, RunwayConfidenceLabel> = {
     none: 'Low',
 };
 
-export function formatRunwayForDisplay(runwayDays: number, dataConfidence: DataConfidence): RunwayDisplay {
+export function formatRunwayForDisplay(runwayDays: number, dataConfidence: DataConfidence): RunwayConfidenceDisplay {
     const confidenceLabel = CONFIDENCE_LABEL[dataConfidence];
 
     if (!Number.isFinite(runwayDays)) {

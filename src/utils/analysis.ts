@@ -321,6 +321,25 @@ export interface ScenarioResult {
     opportunities: string[];
 }
 
+// A monthly expense of 0 means genuinely unlimited runway for this scenario
+// -- real Infinity, never the magic-number 999 sentinel these functions used
+// to fall back to. 999 collided with a real business whose actual computed
+// runway reaches 999+ days off a large cash balance and a small but nonzero
+// burn (the same bug cashRunway.ts's computeCashRunway was fixed to avoid).
+// scenarioProjection.ts already guards its own consumption of these fields
+// with isFinite(), anticipating exactly this.
+function scenarioRunwayDays(cashBalance: number, monthlyExpense: number): number {
+    return monthlyExpense > 0 ? Math.floor(cashBalance / (monthlyExpense / 30)) : Infinity;
+}
+
+// For the plain-language verdict/risk/opportunity sentences below, which
+// interpolate a runway figure directly into text -- printing the word
+// "Infinity" (or the old 999) reads as nonsense, so this renders the
+// no-measurable-burn case as a short phrase instead of a raw day count.
+function describeScenarioRunway(days: number): string {
+    return Number.isFinite(days) ? `${days} days` : 'effectively unlimited (no projected expense)';
+}
+
 export function modelHireStaff(
     monthly: MonthlyBaseline,
     monthlySalary: number,
@@ -329,8 +348,8 @@ export function modelHireStaff(
     const newExpense    = monthly.expense + monthlySalary;
     const newProfit     = monthly.income - newExpense;
     const newMargin     = monthly.income > 0 ? (newProfit / monthly.income) * 100 : 0;
-    const baseCash      = monthly.expense > 0 ? Math.floor(monthly.cashBalance / (monthly.expense / 30)) : 999;
-    const newCashRunway = newExpense > 0 ? Math.floor(monthly.cashBalance / (newExpense / 30)) : 999;
+    const baseCash      = scenarioRunwayDays(monthly.cashBalance, monthly.expense);
+    const newCashRunway = scenarioRunwayDays(monthly.cashBalance, newExpense);
     const breakEven     = newExpense;
 
     const revenueNeeded = newExpense - monthly.income;
@@ -347,11 +366,11 @@ export function modelHireStaff(
         newCashRunway,
         breakEvenRevenue: breakEven,
         verdict: affordable
-            ? `Affordable — monthly profit remains positive at ${currency}${Math.round(newProfit).toLocaleString()}. Cash runway drops from ${baseCash} to ${newCashRunway} days.`
+            ? `Affordable — monthly profit remains positive at ${currency}${Math.round(newProfit).toLocaleString()}. Cash runway drops from ${describeScenarioRunway(baseCash)} to ${describeScenarioRunway(newCashRunway)}.`
             : `Risky — this hire would put you into a monthly loss (${currency}${Math.round(Math.abs(newProfit)).toLocaleString()} deficit). You need ${currency}${Math.round(revenueNeeded).toLocaleString()} more monthly revenue to break even.`,
         risks: [
             affordable
-                ? `Cash runway reduces from ${baseCash} to ${newCashRunway} days — keep a revenue buffer.`
+                ? `Cash runway reduces from ${describeScenarioRunway(baseCash)} to ${describeScenarioRunway(newCashRunway)} — keep a revenue buffer.`
                 : `You would be loss-making until monthly revenue increases by ${currency}${Math.round(revenueNeeded).toLocaleString()}.`,
             `Fixed cost commitment — salary continues even if revenue dips.`,
         ],
@@ -370,9 +389,9 @@ export function modelRevenueChange(
     const newIncome    = monthly.income * (1 + changePercent / 100);
     const newProfit    = newIncome - monthly.expense;
     const newMargin    = newIncome > 0 ? (newProfit / newIncome) * 100 : 0;
-    const baseCash     = monthly.expense > 0 ? Math.floor(monthly.cashBalance / (monthly.expense / 30)) : 999;
+    const baseCash     = scenarioRunwayDays(monthly.cashBalance, monthly.expense);
     const newCashBal   = monthly.cashBalance + (newProfit - monthly.profit);
-    const newCashRunway = monthly.expense > 0 ? Math.floor(newCashBal / (monthly.expense / 30)) : 999;
+    const newCashRunway = scenarioRunwayDays(newCashBal, monthly.expense);
     const dir          = changePercent >= 0 ? 'increase' : 'decrease';
 
     return {
@@ -390,7 +409,7 @@ export function modelRevenueChange(
             : `A ${Math.abs(changePercent)}% revenue ${dir} would push you into a monthly loss (${currency}${Math.round(Math.abs(newProfit)).toLocaleString()} deficit). Immediate cost action needed.`,
         risks: changePercent < 0
             ? [
-                `Cash runway drops to ${Math.max(0, newCashRunway)} days — review all non-essential costs immediately.`,
+                `Cash runway drops to ${describeScenarioRunway(Math.max(0, newCashRunway))} — review all non-essential costs immediately.`,
                 newProfit < 0 ? `Monthly loss of ${currency}${Math.round(Math.abs(newProfit)).toLocaleString()} — identify which costs can be reduced to restore profitability.` : `Margin compresses from ${monthly.margin.toFixed(1)}% to ${newMargin.toFixed(1)}%.`,
               ]
             : [`Ensure operations can handle increased volume without proportional cost increases.`],
@@ -418,12 +437,18 @@ export function modelNewLoan(
     const newExpense    = monthly.expense + monthlyPayment;
     const newProfit     = monthly.income - newExpense;
     const newMargin     = monthly.income > 0 ? (newProfit / monthly.income) * 100 : 0;
-    const baseCash      = monthly.expense > 0 ? Math.floor(monthly.cashBalance / (monthly.expense / 30)) : 999;
-    const newCashRunway = newExpense > 0 ? Math.floor(monthly.cashBalance / (newExpense / 30)) : 999;
+    const baseCash      = scenarioRunwayDays(monthly.cashBalance, monthly.expense);
+    const newCashRunway = scenarioRunwayDays(monthly.cashBalance, newExpense);
 
     // DSCR = Net Operating Income / annual debt service (not gross revenue) —
     // annualized from the real monthly baseline, not an all-time cumulative
-    // total (the same bug already fixed in computeDSCR itself).
+    // total. NOTE: 999 here deliberately matches computeDSCR's own existing
+    // "no debt service" sentinel convention (finance.ts) -- many screens
+    // across the app already check `dscr >= 999` / `>= 900` to special-case
+    // this, so this is NOT the same bug class as the cash-runway 999 above;
+    // changing it to Infinity would need a coordinated update of every one
+    // of those call sites (several currently call dscr.toFixed() unguarded)
+    // and is out of scope here.
     const netOperatingIncome = (monthly.income - monthly.expense) * 12;
     const dscr = annualPayment > 0 ? netOperatingIncome / annualPayment : 999;
 
@@ -462,7 +487,7 @@ export function modelPriceIncrease(
     const newIncome  = monthly.income * (1 + increasePercent / 100);
     const newProfit  = newIncome - monthly.expense;
     const newMargin  = newIncome > 0 ? (newProfit / newIncome) * 100 : 0;
-    const baseCash   = monthly.expense > 0 ? Math.floor(monthly.cashBalance / (monthly.expense / 30)) : 999;
+    const baseCash   = scenarioRunwayDays(monthly.cashBalance, monthly.expense);
 
     return {
         label: `Price increase +${increasePercent}%`,
@@ -500,8 +525,8 @@ export function modelNewProduct(
     const newExpense     = monthly.expense + monthlyCost;
     const newProfit      = newIncome - newExpense;
     const newMargin      = newIncome > 0 ? (newProfit / newIncome) * 100 : 0;
-    const baseCash       = monthly.expense > 0 ? Math.floor(monthly.cashBalance / (monthly.expense / 30)) : 999;
-    const newCashRunway  = newExpense > 0 ? Math.floor(monthly.cashBalance / (newExpense / 30)) : 999;
+    const baseCash       = scenarioRunwayDays(monthly.cashBalance, monthly.expense);
+    const newCashRunway  = scenarioRunwayDays(monthly.cashBalance, newExpense);
     const grossMarginPct = pricePerUnit > 0 ? ((pricePerUnit - costPerUnit) / pricePerUnit) * 100 : 0;
     const good           = newProfit > monthly.profit;
 
@@ -580,8 +605,8 @@ export function modelCombinedScenario(
 
     const newProfit = income - expense;
     const newMargin = income > 0 ? (newProfit / income) * 100 : 0;
-    const baseCash = monthly.expense > 0 ? Math.floor(monthly.cashBalance / (monthly.expense / 30)) : 999;
-    const newCashRunway = expense > 0 ? Math.floor(monthly.cashBalance / (expense / 30)) : 999;
+    const baseCash = scenarioRunwayDays(monthly.cashBalance, monthly.expense);
+    const newCashRunway = scenarioRunwayDays(monthly.cashBalance, expense);
     const profitImpact = newProfit - monthly.profit;
     const good = profitImpact >= 0;
 
@@ -599,7 +624,7 @@ export function modelCombinedScenario(
             ? `Combined, these changes add ${currency}${Math.round(profitImpact).toLocaleString()}/month to profit — margin moves from ${monthly.margin.toFixed(1)}% to ${newMargin.toFixed(1)}%.`
             : `Combined, these changes cut profit by ${currency}${Math.round(Math.abs(profitImpact)).toLocaleString()}/month — margin moves from ${monthly.margin.toFixed(1)}% to ${newMargin.toFixed(1)}%.`,
         risks: [
-            newProfit < 0 ? `This combination pushes you into a ${currency}${Math.round(Math.abs(newProfit)).toLocaleString()}/month loss.` : `Cash runway moves from ${baseCash} to ${Math.max(0, newCashRunway)} days.`,
+            newProfit < 0 ? `This combination pushes you into a ${currency}${Math.round(Math.abs(newProfit)).toLocaleString()}/month loss.` : `Cash runway moves from ${describeScenarioRunway(baseCash)} to ${describeScenarioRunway(Math.max(0, newCashRunway))}.`,
             `Each lever assumes the others don't change customer or staff behaviour — a big price rise combined with a pay cut can compound retention risk on both sides.`,
         ],
         opportunities: [
@@ -619,8 +644,8 @@ export function modelCostCut(
     const newExpense = Math.max(0, monthly.expense - cutAmount);
     const newProfit  = monthly.income - newExpense;
     const newMargin  = monthly.income > 0 ? (newProfit / monthly.income) * 100 : 0;
-    const baseCash   = monthly.expense > 0 ? Math.floor(monthly.cashBalance / (monthly.expense / 30)) : 999;
-    const newCashRunway = newExpense > 0 ? Math.floor(monthly.cashBalance / (newExpense / 30)) : 999;
+    const baseCash   = scenarioRunwayDays(monthly.cashBalance, monthly.expense);
+    const newCashRunway = scenarioRunwayDays(monthly.cashBalance, newExpense);
 
     return {
         label: `Cut ${categoryName} by ${currency}${cutAmount.toLocaleString()}/mo`,

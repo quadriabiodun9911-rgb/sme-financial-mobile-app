@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, TextInput, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { computeGrowthAffordability, GrowthAffordabilityVerdict } from '../utils/growthAffordability';
 import { FinancialGoal } from '../types';
 import { pickCashGoal, estimateGoalDelay, formatGoalDelay } from '../utils/goalImpact';
+import { LabeledMoneyField as Field } from './ui/LabeledMoneyField';
 
 interface Props {
     currency: string;
@@ -154,42 +155,12 @@ export default function GrowthAffordabilityCalculator({ currency, currentCashBal
     );
 }
 
-function Field({ label, value, onChange, placeholder, currency, suffix, hint }: {
-    label: string; value: string; onChange: (v: string) => void; placeholder: string;
-    currency?: string; suffix?: string; hint?: string;
-}) {
-    return (
-        <View style={s.field}>
-            <Text style={s.fieldLabel}>{label}</Text>
-            <View style={s.inputWrap}>
-                {currency && <Text style={s.affix}>{currency}</Text>}
-                <TextInput
-                    style={s.input}
-                    value={value}
-                    onChangeText={onChange}
-                    keyboardType="decimal-pad"
-                    placeholder={placeholder}
-                    placeholderTextColor={Colors.textMuted}
-                />
-                {suffix && <Text style={s.affix}>{suffix}</Text>}
-            </View>
-            {hint && <Text style={s.fieldHint}>{hint}</Text>}
-        </View>
-    );
-}
-
 const s = StyleSheet.create({
     card: { backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12 },
     title: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
     subtitle: { fontSize: 12, color: Colors.textMuted, marginBottom: 14, lineHeight: 17 },
 
     row: { flexDirection: 'row', gap: 10 },
-    field: { marginBottom: 12 },
-    fieldLabel: { fontSize: 12.5, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
-    fieldHint: { fontSize: 11, color: Colors.textMuted, marginTop: 4, lineHeight: 15 },
-    inputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.bg, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12 },
-    affix: { fontSize: 14, color: Colors.textMuted, fontWeight: '600' },
-    input: { flex: 1, paddingVertical: 10, paddingHorizontal: 6, fontSize: 15, color: Colors.textPrimary },
 
     statRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
     stat: { flex: 1, backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: 10 },

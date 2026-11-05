@@ -8,6 +8,40 @@ import { computeHistoricalMonthlyTrend } from './trendAnalysis';
 import { totalMonthlyLoanBurden } from './loanMath';
 import { computeCustomerFrequencyTrend, computeLatestCustomerFrequency } from './customerMetrics';
 
+// ─── Deadline math ─────────────────────────────────────────────────────────
+//
+// goal.deadline is a bare "YYYY-MM-DD" string. `new Date(goal.deadline)`
+// parses that as UTC midnight, not local midnight -- in any positive-UTC
+// -offset timezone (Nigeria, UAE, etc.) that shifts the reference point
+// within the day, under/over-counting how many days remain by up to a full
+// day. Same fix already proven in invoiceReminders.ts. Every place in this
+// codebase that needs "time left until a goal's deadline" should go through
+// these two functions rather than re-parsing/re-deriving it independently --
+// three separate reimplementations of this (in goalForecastGap.ts and twice
+// in goalAlignment.ts) used to disagree with each other, most visibly right
+// around month boundaries and when the deadline was only days away.
+export function parseDeadlineLocal(deadline: string): Date {
+    return new Date(deadline + 'T00:00:00');
+}
+
+// Whole days remaining (negative if the deadline has passed), measured
+// midnight-to-midnight in local time on both sides so the result isn't
+// skewed by what time of day `anchor` happens to carry.
+export function daysUntilDeadline(deadline: string, anchor: Date = new Date()): number {
+    const due = parseDeadlineLocal(deadline);
+    const anchorMidnight = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
+    return Math.round((due.getTime() - anchorMidnight.getTime()) / 86400000);
+}
+
+// Continuous (not rounded-to-nearest-integer) months remaining. Rounding to
+// the nearest whole month used to mean a deadline just 10-15 days out
+// rounded down to "0 months left" and got treated as "deadline has
+// arrived" -- a continuous fraction (e.g. 0.33 months) fixes that at the
+// source for every caller instead of each one needing its own guard.
+export function monthsUntilDeadline(deadline: string, anchor: Date = new Date()): number {
+    return daysUntilDeadline(deadline, anchor) / 30;
+}
+
 // ─── Goal progress computation ────────────────────────────────────────────────
 
 export function computeGoalCurrent(
@@ -55,7 +89,7 @@ export function computeGoalStatus(goal: FinancialGoal): GoalStatus {
     if (progress >= 100) return 'achieved';
 
     const today = new Date();
-    const due = new Date(deadline);
+    const due = parseDeadlineLocal(deadline);
     const created = new Date(goal.createdAt);
 
     const totalDays = Math.max(1, (due.getTime() - created.getTime()) / 86400000);
@@ -119,7 +153,7 @@ export interface GoalCheckpoint {
 
 export function computeGoalCheckpoints(goal: FinancialGoal): GoalCheckpoint[] {
     const created = new Date(goal.createdAt);
-    const due = new Date(goal.deadline);
+    const due = parseDeadlineLocal(goal.deadline);
     const totalDays = Math.max(1, (due.getTime() - created.getTime()) / 86400000);
     const totalMonths = Math.max(1, totalDays / 30);
     // Same "~4-5 checkpoints" cadence calculateGoalBridge's own milestones
@@ -423,7 +457,7 @@ export function generateStrategy(
             actions.push({
                 priority: 'high',
                 title: 'Define measurable milestones',
-                detail: `Break your goal into monthly checkpoints. With ${Math.max(0, Math.ceil((new Date(goal.deadline).getTime() - Date.now()) / (86400000 * 30)))} months remaining, set one sub-target per month.`,
+                detail: `Break your goal into monthly checkpoints. With ${Math.max(0, Math.ceil(monthsUntilDeadline(goal.deadline)))} months remaining, set one sub-target per month.`,
             });
             actions.push({
                 priority: 'medium',

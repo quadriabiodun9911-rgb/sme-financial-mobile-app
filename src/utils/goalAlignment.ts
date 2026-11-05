@@ -30,6 +30,7 @@ import { FinancialGoal, Budget, Transaction, FinanceData, Loan } from '../types'
 import { activeBudgetsForPeriod, currentPeriodString } from './budgetPeriod';
 import { computeMonthlyBaseline } from './analysis';
 import { loanMonthlyPayment, CashFlowForecastWeek, ForecastPoint, latestTransactionDate } from './finance';
+import { parseDeadlineLocal, monthsUntilDeadline } from './goals';
 
 // ─── Goal ↔ Budget ──────────────────────────────────────────────────────────
 
@@ -134,9 +135,11 @@ export function computeGoalBudgetAlignment(
     // cash_reserve: work out the monthly net cash the goal needs the
     // business to bank, then check whether the budget (plus loan
     // commitments) leaves that much surplus out of the current revenue rate.
-    const today = new Date();
-    const deadline = new Date(goal.deadline);
-    const monthsRemaining = Math.max(1 / 30, (deadline.getTime() - today.getTime()) / (86400000 * 30));
+    // Anchored to real wall-clock "today," not latestTransactionDate -- this
+    // is advising what to budget starting now (budgets themselves are keyed
+    // to the real current calendar period via currentPeriodString()), unlike
+    // the revenue_growth case below which is a retrospective pace check.
+    const monthsRemaining = Math.max(1 / 30, monthsUntilDeadline(goal.deadline, new Date()));
     const requiredMonthlyBuild = (goal.targetValue - goal.currentValue) / monthsRemaining;
 
     if (requiredMonthlyBuild <= 0) {
@@ -214,7 +217,7 @@ export function computeGoalForecastAlignment(
     const projectedCashAtHorizon = currentCashBalance + forecast[forecast.length - 1].cumulativeCash;
 
     const today = new Date();
-    const deadline = new Date(goal.deadline);
+    const deadline = parseDeadlineLocal(goal.deadline);
     const horizonDate = new Date(today); horizonDate.setDate(today.getDate() + horizonWeeks * 7);
 
     // Straight-line pace from where the goal started to its target,
@@ -291,8 +294,7 @@ export function computeRevenueMarginForecastAlignment(
         // data was stale (e.g. no recent transactions logged, or demo
         // data), since "months remaining" would differ between them.
         const today = latestTransactionDate(transactions) ?? new Date();
-        const deadline = new Date(goal.deadline);
-        const monthsRemaining = Math.max(1 / 30, (deadline.getTime() - today.getTime()) / (86400000 * 30));
+        const monthsRemaining = Math.max(1 / 30, monthsUntilDeadline(goal.deadline, today));
         const requiredMonthlyRevenue = (goal.targetValue - goal.currentValue) / monthsRemaining;
 
         if (requiredMonthlyRevenue <= 0) {

@@ -32,7 +32,9 @@ const GROUP_GAP = 10;   // ≥8px air between adjacent groups
 export default function GroupedBarChart({ labels, series, height = 120 }: Props) {
     const maxVal = Math.max(1, ...series.flatMap(s => s.values.map(v => Math.abs(v))));
     const barWidth = Math.min(24, (COLUMN_WIDTH - BAR_GAP * (series.length - 1)) / Math.max(1, series.length));
-    const groupWidth = barWidth * series.length + BAR_GAP * (series.length - 1);
+    // Math.max(0, ...) guards an empty series array: with series.length=0
+    // this would otherwise evaluate to -BAR_GAP (a negative SVG width).
+    const groupWidth = Math.max(0, barWidth * series.length + BAR_GAP * (series.length - 1));
 
     return (
         <View>
