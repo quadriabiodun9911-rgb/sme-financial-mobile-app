@@ -57,7 +57,7 @@ import { getUninvoicedOverdueTransactions } from '../utils/overdueTransactions';
 import { getTaxDeadlineStatus } from '../utils/taxDeadline';
 import { isRecurringTransactionOverdue, daysUntilRecurringDue, hasRecurringSchedule } from '../utils/recurringTransactions';
 import { isBudgetActiveForPeriod, isBudgetPeriodLapsed, currentPeriodString } from '../utils/budgetPeriod';
-import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyExpenseAverage, computeOneThingInsight, computeRiskScore, RISK_BAND_STYLE, latestTransactionDate } from '../utils/finance';
+import { computeAssetsNearingReplacement, computeAssetCurrentValue, getMonthlyExpenseAverage, computeOneThingInsight, computeRiskScore, RISK_BAND_STYLE, latestTransactionDate, computeWeeklyCFOSummary, computeMonthlyTrend } from '../utils/finance';
 import { computeBusinessHealthIntelligence } from '../utils/metricIntelligence';
 import { computeStockVelocity, computeInventoryValue } from '../utils/stockVelocity';
 import { computeExpiringStock } from '../utils/foodExpiry';
@@ -240,6 +240,9 @@ export default function DashboardScreen() {
     // would just repeat the top item and add back the clutter that change
     // was meant to remove. Expand only on request.
     const [showAllPriorities, setShowAllPriorities] = useState(false);
+    // Which period "Performance at a Glance" (below) is showing -- defaults
+    // to Yesterday, the one most owners actually want to check first thing.
+    const [glanceTab, setGlanceTab] = useState<'yesterday' | 'week' | 'month'>('yesterday');
 
     const [onboardingDismissed, setOnboardingDismissed] = useState(false);
     const [showShareCard, setShowShareCard]     = useState(false);
@@ -1359,6 +1362,20 @@ export default function DashboardScreen() {
         return { revenue: bucket?.revenue ?? 0, expense: bucket?.expense ?? 0 };
     }, [transactions]);
 
+    // "Performance at a Glance" (Yesterday / This Week / This Month) below --
+    // same canonical weekly engine Scoreboard's own "This Week's Performance"
+    // card uses (computeWeeklyCFOSummary), and computeMonthlyTrend with
+    // months=1 for the current calendar month, so neither figure is a second,
+    // independently-computed version of numbers already shown elsewhere.
+    const weeklySummary = useMemo(
+        () => computeWeeklyCFOSummary(transactions, goals, loans, finance),
+        [transactions, goals, loans, finance]
+    );
+    const thisMonthBucket = useMemo(() => {
+        const point = computeMonthlyTrend(transactions, 1)[0];
+        return point ?? { income: 0, expense: 0, profit: 0 };
+    }, [transactions]);
+
     const dailyBriefing = useMemo(
         () => buildDailyBriefing(priorities, weekdayPattern, {
             yesterdayRevenue: yesterdayBucket.revenue,
@@ -2060,6 +2077,73 @@ export default function DashboardScreen() {
                 )}
 
                 </>
+                )}
+
+                {/* PERFORMANCE AT A GLANCE -- "how did I do yesterday/this
+                    week/this month", always visible rather than tucked
+                    behind a report button, so checking it doesn't take a
+                    deliberate trip into a modal. Revenue/Expenses/Profit
+                    reuse the exact same figures shown elsewhere (yesterdayBucket
+                    feeds the morning briefing above; computeWeeklyCFOSummary
+                    is the same engine Scoreboard's "This Week's Performance"
+                    card calls; computeMonthlyTrend(transactions, 1) is the
+                    same trend engine Reports' own monthly chart uses) --
+                    never a second, independently-computed set of numbers. */}
+                {canViewFinancials && (
+                  <View style={styles.operationsSection}>
+                    <View style={styles.sectionTitleRow}>
+                      <Icon name="activity" size={13} color={Colors.textMuted} />
+                      <Text style={styles.operationsSectionTitle}>Performance at a Glance</Text>
+                    </View>
+                    <View style={styles.glanceTabRow}>
+                      {([
+                        { key: 'yesterday' as const, label: 'Yesterday' },
+                        { key: 'week' as const, label: 'This Week' },
+                        { key: 'month' as const, label: 'This Month' },
+                      ]).map(tab => (
+                        <TouchableOpacity
+                          key={tab.key}
+                          style={[styles.glanceTab, glanceTab === tab.key && styles.glanceTabActive]}
+                          onPress={() => setGlanceTab(tab.key)}
+                          activeOpacity={0.75}
+                        >
+                          <Text style={[styles.glanceTabText, glanceTab === tab.key && styles.glanceTabTextActive]}>{tab.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    {(() => {
+                      const period = glanceTab === 'yesterday'
+                        ? { revenue: yesterdayBucket.revenue, expense: yesterdayBucket.expense, sub: undefined as string | undefined }
+                        : glanceTab === 'week'
+                        ? {
+                            revenue: weeklySummary.thisWeekIncome,
+                            expense: weeklySummary.thisWeekExpense,
+                            sub: weeklySummary.lastWeekIncome > 0
+                              ? `${weeklySummary.weeklyChange >= 0 ? '+' : ''}${weeklySummary.weeklyChange.toFixed(1)}% vs last week`
+                              : undefined,
+                          }
+                        : { revenue: thisMonthBucket.income, expense: thisMonthBucket.expense, sub: undefined as string | undefined };
+                      const profit = period.revenue - period.expense;
+                      const profitColor = profit >= 0 ? Colors.income : Colors.expense;
+                      return (
+                        <>
+                          <View style={styles.glanceProfitRow}>
+                            <View>
+                              <Text style={styles.glanceProfitLabel}>Profit</Text>
+                              <Text style={[styles.glanceProfitValue, { color: profitColor }]}>
+                                {profit >= 0 ? '+' : '-'}{currency}{Math.round(Math.abs(profit)).toLocaleString()}
+                              </Text>
+                            </View>
+                            {period.sub && <Text style={[styles.glanceSub, { color: weeklySummary.weeklyChange >= 0 ? Colors.income : Colors.expense }]}>{period.sub}</Text>}
+                          </View>
+                          <View style={styles.metricsGrid}>
+                            <StatTile icon="trending-up" iconColor={Colors.income} label="Revenue" value={`${currency}${Math.round(period.revenue).toLocaleString()}`} />
+                            <StatTile icon="trending-down" iconColor={Colors.expense} label="Expenses" value={`${currency}${Math.round(period.expense).toLocaleString()}`} />
+                          </View>
+                        </>
+                      );
+                    })()}
+                  </View>
                 )}
 
                 {/* SECTION 3: KEY METRICS - Monthly snapshot */}
@@ -2789,6 +2873,52 @@ const styles = StyleSheet.create({
       color: Colors.textMuted,
       textTransform: 'uppercase',
       letterSpacing: 0.8,
+    },
+    glanceTabRow: {
+      flexDirection: 'row',
+      backgroundColor: Colors.bg,
+      borderRadius: Radius.md,
+      padding: 3,
+      marginBottom: 12,
+      gap: 4,
+    },
+    glanceTab: {
+      flex: 1,
+      paddingVertical: 7,
+      borderRadius: Radius.sm,
+      alignItems: 'center',
+    },
+    glanceTabActive: {
+      backgroundColor: Colors.card,
+      ...Shadow.sm,
+    },
+    glanceTabText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: Colors.textMuted,
+    },
+    glanceTabTextActive: {
+      color: Colors.text,
+    },
+    glanceProfitRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      marginBottom: 12,
+    },
+    glanceProfitLabel: {
+      fontSize: 11,
+      color: Colors.textMuted,
+      fontWeight: '500',
+      marginBottom: 2,
+    },
+    glanceProfitValue: {
+      fontSize: 22,
+      fontWeight: '700',
+    },
+    glanceSub: {
+      fontSize: 12,
+      fontWeight: '600',
     },
     healthScoreCard: {
       backgroundColor: Colors.surface,
