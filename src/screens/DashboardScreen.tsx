@@ -1596,10 +1596,16 @@ export default function DashboardScreen() {
                 <View style={isWideDashboard && styles.dashboardRow}>
                 {/* BUSINESS HEALTH -- the single "how is my business doing"
                     answer, using the same canonical computeRiskScore the
-                    Scoreboard screen shows, placed at the very top of the
-                    Dashboard (above Vital Signs and everything else) since
-                    it's the first thing an owner wants on opening the app.
-                    Tapping through goes to the full breakdown. */}
+                    Scoreboard screen shows. Still the first card on the
+                    screen, but no longer standing alone: "What Quad360
+                    Sees" (the plain-language insight) and "Start Here"
+                    (the recommended action) now sit immediately below it,
+                    before Vital Signs or any other metric -- a bare score
+                    is confident-looking in a way a number alone shouldn't
+                    be without the finding and the action that go with it
+                    directly attached, not several sections further down
+                    the scroll. Tapping the score card goes to the full
+                    breakdown. */}
                 {canViewFinancials && (
                     <View style={[styles.operationsSection, isWideDashboard && styles.dashboardCol]}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -1694,6 +1700,143 @@ export default function DashboardScreen() {
                         </PressScale>
                       )}
                     </View>
+                )}
+
+                {/* WHAT QUAD360 SEES — the plain-language "what does this
+                    mean" that Vital Signs' raw numbers above don't answer on
+                    their own. Reuses diagnosisForNextGoal's own
+                    narrativeSummary (already computed above for the goal-
+                    celebration flow) rather than a second engine call — same
+                    fixed-template synthesis, no LLM. Held to the same
+                    >=5-transaction gate as that diagnosis so a near-empty
+                    account doesn't get a guessed narrative. */}
+                {canViewFinancials && diagnosisForNextGoal && (
+                  <TouchableOpacity style={styles.narrativeCard} onPress={() => setCurrentScreen('financial-assessment')} activeOpacity={0.85}>
+                    <Text style={styles.narrativeEyebrow}>WHAT QUAD360 SEES</Text>
+                    <Text style={styles.narrativeText}>{diagnosisForNextGoal.narrativeSummary}</Text>
+                    <NextStepLink text="Full diagnosis & what to do about it →" onPress={() => setCurrentScreen('financial-assessment')} />
+                  </TouchableOpacity>
+                )}
+
+                {/* This whole priorities block (top priorities, the "all
+                    clear" fallback, and "what else needs attention") is
+                    built from cash balance, loans, budgets, assets, and
+                    goals -- exactly the P&L/cash-balance/loan detail
+                    canViewFinancials exists to keep from a 'staff' role.
+                    Every other financially-derived section on this screen
+                    is already gated the same way; this one was missed. */}
+                {canViewFinancials && (
+                <>
+                {/* YOUR TOP PRIORITIES — up to 3 numbered items from the
+                    same real, already-sorted priority list (attention tier
+                    first, real dollar-impact descending). A short, finite
+                    list with impact framing on each line, instead of a
+                    single hero item plus an open-ended list to keep
+                    scrolling through. Nothing new is computed here. */}
+                {priorities.length > 0 && (
+                  <View style={styles.topPrioritiesCard}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                      <Icon name="arrow-right-circle" size={12} color={Colors.primary} />
+                      <Text style={styles.topPrioritiesEyebrow}>START HERE — YOUR TOP PRIORIT{priorities.length > 1 ? 'IES' : 'Y'}</Text>
+                    </View>
+                    {priorities.slice(0, TOP_PRIORITY_COUNT).map((item, i, arr) => {
+                      const kindMeta = PRIORITY_KIND_META[item.kind];
+                      const tierMeta = PRIORITY_TIER_META[item.tier];
+                      return (
+                        <TouchableOpacity
+                          key={item.id}
+                          style={[styles.topPriorityRow, i < arr.length - 1 && styles.topPriorityRowBorder]}
+                          onPress={() => navigate(kindMeta.screen, kindMeta.params)}
+                          activeOpacity={0.75}
+                        >
+                          <View style={styles.topPriorityNumber}><Text style={styles.topPriorityNumberText}>{i + 1}</Text></View>
+                          <View style={[styles.priorityIconBadge, { backgroundColor: tierMeta.color + '22' }]}>
+                            <Icon name={kindMeta.icon} size={16} color={tierMeta.color} />
+                          </View>
+                          <View style={styles.priorityContent}>
+                            <Text style={styles.priorityTitle}>{item.title}</Text>
+                            <Text style={styles.priorityAmount}>{item.subtitle}</Text>
+                          </View>
+                          <Icon name="chevron-right" size={18} color={Colors.textMuted} />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+
+                {/* Empty state -- no alert-engine priority is currently
+                    active, but that doesn't mean nothing is worth saying.
+                    computeOneThingInsight checks a real signal the priority
+                    list doesn't cover at all (margin vs. target), so this
+                    slot shows that instead of a generic "all clear" filler
+                    whenever there's something more specific and true to say. */}
+                {priorities.length === 0 && (() => {
+                  const insight = computeOneThingInsight(finance, settings);
+                  const isHealthy = insight.severity === 'healthy';
+                  const insightColor = insight.severity === 'critical' ? Colors.expense : insight.severity === 'warning' ? Colors.warning : Colors.success;
+                  return (
+                    <View style={styles.nextActionCard}>
+                      <View style={styles.nextActionRow}>
+                        <View style={[styles.priorityIconBadge, { backgroundColor: insightColor + '22' }]}>
+                          <Icon name={isHealthy ? 'check' : insight.severity === 'critical' ? 'alert-circle' : 'alert-triangle'} size={16} color={insightColor} />
+                        </View>
+                        <View style={styles.priorityContent}>
+                          <Text style={styles.nextActionTitle}>{isHealthy ? 'All Clear for Today' : insight.title}</Text>
+                          <Text style={styles.priorityAmount}>{insight.action}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })()}
+
+                {/* SECTION 2: WHAT NEEDS YOUR ATTENTION — every risk/
+                    opportunity signal beyond the top 3 already shown above,
+                    collapsed by default so the dashboard doesn't default to
+                    a full list on top of the top-priorities card. */}
+                {priorities.length > TOP_PRIORITY_COUNT && (
+                  <View style={styles.operationsSection}>
+                    <TouchableOpacity style={styles.sectionTitleRow} onPress={() => setShowAllPriorities(v => !v)} activeOpacity={0.7}>
+                      <Icon name="check-square" size={13} color={Colors.textMuted} />
+                      <Text style={styles.operationsSectionTitle}>What Else Needs Your Attention ({priorities.length - TOP_PRIORITY_COUNT})</Text>
+                      <Icon name={showAllPriorities ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
+                    </TouchableOpacity>
+
+                    {showAllPriorities && PRIORITY_TIER_ORDER.map(tier => {
+                      const tierItems = priorities.slice(TOP_PRIORITY_COUNT).filter(p => p.tier === tier);
+                      if (tierItems.length === 0) return null;
+                      const tierMeta = PRIORITY_TIER_META[tier];
+                      return (
+                        <View key={tier} style={styles.priorityTierGroup}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                            <View style={[styles.priorityTierDot, { backgroundColor: tierMeta.color }]} />
+                            <Text style={[styles.priorityTierLabel, { color: tierMeta.color }]}>{tierMeta.label}</Text>
+                          </View>
+                          {tierItems.map(item => {
+                            const kindMeta = PRIORITY_KIND_META[item.kind];
+                            return (
+                              <TouchableOpacity
+                                key={item.id}
+                                style={[styles.priorityCard, tierMeta.tinted && { borderLeftColor: tierMeta.color, backgroundColor: tierMeta.color + '08' }]}
+                                onPress={() => navigate(kindMeta.screen, kindMeta.params)}
+                              >
+                                <View style={[styles.priorityIconBadge, { backgroundColor: tierMeta.color + '22' }]}>
+                                  <Icon name={kindMeta.icon} size={16} color={tierMeta.color} />
+                                </View>
+                                <View style={styles.priorityContent}>
+                                  <Text style={styles.priorityTitle}>{item.title}</Text>
+                                  <Text style={styles.priorityAmount}>{item.subtitle}</Text>
+                                </View>
+                                <Icon name="chevron-right" size={18} color={Colors.textMuted} />
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+
+                </>
                 )}
 
                 {/* ══════════════════════════════════════════════════════════════════
@@ -1834,21 +1977,6 @@ export default function DashboardScreen() {
                 )}
                 </View>
 
-                {/* WHAT QUAD360 SEES — the plain-language "what does this
-                    mean" that Vital Signs' raw numbers above don't answer on
-                    their own. Reuses diagnosisForNextGoal's own
-                    narrativeSummary (already computed above for the goal-
-                    celebration flow) rather than a second engine call — same
-                    fixed-template synthesis, no LLM. Held to the same
-                    >=5-transaction gate as that diagnosis so a near-empty
-                    account doesn't get a guessed narrative. */}
-                {canViewFinancials && diagnosisForNextGoal && (
-                  <TouchableOpacity style={styles.narrativeCard} onPress={() => setCurrentScreen('financial-assessment')} activeOpacity={0.85}>
-                    <Text style={styles.narrativeEyebrow}>WHAT QUAD360 SEES</Text>
-                    <Text style={styles.narrativeText}>{diagnosisForNextGoal.narrativeSummary}</Text>
-                    <NextStepLink text="Full diagnosis & what to do about it →" onPress={() => setCurrentScreen('financial-assessment')} />
-                  </TouchableOpacity>
-                )}
 
                 {personalSpending.flaggedCount > 0 && (
                   <TouchableOpacity
@@ -2014,127 +2142,6 @@ export default function DashboardScreen() {
                       </Text>
                     </View>
                   </TouchableOpacity>
-                )}
-
-                {/* This whole priorities block (top priorities, the "all
-                    clear" fallback, and "what else needs attention") is
-                    built from cash balance, loans, budgets, assets, and
-                    goals -- exactly the P&L/cash-balance/loan detail
-                    canViewFinancials exists to keep from a 'staff' role.
-                    Every other financially-derived section on this screen
-                    is already gated the same way; this one was missed. */}
-                {canViewFinancials && (
-                <>
-                {/* YOUR TOP PRIORITIES — up to 3 numbered items from the
-                    same real, already-sorted priority list (attention tier
-                    first, real dollar-impact descending). A short, finite
-                    list with impact framing on each line, instead of a
-                    single hero item plus an open-ended list to keep
-                    scrolling through. Nothing new is computed here. */}
-                {priorities.length > 0 && (
-                  <View style={styles.topPrioritiesCard}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                      <Icon name="arrow-right-circle" size={12} color={Colors.primary} />
-                      <Text style={styles.topPrioritiesEyebrow}>START HERE — YOUR TOP PRIORIT{priorities.length > 1 ? 'IES' : 'Y'}</Text>
-                    </View>
-                    {priorities.slice(0, TOP_PRIORITY_COUNT).map((item, i, arr) => {
-                      const kindMeta = PRIORITY_KIND_META[item.kind];
-                      const tierMeta = PRIORITY_TIER_META[item.tier];
-                      return (
-                        <TouchableOpacity
-                          key={item.id}
-                          style={[styles.topPriorityRow, i < arr.length - 1 && styles.topPriorityRowBorder]}
-                          onPress={() => navigate(kindMeta.screen, kindMeta.params)}
-                          activeOpacity={0.75}
-                        >
-                          <View style={styles.topPriorityNumber}><Text style={styles.topPriorityNumberText}>{i + 1}</Text></View>
-                          <View style={[styles.priorityIconBadge, { backgroundColor: tierMeta.color + '22' }]}>
-                            <Icon name={kindMeta.icon} size={16} color={tierMeta.color} />
-                          </View>
-                          <View style={styles.priorityContent}>
-                            <Text style={styles.priorityTitle}>{item.title}</Text>
-                            <Text style={styles.priorityAmount}>{item.subtitle}</Text>
-                          </View>
-                          <Icon name="chevron-right" size={18} color={Colors.textMuted} />
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                )}
-
-                {/* Empty state -- no alert-engine priority is currently
-                    active, but that doesn't mean nothing is worth saying.
-                    computeOneThingInsight checks a real signal the priority
-                    list doesn't cover at all (margin vs. target), so this
-                    slot shows that instead of a generic "all clear" filler
-                    whenever there's something more specific and true to say. */}
-                {priorities.length === 0 && (() => {
-                  const insight = computeOneThingInsight(finance, settings);
-                  const isHealthy = insight.severity === 'healthy';
-                  const insightColor = insight.severity === 'critical' ? Colors.expense : insight.severity === 'warning' ? Colors.warning : Colors.success;
-                  return (
-                    <View style={styles.nextActionCard}>
-                      <View style={styles.nextActionRow}>
-                        <View style={[styles.priorityIconBadge, { backgroundColor: insightColor + '22' }]}>
-                          <Icon name={isHealthy ? 'check' : insight.severity === 'critical' ? 'alert-circle' : 'alert-triangle'} size={16} color={insightColor} />
-                        </View>
-                        <View style={styles.priorityContent}>
-                          <Text style={styles.nextActionTitle}>{isHealthy ? 'All Clear for Today' : insight.title}</Text>
-                          <Text style={styles.priorityAmount}>{insight.action}</Text>
-                        </View>
-                      </View>
-                    </View>
-                  );
-                })()}
-
-                {/* SECTION 2: WHAT NEEDS YOUR ATTENTION — every risk/
-                    opportunity signal beyond the top 3 already shown above,
-                    collapsed by default so the dashboard doesn't default to
-                    a full list on top of the top-priorities card. */}
-                {priorities.length > TOP_PRIORITY_COUNT && (
-                  <View style={styles.operationsSection}>
-                    <TouchableOpacity style={styles.sectionTitleRow} onPress={() => setShowAllPriorities(v => !v)} activeOpacity={0.7}>
-                      <Icon name="check-square" size={13} color={Colors.textMuted} />
-                      <Text style={styles.operationsSectionTitle}>What Else Needs Your Attention ({priorities.length - TOP_PRIORITY_COUNT})</Text>
-                      <Icon name={showAllPriorities ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
-                    </TouchableOpacity>
-
-                    {showAllPriorities && PRIORITY_TIER_ORDER.map(tier => {
-                      const tierItems = priorities.slice(TOP_PRIORITY_COUNT).filter(p => p.tier === tier);
-                      if (tierItems.length === 0) return null;
-                      const tierMeta = PRIORITY_TIER_META[tier];
-                      return (
-                        <View key={tier} style={styles.priorityTierGroup}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                            <View style={[styles.priorityTierDot, { backgroundColor: tierMeta.color }]} />
-                            <Text style={[styles.priorityTierLabel, { color: tierMeta.color }]}>{tierMeta.label}</Text>
-                          </View>
-                          {tierItems.map(item => {
-                            const kindMeta = PRIORITY_KIND_META[item.kind];
-                            return (
-                              <TouchableOpacity
-                                key={item.id}
-                                style={[styles.priorityCard, tierMeta.tinted && { borderLeftColor: tierMeta.color, backgroundColor: tierMeta.color + '08' }]}
-                                onPress={() => navigate(kindMeta.screen, kindMeta.params)}
-                              >
-                                <View style={[styles.priorityIconBadge, { backgroundColor: tierMeta.color + '22' }]}>
-                                  <Icon name={kindMeta.icon} size={16} color={tierMeta.color} />
-                                </View>
-                                <View style={styles.priorityContent}>
-                                  <Text style={styles.priorityTitle}>{item.title}</Text>
-                                  <Text style={styles.priorityAmount}>{item.subtitle}</Text>
-                                </View>
-                                <Icon name="chevron-right" size={18} color={Colors.textMuted} />
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-                      );
-                    })}
-                  </View>
-                )}
-
-                </>
                 )}
 
                 {/* SECTION 3: KEY METRICS - Monthly snapshot */}
