@@ -76,6 +76,8 @@ import { computeTaxAbilityToPay } from '../utils/taxFilingReadiness';
 import { detectFinancialAlerts, DEFAULT_THRESHOLDS } from '../utils/alertEngine';
 import { computeDiscretionaryCash } from '../utils/discretionaryCash';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
+import { aggregateFigureProvenance } from '../utils/dataProvenance';
+import { ProvenanceBadge } from '../components/ui/ProvenanceBadge';
 import { buildNewGoal, goalDefaults } from '../utils/goals';
 import { detectPersonalSpending, DISMISSED_PERSONAL_KEY } from '../utils/personalSpendingDetector';
 import { detectNonRevenueInflows, DISMISSED_NON_REVENUE_KEY } from '../utils/nonRevenueInflowDetector';
@@ -817,6 +819,30 @@ export default function DashboardScreen() {
         [diagnosisForNextGoal]
     );
 
+    // Recorded/Imported/Verified/Estimated/Missing tags for the figures
+    // StickyMetricsHeader, the Business Health Score card, and Monthly
+    // Snapshot show -- aggregateFigureProvenance reuses profitMayBeIncomplete
+    // (never a second completeness check) and Transaction.source, which is
+    // already set by monoConnect.ts/accountingSync.ts, not recomputed here.
+    const incomeTransactions = useMemo(() => transactions.filter(t => t.type === 'income'), [transactions]);
+    const expenseTransactions = useMemo(() => transactions.filter(t => t.type === 'expense'), [transactions]);
+    const profitProvenance = useMemo(
+        () => aggregateFigureProvenance(transactions, profitMayBeIncomplete),
+        [transactions, profitMayBeIncomplete]
+    );
+    const cashProvenance = useMemo(
+        () => aggregateFigureProvenance(transactions, profitMayBeIncomplete),
+        [transactions, profitMayBeIncomplete]
+    );
+    const revenueProvenance = useMemo(
+        () => aggregateFigureProvenance(incomeTransactions, false),
+        [incomeTransactions]
+    );
+    const expenseProvenance = useMemo(
+        () => aggregateFigureProvenance(expenseTransactions, profitMayBeIncomplete),
+        [expenseTransactions, profitMayBeIncomplete]
+    );
+
     // The first not-yet-celebrated achieved goal -- see celebratedGoalIds
     // above for why "achieved" alone isn't enough to gate this.
     const goalToCelebrate = useMemo(
@@ -1522,7 +1548,7 @@ export default function DashboardScreen() {
     return (
         <SafeAreaView style={styles.safe}>
             <Header />
-            {canViewFinancials && <StickyMetricsHeader finance={finance} currency={currency} profitMayBeIncomplete={profitMayBeIncomplete} />}
+            {canViewFinancials && <StickyMetricsHeader finance={finance} currency={currency} profitMayBeIncomplete={profitMayBeIncomplete} profitProvenance={profitProvenance} cashProvenance={cashProvenance} />}
             <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
 
                 <TouchableOpacity style={styles.searchTrigger} onPress={() => setShowSearch(true)}>
@@ -1646,10 +1672,20 @@ export default function DashboardScreen() {
                                     size={72}
                                     strokeWidth={7}
                                 />
-                                <View style={[styles.healthBandBadge, { backgroundColor: healthBandMeta.color + '22' }]}>
-                                    <Text style={[styles.healthBandBadgeText, { color: healthBandMeta.color }]}>
-                                        {healthBandMeta.label} · {businessHealth.grade}
-                                    </Text>
+                                <View>
+                                    <View style={[styles.healthBandBadge, { backgroundColor: healthBandMeta.color + '22' }]}>
+                                        <Text style={[styles.healthBandBadgeText, { color: healthBandMeta.color }]}>
+                                            {healthBandMeta.label} · {businessHealth.grade}
+                                        </Text>
+                                    </View>
+                                    {/* Same provenance this score's own profit/
+                                        margin inputs carry on StickyMetricsHeader --
+                                        reused, not recomputed, so a confident-looking
+                                        score is never shown without saying what it's
+                                        actually built on. */}
+                                    <View style={{ marginTop: 6 }}>
+                                        <ProvenanceBadge state={profitProvenance} />
+                                    </View>
                                 </View>
                             </View>
                             <View style={styles.healthFactorsRow}>
@@ -2152,8 +2188,8 @@ export default function DashboardScreen() {
                     <Text style={styles.operationsSectionTitle}>Monthly Snapshot</Text>
                   </View>
                   <View style={styles.metricsGrid}>
-                    <StatTile icon="trending-up" iconColor={Colors.income} label="Total Revenue" value={`${currency}${Math.round(finance.income).toLocaleString()}`} />
-                    <StatTile icon="trending-down" iconColor={Colors.expense} label="Total Expenses" value={`${currency}${Math.round(finance.expense).toLocaleString()}`} />
+                    <StatTile icon="trending-up" iconColor={Colors.income} label="Total Revenue" value={`${currency}${Math.round(finance.income).toLocaleString()}`} badge={<ProvenanceBadge state={revenueProvenance} />} />
+                    <StatTile icon="trending-down" iconColor={Colors.expense} label="Total Expenses" value={`${currency}${Math.round(finance.expense).toLocaleString()}`} badge={<ProvenanceBadge state={expenseProvenance} />} />
                   </View>
                   <View style={styles.metricsGrid}>
                     <StatTile

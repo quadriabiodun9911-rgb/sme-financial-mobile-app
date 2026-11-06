@@ -11,13 +11,14 @@ interface StatTileProps {
     value: string;
     valueColor?: string;
     sub?: string;
+    badge?: React.ReactNode;
 }
 
 // Replaces the "emoji + number in a box" pattern repeated across Dashboard's
 // vital-signs and monthly-snapshot grids with one consistent tile: a tinted
 // icon badge, a value in the display scale, and an optional sub-line —
 // close to how Mercury/Ramp present a metric tile.
-export default function StatTile({ icon, iconColor = Colors.primary, label, value, valueColor, sub }: StatTileProps) {
+export default function StatTile({ icon, iconColor = Colors.primary, label, value, valueColor, sub, badge }: StatTileProps) {
     return (
         <View style={styles.tile}>
             <View style={[styles.iconBadge, { backgroundColor: iconColor + '1f' }]}>
@@ -26,6 +27,7 @@ export default function StatTile({ icon, iconColor = Colors.primary, label, valu
             <Text style={styles.label}>{label}</Text>
             <Text style={[styles.value, valueColor ? { color: valueColor } : null]} numberOfLines={1}>{value}</Text>
             {sub ? <Text style={styles.sub}>{sub}</Text> : null}
+            {badge ? <View style={styles.badgeSlot}>{badge}</View> : null}
         </View>
     );
 }
@@ -49,4 +51,5 @@ const styles = StyleSheet.create({
     label: { ...Type.caption, color: Colors.textMuted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.4 },
     value: { fontSize: 22, fontWeight: '800', color: Colors.textPrimary, letterSpacing: -0.3 },
     sub: { ...Type.caption, color: Colors.textMuted, marginTop: 4, fontWeight: '500' },
+    badgeSlot: { marginTop: 6 },
 });

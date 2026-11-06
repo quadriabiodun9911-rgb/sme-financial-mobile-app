@@ -4,6 +4,8 @@ import { Colors } from '../theme/colors';
 import { Shadow } from '../theme/tokens';
 import { FinanceData } from '../types';
 import { describeRunwayForDisplay } from '../utils/cashRunway';
+import { DataProvenanceState } from '../utils/dataProvenance';
+import { ProvenanceBadge } from './ui/ProvenanceBadge';
 import Icon, { IconName } from './ui/Icon';
 
 interface Props {
@@ -17,9 +19,14 @@ interface Props {
   // one a gap like this most directly overstates. Never a second,
   // independently-computed completeness check.
   profitMayBeIncomplete?: boolean;
+  // Pre-computed in DashboardScreen.tsx via aggregateFigureProvenance, not
+  // here -- this stays a presentational component with no transactions
+  // dependency, same pattern profitMayBeIncomplete already established.
+  profitProvenance?: DataProvenanceState;
+  cashProvenance?: DataProvenanceState;
 }
 
-export default function StickyMetricsHeader({ finance, currency, profitMayBeIncomplete }: Props) {
+export default function StickyMetricsHeader({ finance, currency, profitMayBeIncomplete, profitProvenance, cashProvenance }: Props) {
   // Same shared cap/format DashboardScreen's own Vital Signs gauge uses
   // (cashRunway.ts) -- a long runway reads the same way everywhere it's
   // shown, capped at 10 years and flagged rather than printed as spurious
@@ -75,6 +82,12 @@ export default function StickyMetricsHeader({ finance, currency, profitMayBeInco
             {metric.label === 'Profit' && profitMayBeIncomplete && (
               <Text style={styles.flagText}>Some expenses may be missing</Text>
             )}
+            {metric.label === 'Profit' && profitProvenance && (
+              <View style={styles.badgeWrap}><ProvenanceBadge state={profitProvenance} /></View>
+            )}
+            {metric.label === 'Cash' && cashProvenance && (
+              <View style={styles.badgeWrap}><ProvenanceBadge state={cashProvenance} /></View>
+            )}
           </View>
         ))}
       </View>
@@ -124,5 +137,9 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     marginTop: 3,
     textAlign: 'center',
+  },
+  badgeWrap: {
+    marginTop: 4,
+    alignItems: 'center',
   },
 });
