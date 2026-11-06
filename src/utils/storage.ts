@@ -508,6 +508,29 @@ export async function loadInvoices(): Promise<Invoice[] | null> {
     return safeParse<Invoice[]>(raw);
 }
 
+// Direct read for one specific owner's invoices -- see
+// loadTransactionsForOwner's comment for why this bypasses the
+// active-workspace pointer and the AsyncStorage cache.
+export async function loadInvoicesForOwner(ownerId: string): Promise<Invoice[]> {
+    try {
+        const { data, error } = await supabase
+            .from('invoices')
+            .select('data')
+            .eq('user_id', ownerId)
+            .order('updated_at', { ascending: false });
+        if (error) { logSyncError('invoices', 'load_for_owner', error); return []; }
+        if (!data || data.length === 0) return [];
+        const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
+        return data.map(r => {
+            const raw = r.data as Record<string, any>;
+            return (encKey && raw?.encrypted ? decryptInvoice(raw as any, encKey) : raw) as Invoice;
+        });
+    } catch (e) {
+        logSyncError('invoices', 'load_for_owner', e);
+        return [];
+    }
+}
+
 // ─── Vendor Bills ───────────────────────────────────────────────────────────────
 export async function saveBills(bills: Bill[]): Promise<void> {
     await AsyncStorage.setItem(KEYS.bills, JSON.stringify(bills));
@@ -854,6 +877,27 @@ export async function loadLoans(): Promise<Loan[] | null> {
     }
     const raw = await AsyncStorage.getItem(KEYS.loans);
     return safeParse<Loan[]>(raw);
+}
+
+// Direct read for one specific owner's loans -- same shape as
+// loadTransactionsForOwner/loadAssetsForOwner above (no AsyncStorage
+// cache, bypasses the active-workspace pointer), for the Accountant
+// Workspace client list, which needs every client business's data at
+// once rather than whichever one is currently active.
+export async function loadLoansForOwner(ownerId: string): Promise<Loan[]> {
+    try {
+        const { data, error } = await supabase.from('loans').select('data').eq('user_id', ownerId);
+        if (error) { logSyncError('loans', 'load_for_owner', error); return []; }
+        if (!data || data.length === 0) return [];
+        const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
+        return data.map(r => {
+            const raw = r.data as Record<string, any>;
+            return (encKey && raw?.encrypted ? decryptLoan(raw as any, encKey) : raw) as Loan;
+        });
+    } catch (e) {
+        logSyncError('loans', 'load_for_owner', e);
+        return [];
+    }
 }
 
 // ─── Budgets ──────────────────────────────────────────────────────────────────
@@ -1220,6 +1264,94 @@ export async function joinTeamWithCode(
         .single();
     if (error || !data || !(data as any).owner_user_id) throw new Error('Invalid or already used invite code.');
     return { ownerId: (data as any).owner_user_id, role: (data as any).role };
+}
+
+export interface SentBusinessInvite {
+    id: string;
+    businessEmail: string;
+    role: 'accountant' | 'external_accountant';
+    inviteCode: string;
+    createdAt: string;
+}
+
+// The inverse of inviteTeamMember: an accountant (or anyone offering to
+// manage a business, not yet necessarily on Quad360) creates a pending
+// row naming THEMSELVES as member_user_id, with owner_user_id left null
+// until a business owner claims the code (see migration 052's
+// claim_business_invite). member_email here is the business's contact
+// email, purely informational/for the accountant's own "who did I send
+// this to" list -- claiming is still only ever by code, never by email
+// match, same as the owner-initiated flow.
+export async function inviteBusinessAsAccountant(
+    businessEmail: string,
+    role: 'accountant' | 'external_accountant' = 'external_accountant',
+): Promise<string> {
+    const myId = await getAuthUserId();
+    if (!myId) throw new Error('Not authenticated.');
+    const seg1 = Math.random().toString(36).substring(2, 5).toUpperCase();
+    const seg2 = Math.random().toString(36).substring(2, 5).toUpperCase();
+    const inviteCode = (seg1 + seg2).substring(0, 6);
+    const { error } = await supabase.from('team_members').insert({
+        owner_user_id: null,
+        member_user_id: myId,
+        member_email: businessEmail.toLowerCase().trim(),
+        role,
+        invite_code: inviteCode,
+        status: 'pending',
+    });
+    if (error) throw new Error(error.message);
+    return inviteCode;
+}
+
+// A business owner's side of the same flow: entering the code an
+// accountant sent them fills in owner_user_id as the caller and activates
+// the row -- after this, the accountant appears in that business's normal
+// team member list (loadTeamMembers), exactly as if the business owner
+// had invited them the usual way.
+export async function joinBusinessInviteWithCode(
+    inviteCode: string,
+): Promise<{ accountantId: string; role: 'accountant' | 'external_accountant' }> {
+    const { data, error } = await supabase
+        .rpc('claim_business_invite', { p_invite_code: inviteCode.toUpperCase() })
+        .single();
+    if (error || !data || !(data as any).member_user_id) throw new Error('Invalid or already used invite code.');
+    return { accountantId: (data as any).member_user_id, role: (data as any).role };
+}
+
+// Every invite this signed-in accountant has sent and is still waiting on
+// -- scoped by team_members_self_invite_select's RLS policy to rows this
+// caller actually created, so this can never list another accountant's
+// pending invites.
+export async function listMySentBusinessInvites(): Promise<SentBusinessInvite[]> {
+    const myId = await getAuthUserId();
+    if (!myId) return [];
+    try {
+        const { data, error } = await supabase
+            .from('team_members')
+            .select('id, member_email, role, invite_code, invited_at')
+            .is('owner_user_id', null)
+            .eq('member_user_id', myId)
+            .eq('status', 'pending');
+        if (error) { logSyncError('team_members', 'list_sent_business_invites', error); return []; }
+        return (data ?? []).map(r => ({
+            id: r.id,
+            businessEmail: r.member_email,
+            role: r.role,
+            inviteCode: r.invite_code,
+            createdAt: r.invited_at,
+        }));
+    } catch (e) {
+        logSyncError('team_members', 'list_sent_business_invites', e);
+        return [];
+    }
+}
+
+// Cancels an invite this accountant sent but hasn't been claimed yet --
+// same RLS scoping as listMySentBusinessInvites, so this can only ever
+// delete the caller's own unclaimed invites.
+export async function cancelSentBusinessInvite(inviteId: string): Promise<void> {
+    const { error } = await supabase.from('team_members').delete().eq('id', inviteId);
+    if (error) logSyncError('team_members', 'cancel_sent_business_invite', error);
 }
 
 // Creates a SECOND (or third, ...) business this same login owns outright,
