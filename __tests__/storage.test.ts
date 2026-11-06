@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, FinancialGoal } from '../src/types';
+import { Transaction, FinancialGoal, BusinessSettings } from '../src/types';
 
 // ─── Mock AsyncStorage ────────────────────────────────────────────────────────
 jest.mock('@react-native-async-storage/async-storage', () => {
@@ -74,6 +74,8 @@ import {
     loadTransactions,
     saveGoals,
     loadGoals,
+    saveSettings,
+    loadSettings,
     setWorkspaceOwner,
     getWorkspaceOwnerId,
     clearLocalFinancialCache,
@@ -108,6 +110,17 @@ const makeTx = (overrides: Partial<Transaction> = {}): Transaction => ({
     status: 'paid',
     ...overrides,
 });
+
+const makeSettings = (overrides: Partial<BusinessSettings> = {}): BusinessSettings => ({
+    businessName: 'Test Biz',
+    businessType: 'both',
+    industry: 'general',
+    currency: '₦',
+    currencyCode: 'NGN',
+    minReserve: '0',
+    targetMargin: '20',
+    ...overrides,
+} as BusinessSettings);
 
 const makeGoal = (overrides: Partial<FinancialGoal> = {}): FinancialGoal => ({
     id: 'goal-1',
@@ -645,5 +658,104 @@ describe('resolveWorkspaceRole', () => {
 
         expect(await resolveWorkspaceRole()).toBe('owner');
         expect(await getWorkspaceOwnerId()).toBe('me-1');
+    });
+});
+
+// ─── Settings currency-integrity diagnostic ────────────────────────────────
+// Regression coverage for the observability added after a user reported
+// their displayed currency changing after registering a second, unrelated
+// account in a different browser. The settings RLS policy
+// (supabase/migrations/001_enable_rls.sql:72-80) scopes every row to
+// `user_id = auth.uid()`, so this should be structurally impossible -- these
+// tests exist to prove the diagnostic itself fires on the one case that
+// would actually be evidence of a real leak, and stays silent on every
+// legitimate case, so it doesn't cry wolf if it's ever triggered for real.
+function mockSettingsRemoteSequence(responses: Array<{ data: { data: BusinessSettings } | null; error: unknown }>) {
+    let call = 0;
+    jest.spyOn(supabase, 'from').mockImplementation((table: string) => {
+        if (table === 'settings') {
+            return {
+                upsert: jest.fn(async () => ({ error: null })),
+                select: () => ({
+                    eq: () => ({
+                        single: jest.fn(async () => {
+                            const r = responses[Math.min(call, responses.length - 1)];
+                            call++;
+                            return r;
+                        }),
+                    }),
+                }),
+            } as any;
+        }
+        return { upsert: jest.fn(async () => ({ error: null })), select: () => ({ eq: () => ({ single: jest.fn(async () => ({ data: null, error: null })), order: () => Promise.resolve({ data: null, error: null }) }) }) } as any;
+    });
+}
+
+describe('settings currency-integrity diagnostic', () => {
+    let errorSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+        errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        errorSpy.mockRestore();
+    });
+
+    function integrityLogged(): boolean {
+        return errorSpy.mock.calls.some(call => String(call[0]).includes('[SettingsIntegrity]'));
+    }
+
+    it('does not flag a legitimate currency change the user made via saveSettings, then reloaded', async () => {
+        mockSession('owner-1');
+        mockSettingsRemoteSequence([{ data: null, error: null }]);
+
+        await saveSettings(makeSettings({ currency: '$', currencyCode: 'USD' }));
+        errorSpy.mockClear();
+
+        mockSettingsRemoteSequence([{ data: { data: makeSettings({ currency: '$', currencyCode: 'USD' }) }, error: null }]);
+        await loadSettings();
+
+        expect(integrityLogged()).toBe(false);
+    });
+
+    it('flags a currency change for the SAME ownerId between loads with no local save in between', async () => {
+        mockSession('owner-1');
+
+        mockSettingsRemoteSequence([{ data: { data: makeSettings({ currency: '₦', currencyCode: 'NGN' }) }, error: null }]);
+        await loadSettings();
+        expect(integrityLogged()).toBe(false);
+
+        mockSettingsRemoteSequence([{ data: { data: makeSettings({ currency: '$', currencyCode: 'USD' }) }, error: null }]);
+        await loadSettings();
+
+        expect(integrityLogged()).toBe(true);
+        const msg = String(errorSpy.mock.calls.find(call => String(call[0]).includes('[SettingsIntegrity]'))![0]);
+        expect(msg).toContain('owner-1');
+        expect(msg).toContain('₦/NGN');
+        expect(msg).toContain('$/USD');
+    });
+
+    it('does not flag switching to a different account with a different currency', async () => {
+        mockSession('owner-1');
+        mockSettingsRemoteSequence([{ data: { data: makeSettings({ currency: '₦', currencyCode: 'NGN' }) }, error: null }]);
+        await loadSettings();
+
+        mockSession('owner-2');
+        mockSettingsRemoteSequence([{ data: { data: makeSettings({ currency: '$', currencyCode: 'USD' }) }, error: null }]);
+        await loadSettings();
+
+        expect(integrityLogged()).toBe(false);
+    });
+
+    it('does not flag when the currency is unchanged across loads for the same account', async () => {
+        mockSession('owner-1');
+        mockSettingsRemoteSequence([{ data: { data: makeSettings({ currency: '₦', currencyCode: 'NGN' }) }, error: null }]);
+        await loadSettings();
+
+        mockSettingsRemoteSequence([{ data: { data: makeSettings({ currency: '₦', currencyCode: 'NGN' }) }, error: null }]);
+        await loadSettings();
+
+        expect(integrityLogged()).toBe(false);
     });
 });

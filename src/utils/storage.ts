@@ -259,10 +259,57 @@ export async function loadTransactionsForOwner(ownerId: string): Promise<Transac
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
+// Side-channel, separate from KEYS.settings itself, purely for
+// checkSettingsCurrencyConsistency below -- records which ownerId the
+// currency/currencyCode we last saw actually belongs to, so a legitimate
+// account switch (different ownerId) is never confused with the same
+// account's currency changing underneath it between loads.
+const SETTINGS_INTEGRITY_KEY = '@quad360/settingsIntegrityCheck';
+
+interface SettingsIntegritySnapshot {
+    ownerId: string;
+    currency: string;
+    currencyCode: string;
+}
+
+// Diagnostic only, never throws and never blocks a save/load -- flags the
+// one thing a real user reported (currency changing on its own) with hard,
+// timestamped evidence instead of relying on a screenshot after the fact.
+// This should be structurally impossible: the settings RLS policy
+// (supabase/migrations/001_enable_rls.sql:72-80) scopes every row to
+// `user_id = auth.uid()`, enforced by Postgres itself regardless of what
+// the client queries for. If this ever fires, that assumption has been
+// violated somewhere this code can't see (e.g. an auth/session mixup), and
+// the logged ownerId + before/after currency is the evidence needed to
+// actually chase it down.
+async function checkSettingsCurrencyConsistency(ownerId: string, s: Pick<BusinessSettings, 'currency' | 'currencyCode'>): Promise<void> {
+    try {
+        const raw = await AsyncStorage.getItem(SETTINGS_INTEGRITY_KEY);
+        const prev = safeParse<SettingsIntegritySnapshot>(raw);
+        if (prev && prev.ownerId === ownerId && (prev.currency !== s.currency || prev.currencyCode !== s.currencyCode)) {
+            const msg = `[SettingsIntegrity] Currency changed for the SAME account (ownerId=${ownerId}) between loads: ` +
+                `${prev.currency}/${prev.currencyCode} -> ${s.currency}/${s.currencyCode}. This should be impossible under ` +
+                `the settings RLS policy -- if you see this, report it with the account email and approximate time.`;
+            console.error(msg);
+            logSyncError('settings', 'currency_integrity_check', new Error(msg));
+        }
+        const next: SettingsIntegritySnapshot = { ownerId, currency: s.currency, currencyCode: s.currencyCode };
+        await AsyncStorage.setItem(SETTINGS_INTEGRITY_KEY, JSON.stringify(next));
+    } catch {
+        // Best-effort diagnostic only -- must never break a real save/load.
+    }
+}
+
 export async function saveSettings(s: BusinessSettings): Promise<void> {
     await AsyncStorage.setItem(KEYS.settings, JSON.stringify(s));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
+    // A local save reflects the user's own intent (e.g. they just changed
+    // currency in Settings) -- record it as the new expected baseline for
+    // this ownerId BEFORE any sync attempt, so this genuine change is never
+    // mistaken for an unexplained one the next time loadSettings() runs,
+    // regardless of whether the upsert below succeeds or gets queued.
+    await checkSettingsCurrencyConsistency(ownerId, s);
     try {
         const { error } = await supabase.from('settings').upsert(
             { user_id: ownerId, data: s, updated_at: new Date().toISOString() },
@@ -287,8 +334,10 @@ export async function loadSettings(): Promise<BusinessSettings | null> {
                 .single();
             if (error) { logSyncError('settings', 'load', error); }
             else if (data) {
-                await AsyncStorage.setItem(KEYS.settings, JSON.stringify(data.data));
-                return data.data as BusinessSettings;
+                const fetched = data.data as BusinessSettings;
+                await checkSettingsCurrencyConsistency(ownerId, fetched);
+                await AsyncStorage.setItem(KEYS.settings, JSON.stringify(fetched));
+                return fetched;
             }
         } catch (e) {
             logSyncError('settings', 'load', e);
