@@ -28,6 +28,7 @@ import MultiYearTrends from '../components/MultiYearTrends';
 import QualityOfGrowthTab from '../components/QualityOfGrowthTab';
 import CashFlowHealthTab from '../components/CashFlowHealthTab';
 import WorkingCapitalHealthTab from '../components/WorkingCapitalHealthTab';
+import ReceivablesPayrollCashImpact from '../components/ReceivablesPayrollCashImpact';
 import NextStepLink from '../components/NextStepLink';
 import CashFlowStatement from '../components/CashFlowStatement';
 import DataQualityBadge from '../components/DataQualityBadge';
@@ -68,7 +69,7 @@ type SubTab =
     | 'balancesheet' | 'pnl' | 'inventory' | 'accrual' | 'changesInEquity'
     | 'aging'
     | 'tax' | 'tax-filing' | 'tax-planning'
-    | 'cashflow' | 'cashhealth' | 'workingcapitalhealth'
+    | 'cashflow' | 'cashhealth' | 'workingcapitalhealth' | 'receivables-payroll'
     | 'growth' | 'history' | 'quality' | 'customers' | 'products' | 'projects';
 
 const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
@@ -79,6 +80,7 @@ const SECTION_TABS: Record<SectionKey, { key: SubTab; label: string }[]> = {
         { key: 'cashflow',     label: 'Cash Flow Statement' },
         { key: 'cashhealth',   label: 'Cash Flow Health' },
         { key: 'workingcapitalhealth', label: 'Working Capital Health' },
+        { key: 'receivables-payroll', label: 'Fee & Payroll Cash Flow' },
         { key: 'inventory',    label: 'Stock' },
         { key: 'accrual',      label: 'Accrual vs Cash' },
     ],
@@ -111,7 +113,7 @@ const PERIODS: { key: ReportPeriod; label: string }[] = [
 ];
 
 export default function ReportsScreen() {
-    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate, user, isDemoMode, badDebtProvisions, receivableWriteOffs, inventoryWriteDowns } = useApp();
+    const { finance: allFinance, settings, updateSettings, transactions, assets, loans: loansList, navParams, inventory, invoices, setCurrentScreen, navigate, user, isDemoMode, badDebtProvisions, receivableWriteOffs, inventoryWriteDowns, staff } = useApp();
     const { currency, targetMargin } = settings;
     const businessName = user?.businessName || 'Your Business';
 
@@ -885,6 +887,25 @@ export default function ReportsScreen() {
                         </View>
                     )}
 
+                    {/* ── FEE & PAYROLL CASH FLOW ───────────────────────
+                        "If I collected everything owed to me today, would it
+                        cover a month of payroll?" -- useful for any business
+                        with real receivables AND real staff (fee-based
+                        businesses, schools, service providers on invoice
+                        terms), not gated behind an industry type since none
+                        in this app's Industry union names that vertical.
+                        Reuses computeAgingBuckets (same AR population "Who
+                        Owes Me" reads from) and monthlySalaryCost (same
+                        per-staff cost PayrollScreen's own total uses). */}
+                    {activeTab === 'receivables-payroll' && (
+                        <ReceivablesPayrollCashImpact
+                            transactions={transactions}
+                            invoices={invoices}
+                            staff={staff}
+                            receivableWriteOffs={receivableWriteOffs}
+                            currency={currency}
+                        />
+                    )}
 
                     {/* ── GROWTH OUTLOOK (trends + scenarios) ──────────── */}
                     {activeTab === 'growth' && (
