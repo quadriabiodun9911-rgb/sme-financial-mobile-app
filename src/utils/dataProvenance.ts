@@ -90,8 +90,13 @@ export function aggregateFigureProvenance(
     transactions: Transaction[],
     hasCompletenessGap: boolean,
 ): DataProvenanceState {
-    if (hasCompletenessGap) return 'estimated';
+    // Missing wins over Estimated when there's genuinely nothing behind the
+    // figure at all -- "Estimated" implies a real calculation built on a
+    // shaky assumption, which overstates what's actually there when the
+    // underlying set is empty (e.g. zero expense transactions recorded,
+    // even though a margin-based completeness check still fired).
     if (transactions.length === 0) return 'missing';
+    if (hasCompletenessGap) return 'estimated';
 
     const states = transactions.map(transactionProvenance);
     if (states.every(s => s === 'verified')) return 'verified';

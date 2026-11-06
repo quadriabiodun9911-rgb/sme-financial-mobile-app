@@ -824,15 +824,30 @@ export default function DashboardScreen() {
     // Snapshot show -- aggregateFigureProvenance reuses profitMayBeIncomplete
     // (never a second completeness check) and Transaction.source, which is
     // already set by monoConnect.ts/accountingSync.ts, not recomputed here.
-    const incomeTransactions = useMemo(() => transactions.filter(t => t.type === 'income'), [transactions]);
-    const expenseTransactions = useMemo(() => transactions.filter(t => t.type === 'expense'), [transactions]);
+    //
+    // Each figure's provenance is computed from the SAME transaction subset
+    // finance.ts actually builds that figure from -- pnlTransactions
+    // (excludes equityMovement) for Profit/Revenue/Expenses, since
+    // computeFinance's accrual income/expense/profit do; the paid-only cash-
+    // basis subset (includes equityMovement, since cash really did move) for
+    // Cash, since cashBalance is paidIncome - paidExpense. Using the same
+    // sets finance.ts uses -- not a second, independently-scoped read of
+    // `transactions` -- so a badge can never claim a provenance for data
+    // that isn't actually behind the number it's attached to.
+    const pnlTransactionsForProvenance = useMemo(() => transactions.filter(t => !t.equityMovement), [transactions]);
+    const incomeTransactions = useMemo(() => pnlTransactionsForProvenance.filter(t => t.type === 'income'), [pnlTransactionsForProvenance]);
+    const expenseTransactions = useMemo(() => pnlTransactionsForProvenance.filter(t => t.type === 'expense'), [pnlTransactionsForProvenance]);
+    const paidCashTransactions = useMemo(
+        () => transactions.filter(t => (t.type === 'income' || t.type === 'expense') && (t.status ?? 'paid') === 'paid'),
+        [transactions]
+    );
     const profitProvenance = useMemo(
-        () => aggregateFigureProvenance(transactions, profitMayBeIncomplete),
-        [transactions, profitMayBeIncomplete]
+        () => aggregateFigureProvenance(pnlTransactionsForProvenance, profitMayBeIncomplete),
+        [pnlTransactionsForProvenance, profitMayBeIncomplete]
     );
     const cashProvenance = useMemo(
-        () => aggregateFigureProvenance(transactions, profitMayBeIncomplete),
-        [transactions, profitMayBeIncomplete]
+        () => aggregateFigureProvenance(paidCashTransactions, profitMayBeIncomplete),
+        [paidCashTransactions, profitMayBeIncomplete]
     );
     const revenueProvenance = useMemo(
         () => aggregateFigureProvenance(incomeTransactions, false),

@@ -59,6 +59,20 @@ describe('computeReceivablesPayrollCashImpact', () => {
         expect(result.monthlyPayrollObligation).toBe(0);
     });
 
+    // Regression: hasPayrollData used to also require monthlyPayrollObligation
+    // > 0, so an active staff member recorded with a salary of 0 (e.g. an
+    // unpaid trial period) was treated identically to no staff records at
+    // all, hiding real staff data behind the "no payroll data" empty state.
+    it('reports real payroll data for an active staff member even when their recorded salary is zero', () => {
+        const staff = [makeStaff({ salary: 0, status: 'active' })];
+
+        const result = computeReceivablesPayrollCashImpact([], [], staff, []);
+
+        expect(result.activeStaffCount).toBe(1);
+        expect(result.monthlyPayrollObligation).toBe(0);
+        expect(result.hasPayrollData).toBe(true);
+    });
+
     it('only counts active staff toward the payroll obligation', () => {
         const staff = [makeStaff({ salary: 50000, status: 'active' }), makeStaff({ salary: 70000, status: 'inactive' })];
 

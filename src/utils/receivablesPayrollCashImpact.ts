@@ -56,6 +56,10 @@ export function computeReceivablesPayrollCashImpact(
         activeStaffCount: activeStaff.length,
         netImpact: totalOutstandingReceivables - monthlyPayrollObligation,
         hasReceivablesData: totalOutstandingReceivables > 0,
-        hasPayrollData: activeStaff.length > 0 && monthlyPayrollObligation > 0,
+        // Staff data existing is what matters, not whether it happens to sum
+        // to a nonzero amount -- an active staff member recorded with a
+        // salary of 0 (e.g. an unpaid trial period) is still real payroll
+        // data, not the same as no staff records at all.
+        hasPayrollData: activeStaff.length > 0,
     };
 }

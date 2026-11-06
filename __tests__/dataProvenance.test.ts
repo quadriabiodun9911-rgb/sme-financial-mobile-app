@@ -39,6 +39,15 @@ describe('aggregateFigureProvenance', () => {
         expect(aggregateFigureProvenance([], false)).toBe('missing');
     });
 
+    // Regression: hasCompletenessGap used to be checked before the empty-
+    // transactions check, so an empty set with a true completeness-gap flag
+    // (e.g. zero expense transactions tripping the implausible-margin
+    // diagnosis) returned 'estimated' -- implying a real calculation built
+    // on a shaky assumption -- instead of the more accurate 'missing'.
+    it('is missing, not estimated, when there are no transactions even with a completeness gap flagged', () => {
+        expect(aggregateFigureProvenance([], true)).toBe('missing');
+    });
+
     it('is estimated when a completeness gap is flagged, regardless of how clean the sources look', () => {
         const txs = [makeTx({ source: 'mono' }), makeTx({ source: 'mono' })];
         expect(aggregateFigureProvenance(txs, true)).toBe('estimated');
