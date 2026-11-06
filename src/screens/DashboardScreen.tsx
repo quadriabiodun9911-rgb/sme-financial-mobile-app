@@ -807,6 +807,16 @@ export default function DashboardScreen() {
         [transactions, invoices, finance.cashBalance, finance.expense, settings?.currency, loans, inventory, assets, settings?.industry]
     );
 
+    // Whether the Profit figure shown at the top of this screen (and the
+    // Vital Signs card) is built on data diagnoseRecordKeeping already
+    // flagged as likely incomplete -- reused here, not recomputed, so this
+    // can never disagree with the same finding shown as a diagnosis card
+    // elsewhere on Reports/Scoreboard.
+    const profitMayBeIncomplete = useMemo(
+        () => !!diagnosisForNextGoal?.diagnoses.some(d => d.id === 'under-recorded-expenses' || d.id === 'implausible-margin'),
+        [diagnosisForNextGoal]
+    );
+
     // The first not-yet-celebrated achieved goal -- see celebratedGoalIds
     // above for why "achieved" alone isn't enough to gate this.
     const goalToCelebrate = useMemo(
@@ -1512,7 +1522,7 @@ export default function DashboardScreen() {
     return (
         <SafeAreaView style={styles.safe}>
             <Header />
-            {canViewFinancials && <StickyMetricsHeader finance={finance} currency={currency} />}
+            {canViewFinancials && <StickyMetricsHeader finance={finance} currency={currency} profitMayBeIncomplete={profitMayBeIncomplete} />}
             <ScrollView style={styles.scroll} contentContainerStyle={styles.pad}>
 
                 <TouchableOpacity style={styles.searchTrigger} onPress={() => setShowSearch(true)}>

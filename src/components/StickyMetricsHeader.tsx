@@ -9,9 +9,17 @@ import Icon, { IconName } from './ui/Icon';
 interface Props {
   finance: FinanceData;
   currency: string;
+  // True when financialDiagnosisEngine's diagnoseRecordKeeping found a real
+  // record-keeping gap (months with income but no expenses logged at all,
+  // or an implausibly high margin for the industry) -- the same signal
+  // already shown as a diagnosis card elsewhere, surfaced here too since
+  // Profit is the single most load-bearing number on this screen and the
+  // one a gap like this most directly overstates. Never a second,
+  // independently-computed completeness check.
+  profitMayBeIncomplete?: boolean;
 }
 
-export default function StickyMetricsHeader({ finance, currency }: Props) {
+export default function StickyMetricsHeader({ finance, currency, profitMayBeIncomplete }: Props) {
   // Same shared cap/format DashboardScreen's own Vital Signs gauge uses
   // (cashRunway.ts) -- a long runway reads the same way everywhere it's
   // shown, capped at 10 years and flagged rather than printed as spurious
@@ -63,6 +71,9 @@ export default function StickyMetricsHeader({ finance, currency }: Props) {
             </Text>
             {metric.label === 'Runway' && runwayImplausible && (
               <Text style={styles.flagText}>Check expenses — this looks too good</Text>
+            )}
+            {metric.label === 'Profit' && profitMayBeIncomplete && (
+              <Text style={styles.flagText}>Some expenses may be missing</Text>
             )}
           </View>
         ))}
