@@ -1654,6 +1654,17 @@ export default function DashboardScreen() {
                                     </View>
                                 ))}
                             </View>
+                            {/* This score is built on the same profit/margin
+                                figures StickyMetricsHeader already flags as
+                                possibly incomplete -- shown here too since a
+                                confident-looking "82/100" is exactly the kind
+                                of number that shouldn't be presented without
+                                this caveat, reusing the same derived flag. */}
+                            {profitMayBeIncomplete && (
+                                <Text style={styles.healthDataCaveat}>
+                                    Some expenses may be missing — this score may improve once they're logged
+                                </Text>
+                            )}
                             <TouchableOpacity
                                 style={styles.healthWhyBtn}
                                 onPress={(e) => { e.stopPropagation(); setHealthWhyOpen(o => !o); }}
@@ -2895,6 +2906,12 @@ const styles = StyleSheet.create({
       paddingHorizontal: 16,
       marginTop: -4,
       marginBottom: 4,
+    },
+    healthDataCaveat: {
+      fontSize: 10.5,
+      color: Colors.textMuted,
+      marginBottom: 10,
+      lineHeight: 14,
     },
     cashTrendWrap: {
       paddingHorizontal: 16,
