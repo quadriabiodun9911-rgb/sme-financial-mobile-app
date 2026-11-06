@@ -31,6 +31,7 @@ import MarginWatchScreen from './src/screens/MarginWatchScreen';
 import GeneralLedgerScreen from './src/screens/GeneralLedgerScreen';
 import ProductionCycleScreen from './src/screens/ProductionCycleScreen';
 import PortfolioScreen from './src/screens/PortfolioScreen';
+import AccountantWorkspaceScreen from './src/screens/AccountantWorkspaceScreen';
 import AssetsScreen from './src/screens/AssetsScreen';
 import LoansScreen from './src/screens/LoansScreen';
 import InventoryScreen from './src/screens/InventoryScreen';
@@ -200,6 +201,7 @@ function NavigatorContent() {
             {currentScreen === 'general-ledger'  && <GeneralLedgerScreen />}
             {currentScreen === 'production-cycles' && <ProductionCycleScreen />}
             {currentScreen === 'portfolio'       && <PortfolioScreen />}
+            {currentScreen === 'accountant-workspace' && <AccountantWorkspaceScreen />}
             {currentScreen === 'assets'       && <AssetsScreen />}
             {currentScreen === 'loans'        && <LoansScreen />}
             {currentScreen === 'inventory'    && <InventoryScreen />}

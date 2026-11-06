@@ -235,6 +235,7 @@ const T = {
         navGeneralLedger: 'General Ledger', navGeneralLedgerDesc: 'Trial Balance & journal entries — for a bookkeeper',
         navProductionCycles: 'Production Cycles', navProductionCyclesDesc: 'Cost & profit per bird, batch, or unit — from your real records',
         navPortfolio: 'Portfolio', navPortfolioDesc: 'Combined cash, revenue & profit across every business you own',
+        navAccountantWorkspace: 'My Clients', navAccountantWorkspaceDesc: 'Every client business you advise, with what needs your attention',
         navRisk: 'Risk', navForecast: 'Forecast',
         navInsightsDesc: 'What actually needs a decision right now',
         navAdvisor: 'Ask Advisor', navAdvisorDesc: 'Ask about your numbers, get a straight answer — CFO-level insight on demand',

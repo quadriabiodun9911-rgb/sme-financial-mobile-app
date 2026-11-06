@@ -51,6 +51,7 @@ export type Screen =
     | 'macroshield-detail'
     | 'upgrade'
     | 'portfolio'
+    | 'accountant-workspace'
     | 'getting-started'
     // Set on a lender session (see routeAfterAuth in OptimizedContexts.tsx)
     // but never matched in App.tsx's currentScreen switch -- isLenderSession

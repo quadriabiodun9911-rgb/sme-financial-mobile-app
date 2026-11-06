@@ -110,6 +110,7 @@ export const UNDERSTAND_ITEMS: { label: TranslationKey; icon: IconName; screen: 
     { label: 'navGeneralLedger',  icon: 'book-open',     screen: 'general-ledger', color: '#64748b', desc: 'navGeneralLedgerDesc' },
     { label: 'navProductionCycles', icon: 'repeat',      screen: 'production-cycles', color: '#ca8a04', desc: 'navProductionCyclesDesc' },
     { label: 'navPortfolio',      icon: 'layers',        screen: 'portfolio',      color: '#6366f1', desc: 'navPortfolioDesc' },
+    { label: 'navAccountantWorkspace', icon: 'briefcase', screen: 'accountant-workspace', color: '#0891b2', desc: 'navAccountantWorkspaceDesc' },
 ];
 
 export const ANTICIPATE_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey }[] = [
@@ -243,14 +244,20 @@ export default function FooterNav() {
     // storage.ts and migration 040) -- Portfolio has nothing to combine
     // with just one business, so it's hidden rather than shown empty.
     const ownsMultipleBusinesses = teamMemberships.some(m => m.role === 'owner');
+    // Any active membership in an advisory (not operational-only) role means
+    // this login has at least one client business to show in the Accountant
+    // Workspace -- hidden rather than shown empty for everyone else, same
+    // reasoning as ownsMultipleBusinesses/Portfolio above.
+    const hasAdvisoryClients = teamMemberships.some(m => ['accountant', 'external_accountant', 'manager', 'admin'].includes(m.role));
     const visibleDiagnosis = useMemo(() => DIAGNOSIS_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
     const visibleUnderstand = useMemo(
         () => UNDERSTAND_ITEMS.filter(i =>
             isScreenAllowedForRole(i.screen, userRole)
             && !(isServiceOnly && i.screen === 'inventory')
             && !(i.screen === 'portfolio' && !ownsMultipleBusinesses)
+            && !(i.screen === 'accountant-workspace' && !hasAdvisoryClients)
         ),
-        [userRole, isServiceOnly, ownsMultipleBusinesses],
+        [userRole, isServiceOnly, ownsMultipleBusinesses, hasAdvisoryClients],
     );
     const visibleAnticipate = useMemo(() => ANTICIPATE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
     const visibleDecide = useMemo(() => DECIDE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
