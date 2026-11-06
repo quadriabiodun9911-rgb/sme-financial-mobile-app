@@ -30,6 +30,7 @@ import {
     fetchAndReconcileAccountingTransactions, categorizeAccountingRows, saveCategoryMapping, UnmappedExternalCategory,
 } from '../utils/accountingSync';
 import { ExistingSyncedTransaction } from '../utils/transactionDedup';
+import { joinBusinessInviteWithCode } from '../utils/storage';
 import { MonoConnectionInfo, getMonoConnectionStatus, connectMonoAccount, disconnectMonoAccount, fetchAndReconcileMonoTransactions } from '../utils/monoConnect';
 import { setBackupPassword, deleteBackupPassword, getBackupPasswordStatus } from '../utils/backupPassword';
 import { WhatsAppLinkStatus, WHATSAPP_BOT_NUMBER, getWhatsAppLinkStatus, createWhatsAppLinkRequest, disconnectWhatsApp } from '../utils/whatsappTransactions';
@@ -247,6 +248,14 @@ export default function SettingsScreen() {
     const [pendingCode, setPendingCode]   = useState<string | null>(null);
     const [pendingInviteEmail, setPendingInviteEmail] = useState('');
 
+    // Claiming an accountant-sent invite code -- the inverse of the invite
+    // flow above: here an accountant already created the pending row
+    // (inviteBusinessAsAccountant, storage.ts) naming themselves, and this
+    // business owner is the one entering the code to let them in.
+    const [claimModal, setClaimModal] = useState(false);
+    const [claimCode, setClaimCode] = useState('');
+    const [claimLoading, setClaimLoading] = useState(false);
+
     useEffect(() => {
         if (userRole === 'owner') refreshTeam().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -403,6 +412,23 @@ export default function SettingsScreen() {
             setPendingCode(code);
         } catch (e: any) {
             showAlert('Invite failed', e?.message ?? 'Could not create invite.');
+        }
+    };
+
+    const handleClaimBusinessInvite = async () => {
+        if (!claimCode.trim()) { showAlert('Required', 'Please enter the invite code.'); return; }
+        setClaimLoading(true);
+        try {
+            const { role } = await joinBusinessInviteWithCode(claimCode.trim());
+            setClaimCode('');
+            setClaimModal(false);
+            await refreshTeam().catch(() => {});
+            const roleLabel = role === 'external_accountant' ? 'an external accountant' : 'an accountant';
+            showAlert('Added to your team', `You've given ${roleLabel} access to your business.`);
+        } catch (e: any) {
+            showAlert('Invalid code', e?.message ?? 'That invite code is invalid or has already been used.');
+        } finally {
+            setClaimLoading(false);
         }
     };
 
@@ -790,6 +816,9 @@ export default function SettingsScreen() {
                                 </Text>
                                 <TouchableOpacity style={styles.dataBtn} onPress={() => { setPendingCode(null); setInviteModal(true); }}>
                                     <Text style={styles.dataBtnText}>+ Invite Team Member</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[styles.dataBtn, { marginTop: 8 }]} onPress={() => { setClaimCode(''); setClaimModal(true); }}>
+                                    <Text style={styles.dataBtnText}>Enter an Accountant's Invite Code</Text>
                                 </TouchableOpacity>
 
                                 {teamMembers.length > 0 && (
@@ -1281,6 +1310,42 @@ export default function SettingsScreen() {
                                 </View>
                             </>
                         )}
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Claim Business Invite Modal -- an accountant sent you a code
+                (they created the invite from their own side), not you
+                inviting them -- the inverse of the modal just above. */}
+            <Modal visible={claimModal} animationType="slide" transparent>
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalCard, constrainSheetWidth && styles.modalCardWide]}>
+                        <Text style={styles.modalTitle}>Enter an Accountant's Invite Code</Text>
+                        <Text style={styles.hint}>
+                            If an accountant has invited you to let them manage your business on Quad360, enter the code they sent you below. They'll get the same access as a team member you invited yourself.
+                        </Text>
+                        <Text style={styles.label}>Invite Code</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={claimCode}
+                            onChangeText={(v) => setClaimCode(v.toUpperCase())}
+                            placeholder="ABC123"
+                            placeholderTextColor={Colors.muted}
+                            autoCapitalize="characters"
+                            maxLength={6}
+                        />
+                        <View style={[styles.modalBtns, { marginTop: 16 }]}>
+                            <TouchableOpacity style={styles.cancelBtn} onPress={() => setClaimModal(false)}>
+                                <Text style={styles.cancelBtnText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.saveBtn, { flex: 1, marginBottom: 0 }, claimLoading && { opacity: 0.6 }]}
+                                onPress={handleClaimBusinessInvite}
+                                disabled={claimLoading}
+                            >
+                                <Text style={styles.saveBtnText}>{claimLoading ? 'Adding…' : 'Add Accountant'}</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
             </Modal>
