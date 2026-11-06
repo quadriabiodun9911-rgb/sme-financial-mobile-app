@@ -26,6 +26,7 @@ jest.mock('../src/utils/supabase', () => ({
             select: () => ({
                 eq: () => ({
                     single: jest.fn(async () => ({ data: null, error: null })),
+                    maybeSingle: jest.fn(async () => ({ data: null, error: null })),
                     order: () => Promise.resolve({ data: null, error: null }),
                 }),
             }),
@@ -61,6 +62,7 @@ jest.mock('../src/utils/secureStorage', () => {
 // ─── Mock encryption (imports expo-secure-store which is ESM) ─────────────────
 jest.mock('../src/utils/encryption', () => ({
     getEncryptionKey: jest.fn(async () => 'mock-key'),
+    getFieldEncryptionKey: jest.fn(async () => 'mock-key'),
     encryptGoal: jest.fn((goal: unknown) => goal),
     decryptGoal: jest.fn((goal: unknown) => goal),
     encryptLoan: jest.fn((loan: unknown) => loan),
@@ -76,6 +78,8 @@ import {
     loadGoals,
     saveSettings,
     loadSettings,
+    resolveFieldEncryptionKeyForOwner,
+    resetSharedEncryptionKeyCache,
     setWorkspaceOwner,
     getWorkspaceOwnerId,
     clearLocalFinancialCache,
@@ -658,6 +662,121 @@ describe('resolveWorkspaceRole', () => {
 
         expect(await resolveWorkspaceRole()).toBe('owner');
         expect(await getWorkspaceOwnerId()).toBe('me-1');
+    });
+});
+
+// ─── Cross-business field-encryption key resolution ────────────────────────
+// Regression coverage for a real, pre-existing bug: every encrypted field
+// (critically transactions.amount) was always decrypted with the CALLER's
+// own authSecret-derived key, even when viewing a client business via
+// switchBusiness() as an invited team member -- which was encrypted with
+// THAT business owner's own key instead. resolveFieldEncryptionKeyForOwner
+// is the fix: the caller's own business still takes the fast local path
+// (no behavior change there), but a different owner's business now fetches
+// that owner's key from business_encryption_keys (migration 051), whose
+// RLS policy only grants read access to the owner themselves or an active
+// team member -- never write access to anyone but the owner.
+describe('resolveFieldEncryptionKeyForOwner', () => {
+    beforeEach(() => {
+        resetSharedEncryptionKeyCache();
+    });
+
+    it('takes the fast local path (no remote fetch) when ownerId is the caller\'s own id', async () => {
+        mockSession('me-1');
+        const fromSpy = jest.spyOn(supabase, 'from');
+
+        await resolveFieldEncryptionKeyForOwner('me-1');
+
+        expect(fromSpy).not.toHaveBeenCalledWith('business_encryption_keys');
+    });
+
+    it('takes the fast local path when ownerId is null (no workspace pointer resolved yet)', async () => {
+        mockSession('me-1');
+        const fromSpy = jest.spyOn(supabase, 'from');
+
+        await resolveFieldEncryptionKeyForOwner(null);
+
+        expect(fromSpy).not.toHaveBeenCalledWith('business_encryption_keys');
+    });
+
+    it('fetches the owner\'s key from business_encryption_keys when viewing a different business', async () => {
+        mockSession('me-1');
+        jest.spyOn(supabase, 'from').mockImplementation((table: string) => {
+            if (table === 'business_encryption_keys') {
+                return {
+                    select: () => ({
+                        eq: () => ({
+                            maybeSingle: jest.fn(async () => ({ data: { field_encryption_key: 'owner-biz-1-key' }, error: null })),
+                        }),
+                    }),
+                } as any;
+            }
+            return { upsert: jest.fn(async () => ({ error: null })) } as any;
+        });
+
+        const key = await resolveFieldEncryptionKeyForOwner('owner-biz-1');
+
+        expect(key).toBe('owner-biz-1-key');
+    });
+
+    it('caches a resolved remote key, so a second call for the same owner does not re-query', async () => {
+        mockSession('me-1');
+        const maybeSingle = jest.fn(async () => ({ data: { field_encryption_key: 'owner-biz-1-key' }, error: null }));
+        jest.spyOn(supabase, 'from').mockImplementation((table: string) => {
+            if (table === 'business_encryption_keys') {
+                return { select: () => ({ eq: () => ({ maybeSingle }) }) } as any;
+            }
+            return { upsert: jest.fn(async () => ({ error: null })) } as any;
+        });
+
+        await resolveFieldEncryptionKeyForOwner('owner-biz-1');
+        await resolveFieldEncryptionKeyForOwner('owner-biz-1');
+
+        expect(maybeSingle).toHaveBeenCalledTimes(1);
+    });
+
+    it('resetSharedEncryptionKeyCache forces a fresh fetch on the next call (e.g. after switching accounts)', async () => {
+        mockSession('me-1');
+        const maybeSingle = jest.fn(async () => ({ data: { field_encryption_key: 'owner-biz-1-key' }, error: null }));
+        jest.spyOn(supabase, 'from').mockImplementation((table: string) => {
+            if (table === 'business_encryption_keys') {
+                return { select: () => ({ eq: () => ({ maybeSingle }) }) } as any;
+            }
+            return { upsert: jest.fn(async () => ({ error: null })) } as any;
+        });
+
+        await resolveFieldEncryptionKeyForOwner('owner-biz-1');
+        resetSharedEncryptionKeyCache();
+        await resolveFieldEncryptionKeyForOwner('owner-biz-1');
+
+        expect(maybeSingle).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns null (never a stale/wrong key) when the remote fetch errors, and does not cache the failure', async () => {
+        mockSession('me-1');
+        let calls = 0;
+        jest.spyOn(supabase, 'from').mockImplementation((table: string) => {
+            if (table === 'business_encryption_keys') {
+                calls++;
+                return {
+                    select: () => ({
+                        eq: () => ({
+                            maybeSingle: jest.fn(async () => {
+                                if (calls === 1) throw new Error('network error');
+                                return { data: { field_encryption_key: 'recovered-key' }, error: null };
+                            }),
+                        }),
+                    }),
+                } as any;
+            }
+            return { upsert: jest.fn(async () => ({ error: null })) } as any;
+        });
+
+        const first = await resolveFieldEncryptionKeyForOwner('owner-biz-1');
+        expect(first).toBeNull();
+
+        const second = await resolveFieldEncryptionKeyForOwner('owner-biz-1');
+        expect(second).toBe('recovered-key');
     });
 });
 

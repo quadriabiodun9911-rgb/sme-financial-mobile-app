@@ -136,7 +136,7 @@ export async function saveTransactions(t: Transaction[]): Promise<void> {
     const changed = diffChangedRows('transactions', t);
     if (changed.length === 0) return;
     try {
-        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+        const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
         const rows = changed.map(tx => ({
             id: tx.id, user_id: ownerId,
             data: encKey ? encryptTransaction(tx as unknown as Record<string, any>, encKey) : tx,
@@ -206,7 +206,7 @@ export async function loadTransactions(): Promise<Transaction[] | null> {
                 .order('updated_at', { ascending: false });
             if (error) { logSyncError('transactions', 'load', error); }
             else if (data && data.length > 0) {
-                const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+                const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
                 const txs = data.map(r => {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptTransaction(raw as any, encKey) : raw) as Transaction;
@@ -247,7 +247,7 @@ export async function loadTransactionsForOwner(ownerId: string): Promise<Transac
             .order('updated_at', { ascending: false });
         if (error) { logSyncError('transactions', 'load_for_owner', error); return []; }
         if (!data || data.length === 0) return [];
-        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+        const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
         return data.map(r => {
             const raw = r.data as Record<string, any>;
             return (encKey && raw?.encrypted ? decryptTransaction(raw as any, encKey) : raw) as Transaction;
@@ -374,7 +374,7 @@ export async function saveGoals(g: FinancialGoal[]): Promise<void> {
     if (!ownerId) return;
     const changed = diffChangedRows('goals', g);
     try {
-        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+        const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
         const rows = changed.length > 0 ? changed.map(goal => ({
             id: goal.id,
             user_id: ownerId,
@@ -423,7 +423,7 @@ export async function loadGoals(): Promise<FinancialGoal[] | null> {
                 .eq('user_id', ownerId);
             if (error) { logSyncError('goals', 'load', error); }
             else if (data && data.length > 0) {
-                const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+                const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
                 const goals = data.map(r => {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptGoal(raw as any, encKey) : raw) as FinancialGoal;
@@ -446,7 +446,7 @@ export async function saveInvoices(invoices: Invoice[]): Promise<void> {
     if (!ownerId) return;
     const changed = diffChangedRows('invoices', invoices);
     try {
-        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+        const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
         const rows = changed.length > 0 ? changed.map(inv => ({
             id: inv.id, user_id: ownerId,
             data: encKey ? encryptInvoice(inv as unknown as Record<string, any>, encKey) : inv,
@@ -492,7 +492,7 @@ export async function loadInvoices(): Promise<Invoice[] | null> {
                 .order('updated_at', { ascending: false });
             if (error) { logSyncError('invoices', 'load', error); }
             else if (data && data.length > 0) {
-                const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+                const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
                 const list = data.map(r => {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptInvoice(raw as any, encKey) : raw) as Invoice;
@@ -515,7 +515,7 @@ export async function saveBills(bills: Bill[]): Promise<void> {
     if (!ownerId) return;
     const changed = diffChangedRows('bills', bills);
     try {
-        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+        const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
         const rows = changed.length > 0 ? changed.map(b => ({
             id: b.id, user_id: ownerId,
             data: encKey ? encryptBill(b as unknown as Record<string, any>, encKey) : b,
@@ -560,7 +560,7 @@ export async function loadBills(): Promise<Bill[] | null> {
                 .order('updated_at', { ascending: false });
             if (error) { logSyncError('bills', 'load', error); }
             else if (data && data.length > 0) {
-                const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+                const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
                 const list = data.map(r => {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptBill(raw as any, encKey) : raw) as Bill;
@@ -583,7 +583,7 @@ export async function saveAccounts(accounts: Account[]): Promise<void> {
     if (!ownerId) return;
     const changed = diffChangedRows('accounts', accounts);
     try {
-        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+        const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
         const rows = changed.length > 0 ? changed.map(a => ({
             id: a.id, user_id: ownerId,
             data: encKey ? encryptAccount(a as unknown as Record<string, any>, encKey) : a,
@@ -628,7 +628,7 @@ export async function loadAccounts(): Promise<Account[] | null> {
                 .order('updated_at', { ascending: false });
             if (error) { logSyncError('accounts', 'load', error); }
             else if (data && data.length > 0) {
-                const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+                const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
                 const list = data.map(r => {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptAccount(raw as any, encKey) : raw) as Account;
@@ -654,7 +654,7 @@ export async function saveJournalEntries(entries: JournalEntry[]): Promise<void>
     if (!ownerId) return;
     const changed = diffChangedRows('journalEntries', entries);
     try {
-        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+        const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
         const rows = changed.length > 0 ? changed.map(je => ({
             id: je.id, user_id: ownerId,
             data: encKey ? encryptJournalEntry(je as unknown as Record<string, any>, encKey) : je,
@@ -699,7 +699,7 @@ export async function loadJournalEntries(): Promise<JournalEntry[] | null> {
                 .order('updated_at', { ascending: false });
             if (error) { logSyncError('journalEntries', 'load', error); }
             else if (data && data.length > 0) {
-                const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+                const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
                 const list = data.map(r => {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptJournalEntry(raw as any, encKey) : raw) as JournalEntry;
@@ -722,7 +722,7 @@ export async function saveAssets(assets: Asset[]): Promise<void> {
     if (!ownerId) return;
     const changed = diffChangedRows('assets', assets);
     try {
-        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+        const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
         const rows = changed.length > 0 ? changed.map(a => ({
             id: a.id, user_id: ownerId,
             data: encKey ? encryptAsset(a as unknown as Record<string, any>, encKey) : a,
@@ -768,7 +768,7 @@ export async function loadAssets(): Promise<Asset[] | null> {
                 .order('updated_at', { ascending: false });
             if (error) { logSyncError('assets', 'load', error); }
             else if (data && data.length > 0) {
-                const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+                const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
                 const list = data.map(r => {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptAsset(raw as any, encKey) : raw) as Asset;
@@ -796,7 +796,7 @@ export async function loadAssetsForOwner(ownerId: string): Promise<Asset[]> {
             .order('updated_at', { ascending: false });
         if (error) { logSyncError('assets', 'load_for_owner', error); return []; }
         if (!data || data.length === 0) return [];
-        const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+        const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
         return data.map(r => {
             const raw = r.data as Record<string, any>;
             return (encKey && raw?.encrypted ? decryptAsset(raw as any, encKey) : raw) as Asset;
@@ -816,7 +816,7 @@ export async function saveLoans(loans: Loan[]): Promise<void> {
     try {
         let upsertOk = true;
         if (changed.length > 0) {
-            const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+            const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
             const rows = changed.map(l => ({
                 id: l.id,
                 user_id: ownerId,
@@ -842,7 +842,7 @@ export async function loadLoans(): Promise<Loan[] | null> {
         try {
             const { data, error } = await supabase.from('loans').select('data').eq('user_id', ownerId);
             if (!error && data && data.length > 0) {
-                const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+                const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
                 const loans = data.map(r => {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptLoan(raw as any, encKey) : raw) as Loan;
@@ -865,7 +865,7 @@ export async function saveBudgets(budgets: Budget[]): Promise<void> {
     try {
         let upsertOk = true;
         if (changed.length > 0) {
-            const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+            const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
             const rows = changed.map(b => ({
                 id: b.id,
                 user_id: ownerId,
@@ -891,7 +891,7 @@ export async function loadBudgets(): Promise<Budget[] | null> {
         try {
             const { data, error } = await supabase.from('budgets').select('data').eq('user_id', ownerId);
             if (!error && data && data.length > 0) {
-                const encKey = await getFieldEncryptionKey(await loadAuthSecret());
+                const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
                 const budgets = data.map(r => {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptBudget(raw as any, encKey) : raw) as Budget;
@@ -1758,14 +1758,86 @@ export async function syncFieldEncryptionKey(client: typeof supabase = supabase,
         const remoteKey = user.user_metadata?.field_encryption_key as string | undefined;
         if (remoteKey) {
             await setEncryptionKey(remoteKey);
+            // Backfills business_encryption_keys for an account that
+            // already had a canonical key before that table existed --
+            // every subsequent login re-asserts it, so an existing account
+            // becomes readable by its active team members the next time it
+            // signs in, with no separate migration/backfill step needed.
+            await publishSharedFieldEncryptionKey(client, user.id, remoteKey);
             return;
         }
         const currentAuthSecret = trustLocalAuthSecret ? await loadAuthSecret() : null;
         const key = currentAuthSecret ? deriveFieldEncryptionKey(currentAuthSecret) : await generateEncryptionKey();
         await setEncryptionKey(key);
         await client.auth.updateUser({ data: { field_encryption_key: key } }).catch(() => {});
+        await publishSharedFieldEncryptionKey(client, user.id, key);
     } catch (e) {
         logSyncError('encryptionKey', 'sync', e);
+    }
+}
+
+// Mirrors the canonical key into business_encryption_keys (migration 051)
+// so an active team member (accountant/manager/staff) can read it via that
+// table's RLS policy -- user_metadata above is only ever readable by the
+// owning identity itself, not by anyone else's session, which is exactly
+// the gap that left every team member decrypting a client's data with
+// their OWN key instead of the client's.
+async function publishSharedFieldEncryptionKey(client: typeof supabase, ownerId: string, key: string): Promise<void> {
+    try {
+        await client.from('business_encryption_keys').upsert(
+            { user_id: ownerId, field_encryption_key: key, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id' },
+        );
+    } catch (e) {
+        logSyncError('business_encryption_keys', 'publish', e);
+    }
+}
+
+// In-memory only, per app session -- a team member's own derived key for
+// THEIR OWN business never goes through this cache (resolveFieldEncryptionKeyForOwner
+// short-circuits to the fast local path for that case), so this only ever
+// holds OTHER businesses' keys the caller is an active team member of.
+// Cleared on logout/account-switch along with every other in-memory cache
+// in this file via the existing identity-change reset paths.
+const sharedEncryptionKeyCache = new Map<string, string | null>();
+
+export function resetSharedEncryptionKeyCache(): void {
+    sharedEncryptionKeyCache.clear();
+}
+
+// The one place every encrypted read/write in this file resolves its key
+// from, instead of each call site assuming "the caller's own authSecret is
+// always the right key" -- true only when the active workspace IS the
+// caller's own business. ownerId is whatever the call site already has in
+// scope (getWorkspaceOwnerId()'s result for the normal save/load
+// functions, or the explicit ownerId parameter for the *ForOwner
+// functions) -- never re-derived here, so this can't disagree with which
+// business the caller actually means.
+export async function resolveFieldEncryptionKeyForOwner(ownerId: string | null): Promise<string | null> {
+    const myId = await getAuthUserId();
+    if (!ownerId || !myId || ownerId === myId) {
+        // The overwhelmingly common case (viewing your own business, or no
+        // workspace pointer resolved yet) -- identical to the old
+        // unconditional behavior, no network round-trip, no cache.
+        return getFieldEncryptionKey(await loadAuthSecret());
+    }
+    if (sharedEncryptionKeyCache.has(ownerId)) return sharedEncryptionKeyCache.get(ownerId)!;
+    try {
+        const { data, error } = await supabase
+            .from('business_encryption_keys')
+            .select('field_encryption_key')
+            .eq('user_id', ownerId)
+            .maybeSingle();
+        if (error) logSyncError('business_encryption_keys', 'load', error);
+        const key = (data?.field_encryption_key as string | undefined) ?? null;
+        sharedEncryptionKeyCache.set(ownerId, key);
+        return key;
+    } catch (e) {
+        logSyncError('business_encryption_keys', 'load', e);
+        // Never cache a failure -- a transient network error shouldn't
+        // permanently lock this business out of decryption for the rest of
+        // the session the way caching `null` here would.
+        return null;
     }
 }
 
@@ -2045,6 +2117,11 @@ export async function clearAllData(): Promise<void> {
     // of the same client-generated ids, their real data could be silently
     // skipped on upload.
     resetSyncDiffCache();
+    // Same reasoning for the shared-field-encryption-key cache: a stale
+    // entry for a business the PREVIOUS identity was a team member of must
+    // never be reused to decrypt that business's data under a new identity
+    // on this device.
+    resetSharedEncryptionKeyCache();
 }
 
 // Clears the local cache of financial/business data (everything except the
@@ -2070,6 +2147,7 @@ export async function clearLocalFinancialCache(): Promise<void> {
     // See the matching note in clearAllData above -- same reasoning applies
     // whenever the signed-in identity changes, not just on explicit logout.
     resetSyncDiffCache();
+    resetSharedEncryptionKeyCache();
 }
 
 // Backs Settings' "Reset Business Data" action. Its own confirmation dialog
