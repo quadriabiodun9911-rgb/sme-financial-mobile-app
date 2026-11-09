@@ -1,9 +1,14 @@
 // Bumped from v1: the old fetch handler served index.html cache-first, which
 // permanently pinned browsers to whatever JS bundle hash was cached at first
 // visit — new deploys were invisible until the cache was manually cleared.
-// Bumping the cache name forces the activate handler's cleanup to actually
-// delete the old (stale-html-containing) cache instead of reusing it.
-const CACHE = 'quad360-v2';
+// Bumped again from v2: that version's fetch handler had no origin check at
+// all, so it also cache-first-served cross-origin GETs -- including calls
+// to Supabase's REST API -- meaning a browser that had ever cached one of
+// those kept getting that frozen snapshot back forever, never actually
+// asking Supabase again. Bumping the cache name forces the activate
+// handler's cleanup to discard whatever got wrongly cached under v2
+// instead of carrying it forward.
+const CACHE = 'quad360-v3';
 const ASSETS = [
     '/',
     '/index.html',
@@ -26,6 +31,25 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
     const url = new URL(e.request.url);
+
+    // Cross-origin requests (Supabase REST/auth calls, any other API) must
+    // never be touched by this service worker -- everything below this
+    // point exists to cache THIS APP's own files, keyed by request, with no
+    // per-origin check. A GET to Supabase (e.g. loading transactions) that
+    // fell into the "everything else: cache-first" bucket below got served
+    // from whatever was cached on the FIRST load, forever, even as the
+    // real data in Supabase kept changing -- the app looked like it had
+    // stopped syncing when it had actually just stopped ever asking the
+    // network again for that exact request. A non-GET cross-origin request
+    // (POST/PATCH/DELETE -- every actual save) hit the same bucket's
+    // `cache.put()` call, which throws for any non-GET method and was
+    // surfacing as a harmless-looking but very real "Failed to execute
+    // 'put' on 'Cache'" console error on every single write. Letting every
+    // cross-origin request pass straight through to the network, untouched,
+    // fixes both at once.
+    if (url.origin !== self.location.origin) {
+        return;
+    }
 
     // NETWORK-FIRST for navigation/HTML documents. index.html is what
     // references the current hashed JS bundle filename — if it's served
