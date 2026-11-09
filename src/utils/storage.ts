@@ -153,6 +153,66 @@ async function clearTransactionsPendingSync(ids: string[]): Promise<void> {
     await AsyncStorage.setItem(PENDING_TX_SYNC_KEY, JSON.stringify([...pending]));
 }
 
+// ─── Pending-sync markers, generic version ─────────────────────────────────────
+// Same mechanism as PENDING_TX_SYNC_KEY/markTransactionsPendingSync above,
+// generalized for every other entity below (goals, invoices, bills,
+// accounts, journal entries, assets, loans, budgets, cash pockets,
+// currency accounts, inventory, staff, payroll runs). Those save*()
+// functions previously inferred deletions by diffing the local array
+// against what Supabase had and deleting whatever was missing -- unsafe
+// the moment a second tab/device has the workspace open (its own stale
+// local array, simply not yet caught up on a row added elsewhere, reads
+// as "the user deleted this" and actively deletes it remotely; see
+// saveTransactions's own header comment, which explains why transactions
+// was moved off this exact pattern first). Their load*() functions also
+// shared loadTransactions' pre-fix flaw: blindly overwriting the local
+// cache with an incomplete remote fetch, silently dropping any row whose
+// upload hadn't landed yet. Fixing both needs the same two-part answer
+// transactions got: an explicit delete-by-id function (not a diff) for
+// removal, and this pending marker so a load can tell "not synced yet"
+// apart from "deleted elsewhere" when a local-only row is missing from a
+// fresh remote fetch.
+function pendingSyncKey(entity: string): string {
+    return `@quad360/pendingSync/${entity}`;
+}
+
+async function markPendingSync(entity: string, ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const raw = await AsyncStorage.getItem(pendingSyncKey(entity));
+    const pending = new Set(safeParse<string[]>(raw) ?? []);
+    ids.forEach(id => pending.add(id));
+    await AsyncStorage.setItem(pendingSyncKey(entity), JSON.stringify([...pending]));
+}
+
+async function clearPendingSync(entity: string, ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const raw = await AsyncStorage.getItem(pendingSyncKey(entity));
+    const pending = new Set(safeParse<string[]>(raw) ?? []);
+    ids.forEach(id => pending.delete(id));
+    await AsyncStorage.setItem(pendingSyncKey(entity), JSON.stringify([...pending]));
+}
+
+// Merges any locally-cached row still marked pending (and missing from a
+// fresh remote fetch) back into `remote`, and prunes any pending id remote
+// now confirms it has. Call right before a load*() would otherwise
+// unconditionally overwrite the local cache with `remote`.
+async function mergePendingRows<T extends { id: string }>(
+    entity: string, remote: T[], localKey: string,
+): Promise<T[]> {
+    const raw = await AsyncStorage.getItem(pendingSyncKey(entity));
+    const pendingIds = new Set(safeParse<string[]>(raw) ?? []);
+    if (pendingIds.size === 0) return remote;
+    const remoteIds = new Set(remote.map(r => r.id));
+    const localRaw = await AsyncStorage.getItem(localKey);
+    const local = safeParse<T[]>(localRaw) ?? [];
+    const unsynced = local.filter(item => pendingIds.has(item.id) && !remoteIds.has(item.id));
+    const stillPending = [...pendingIds].filter(id => !remoteIds.has(id));
+    if (stillPending.length !== pendingIds.size) {
+        await AsyncStorage.setItem(pendingSyncKey(entity), JSON.stringify(stillPending));
+    }
+    return unsynced.length > 0 ? [...remote, ...unsynced] : remote;
+}
+
 export async function saveTransactions(t: Transaction[]): Promise<void> {
     // Always save locally first — works offline instantly
     await AsyncStorage.setItem(KEYS.transactions, JSON.stringify(t));
@@ -439,43 +499,52 @@ export async function saveGoals(g: FinancialGoal[]): Promise<void> {
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     const changed = diffChangedRows('goals', g);
+    if (changed.length === 0) return;
+    const changedIds = changed.map(goal => goal.id);
+    await markPendingSync('goals', changedIds);
     try {
         const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
-        const rows = changed.length > 0 ? changed.map(goal => ({
+        const rows = changed.map(goal => ({
             id: goal.id,
             user_id: ownerId,
             data: encKey ? encryptGoal(goal as unknown as Record<string, any>, encKey) : goal,
             updated_at: new Date().toISOString(),
-        })) : [];
+        }));
 
-        // Parallel upsert + fetch remote IDs
-        const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
-            rows.length > 0 ? supabase.from('goals').upsert(rows, { onConflict: 'id' }) : Promise.resolve({ error: null }),
-            supabase.from('goals').select('id').eq('user_id', ownerId),
-        ]);
-
-        if (upsertResult.error) {
-            logSyncError('goals', 'upsert', upsertResult.error);
-        } else {
-            recordSyncedRows('goals', g);
+        const { error } = await supabase.from('goals').upsert(rows, { onConflict: 'id' });
+        if (error) {
+            logSyncError('goals', 'upsert', error);
+            const fullRows = g.map(goal => ({
+                id: goal.id, user_id: ownerId,
+                data: encKey ? encryptGoal(goal as unknown as Record<string, any>, encKey) : goal,
+                updated_at: new Date().toISOString(),
+            }));
+            await enqueue({ table: 'goals', op: 'upsert', rows: fullRows, userId: ownerId });
+            return;
         }
-        if (fetchErr) { logSyncError('goals', 'select', fetchErr); return; }
-
-        if (remote && remote.length > 0) {
-            const localIds = new Set(g.map(goal => goal.id));
-            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-            if (toDelete.length > 0) {
-                const { error: delErr } = await supabase.from('goals').delete().in('id', toDelete);
-                if (delErr) {
-                    logSyncError('goals', 'delete', delErr);
-                    await enqueue({ table: 'goals', op: 'delete', rows: toDelete, userId: ownerId });
-                }
-            }
-        }
+        recordSyncedRows('goals', g);
+        await clearPendingSync('goals', changedIds);
     } catch (e) {
         logSyncError('goals', 'sync', e);
         const rows = g.map(goal => ({ id: goal.id, user_id: ownerId, data: goal, updated_at: new Date().toISOString() }));
         await enqueue({ table: 'goals', op: 'upsert', rows, userId: ownerId });
+    }
+}
+
+// Explicit, by-id remote delete -- see deleteTransactionRemote's own
+// comment for why this replaced diffing the local array against every
+// remote row (unsafe the moment a second tab/device has the workspace
+// open). Called directly from deleteGoal() in OptimizedContexts.tsx,
+// alongside (not instead of) the local state update.
+export async function deleteGoalRemote(id: string): Promise<void> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        const { error } = await supabase.from('goals').delete().eq('id', id);
+        if (error) throw error;
+    } catch (e) {
+        logSyncError('goals', 'delete', e);
+        await enqueue({ table: 'goals', op: 'delete', rows: [id], userId: ownerId });
     }
 }
 
@@ -494,8 +563,9 @@ export async function loadGoals(): Promise<FinancialGoal[] | null> {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptGoal(raw as any, encKey) : raw) as FinancialGoal;
                 });
-                await AsyncStorage.setItem(KEYS.goals, JSON.stringify(goals));
-                return goals;
+                const merged = await mergePendingRows('goals', goals, KEYS.goals);
+                await AsyncStorage.setItem(KEYS.goals, JSON.stringify(merged));
+                return merged;
             }
         } catch (e) {
             logSyncError('goals', 'load', e);
@@ -511,39 +581,49 @@ export async function saveInvoices(invoices: Invoice[]): Promise<void> {
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     const changed = diffChangedRows('invoices', invoices);
+    if (changed.length === 0) return;
+    const changedIds = changed.map(inv => inv.id);
+    await markPendingSync('invoices', changedIds);
     try {
         const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
-        const rows = changed.length > 0 ? changed.map(inv => ({
+        const rows = changed.map(inv => ({
             id: inv.id, user_id: ownerId,
             data: encKey ? encryptInvoice(inv as unknown as Record<string, any>, encKey) : inv,
             updated_at: new Date().toISOString(),
-        })) : [];
+        }));
 
-        // Parallel upsert + fetch remote IDs
-        const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
-            rows.length > 0 ? supabase.from('invoices').upsert(rows, { onConflict: 'id' }) : Promise.resolve({ error: null }),
-            supabase.from('invoices').select('id').eq('user_id', ownerId),
-        ]);
-
-        if (upsertResult.error) {
-            logSyncError('invoices', 'upsert', upsertResult.error);
-        } else {
-            recordSyncedRows('invoices', invoices);
+        const { error } = await supabase.from('invoices').upsert(rows, { onConflict: 'id' });
+        if (error) {
+            logSyncError('invoices', 'upsert', error);
+            const fullRows = invoices.map(inv => ({
+                id: inv.id, user_id: ownerId,
+                data: encKey ? encryptInvoice(inv as unknown as Record<string, any>, encKey) : inv,
+                updated_at: new Date().toISOString(),
+            }));
+            await enqueue({ table: 'invoices', op: 'upsert', rows: fullRows, userId: ownerId });
+            return;
         }
-        if (fetchErr) { logSyncError('invoices', 'select', fetchErr); return; }
-
-        if (remote && remote.length > 0) {
-            const localIds = new Set(invoices.map(inv => inv.id));
-            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-            if (toDelete.length > 0) {
-                const { error: delErr } = await supabase.from('invoices').delete().in('id', toDelete);
-                if (delErr) logSyncError('invoices', 'delete', delErr);
-            }
-        }
+        recordSyncedRows('invoices', invoices);
+        await clearPendingSync('invoices', changedIds);
     } catch (e) {
         logSyncError('invoices', 'sync', e);
         const rows = invoices.map(inv => ({ id: inv.id, user_id: ownerId, data: inv, updated_at: new Date().toISOString() }));
         await enqueue({ table: 'invoices', op: 'upsert', rows, userId: ownerId });
+    }
+}
+
+// Explicit, by-id remote delete -- see deleteTransactionRemote's own
+// comment for why this replaced diffing the local array against every
+// remote row.
+export async function deleteInvoiceRemote(id: string): Promise<void> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        const { error } = await supabase.from('invoices').delete().eq('id', id);
+        if (error) throw error;
+    } catch (e) {
+        logSyncError('invoices', 'delete', e);
+        await enqueue({ table: 'invoices', op: 'delete', rows: [id], userId: ownerId });
     }
 }
 
@@ -563,8 +643,9 @@ export async function loadInvoices(): Promise<Invoice[] | null> {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptInvoice(raw as any, encKey) : raw) as Invoice;
                 });
-                await AsyncStorage.setItem(KEYS.invoices, JSON.stringify(list));
-                return list;
+                const merged = await mergePendingRows('invoices', list, KEYS.invoices);
+                await AsyncStorage.setItem(KEYS.invoices, JSON.stringify(merged));
+                return merged;
             }
         } catch (e) {
             logSyncError('invoices', 'load', e);
@@ -603,38 +684,49 @@ export async function saveBills(bills: Bill[]): Promise<void> {
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     const changed = diffChangedRows('bills', bills);
+    if (changed.length === 0) return;
+    const changedIds = changed.map(b => b.id);
+    await markPendingSync('bills', changedIds);
     try {
         const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
-        const rows = changed.length > 0 ? changed.map(b => ({
+        const rows = changed.map(b => ({
             id: b.id, user_id: ownerId,
             data: encKey ? encryptBill(b as unknown as Record<string, any>, encKey) : b,
             updated_at: new Date().toISOString(),
-        })) : [];
+        }));
 
-        const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
-            rows.length > 0 ? supabase.from('bills').upsert(rows, { onConflict: 'id' }) : Promise.resolve({ error: null }),
-            supabase.from('bills').select('id').eq('user_id', ownerId),
-        ]);
-
-        if (upsertResult.error) {
-            logSyncError('bills', 'upsert', upsertResult.error);
-        } else {
-            recordSyncedRows('bills', bills);
+        const { error } = await supabase.from('bills').upsert(rows, { onConflict: 'id' });
+        if (error) {
+            logSyncError('bills', 'upsert', error);
+            const fullRows = bills.map(b => ({
+                id: b.id, user_id: ownerId,
+                data: encKey ? encryptBill(b as unknown as Record<string, any>, encKey) : b,
+                updated_at: new Date().toISOString(),
+            }));
+            await enqueue({ table: 'bills', op: 'upsert', rows: fullRows, userId: ownerId });
+            return;
         }
-        if (fetchErr) { logSyncError('bills', 'select', fetchErr); return; }
-
-        if (remote && remote.length > 0) {
-            const localIds = new Set(bills.map(b => b.id));
-            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-            if (toDelete.length > 0) {
-                const { error: delErr } = await supabase.from('bills').delete().in('id', toDelete);
-                if (delErr) logSyncError('bills', 'delete', delErr);
-            }
-        }
+        recordSyncedRows('bills', bills);
+        await clearPendingSync('bills', changedIds);
     } catch (e) {
         logSyncError('bills', 'sync', e);
         const rows = bills.map(b => ({ id: b.id, user_id: ownerId, data: b, updated_at: new Date().toISOString() }));
         await enqueue({ table: 'bills', op: 'upsert', rows, userId: ownerId });
+    }
+}
+
+// Explicit, by-id remote delete -- see deleteTransactionRemote's own
+// comment for why this replaced diffing the local array against every
+// remote row.
+export async function deleteBillRemote(id: string): Promise<void> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        const { error } = await supabase.from('bills').delete().eq('id', id);
+        if (error) throw error;
+    } catch (e) {
+        logSyncError('bills', 'delete', e);
+        await enqueue({ table: 'bills', op: 'delete', rows: [id], userId: ownerId });
     }
 }
 
@@ -654,8 +746,9 @@ export async function loadBills(): Promise<Bill[] | null> {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptBill(raw as any, encKey) : raw) as Bill;
                 });
-                await AsyncStorage.setItem(KEYS.bills, JSON.stringify(list));
-                return list;
+                const merged = await mergePendingRows('bills', list, KEYS.bills);
+                await AsyncStorage.setItem(KEYS.bills, JSON.stringify(merged));
+                return merged;
             }
         } catch (e) {
             logSyncError('bills', 'load', e);
@@ -671,38 +764,49 @@ export async function saveAccounts(accounts: Account[]): Promise<void> {
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     const changed = diffChangedRows('accounts', accounts);
+    if (changed.length === 0) return;
+    const changedIds = changed.map(a => a.id);
+    await markPendingSync('accounts', changedIds);
     try {
         const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
-        const rows = changed.length > 0 ? changed.map(a => ({
+        const rows = changed.map(a => ({
             id: a.id, user_id: ownerId,
             data: encKey ? encryptAccount(a as unknown as Record<string, any>, encKey) : a,
             updated_at: new Date().toISOString(),
-        })) : [];
+        }));
 
-        const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
-            rows.length > 0 ? supabase.from('accounts').upsert(rows, { onConflict: 'id' }) : Promise.resolve({ error: null }),
-            supabase.from('accounts').select('id').eq('user_id', ownerId),
-        ]);
-
-        if (upsertResult.error) {
-            logSyncError('accounts', 'upsert', upsertResult.error);
-        } else {
-            recordSyncedRows('accounts', accounts);
+        const { error } = await supabase.from('accounts').upsert(rows, { onConflict: 'id' });
+        if (error) {
+            logSyncError('accounts', 'upsert', error);
+            const fullRows = accounts.map(a => ({
+                id: a.id, user_id: ownerId,
+                data: encKey ? encryptAccount(a as unknown as Record<string, any>, encKey) : a,
+                updated_at: new Date().toISOString(),
+            }));
+            await enqueue({ table: 'accounts', op: 'upsert', rows: fullRows, userId: ownerId });
+            return;
         }
-        if (fetchErr) { logSyncError('accounts', 'select', fetchErr); return; }
-
-        if (remote && remote.length > 0) {
-            const localIds = new Set(accounts.map(a => a.id));
-            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-            if (toDelete.length > 0) {
-                const { error: delErr } = await supabase.from('accounts').delete().in('id', toDelete);
-                if (delErr) logSyncError('accounts', 'delete', delErr);
-            }
-        }
+        recordSyncedRows('accounts', accounts);
+        await clearPendingSync('accounts', changedIds);
     } catch (e) {
         logSyncError('accounts', 'sync', e);
         const rows = accounts.map(a => ({ id: a.id, user_id: ownerId, data: a, updated_at: new Date().toISOString() }));
         await enqueue({ table: 'accounts', op: 'upsert', rows, userId: ownerId });
+    }
+}
+
+// Explicit, by-id remote delete -- see deleteTransactionRemote's own
+// comment for why this replaced diffing the local array against every
+// remote row.
+export async function deleteAccountRemote(id: string): Promise<void> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        const { error } = await supabase.from('accounts').delete().eq('id', id);
+        if (error) throw error;
+    } catch (e) {
+        logSyncError('accounts', 'delete', e);
+        await enqueue({ table: 'accounts', op: 'delete', rows: [id], userId: ownerId });
     }
 }
 
@@ -722,8 +826,9 @@ export async function loadAccounts(): Promise<Account[] | null> {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptAccount(raw as any, encKey) : raw) as Account;
                 });
-                await AsyncStorage.setItem(KEYS.accounts, JSON.stringify(list));
-                return list;
+                const merged = await mergePendingRows('accounts', list, KEYS.accounts);
+                await AsyncStorage.setItem(KEYS.accounts, JSON.stringify(merged));
+                return merged;
             }
         } catch (e) {
             logSyncError('accounts', 'load', e);
@@ -742,38 +847,52 @@ export async function saveJournalEntries(entries: JournalEntry[]): Promise<void>
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     const changed = diffChangedRows('journalEntries', entries);
+    if (changed.length === 0) return;
+    const changedIds = changed.map(je => je.id);
+    await markPendingSync('journalEntries', changedIds);
     try {
         const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
-        const rows = changed.length > 0 ? changed.map(je => ({
+        const rows = changed.map(je => ({
             id: je.id, user_id: ownerId,
             data: encKey ? encryptJournalEntry(je as unknown as Record<string, any>, encKey) : je,
             updated_at: new Date().toISOString(),
-        })) : [];
+        }));
 
-        const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
-            rows.length > 0 ? supabase.from('journal_entries').upsert(rows, { onConflict: 'id' }) : Promise.resolve({ error: null }),
-            supabase.from('journal_entries').select('id').eq('user_id', ownerId),
-        ]);
-
-        if (upsertResult.error) {
-            logSyncError('journalEntries', 'upsert', upsertResult.error);
-        } else {
-            recordSyncedRows('journalEntries', entries);
+        const { error } = await supabase.from('journal_entries').upsert(rows, { onConflict: 'id' });
+        if (error) {
+            logSyncError('journalEntries', 'upsert', error);
+            const fullRows = entries.map(je => ({
+                id: je.id, user_id: ownerId,
+                data: encKey ? encryptJournalEntry(je as unknown as Record<string, any>, encKey) : je,
+                updated_at: new Date().toISOString(),
+            }));
+            await enqueue({ table: 'journal_entries', op: 'upsert', rows: fullRows, userId: ownerId });
+            return;
         }
-        if (fetchErr) { logSyncError('journalEntries', 'select', fetchErr); return; }
-
-        if (remote && remote.length > 0) {
-            const localIds = new Set(entries.map(je => je.id));
-            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-            if (toDelete.length > 0) {
-                const { error: delErr } = await supabase.from('journal_entries').delete().in('id', toDelete);
-                if (delErr) logSyncError('journalEntries', 'delete', delErr);
-            }
-        }
+        recordSyncedRows('journalEntries', entries);
+        await clearPendingSync('journalEntries', changedIds);
     } catch (e) {
         logSyncError('journalEntries', 'sync', e);
         const rows = entries.map(je => ({ id: je.id, user_id: ownerId, data: je, updated_at: new Date().toISOString() }));
         await enqueue({ table: 'journal_entries', op: 'upsert', rows, userId: ownerId });
+    }
+}
+
+// Explicit, by-id remote delete -- see deleteTransactionRemote's own
+// comment for why this replaced diffing the local array against every
+// remote row. Journal entries are normally append-only (a correction is a
+// new reversal row, not an edit), but the diff-against-remote delete this
+// replaced didn't know that -- it could still misfire purely from
+// multi-tab staleness, with no actual deletion ever intended.
+export async function deleteJournalEntryRemote(id: string): Promise<void> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        const { error } = await supabase.from('journal_entries').delete().eq('id', id);
+        if (error) throw error;
+    } catch (e) {
+        logSyncError('journalEntries', 'delete', e);
+        await enqueue({ table: 'journal_entries', op: 'delete', rows: [id], userId: ownerId });
     }
 }
 
@@ -793,8 +912,9 @@ export async function loadJournalEntries(): Promise<JournalEntry[] | null> {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptJournalEntry(raw as any, encKey) : raw) as JournalEntry;
                 });
-                await AsyncStorage.setItem(KEYS.journalEntries, JSON.stringify(list));
-                return list;
+                const merged = await mergePendingRows('journalEntries', list, KEYS.journalEntries);
+                await AsyncStorage.setItem(KEYS.journalEntries, JSON.stringify(merged));
+                return merged;
             }
         } catch (e) {
             logSyncError('journalEntries', 'load', e);
@@ -810,39 +930,49 @@ export async function saveAssets(assets: Asset[]): Promise<void> {
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     const changed = diffChangedRows('assets', assets);
+    if (changed.length === 0) return;
+    const changedIds = changed.map(a => a.id);
+    await markPendingSync('assets', changedIds);
     try {
         const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
-        const rows = changed.length > 0 ? changed.map(a => ({
+        const rows = changed.map(a => ({
             id: a.id, user_id: ownerId,
             data: encKey ? encryptAsset(a as unknown as Record<string, any>, encKey) : a,
             updated_at: new Date().toISOString(),
-        })) : [];
+        }));
 
-        // Parallel upsert + fetch remote IDs
-        const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
-            rows.length > 0 ? supabase.from('assets').upsert(rows, { onConflict: 'id' }) : Promise.resolve({ error: null }),
-            supabase.from('assets').select('id').eq('user_id', ownerId),
-        ]);
-
-        if (upsertResult.error) {
-            logSyncError('assets', 'upsert', upsertResult.error);
-        } else {
-            recordSyncedRows('assets', assets);
+        const { error } = await supabase.from('assets').upsert(rows, { onConflict: 'id' });
+        if (error) {
+            logSyncError('assets', 'upsert', error);
+            const fullRows = assets.map(a => ({
+                id: a.id, user_id: ownerId,
+                data: encKey ? encryptAsset(a as unknown as Record<string, any>, encKey) : a,
+                updated_at: new Date().toISOString(),
+            }));
+            await enqueue({ table: 'assets', op: 'upsert', rows: fullRows, userId: ownerId });
+            return;
         }
-        if (fetchErr) { logSyncError('assets', 'select', fetchErr); return; }
-
-        if (remote && remote.length > 0) {
-            const localIds = new Set(assets.map(a => a.id));
-            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-            if (toDelete.length > 0) {
-                const { error: delErr } = await supabase.from('assets').delete().in('id', toDelete);
-                if (delErr) logSyncError('assets', 'delete', delErr);
-            }
-        }
+        recordSyncedRows('assets', assets);
+        await clearPendingSync('assets', changedIds);
     } catch (e) {
         logSyncError('assets', 'sync', e);
         const rows = assets.map(a => ({ id: a.id, user_id: ownerId, data: a, updated_at: new Date().toISOString() }));
         await enqueue({ table: 'assets', op: 'upsert', rows, userId: ownerId });
+    }
+}
+
+// Explicit, by-id remote delete -- see deleteTransactionRemote's own
+// comment for why this replaced diffing the local array against every
+// remote row.
+export async function deleteAssetRemote(id: string): Promise<void> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        const { error } = await supabase.from('assets').delete().eq('id', id);
+        if (error) throw error;
+    } catch (e) {
+        logSyncError('assets', 'delete', e);
+        await enqueue({ table: 'assets', op: 'delete', rows: [id], userId: ownerId });
     }
 }
 
@@ -862,8 +992,9 @@ export async function loadAssets(): Promise<Asset[] | null> {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptAsset(raw as any, encKey) : raw) as Asset;
                 });
-                await AsyncStorage.setItem(KEYS.assets, JSON.stringify(list));
-                return list;
+                const merged = await mergePendingRows('assets', list, KEYS.assets);
+                await AsyncStorage.setItem(KEYS.assets, JSON.stringify(merged));
+                return merged;
             }
         } catch (e) {
             logSyncError('assets', 'load', e);
@@ -902,27 +1033,50 @@ export async function saveLoans(loans: Loan[]): Promise<void> {
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     const changed = diffChangedRows('loans', loans);
+    if (changed.length === 0) return;
+    const changedIds = changed.map(l => l.id);
+    await markPendingSync('loans', changedIds);
     try {
-        let upsertOk = true;
-        if (changed.length > 0) {
-            const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
-            const rows = changed.map(l => ({
-                id: l.id,
-                user_id: ownerId,
+        const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
+        const rows = changed.map(l => ({
+            id: l.id,
+            user_id: ownerId,
+            data: encKey ? encryptLoan(l as unknown as Record<string, any>, encKey) : l,
+            updated_at: new Date().toISOString(),
+        }));
+        const { error } = await supabase.from('loans').upsert(rows, { onConflict: 'id' });
+        if (error) {
+            logSyncError('loans', 'upsert', error);
+            const fullRows = loans.map(l => ({
+                id: l.id, user_id: ownerId,
                 data: encKey ? encryptLoan(l as unknown as Record<string, any>, encKey) : l,
                 updated_at: new Date().toISOString(),
             }));
-            const { error } = await supabase.from('loans').upsert(rows, { onConflict: 'id' });
-            if (error) { logSyncError('loans', 'upsert', error); upsertOk = false; }
+            await enqueue({ table: 'loans', op: 'upsert', rows: fullRows, userId: ownerId });
+            return;
         }
-        if (upsertOk) recordSyncedRows('loans', loans);
-        const { data: remote } = await supabase.from('loans').select('id').eq('user_id', ownerId);
-        if (remote) {
-            const localIds = new Set(loans.map(l => l.id));
-            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-            if (toDelete.length > 0) await supabase.from('loans').delete().in('id', toDelete);
-        }
-    } catch (e) { logSyncError('loans', 'sync', e); }
+        recordSyncedRows('loans', loans);
+        await clearPendingSync('loans', changedIds);
+    } catch (e) {
+        logSyncError('loans', 'sync', e);
+        const rows = loans.map(l => ({ id: l.id, user_id: ownerId, data: l, updated_at: new Date().toISOString() }));
+        await enqueue({ table: 'loans', op: 'upsert', rows, userId: ownerId });
+    }
+}
+
+// Explicit, by-id remote delete -- see deleteTransactionRemote's own
+// comment for why this replaced diffing the local array against every
+// remote row.
+export async function deleteLoanRemote(id: string): Promise<void> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        const { error } = await supabase.from('loans').delete().eq('id', id);
+        if (error) throw error;
+    } catch (e) {
+        logSyncError('loans', 'delete', e);
+        await enqueue({ table: 'loans', op: 'delete', rows: [id], userId: ownerId });
+    }
 }
 
 export async function loadLoans(): Promise<Loan[] | null> {
@@ -930,14 +1084,16 @@ export async function loadLoans(): Promise<Loan[] | null> {
     if (ownerId) {
         try {
             const { data, error } = await supabase.from('loans').select('data').eq('user_id', ownerId);
-            if (!error && data && data.length > 0) {
+            if (error) { logSyncError('loans', 'load', error); }
+            else if (data && data.length > 0) {
                 const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
                 const loans = data.map(r => {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptLoan(raw as any, encKey) : raw) as Loan;
                 });
-                await AsyncStorage.setItem(KEYS.loans, JSON.stringify(loans));
-                return loans;
+                const merged = await mergePendingRows('loans', loans, KEYS.loans);
+                await AsyncStorage.setItem(KEYS.loans, JSON.stringify(merged));
+                return merged;
             }
         } catch (e) { logSyncError('loans', 'load', e); }
     }
@@ -972,27 +1128,50 @@ export async function saveBudgets(budgets: Budget[]): Promise<void> {
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     const changed = diffChangedRows('budgets', budgets);
+    if (changed.length === 0) return;
+    const changedIds = changed.map(b => b.id);
+    await markPendingSync('budgets', changedIds);
     try {
-        let upsertOk = true;
-        if (changed.length > 0) {
-            const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
-            const rows = changed.map(b => ({
-                id: b.id,
-                user_id: ownerId,
+        const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
+        const rows = changed.map(b => ({
+            id: b.id,
+            user_id: ownerId,
+            data: encKey ? encryptBudget(b as unknown as Record<string, any>, encKey) : b,
+            updated_at: new Date().toISOString(),
+        }));
+        const { error } = await supabase.from('budgets').upsert(rows, { onConflict: 'id' });
+        if (error) {
+            logSyncError('budgets', 'upsert', error);
+            const fullRows = budgets.map(b => ({
+                id: b.id, user_id: ownerId,
                 data: encKey ? encryptBudget(b as unknown as Record<string, any>, encKey) : b,
                 updated_at: new Date().toISOString(),
             }));
-            const { error } = await supabase.from('budgets').upsert(rows, { onConflict: 'id' });
-            if (error) { logSyncError('budgets', 'upsert', error); upsertOk = false; }
+            await enqueue({ table: 'budgets', op: 'upsert', rows: fullRows, userId: ownerId });
+            return;
         }
-        if (upsertOk) recordSyncedRows('budgets', budgets);
-        const { data: remote } = await supabase.from('budgets').select('id').eq('user_id', ownerId);
-        if (remote) {
-            const localIds = new Set(budgets.map(b => b.id));
-            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-            if (toDelete.length > 0) await supabase.from('budgets').delete().in('id', toDelete);
-        }
-    } catch (e) { logSyncError('budgets', 'sync', e); }
+        recordSyncedRows('budgets', budgets);
+        await clearPendingSync('budgets', changedIds);
+    } catch (e) {
+        logSyncError('budgets', 'sync', e);
+        const rows = budgets.map(b => ({ id: b.id, user_id: ownerId, data: b, updated_at: new Date().toISOString() }));
+        await enqueue({ table: 'budgets', op: 'upsert', rows, userId: ownerId });
+    }
+}
+
+// Explicit, by-id remote delete -- see deleteTransactionRemote's own
+// comment for why this replaced diffing the local array against every
+// remote row.
+export async function deleteBudgetRemote(id: string): Promise<void> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        const { error } = await supabase.from('budgets').delete().eq('id', id);
+        if (error) throw error;
+    } catch (e) {
+        logSyncError('budgets', 'delete', e);
+        await enqueue({ table: 'budgets', op: 'delete', rows: [id], userId: ownerId });
+    }
 }
 
 export async function loadBudgets(): Promise<Budget[] | null> {
@@ -1000,14 +1179,16 @@ export async function loadBudgets(): Promise<Budget[] | null> {
     if (ownerId) {
         try {
             const { data, error } = await supabase.from('budgets').select('data').eq('user_id', ownerId);
-            if (!error && data && data.length > 0) {
+            if (error) { logSyncError('budgets', 'load', error); }
+            else if (data && data.length > 0) {
                 const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
                 const budgets = data.map(r => {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptBudget(raw as any, encKey) : raw) as Budget;
                 });
-                await AsyncStorage.setItem('@quad360/budgets', JSON.stringify(budgets));
-                return budgets;
+                const merged = await mergePendingRows('budgets', budgets, '@quad360/budgets');
+                await AsyncStorage.setItem('@quad360/budgets', JSON.stringify(merged));
+                return merged;
             }
         } catch (e) { logSyncError('budgets', 'load', e); }
     }
@@ -1021,6 +1202,8 @@ export async function saveCashPockets(pockets: CashPocket[]): Promise<void> {
     await AsyncStorage.setItem(CASH_POCKETS_KEY, JSON.stringify(pockets));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
+    const ids = pockets.map(p => p.id);
+    await markPendingSync('cash_pockets', ids);
     try {
         if (pockets.length > 0) {
             const rows = pockets.map(p => ({
@@ -1030,15 +1213,33 @@ export async function saveCashPockets(pockets: CashPocket[]): Promise<void> {
                 updated_at: new Date().toISOString(),
             }));
             const { error } = await supabase.from('cash_pockets').upsert(rows, { onConflict: 'id' });
-            if (error) logSyncError('cash_pockets', 'upsert', error);
+            if (error) {
+                logSyncError('cash_pockets', 'upsert', error);
+                await enqueue({ table: 'cash_pockets', op: 'upsert', rows, userId: ownerId });
+                return;
+            }
         }
-        const { data: remote } = await supabase.from('cash_pockets').select('id').eq('user_id', ownerId);
-        if (remote) {
-            const localIds = new Set(pockets.map(p => p.id));
-            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-            if (toDelete.length > 0) await supabase.from('cash_pockets').delete().in('id', toDelete);
-        }
-    } catch (e) { logSyncError('cash_pockets', 'sync', e); }
+        await clearPendingSync('cash_pockets', ids);
+    } catch (e) {
+        logSyncError('cash_pockets', 'sync', e);
+        const rows = pockets.map(p => ({ id: p.id, user_id: ownerId, data: p, updated_at: new Date().toISOString() }));
+        await enqueue({ table: 'cash_pockets', op: 'upsert', rows, userId: ownerId });
+    }
+}
+
+// Explicit, by-id remote delete -- see deleteTransactionRemote's own
+// comment for why this replaced diffing the local array against every
+// remote row.
+export async function deleteCashPocketRemote(id: string): Promise<void> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        const { error } = await supabase.from('cash_pockets').delete().eq('id', id);
+        if (error) throw error;
+    } catch (e) {
+        logSyncError('cash_pockets', 'delete', e);
+        await enqueue({ table: 'cash_pockets', op: 'delete', rows: [id], userId: ownerId });
+    }
 }
 
 export async function loadCashPockets(): Promise<CashPocket[] | null> {
@@ -1046,10 +1247,12 @@ export async function loadCashPockets(): Promise<CashPocket[] | null> {
     if (ownerId) {
         try {
             const { data, error } = await supabase.from('cash_pockets').select('data').eq('user_id', ownerId);
-            if (!error && data && data.length > 0) {
+            if (error) { logSyncError('cash_pockets', 'load', error); }
+            else if (data && data.length > 0) {
                 const pockets = data.map(r => r.data as CashPocket);
-                await AsyncStorage.setItem(CASH_POCKETS_KEY, JSON.stringify(pockets));
-                return pockets;
+                const merged = await mergePendingRows('cash_pockets', pockets, CASH_POCKETS_KEY);
+                await AsyncStorage.setItem(CASH_POCKETS_KEY, JSON.stringify(merged));
+                return merged;
             }
         } catch (e) { logSyncError('cash_pockets', 'load', e); }
     }
@@ -1073,6 +1276,8 @@ export async function saveCurrencyAccounts(accounts: CurrencyAccount[]): Promise
         data: a,
         updated_at: new Date().toISOString(),
     }));
+    const ids = accounts.map(a => a.id);
+    await markPendingSync('currency_accounts', ids);
     try {
         if (rows.length > 0) {
             const { error } = await supabase.from('currency_accounts').upsert(rows, { onConflict: 'id' });
@@ -1086,22 +1291,25 @@ export async function saveCurrencyAccounts(accounts: CurrencyAccount[]): Promise
                 return;
             }
         }
-        const { data: remote, error: fetchErr } = await supabase.from('currency_accounts').select('id').eq('user_id', ownerId);
-        if (fetchErr) { logSyncError('currency_accounts', 'select', fetchErr); return; }
-        if (remote) {
-            const localIds = new Set(accounts.map(a => a.id));
-            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-            if (toDelete.length > 0) {
-                const { error: delErr } = await supabase.from('currency_accounts').delete().in('id', toDelete);
-                if (delErr) {
-                    logSyncError('currency_accounts', 'delete', delErr);
-                    await enqueue({ table: 'currency_accounts', op: 'delete', rows: toDelete, userId: ownerId });
-                }
-            }
-        }
+        await clearPendingSync('currency_accounts', ids);
     } catch (e) {
         logSyncError('currency_accounts', 'sync', e);
         if (rows.length > 0) await enqueue({ table: 'currency_accounts', op: 'upsert', rows, userId: ownerId });
+    }
+}
+
+// Explicit, by-id remote delete -- see deleteTransactionRemote's own
+// comment for why this replaced diffing the local array against every
+// remote row.
+export async function deleteCurrencyAccountRemote(id: string): Promise<void> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        const { error } = await supabase.from('currency_accounts').delete().eq('id', id);
+        if (error) throw error;
+    } catch (e) {
+        logSyncError('currency_accounts', 'delete', e);
+        await enqueue({ table: 'currency_accounts', op: 'delete', rows: [id], userId: ownerId });
     }
 }
 
@@ -1113,11 +1321,17 @@ export async function loadCurrencyAccounts(): Promise<CurrencyAccount[] | null> 
             // A successful query with zero rows is authoritative (the
             // workspace genuinely has none), not "try local instead" --
             // falling through to a stale local cache here could resurrect
-            // accounts the owner already deleted from another device.
+            // accounts the owner already deleted from another device. Still
+            // merges in any row THIS device itself marked pending (added/
+            // edited, not yet confirmed synced) -- zero-rows-is-authoritative
+            // and pending-row-is-kept aren't in tension: a genuinely-empty
+            // remote response with a pending id just means that one row
+            // hasn't landed yet either, same as the non-empty case below.
             if (!error && data) {
                 const accounts = data.map(r => r.data as CurrencyAccount);
-                await AsyncStorage.setItem(CURRENCY_ACCOUNTS_KEY, JSON.stringify(accounts));
-                return accounts;
+                const merged = await mergePendingRows('currency_accounts', accounts, CURRENCY_ACCOUNTS_KEY);
+                await AsyncStorage.setItem(CURRENCY_ACCOUNTS_KEY, JSON.stringify(merged));
+                return merged;
             }
             if (error) logSyncError('currency_accounts', 'load', error);
         } catch (e) { logSyncError('currency_accounts', 'load', e); }
@@ -1461,8 +1675,10 @@ export async function saveInventory(items: InventoryItem[]): Promise<void> {
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
     const changed = diffChangedRows('inventory', items);
+    if (changed.length === 0) return;
+    await markPendingSync('inventory', changed.map(item => item.id));
     try {
-        const rows = changed.length > 0 ? changed.map(item => ({
+        const rows = changed.map(item => ({
             id: item.id,
             user_id: ownerId,
             name: item.name,
@@ -1490,33 +1706,36 @@ export async function saveInventory(items: InventoryItem[]): Promise<void> {
             batches: item.batches ?? [],
             created_at: item.createdAt,
             updated_at: item.updatedAt,
-        })) : [];
+        }));
 
-        // Parallel upsert + fetch remote IDs
-        const [upsertResult, { data: remote, error: fetchErr }] = await Promise.all([
-            rows.length > 0 ? supabase.from('inventory').upsert(rows, { onConflict: 'id' }) : Promise.resolve({ error: null }),
-            supabase.from('inventory').select('id').eq('user_id', ownerId),
-        ]);
-
-        if (upsertResult.error) {
-            logSyncError('inventory', 'upsert', upsertResult.error);
-        } else {
-            recordSyncedRows('inventory', items);
+        const { error } = await supabase.from('inventory').upsert(rows, { onConflict: 'id' });
+        if (error) {
+            logSyncError('inventory', 'upsert', error);
+            await enqueue({ table: 'inventory', op: 'upsert', rows, userId: ownerId });
+            return;
         }
-        if (fetchErr) { logSyncError('inventory', 'select', fetchErr); return; }
-
-        if (remote && remote.length > 0) {
-            const localIds = new Set(items.map(i => i.id));
-            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-            if (toDelete.length > 0) {
-                const { error: delErr } = await supabase.from('inventory').delete().in('id', toDelete);
-                if (delErr) logSyncError('inventory', 'delete', delErr);
-            }
-        }
+        recordSyncedRows('inventory', items);
+        await clearPendingSync('inventory', changed.map(item => item.id));
     } catch (e) {
         logSyncError('inventory', 'sync', e);
     }
 }
+
+// Explicit, by-id remote delete -- see deleteTransactionRemote's own
+// comment for why this replaced diffing the local array against every
+// remote row.
+export async function deleteInventoryItemRemote(id: string): Promise<void> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        const { error } = await supabase.from('inventory').delete().eq('id', id);
+        if (error) throw error;
+    } catch (e) {
+        logSyncError('inventory', 'delete', e);
+        await enqueue({ table: 'inventory', op: 'delete', rows: [id], userId: ownerId });
+    }
+}
+
 export async function loadInventory(): Promise<InventoryItem[] | null> {
     const ownerId = await getWorkspaceOwnerId();
     if (ownerId) {
@@ -1547,8 +1766,9 @@ export async function loadInventory(): Promise<InventoryItem[] | null> {
                     createdAt: row.created_at,
                     updatedAt: row.updated_at,
                 } as InventoryItem));
-                await AsyncStorage.setItem('@quad360/inventory', JSON.stringify(items));
-                return items;
+                const merged = await mergePendingRows('inventory', items, '@quad360/inventory');
+                await AsyncStorage.setItem('@quad360/inventory', JSON.stringify(merged));
+                return merged;
             }
         } catch (e) {
             logSyncError('inventory', 'load', e);
@@ -2457,24 +2677,38 @@ export async function saveStaff(staff: StaffMember[]): Promise<void> {
     await AsyncStorage.setItem(KEYS.staff, JSON.stringify(staff));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
+    const ids = staff.map(s => s.id);
+    await markPendingSync('staff', ids);
     try {
         await syncStaffToSupabase(staff, ownerId);
-        const { data: remote } = await supabase.from('staff').select('id').eq('user_id', ownerId);
-        if (remote) {
-            const localIds = new Set(staff.map(s => s.id));
-            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-            if (toDelete.length > 0) await supabase.from('staff').delete().in('id', toDelete);
-        }
+        await clearPendingSync('staff', ids);
     } catch (e) { logSyncError('staff', 'sync', e); }
 }
+
+// Explicit, by-id remote delete -- see deleteTransactionRemote's own
+// comment for why this replaced diffing the local array against every
+// remote row.
+export async function deleteStaffMemberRemote(id: string): Promise<void> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        const { error } = await supabase.from('staff').delete().eq('id', id);
+        if (error) throw error;
+    } catch (e) {
+        logSyncError('staff', 'delete', e);
+        await enqueue({ table: 'staff', op: 'delete', rows: [id], userId: ownerId });
+    }
+}
+
 export async function loadStaff(): Promise<StaffMember[]> {
     const ownerId = await getWorkspaceOwnerId();
     if (ownerId) {
         try {
             const remote = await loadStaffFromSupabase(ownerId);
-            if (remote.length > 0) {
-                await AsyncStorage.setItem(KEYS.staff, JSON.stringify(remote));
-                return remote;
+            const merged = await mergePendingRows('staff', remote, KEYS.staff);
+            if (merged.length > 0) {
+                await AsyncStorage.setItem(KEYS.staff, JSON.stringify(merged));
+                return merged;
             }
         } catch (e) { logSyncError('staff', 'load', e); }
     }
@@ -2489,24 +2723,38 @@ export async function savePayrollRuns(runs: PayrollRun[]): Promise<void> {
     await AsyncStorage.setItem(KEYS.payrollRuns, JSON.stringify(runs));
     const ownerId = await getWorkspaceOwnerId();
     if (!ownerId) return;
+    const ids = runs.map(r => r.id);
+    await markPendingSync('payroll_runs', ids);
     try {
         await syncPayrollRunsToSupabase(runs, ownerId);
-        const { data: remote } = await supabase.from('payroll_runs').select('id').eq('user_id', ownerId);
-        if (remote) {
-            const localIds = new Set(runs.map(r => r.id));
-            const toDelete = remote.filter(r => !localIds.has(r.id)).map(r => r.id);
-            if (toDelete.length > 0) await supabase.from('payroll_runs').delete().in('id', toDelete);
-        }
+        await clearPendingSync('payroll_runs', ids);
     } catch (e) { logSyncError('payroll_runs', 'sync', e); }
 }
+
+// Explicit, by-id remote delete -- see deleteTransactionRemote's own
+// comment for why this replaced diffing the local array against every
+// remote row.
+export async function deletePayrollRunRemote(id: string): Promise<void> {
+    const ownerId = await getWorkspaceOwnerId();
+    if (!ownerId) return;
+    try {
+        const { error } = await supabase.from('payroll_runs').delete().eq('id', id);
+        if (error) throw error;
+    } catch (e) {
+        logSyncError('payroll_runs', 'delete', e);
+        await enqueue({ table: 'payroll_runs', op: 'delete', rows: [id], userId: ownerId });
+    }
+}
+
 export async function loadPayrollRuns(): Promise<PayrollRun[]> {
     const ownerId = await getWorkspaceOwnerId();
     if (ownerId) {
         try {
             const remote = await loadPayrollRunsFromSupabase(ownerId);
-            if (remote.length > 0) {
-                await AsyncStorage.setItem(KEYS.payrollRuns, JSON.stringify(remote));
-                return remote;
+            const merged = await mergePendingRows('payroll_runs', remote, KEYS.payrollRuns);
+            if (merged.length > 0) {
+                await AsyncStorage.setItem(KEYS.payrollRuns, JSON.stringify(merged));
+                return merged;
             }
         } catch (e) { logSyncError('payroll_runs', 'load', e); }
     }
@@ -2518,11 +2766,15 @@ export async function loadPayrollRuns(): Promise<PayrollRun[]> {
 
 // ─── Staff — Supabase sync ────────────────────────────────────────────────────
 export async function syncStaffToSupabase(staff: StaffMember[], userId: string): Promise<void> {
-    try {
-        if (!staff.length) return;
-        const rows = staff.map(s => ({ id: s.id, user_id: userId, data: s, updated_at: new Date().toISOString() }));
-        await supabase.from('staff').upsert(rows, { onConflict: 'id' });
-    } catch { /* offline — local save already done */ }
+    if (!staff.length) return;
+    const rows = staff.map(s => ({ id: s.id, user_id: userId, data: s, updated_at: new Date().toISOString() }));
+    const { error } = await supabase.from('staff').upsert(rows, { onConflict: 'id' });
+    // Thrown (not swallowed) -- saveStaff's own try/catch is what decides
+    // whether to clear the pending-sync marker, and needs to actually know
+    // whether this succeeded. Silently eating the error here used to mean
+    // the marker got cleared even when the row never actually reached
+    // Supabase.
+    if (error) throw error;
 }
 
 export async function loadStaffFromSupabase(userId: string): Promise<StaffMember[]> {
@@ -2535,11 +2787,11 @@ export async function loadStaffFromSupabase(userId: string): Promise<StaffMember
 
 // ─── Payroll Runs — Supabase sync ─────────────────────────────────────────────
 export async function syncPayrollRunsToSupabase(runs: PayrollRun[], userId: string): Promise<void> {
-    try {
-        if (!runs.length) return;
-        const rows = runs.map(r => ({ id: r.id, user_id: userId, data: r, updated_at: new Date().toISOString() }));
-        await supabase.from('payroll_runs').upsert(rows, { onConflict: 'id' });
-    } catch { /* offline */ }
+    if (!runs.length) return;
+    const rows = runs.map(r => ({ id: r.id, user_id: userId, data: r, updated_at: new Date().toISOString() }));
+    const { error } = await supabase.from('payroll_runs').upsert(rows, { onConflict: 'id' });
+    // Thrown (not swallowed) -- same reasoning as syncStaffToSupabase above.
+    if (error) throw error;
 }
 
 export async function loadPayrollRunsFromSupabase(userId: string): Promise<PayrollRun[]> {

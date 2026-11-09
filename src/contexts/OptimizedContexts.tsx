@@ -33,20 +33,20 @@ import { DEMO_BUSINESSES } from '../utils/demoData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   loadTransactions, saveTransactions, deleteTransactionRemote,
-  loadAssets, saveAssets,
-  loadLoans, saveLoans,
-  loadBudgets, saveBudgets,
-  loadInventory, saveInventory,
-  loadGoals, saveGoals,
-  loadInvoices, saveInvoices,
-  loadBills, saveBills,
-  loadAccounts, saveAccounts,
-  loadJournalEntries, saveJournalEntries,
+  loadAssets, saveAssets, deleteAssetRemote,
+  loadLoans, saveLoans, deleteLoanRemote,
+  loadBudgets, saveBudgets, deleteBudgetRemote,
+  loadInventory, saveInventory, deleteInventoryItemRemote,
+  loadGoals, saveGoals, deleteGoalRemote,
+  loadInvoices, saveInvoices, deleteInvoiceRemote,
+  loadBills, saveBills, deleteBillRemote,
+  loadAccounts, saveAccounts, deleteAccountRemote as deleteLedgerAccountRemote,
+  loadJournalEntries, saveJournalEntries, deleteJournalEntryRemote,
   loadSettings, saveSettings,
-  loadStaff, saveStaff,
-  loadPayrollRuns, savePayrollRuns,
-  loadCashPockets, saveCashPockets,
-  loadCurrencyAccounts, saveCurrencyAccounts,
+  loadStaff, saveStaff, deleteStaffMemberRemote,
+  loadPayrollRuns, savePayrollRuns, deletePayrollRunRemote,
+  loadCashPockets, saveCashPockets, deleteCashPocketRemote,
+  loadCurrencyAccounts, saveCurrencyAccounts, deleteCurrencyAccountRemote,
   loadCapitalCommitments, saveCapitalCommitments,
   loadReadinessHistory, saveReadinessHistory,
   loadForecastHistory, saveForecastHistory,
@@ -753,8 +753,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         setJournalEntries((prev) => postJournalEntry(prev, { date, memo, lines, source: 'manual', postedBy: 'bookkeeper' }));
         return { ok: true };
       },
-      deleteLedgerAccount: (id) => setAccounts((prev) => prev.filter((a) => a.id !== id)),
-      deleteJournalEntry: (id) => setJournalEntries((prev) => prev.filter((je) => je.id !== id)),
+      deleteLedgerAccount: (id) => {
+        setAccounts((prev) => prev.filter((a) => a.id !== id));
+        // Explicit, by-id remote delete -- saveAccounts' own sync no longer
+        // infers deletions from a diff (see saveTransactions' header for why).
+        if (!isDemoMode) deleteLedgerAccountRemote(id).catch(() => {});
+      },
+      deleteJournalEntry: (id) => {
+        setJournalEntries((prev) => prev.filter((je) => je.id !== id));
+        if (!isDemoMode) deleteJournalEntryRemote(id).catch(() => {});
+      },
       badDebtProvisions,
       addBadDebtProvision: (transactionId, amount, date, customerLabel, note) => {
         if (!(amount > 0)) return;
@@ -959,9 +967,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       updateAsset: (id, asset) => setAssets((prev) =>
         prev.map((a) => (a.id === id ? { ...a, ...asset } : a))
       ),
-      deleteAsset: (id) => setAssets((prev) =>
-        prev.filter((a) => a.id !== id)
-      ),
+      deleteAsset: (id) => {
+        setAssets((prev) => prev.filter((a) => a.id !== id));
+        if (!isDemoMode) deleteAssetRemote(id).catch(() => {});
+      },
       // createdAt backfilled the same way addAsset/addInvoice do — Loan
       // declares it required, but this line previously left it undefined
       // on every loan created through the normal Add Loan flow.
@@ -972,9 +981,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       updateLoan: (id, loan) => setLoans((prev) =>
         prev.map((l) => (l.id === id ? { ...l, ...loan } : l))
       ),
-      deleteLoan: (id) => setLoans((prev) =>
-        prev.filter((l) => l.id !== id)
-      ),
+      deleteLoan: (id) => {
+        setLoans((prev) => prev.filter((l) => l.id !== id));
+        if (!isDemoMode) deleteLoanRemote(id).catch(() => {});
+      },
       addLoanPayment: (loanId, payment) => {
         // Recording a loan payment is a real cash outflow — post the matching
         // expense so the P&L/cash balance reflect it (previously only the
@@ -1033,9 +1043,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       updateBudget: (id, budget) => setBudgets((prev) =>
         prev.map((b) => (b.id === id ? { ...b, ...budget } : b))
       ),
-      deleteBudget: (id) => setBudgets((prev) =>
-        prev.filter((b) => b.id !== id)
-      ),
+      deleteBudget: (id) => {
+        setBudgets((prev) => prev.filter((b) => b.id !== id));
+        if (!isDemoMode) deleteBudgetRemote(id).catch(() => {});
+      },
       disposeAsset: (id, disposalDate, disposalValue) => {
         // Disposing above/below book value is a real gain/loss — post it so
         // the P&L reflects it (previously only the asset status changed).
@@ -1090,9 +1101,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       updateInventoryItem: (id, item) => setInventory((prev) =>
         prev.map((i) => (i.id === id ? { ...i, ...item } : i))
       ),
-      deleteInventoryItem: (id) => setInventory((prev) =>
-        prev.filter((i) => i.id !== id)
-      ),
+      deleteInventoryItem: (id) => {
+        setInventory((prev) => prev.filter((i) => i.id !== id));
+        if (!isDemoMode) deleteInventoryItemRemote(id).catch(() => {});
+      },
       stockInInventory: (id, { quantityAdded, costPerUnit, supplier, purchaseDate, expiryDate, recordCashPurchase }) => {
         const item = inventory.find((i) => i.id === id);
         if (!item) return;
@@ -1182,7 +1194,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       currencyAccounts,
       addStaff: (s) => setStaff((prev) => [...prev, { ...s, id: genId(), createdAt: new Date().toISOString() } as StaffMember]),
       updateStaff: (id, patch) => setStaff((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x))),
-      deleteStaff: (id) => setStaff((prev) => prev.filter((x) => x.id !== id)),
+      deleteStaff: (id) => {
+        setStaff((prev) => prev.filter((x) => x.id !== id));
+        if (!isDemoMode) deleteStaffMemberRemote(id).catch(() => {});
+      },
       // A payroll payment that already exists as an imported bank transaction
       // (tagged "Payroll" -- see computeUnlinkedPayrollTransactions) is linked
       // to this run instead of getting a second, duplicate expense: the run's
@@ -1214,13 +1229,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           }
         }
         setPayrollRuns((prev) => prev.filter((r) => r.id !== id));
+        if (!isDemoMode) deletePayrollRunRemote(id).catch(() => {});
       },
       addCashPocket: (name, amount) => setCashPockets((prev) => [...prev, { id: genId(), name, amount, updatedAt: new Date().toISOString() }]),
       updateCashPocket: (id, amount) => setCashPockets((prev) => prev.map((p) => (p.id === id ? { ...p, amount, updatedAt: new Date().toISOString() } : p))),
-      deleteCashPocket: (id) => setCashPockets((prev) => prev.filter((p) => p.id !== id)),
+      deleteCashPocket: (id) => {
+        setCashPockets((prev) => prev.filter((p) => p.id !== id));
+        if (!isDemoMode) deleteCashPocketRemote(id).catch(() => {});
+      },
       addCurrencyAccount: (label, currencyCode, balance, exchangeRateToBase) => setCurrencyAccounts((prev) => [...prev, { id: genId(), label, currencyCode, balance, exchangeRateToBase, updatedAt: new Date().toISOString() }]),
       updateCurrencyAccount: (id, patch) => setCurrencyAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch, updatedAt: new Date().toISOString() } : a))),
-      deleteCurrencyAccount: (id) => setCurrencyAccounts((prev) => prev.filter((a) => a.id !== id)),
+      deleteCurrencyAccount: (id) => {
+        setCurrencyAccounts((prev) => prev.filter((a) => a.id !== id));
+        if (!isDemoMode) deleteCurrencyAccountRemote(id).catch(() => {});
+      },
 
       capitalCommitments,
       addCommitment: (c) => {
@@ -1418,9 +1440,10 @@ export function GoalProvider({ children }: { children: ReactNode }) {
       updateGoal: (id, goal) => setGoals((prev) =>
         prev.map((g) => (g.id === id ? { ...g, ...goal } : g))
       ),
-      deleteGoal: (id) => setGoals((prev) =>
-        prev.filter((g) => g.id !== id)
-      ),
+      deleteGoal: (id) => {
+        setGoals((prev) => prev.filter((g) => g.id !== id));
+        if (!isDemoMode) deleteGoalRemote(id).catch(() => {});
+      },
       hydrated,
     }),
     [goals, isDemoMode, hydrated]
@@ -1510,9 +1533,10 @@ export function InvoiceProvider({ children }: { children: ReactNode }) {
       updateInvoice: (id, invoice) => setInvoices((prev) =>
         prev.map((i) => (i.id === id ? { ...i, ...invoice } : i))
       ),
-      deleteInvoice: (id) => setInvoices((prev) =>
-        prev.filter((i) => i.id !== id)
-      ),
+      deleteInvoice: (id) => {
+        setInvoices((prev) => prev.filter((i) => i.id !== id));
+        if (!isDemoMode) deleteInvoiceRemote(id).catch(() => {});
+      },
       hydrated,
     }),
     [invoices, hydrated]
@@ -1583,7 +1607,10 @@ export function BillProvider({ children }: { children: ReactNode }) {
       bills,
       addBill: (bill) => setBills((prev) => [...prev, { ...bill, id: bill.id || genId(), createdAt: bill.createdAt || new Date().toISOString() }]),
       updateBill: (id, patch) => setBills((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b))),
-      deleteBill: (id) => setBills((prev) => prev.filter((b) => b.id !== id)),
+      deleteBill: (id) => {
+        setBills((prev) => prev.filter((b) => b.id !== id));
+        if (!isDemoMode) deleteBillRemote(id).catch(() => {});
+      },
       hydrated,
     }),
     [bills, hydrated]
