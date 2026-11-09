@@ -219,6 +219,16 @@ export default function DashboardScreen() {
     // so further edits to qaText stop overwriting their explicit choice.
     const [qaCategoryTouched, setQaCategoryTouched] = useState(false);
     const [qaPaymentMethod, setQaPaymentMethod] = useState<'cash' | 'bank' | undefined>(undefined);
+    // "Owed to me" (income) / "I owe this" (expense) -- the fast path for a
+    // customer or supplier debt Quick Add never had, forcing anyone wanting
+    // to log one through the full Invoice/Bill form instead. Reuses the
+    // exact status:'pending' + dueDate + vendorCustomer shape TransactionsScreen's
+    // own "Collect" tab, the AP/AR calculations in finance.ts, and
+    // isOverdueIncomeTransaction already read -- not a new data shape, just
+    // a quick way to produce the one this app already understands.
+    const [qaPaid, setQaPaid] = useState(true);
+    const [qaVendorCustomer, setQaVendorCustomer] = useState('');
+    const [qaDueDate, setQaDueDate] = useState('');
     const [qaAiSuggesting, setQaAiSuggesting]   = useState(false);
     const [qaAiSuggestion, setQaAiSuggestion]   = useState<AICategorizationResult | null>(null);
     const [qaAiError, setQaAiError]             = useState<string | null>(null);
@@ -969,6 +979,9 @@ export default function DashboardScreen() {
         setQaRecording(false);
         setQaTranscribing(false);
         setQaVoiceError(null);
+        setQaPaid(true);
+        setQaVendorCustomer('');
+        setQaDueDate('');
         setFabOpen(true);
     };
 
@@ -1286,12 +1299,24 @@ export default function DashboardScreen() {
                 // convention incomingPayments.ts/PaymentCompleteScreen.tsx
                 // already use so several same-day entries can be told apart
                 // by when they actually happened (see TransactionsScreen's
-                // own paidAt display).
-                paidAt: new Date().toISOString(),
+                // own paidAt display). Not set at all for an unpaid debt --
+                // nothing has actually been paid yet to timestamp.
+                paidAt: qaPaid ? new Date().toISOString() : undefined,
+                // "Owed to me"/"I owe this" -- the exact status:'pending'
+                // shape isOverdueIncomeTransaction, the AP/AR totals in
+                // finance.ts, and TransactionsScreen's "Collect" tab already
+                // read. Omitted (not explicitly 'paid') when qaPaid is true,
+                // matching every other write to this field in the app --
+                // undefined already reads as paid everywhere (see e.g.
+                // TransactionsScreen's `tx.status ?? 'paid'`).
+                status: qaPaid ? undefined : 'pending',
+                vendorCustomer: qaPaid ? undefined : (qaVendorCustomer.trim() || undefined),
+                dueDate: qaPaid ? undefined : (qaDueDate.trim() || undefined),
             });
             setQaAmount(''); setQaDesc(''); setQaCategory(''); setQaPaymentMethod(undefined);
             setQaText(''); setQaCategoryTouched(false); setQaTypeConfident(true);
             setQaAiSuggestion(null); setQaAiError(null); setFabOpen(false);
+            setQaPaid(true); setQaVendorCustomer(''); setQaDueDate('');
             const newProfit = finance.profit + (qaType === 'income' ? amt : -amt);
             showToast(`Saved! This month's profit: ${settings.currency}${(isNaN(newProfit) ? 0 : newProfit).toLocaleString()}`);
         } finally {
@@ -2526,7 +2551,55 @@ export default function DashboardScreen() {
                         </View>
                     )}
 
-                    <Text style={[styles.catLabel, { marginTop: 12 }]}>Cash or bank? (optional)</Text>
+                    {/* Quick Add previously had no way to log money owed --
+                        only a full Invoice/Bill form could. "Paid now" stays
+                        the default (unchanged behavior); the other chip
+                        produces the exact status:'pending' + dueDate +
+                        vendorCustomer shape the Collect tab, overdue alerts,
+                        and AP/AR totals already read -- same data, just a
+                        fast path to it instead of a 15-field form. */}
+                    <Text style={[styles.catLabel, { marginTop: 12 }]}>Payment status</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: qaPaid ? 16 : 10 }}>
+                        <TouchableOpacity
+                            style={[styles.eodPaymentChip, styles.eodPaymentChipRow, qaPaid && styles.eodPaymentChipActive]}
+                            onPress={() => setQaPaid(true)}
+                        >
+                            <Icon name="check" size={13} color={qaPaid ? styles.eodPaymentChipTextActive.color : styles.eodPaymentChipText.color} />
+                            <Text style={[styles.eodPaymentChipText, qaPaid && styles.eodPaymentChipTextActive]}>Paid now</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.eodPaymentChip, styles.eodPaymentChipRow, !qaPaid && styles.eodPaymentChipActive]}
+                            onPress={() => setQaPaid(false)}
+                        >
+                            <Icon name="clock" size={13} color={!qaPaid ? styles.eodPaymentChipTextActive.color : styles.eodPaymentChipText.color} />
+                            <Text style={[styles.eodPaymentChipText, !qaPaid && styles.eodPaymentChipTextActive]}>
+                                {qaType === 'income' ? 'Customer owes me' : 'I owe this'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {!qaPaid && (
+                        <>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder={qaType === 'income' ? 'Customer name (optional)' : 'Supplier name (optional)'}
+                                placeholderTextColor={Colors.textMuted}
+                                value={qaVendorCustomer}
+                                onChangeText={setQaVendorCustomer}
+                            />
+                            <TextInput
+                                style={[styles.modalInput, { marginBottom: 16 }]}
+                                placeholder="Due date YYYY-MM-DD (optional)"
+                                placeholderTextColor={Colors.textMuted}
+                                value={qaDueDate}
+                                onChangeText={setQaDueDate}
+                            />
+                        </>
+                    )}
+
+                    {qaPaid && (
+                    <>
+                    <Text style={styles.catLabel}>Cash or bank? (optional)</Text>
                     <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
                         {(['cash', 'bank'] as const).map(m => (
                             <TouchableOpacity
@@ -2545,6 +2618,8 @@ export default function DashboardScreen() {
                             </TouchableOpacity>
                         ))}
                     </View>
+                    </>
+                    )}
 
                     <TouchableOpacity
                         style={[styles.modalSubmit, { backgroundColor: qaType === 'income' ? Colors.income : Colors.expense }, (!qaDesc.trim() || !qaAmount) && { opacity: 0.5 }]}
