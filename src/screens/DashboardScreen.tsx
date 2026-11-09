@@ -38,6 +38,7 @@ import StatTile from '../components/ui/StatTile';
 import RadialGauge from '../components/RadialGauge';
 import TrendSparkline from '../components/TrendSparkline';
 import NextStepLink from '../components/NextStepLink';
+import DateInput from '../components/DateInput';
 import { buildFinancingFitInput } from '../utils/financingFit';
 import { recommendFinancingTypes } from '../utils/financingRecommendation';
 import { computeReadinessDelta } from '../utils/readinessHistory';
@@ -1316,9 +1317,21 @@ export default function DashboardScreen() {
             setQaAmount(''); setQaDesc(''); setQaCategory(''); setQaPaymentMethod(undefined);
             setQaText(''); setQaCategoryTouched(false); setQaTypeConfident(true);
             setQaAiSuggestion(null); setQaAiError(null); setFabOpen(false);
+            // Captured before the reset below, which flips qaPaid back to
+            // its default -- otherwise this toast would always read as the
+            // "paid" case regardless of what was actually just submitted.
+            const wasPaid = qaPaid;
             setQaPaid(true); setQaVendorCustomer(''); setQaDueDate('');
             const newProfit = finance.profit + (qaType === 'income' ? amt : -amt);
-            showToast(`Saved! This month's profit: ${settings.currency}${(isNaN(newProfit) ? 0 : newProfit).toLocaleString()}`);
+            // "Profit" here is accrual, not cash -- it goes up by the full
+            // amount the instant an unpaid debt is logged, same as always,
+            // but nothing was actually collected yet. Saying so explicitly
+            // here instead of a generic "Saved!" stops that from reading as
+            // "money is in the bank" the way it legitimately would have for
+            // every Quick Add before this toggle existed.
+            showToast(wasPaid
+                ? `Saved! This month's profit: ${settings.currency}${(isNaN(newProfit) ? 0 : newProfit).toLocaleString()}`
+                : `Saved as owed, not yet paid. This month's profit: ${settings.currency}${(isNaN(newProfit) ? 0 : newProfit).toLocaleString()}`);
         } finally {
             setQaSubmitting(false);
         }
@@ -2587,13 +2600,18 @@ export default function DashboardScreen() {
                                 value={qaVendorCustomer}
                                 onChangeText={setQaVendorCustomer}
                             />
-                            <TextInput
-                                style={[styles.modalInput, { marginBottom: 16 }]}
-                                placeholder="Due date YYYY-MM-DD (optional)"
-                                placeholderTextColor={Colors.textMuted}
-                                value={qaDueDate}
-                                onChangeText={setQaDueDate}
-                            />
+                            {/* DateInput, not a free-text field -- guarantees a
+                                well-formed YYYY-MM-DD or empty, the same way
+                                every other entry point for this exact
+                                Transaction.dueDate field (TransactionsScreen's
+                                own form, Invoices, Bills) already does. A raw
+                                text field here let anything through ("next
+                                week", "2026-13-45"), which isOverdueIncomeTransaction
+                                and the aging-bucket calculations in finance.ts
+                                either silently never flag as overdue or parse
+                                into a wildly wrong days-overdue count. */}
+                            <Text style={[styles.catLabel, { marginTop: 0 }]}>Due date (optional)</Text>
+                            <DateInput value={qaDueDate} onChange={setQaDueDate} style={{ marginBottom: 16 }} />
                         </>
                     )}
 

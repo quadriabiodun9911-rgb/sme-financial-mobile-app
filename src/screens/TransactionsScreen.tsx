@@ -595,7 +595,14 @@ export default function TransactionsScreen() {
         if (linkedInvoice) {
             markInvoiceStatus(linkedInvoice.id, 'paid');
         } else {
-            updateTransaction(id, { status: 'paid' });
+            // paidAt backfilled here, not left undefined -- a transaction
+            // created pending (Quick Add's debt toggle, or this screen's own
+            // manual Status picker) never had it set, and without this it
+            // would stay unset forever even after the user explicitly
+            // confirms payment: no time-of-day shown on the transaction card
+            // (see paidAt's own display a few lines below), despite the
+            // transaction genuinely being paid as of right now.
+            updateTransaction(id, { status: 'paid', paidAt: new Date().toISOString() });
         }
     };
 
