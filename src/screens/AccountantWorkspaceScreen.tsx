@@ -24,15 +24,13 @@ import FooterNav from '../components/FooterNav';
 import Icon from '../components/ui/Icon';
 import {
     getAuthUserId, loadMyTeamMemberships, loadSettingsForOwner, loadTransactionsForOwner,
-    loadAssetsForOwner, loadInvoicesForOwner, loadLoansForOwner,
+    loadAssetsForOwner, loadInvoicesForOwner, loadLoansForOwner, loadInventoryForOwner,
     inviteBusinessAsAccountant, listMySentBusinessInvites, cancelSentBusinessInvite,
-    SentBusinessInvite, MyTeamMembership,
+    SentBusinessInvite, MyTeamMembership, ADVISORY_ROLES,
 } from '../utils/storage';
-import { computeFinance, getMonthlyExpenseAverage } from '../utils/finance';
+import { computeFinance, computeAssetCurrentValue, getMonthlyExpenseAverage } from '../utils/finance';
 import { performFinancialDiagnosis, RootCauseAnalysis } from '../utils/financialDiagnosisEngine';
 import { showAlert } from '../utils/webAlert';
-
-const ADVISORY_ROLES: MyTeamMembership['role'][] = ['accountant', 'external_accountant', 'manager', 'admin'];
 
 interface ClientRow {
     ownerId: string;
@@ -87,12 +85,13 @@ export default function AccountantWorkspaceScreen() {
             const advisory = memberships.filter(m => ADVISORY_ROLES.includes(m.role));
 
             const rows = await Promise.all(advisory.map(async (m): Promise<ClientRow | null> => {
-                const [settings, transactions, assets, invoicesData, loans] = await Promise.all([
+                const [settings, transactions, assets, invoicesData, loans, inventory] = await Promise.all([
                     loadSettingsForOwner(m.ownerUserId),
                     loadTransactionsForOwner(m.ownerUserId),
                     loadAssetsForOwner(m.ownerUserId),
                     loadInvoicesForOwner(m.ownerUserId),
                     loadLoansForOwner(m.ownerUserId),
+                    loadInventoryForOwner(m.ownerUserId),
                 ]);
                 if (!settings) return null; // a genuine fetch failure, not just "no data yet" -- dropped rather than shown wrong
 
@@ -100,16 +99,23 @@ export default function AccountantWorkspaceScreen() {
                 const hasEnoughData = transactions.length >= 5;
                 let topDiagnosis: RootCauseAnalysis | null = null;
                 if (hasEnoughData) {
+                    // Same activeAssets/registeredAssetsValue derivation
+                    // portfolio.ts's computePortfolioSummary already uses --
+                    // the raw (unfiltered) assets array and a hardcoded 0
+                    // would silently drop every active asset's value from
+                    // this client's computed equity/margin/depreciation.
+                    const activeAssets = assets.filter(a => a.status === 'active');
+                    const registeredAssetsValue = activeAssets.reduce((sum, a) => sum + computeAssetCurrentValue(a), 0);
                     const finance = computeFinance(transactions, {
                         openingAssets: settings.openingAssets ?? '0',
                         openingLiabilities: settings.openingLiabilities ?? '0',
                         openingLoans: settings.openingLoans ?? '0',
                         openingOtherAssets: settings.openingOtherAssets ?? '0',
-                    }, 0, assets);
+                    }, registeredAssetsValue, activeAssets);
                     const monthlyExpenseAverage = getMonthlyExpenseAverage(finance.expense, transactions);
                     const diagnosis = performFinancialDiagnosis(
                         transactions, invoicesData, finance.cashBalance, monthlyExpenseAverage,
-                        currency, loans, [], assets, settings.industry as any,
+                        currency, loans, inventory, activeAssets, settings.industry as any,
                     );
                     topDiagnosis = diagnosis.diagnoses[0] ?? null;
                 }

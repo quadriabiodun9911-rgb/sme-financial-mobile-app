@@ -224,20 +224,19 @@ export async function loadTransactions(): Promise<Transaction[] | null> {
 
 // A direct read for one SPECIFIC owner's transactions, bypassing the
 // active-workspace pointer entirely -- for the Portfolio view (see
-// portfolio.ts), which needs every owned business's data at once, not just
+// portfolio.ts) and the Accountant Workspace (AccountantWorkspaceScreen.tsx),
+// which each need every relevant business's data at once, not just
 // whichever one is currently active. No AsyncStorage read/write here
 // (unlike loadTransactions above): caching under the single shared
 // KEYS.transactions key would corrupt whichever business IS the active
-// workspace's own local cache. Safe to call for any ownerId the caller
-// already owns -- decryption uses the signed-in identity's own derived
-// key (getFieldEncryptionKey/loadAuthSecret below, neither of which takes
-// an ownerId), and that's the same key every business the identity owns
-// was encrypted with: switchBusiness() (OptimizedContexts.tsx) only ever
-// re-points which user_id is queried, it never re-authenticates as a
-// different Supabase Auth identity (see create-business/index.ts's header
-// for the shadow-identity design this relies on), so the real signed-in
-// identity -- and therefore its derived key -- never changes across a
-// business switch.
+// workspace's own local cache. Decryption goes through
+// resolveFieldEncryptionKeyForOwner(ownerId) below, which already handles
+// both cases this function is called for: a second business the caller
+// owns outright (a shadow identity, same real session/key as their
+// primary business -- see createBusiness()'s header) takes the fast local
+// path, while an actual OTHER party's business the caller merely has
+// advisory/team access to fetches that owner's own key from
+// business_encryption_keys (migration 051).
 export async function loadTransactionsForOwner(ownerId: string): Promise<Transaction[]> {
     try {
         const { data, error } = await supabase
@@ -1113,6 +1112,15 @@ export interface MyTeamMembership {
     role: 'accountant' | 'manager' | 'staff' | 'admin' | 'external_accountant' | 'viewer' | 'owner';
 }
 
+// A membership in one of these roles means an advisory (not merely
+// operational, and not the "I own this business outright" owner) relationship
+// to a client business -- the Accountant Workspace's definition of "a
+// client I should see," and FooterNav's definition of "does the My Clients
+// tab have anything to show." Shared here, not duplicated in each of those
+// two files, so a role added or removed can't make them disagree about
+// which clients exist.
+export const ADVISORY_ROLES: MyTeamMembership['role'][] = ['accountant', 'external_accountant', 'manager', 'admin'];
+
 export async function loadMyTeamMemberships(): Promise<MyTeamMembership[]> {
     const myId = await getAuthUserId();
     if (!myId) return [];
@@ -1481,6 +1489,48 @@ export async function loadInventory(): Promise<InventoryItem[] | null> {
     }
     const raw = await AsyncStorage.getItem('@quad360/inventory');
     return safeParse<InventoryItem[]>(raw);
+}
+
+// Direct read for one specific owner's inventory -- see
+// loadTransactionsForOwner's comment for why this bypasses the
+// active-workspace pointer and the AsyncStorage cache. Mirrors
+// loadInventory's own field mapping exactly (no decrypt step here either
+// -- inventory's cost/selling price are never actually encrypted today
+// despite being listed in ENCRYPTED_FIELDS; that's a separate, pre-existing
+// gap in loadInventory/saveInventory, not something this function should
+// diverge from).
+export async function loadInventoryForOwner(ownerId: string): Promise<InventoryItem[]> {
+    try {
+        const { data, error } = await supabase
+            .from('inventory')
+            .select('*')
+            .eq('user_id', ownerId)
+            .order('updated_at', { ascending: false });
+        if (error) { logSyncError('inventory', 'load_for_owner', error); return []; }
+        if (!data || data.length === 0) return [];
+        return data.map(row => ({
+            id: row.id,
+            name: row.name,
+            sku: row.sku ?? undefined,
+            category: row.category,
+            quantity: row.quantity,
+            unit: row.unit,
+            costPrice: row.cost_price,
+            sellingPrice: row.selling_price,
+            lowStockThreshold: row.low_stock_threshold,
+            supplier: row.supplier ?? undefined,
+            priceHistory: row.price_history && row.price_history.length > 0 ? row.price_history : undefined,
+            expiryDate: row.expiry_date ?? undefined,
+            itemType: row.item_type ?? undefined,
+            stockCountHistory: row.stock_count_history && row.stock_count_history.length > 0 ? row.stock_count_history : undefined,
+            batches: row.batches && row.batches.length > 0 ? row.batches : undefined,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+        } as InventoryItem));
+    } catch (e) {
+        logSyncError('inventory', 'load_for_owner', e);
+        return [];
+    }
 }
 
 // ─── Language (per-device, not synced) ───────────────────────────────────────
@@ -1954,6 +2004,23 @@ export async function resolveFieldEncryptionKeyForOwner(ownerId: string | null):
         return getFieldEncryptionKey(await loadAuthSecret());
     }
     if (sharedEncryptionKeyCache.has(ownerId)) return sharedEncryptionKeyCache.get(ownerId)!;
+    // A SECOND (or third...) business this SAME real identity owns outright
+    // -- a shadow business, see createBusiness()'s header comment -- is
+    // still encrypted with this identity's own key: nobody ever signs in
+    // AS the shadow identity, so every write to it happens under this same
+    // real session regardless of which user_id the row is tagged with (see
+    // switchBusiness()'s own comment). Only an actual OTHER party's
+    // business -- one this identity was invited INTO, never owns -- needs
+    // the remote business_encryption_keys fetch below. Without this check,
+    // every owned shadow business would wrongly take that branch, find no
+    // row there (nothing ever publishes one for an identity nobody signs
+    // in as), and silently write every new record UNENCRYPTED from then on.
+    const myRole = await getMyRoleForOwner(ownerId);
+    if (myRole === 'owner') {
+        const localKey = await getFieldEncryptionKey(await loadAuthSecret());
+        sharedEncryptionKeyCache.set(ownerId, localKey);
+        return localKey;
+    }
     try {
         const { data, error } = await supabase
             .from('business_encryption_keys')

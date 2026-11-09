@@ -144,18 +144,25 @@ const EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS: Screen[] = [
     // journal entry behind that same check, the same pattern DataIntegrityScreen
     // already uses for its own delete action.
     'general-ledger', 'production-cycles',
+    // The one advisory-role role list this screen's own client list is
+    // built from (ADVISORY_ROLES in AccountantWorkspaceScreen.tsx) includes
+    // 'external_accountant' -- without this, accepting a client's invite as
+    // that exact role lost access to the screen (and its FooterNav tab)
+    // the moment they switched into that client's workspace.
+    'accountant-workspace',
 ];
 
 // Screens a pure viewer can open -- EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS
-// minus reconciliation and import-transactions, since both of those carry
-// a write action (matching/confirming a reconciled transaction, importing
-// new records) even though they read as "reporting" screens at a glance.
-// A viewer's enforcement model is entirely this exclusion: there is no
-// separate per-action read/write check anywhere in the app, so a screen
-// left off this list is the only thing that actually stops a write --
-// don't add a screen here without checking it has no mutation on it.
+// minus reconciliation, import-transactions, and accountant-workspace,
+// since all three carry a write action (matching/confirming a reconciled
+// transaction, importing new records, sending a client-business invite)
+// even though they read as "reporting" screens at a glance. A viewer's
+// enforcement model is entirely this exclusion: there is no separate
+// per-action read/write check anywhere in the app, so a screen left off
+// this list is the only thing that actually stops a write -- don't add a
+// screen here without checking it has no mutation on it.
 const VIEWER_ALLOWED_SCREENS: Screen[] = EXTERNAL_ACCOUNTANT_ALLOWED_SCREENS.filter(
-    s => s !== 'reconciliation' && s !== 'import-transactions',
+    s => s !== 'reconciliation' && s !== 'import-transactions' && s !== 'accountant-workspace',
 );
 
 export function isScreenAllowedForRole(screen: Screen, role: UserRole): boolean {

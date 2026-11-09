@@ -676,6 +676,25 @@ describe('resolveWorkspaceRole', () => {
 // that owner's key from business_encryption_keys (migration 051), whose
 // RLS policy only grants read access to the owner themselves or an active
 // team member -- never write access to anyone but the owner.
+// Shared 'team_members' mock shape for getMyRoleForOwner's own query
+// (.select('role').eq().eq().eq().maybeSingle()) -- every test below that
+// exercises the cross-owner path hits this first, since
+// resolveFieldEncryptionKeyForOwner checks "do I own this business outright"
+// before ever falling through to the business_encryption_keys fetch.
+function mockNotTeamOwner() {
+    return {
+        select: () => ({
+            eq: () => ({
+                eq: () => ({
+                    eq: () => ({
+                        maybeSingle: jest.fn(async () => ({ data: null, error: null })),
+                    }),
+                }),
+            }),
+        }),
+    } as any;
+}
+
 describe('resolveFieldEncryptionKeyForOwner', () => {
     beforeEach(() => {
         resetSharedEncryptionKeyCache();
@@ -699,9 +718,47 @@ describe('resolveFieldEncryptionKeyForOwner', () => {
         expect(fromSpy).not.toHaveBeenCalledWith('business_encryption_keys');
     });
 
+    // Regression: a second business the caller owns outright (a shadow
+    // identity -- see createBusiness()'s header comment) was wrongly routed
+    // through the remote business_encryption_keys fetch, which nobody ever
+    // publishes a row for (nobody signs in AS a shadow identity), making
+    // every save to that business write its data completely UNENCRYPTED
+    // from then on. getMyRoleForOwner returning 'owner' for ownerId must
+    // take the same fast local path as the caller's own primary business.
+    it('takes the fast local path for a second business the caller owns outright (role \'owner\'), never the remote fetch', async () => {
+        mockSession('me-1');
+        const businessEncryptionKeysSpy = jest.fn();
+        jest.spyOn(supabase, 'from').mockImplementation((table: string) => {
+            if (table === 'team_members') {
+                return {
+                    select: () => ({
+                        eq: () => ({
+                            eq: () => ({
+                                eq: () => ({
+                                    maybeSingle: jest.fn(async () => ({ data: { role: 'owner' }, error: null })),
+                                }),
+                            }),
+                        }),
+                    }),
+                } as any;
+            }
+            if (table === 'business_encryption_keys') {
+                businessEncryptionKeysSpy();
+                return { select: () => ({ eq: () => ({ maybeSingle: jest.fn(async () => ({ data: null, error: null })) }) }) } as any;
+            }
+            return { upsert: jest.fn(async () => ({ error: null })) } as any;
+        });
+
+        const key = await resolveFieldEncryptionKeyForOwner('shadow-biz-1');
+
+        expect(key).toBe('mock-key'); // the mocked getFieldEncryptionKey's return value
+        expect(businessEncryptionKeysSpy).not.toHaveBeenCalled();
+    });
+
     it('fetches the owner\'s key from business_encryption_keys when viewing a different business', async () => {
         mockSession('me-1');
         jest.spyOn(supabase, 'from').mockImplementation((table: string) => {
+            if (table === 'team_members') return mockNotTeamOwner();
             if (table === 'business_encryption_keys') {
                 return {
                     select: () => ({
@@ -723,6 +780,7 @@ describe('resolveFieldEncryptionKeyForOwner', () => {
         mockSession('me-1');
         const maybeSingle = jest.fn(async () => ({ data: { field_encryption_key: 'owner-biz-1-key' }, error: null }));
         jest.spyOn(supabase, 'from').mockImplementation((table: string) => {
+            if (table === 'team_members') return mockNotTeamOwner();
             if (table === 'business_encryption_keys') {
                 return { select: () => ({ eq: () => ({ maybeSingle }) }) } as any;
             }
@@ -739,6 +797,7 @@ describe('resolveFieldEncryptionKeyForOwner', () => {
         mockSession('me-1');
         const maybeSingle = jest.fn(async () => ({ data: { field_encryption_key: 'owner-biz-1-key' }, error: null }));
         jest.spyOn(supabase, 'from').mockImplementation((table: string) => {
+            if (table === 'team_members') return mockNotTeamOwner();
             if (table === 'business_encryption_keys') {
                 return { select: () => ({ eq: () => ({ maybeSingle }) }) } as any;
             }
@@ -756,6 +815,7 @@ describe('resolveFieldEncryptionKeyForOwner', () => {
         mockSession('me-1');
         let calls = 0;
         jest.spyOn(supabase, 'from').mockImplementation((table: string) => {
+            if (table === 'team_members') return mockNotTeamOwner();
             if (table === 'business_encryption_keys') {
                 calls++;
                 return {

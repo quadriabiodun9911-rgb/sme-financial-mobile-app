@@ -11,7 +11,7 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 import Icon, { IconName } from './ui/Icon';
 import { Screen, NavParams } from '../types';
 import { isScreenAllowedForRole } from '../utils/rolePermissions';
-import { accountDisplayName, isUsernameAccountEmail } from '../utils/storage';
+import { accountDisplayName, isUsernameAccountEmail, ADVISORY_ROLES } from '../utils/storage';
 import { t, TranslationKey } from '../utils/i18n';
 
 // ─── Icon accent colours per section ────────────────────────────────────────
@@ -248,7 +248,7 @@ export default function FooterNav() {
     // this login has at least one client business to show in the Accountant
     // Workspace -- hidden rather than shown empty for everyone else, same
     // reasoning as ownsMultipleBusinesses/Portfolio above.
-    const hasAdvisoryClients = teamMemberships.some(m => ['accountant', 'external_accountant', 'manager', 'admin'].includes(m.role));
+    const hasAdvisoryClients = teamMemberships.some(m => ADVISORY_ROLES.includes(m.role));
     const visibleDiagnosis = useMemo(() => DIAGNOSIS_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
     const visibleUnderstand = useMemo(
         () => UNDERSTAND_ITEMS.filter(i =>
