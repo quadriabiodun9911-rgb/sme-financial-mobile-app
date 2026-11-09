@@ -874,6 +874,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (!isDemoMode) trackTransactionAdded(tx.type, tx.amount, settingsForFinance?.settings?.currency ?? '₦');
         const resolved = { ...tx, id: tx.id || genId() } as Transaction;
         setTransactions((prev) => [...prev, resolved]);
+        // Fired here, immediately, in the SAME call as the state update --
+        // not left to the save-effect below (which only runs once React
+        // has committed the re-render and scheduled it, a real delay a
+        // user reloading right after seeing the transaction appear can
+        // land inside). This is what actually makes the add durable before
+        // the function returns; the effect still runs afterward too and is
+        // harmless (idempotent) when it does. Confirmed real: a user hit
+        // exactly this window -- added a transaction, reloaded immediately,
+        // and it was gone, because nothing had been written to disk yet.
+        if (!isDemoMode && hydrated) saveTransactions([...transactions, resolved]).catch(() => {});
         // Posts regardless of isDemoMode -- postEntry is purely in-memory
         // (saveJournalEntries' own effect already skips persisting while
         // isDemoMode), and bad debt provisions/manual journal entries
@@ -892,6 +902,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         setTransactions((prev) =>
           prev.map((t) => (t.id === id ? { ...t, ...tx } : t))
         );
+        // Same immediate-persist reasoning as addTransaction above -- don't
+        // leave the edit's durability to the save-effect's own scheduling.
+        if (!isDemoMode && hydrated) {
+          saveTransactions(transactions.map((t) => (t.id === id ? { ...t, ...tx } : t))).catch(() => {});
+        }
         // Reverses and re-posts from the transaction's new state on any
         // financially-relevant change -- not just a pending -> paid
         // settlement, but also an amount/category/type edit on a
@@ -917,6 +932,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       },
       deleteTransaction: (id) => {
         setTransactions((prev) => prev.filter((t) => t.id !== id));
+        // Same immediate-persist reasoning as addTransaction above, for the
+        // local cache specifically -- deleteTransactionRemote below already
+        // handles the remote side immediately.
+        if (!isDemoMode && hydrated) {
+          saveTransactions(transactions.filter((t) => t.id !== id)).catch(() => {});
+        }
         // Reverse any still-open journal entry this transaction posted --
         // without this, the General Ledger kept the entry forever after the
         // transaction itself (and everything computed from `transactions`,
