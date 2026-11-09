@@ -907,13 +907,24 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       },
       updateTransaction: (id, tx) => {
         const before = transactions.find((t) => t.id === id);
+        // Every "mark paid" call site in the app (TransactionsScreen's own
+        // handleMarkPaid, AgingReport's markPaid, the Edit form's Status
+        // picker, markInvoiceStatus's linked branch, updateInvoice) funnels
+        // through here -- defaulting paidAt once at this root, instead of
+        // patching each call site individually, is what keeps a
+        // newly-paid transaction from permanently missing its paid
+        // timestamp. Only applied when the caller didn't already supply
+        // one, so an explicit backdated paidAt is never overwritten.
+        const patch = tx.status === 'paid' && tx.paidAt === undefined
+          ? { ...tx, paidAt: new Date().toISOString() }
+          : tx;
         setTransactions((prev) =>
-          prev.map((t) => (t.id === id ? { ...t, ...tx } : t))
+          prev.map((t) => (t.id === id ? { ...t, ...patch } : t))
         );
         // Same immediate-persist reasoning as addTransaction above -- don't
         // leave the edit's durability to the save-effect's own scheduling.
         if (!isDemoMode && hydrated) {
-          saveTransactions(transactions.map((t) => (t.id === id ? { ...t, ...tx } : t))).catch(() => {});
+          saveTransactions(transactions.map((t) => (t.id === id ? { ...t, ...patch } : t))).catch(() => {});
         }
         // Reverses and re-posts from the transaction's new state on any
         // financially-relevant change -- not just a pending -> paid
@@ -926,9 +937,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         // own comment for why this single path also covers the plain
         // settle case without a separate clearing-entry function.
         if (before) {
-          const after = { ...before, ...tx } as Transaction;
+          const after = { ...before, ...patch } as Transaction;
           const relevantFields: (keyof Transaction)[] = ['amount', 'type', 'category', 'status', 'principalPortion'];
-          const financiallyRelevant = relevantFields.some((k) => tx[k] !== undefined && tx[k] !== before[k]);
+          const financiallyRelevant = relevantFields.some((k) => patch[k] !== undefined && patch[k] !== before[k]);
           if (financiallyRelevant) {
             try {
               setJournalEntries((prev) => reconcileTransactionEntries(prev, after));
@@ -3242,6 +3253,9 @@ export function useApp() {
         // Editing turned a draft into sent/paid/overdue for the first
         // time, or the invoice predates transaction-linking — create the
         // link now instead of leaving this revenue invisible.
+        // addTransaction has no paidAt default of its own (see
+        // markInvoiceStatus's identical backfill branch above), so this
+        // one sets it explicitly when the first-ever status is 'paid'.
         finance.addTransaction({
           date: after.issueDate,
           description: `Invoice ${after.invoiceNumber}: ${after.clientName || 'Customer'}`,
@@ -3249,6 +3263,7 @@ export function useApp() {
           category: 'Sales',
           amount: after.total,
           status: txStatus,
+          paidAt: txStatus === 'paid' ? new Date().toISOString() : undefined,
           reference: after.invoiceNumber,
           vendorCustomer: after.clientName || undefined,
           project: after.project || undefined,
@@ -3434,10 +3449,17 @@ export function useApp() {
       if (!txStatus) return; // draft has no linked transaction to update
       const linked = transactions.find((t) => t.reference === inv.invoiceNumber && t.type === 'income');
       if (linked && finance?.updateTransaction) {
+        // updateTransaction itself now defaults paidAt whenever status
+        // transitions to 'paid' with none supplied, so this call doesn't
+        // need to set it explicitly.
         finance.updateTransaction(linked.id, { status: txStatus });
       } else if (!linked && finance?.addTransaction) {
         // Invoice predates transaction-linking, or was created as a draft —
         // back-fill the link now instead of leaving this collection invisible.
+        // addTransaction deliberately has no paidAt default of its own
+        // (many callers create historically-paid transactions with a real
+        // past date), so this backfill -- unlike the updateTransaction
+        // branch above -- must set paidAt itself to avoid the same gap.
         finance.addTransaction({
           date: localDateStr(),
           description: `Invoice ${inv.invoiceNumber}: ${inv.clientName || 'Customer'}`,
@@ -3445,6 +3467,7 @@ export function useApp() {
           category: 'Sales',
           amount: inv.total,
           status: txStatus,
+          paidAt: txStatus === 'paid' ? new Date().toISOString() : undefined,
           reference: inv.invoiceNumber,
           vendorCustomer: inv.clientName || undefined,
           project: inv.project || undefined,
