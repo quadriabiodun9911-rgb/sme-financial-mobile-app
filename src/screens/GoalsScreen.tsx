@@ -1115,7 +1115,7 @@ const GoalCard = React.memo(function GoalCard({ goal, currency, daysRemaining, f
                 this goal's target total, rather than inventing a second,
                 less-informed category-splitting engine here. */}
             {!isAchieved && goal.type === 'cost_reduction' && onTurnIntoBudget && (
-                <NextStepLink text="Turn into a budget →" onPress={onTurnIntoBudget} />
+                <NextStepLink text="Turn into a budget" onPress={onTurnIntoBudget} />
             )}
 
             {/* Progress bar + key numbers */}

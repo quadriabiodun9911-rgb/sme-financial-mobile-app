@@ -1750,8 +1750,6 @@ export default function DashboardScreen() {
                             <Text style={styles.healthLinkText}>{t(language, 'seeFullBreakdownTrend')}</Text>
                         </PressScale>
                       )}
-                    </View>
-                )}
 
                 {/* WHAT QUAD360 SEES — the plain-language "what does this
                     mean" that Vital Signs' raw numbers above don't answer on
@@ -1765,7 +1763,7 @@ export default function DashboardScreen() {
                   <TouchableOpacity style={styles.narrativeCard} onPress={() => setCurrentScreen('financial-assessment')} activeOpacity={0.85}>
                     <Text style={styles.narrativeEyebrow}>WHAT QUAD360 SEES</Text>
                     <Text style={styles.narrativeText}>{diagnosisForNextGoal.narrativeSummary}</Text>
-                    <NextStepLink text="Full diagnosis & what to do about it →" onPress={() => setCurrentScreen('financial-assessment')} />
+                    <NextStepLink text="Full diagnosis & what to do about it" onPress={() => setCurrentScreen('financial-assessment')} />
                   </TouchableOpacity>
                 )}
 
@@ -1888,6 +1886,8 @@ export default function DashboardScreen() {
                 )}
 
                 </>
+                )}
+                    </View>
                 )}
 
                 {/* ══════════════════════════════════════════════════════════════════

@@ -909,8 +909,8 @@ export default function CreditWorthinessScreen() {
                                 in this "not qualified yet" branch -- a
                                 business that already has a real range above
                                 doesn't need to be redirected away from it. */}
-                            <NextStepLink text="Build up your own cash reserve instead →" onPress={() => navigate('cashflow')} />
-                            <NextStepLink text="See other financing options that don't need this range →" onPress={() => navigate('financing-marketplace')} />
+                            <NextStepLink text="Build up your own cash reserve instead" onPress={() => navigate('cashflow')} />
+                            <NextStepLink text="See other financing options that don't need this range" onPress={() => navigate('financing-marketplace')} />
                         </>
                     )}
 
@@ -1100,7 +1100,7 @@ export default function CreditWorthinessScreen() {
                                 </View>
                             );
                         })}
-                        <NextStepLink text="See the full risk breakdown for each goal →" onPress={() => navigate('goals')} />
+                        <NextStepLink text="See the full risk breakdown for each goal" onPress={() => navigate('goals')} />
                     </View>
                 )}
 
@@ -1208,7 +1208,7 @@ export default function CreditWorthinessScreen() {
                         pre-approval, and not a promise of funding.
                     </Text>
                     <NextStepLink text="See what's holding your score back" onPress={() => navigate('financial-assessment')} />
-                    <NextStepLink text="See which financing products fit your business →" onPress={() => navigate('financing-marketplace')} />
+                    <NextStepLink text="See which financing products fit your business" onPress={() => navigate('financing-marketplace')} />
                 </View>
 
                 {/* Top actions + after-improvement projection — same
