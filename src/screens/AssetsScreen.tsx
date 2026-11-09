@@ -460,7 +460,7 @@ export default function AssetsScreen() {
                                                 </Text>
                                                 <Text style={s.assetForecastSub}>{need.message}</Text>
                                                 <NextStepLink
-                                                    text={need.withinCapacity === false ? 'See financing options →' : 'Plan financing for this →'}
+                                                    text={need.withinCapacity === false ? 'See financing options' : 'Plan financing for this'}
                                                     onPress={() => navigate('financing-marketplace', { prefill: { category: 'asset_equipment', amount: item.purchaseCost } })}
                                                 />
                                             </View>

@@ -15,9 +15,17 @@ interface Props {
 // Pricing→Balance Sheet, low-margin→Inventory, etc.) so the interaction
 // feels like one consistent app behavior, not a one-off per screen.
 export default function NextStepLink({ text, onPress, emphasis = 'link' }: Props) {
+    // Strips an arrow a caller added anyway (the trailing arrow is this
+    // component's job, per the `text` prop's own doc comment above) --
+    // this exact mistake has independently recurred at 7 call sites across
+    // 4 screens, so the component now makes it harmless instead of relying
+    // on every caller reading the comment. Only a TRAILING arrow is
+    // stripped -- a mid-sentence one (e.g. "profit → cash picture") is
+    // left alone.
+    const cleanText = text.replace(/\s*→\s*$/, '');
     return (
         <TouchableOpacity style={emphasis === 'button' ? s.button : s.link} onPress={onPress}>
-            <Text style={emphasis === 'button' ? s.buttonText : s.linkText}>{text} →</Text>
+            <Text style={emphasis === 'button' ? s.buttonText : s.linkText}>{cleanText} →</Text>
         </TouchableOpacity>
     );
 }
