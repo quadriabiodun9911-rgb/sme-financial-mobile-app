@@ -234,6 +234,74 @@ describe('saveTransactions / loadTransactions', () => {
         expect(loaded).toHaveLength(1);
         expect(loaded![0].id).toBe('new-tx');
     });
+
+    // Regression: a reload landing while saveTransactions' upsert was still
+    // in flight (aborting it before its own catch block could queue a
+    // retry) meant the row never reached Supabase, and the very next
+    // loadTransactions() then blindly overwrote the local cache with
+    // remote's incomplete list -- silently erasing a transaction the user
+    // had just entered and could see on screen a moment earlier.
+    it('a transaction whose upsert failed is NOT lost on the next load, even though remote never received it', async () => {
+        mockSession('me-1');
+        const synced = makeTx({ id: 'already-synced', amount: 1000 });
+        const unsynced = makeTx({ id: 'never-reached-remote', amount: 500 });
+
+        // Simulate the failed/aborted upload: saveTransactions' upsert
+        // errors, so the row is marked pending and never cleared.
+        jest.spyOn(supabase, 'from').mockImplementation((table: string) => {
+            if (table === 'transactions') {
+                return { upsert: jest.fn(async () => ({ error: new Error('simulated network failure') })) } as any;
+            }
+            return { upsert: jest.fn(async () => ({ error: null })) } as any;
+        });
+        await saveTransactions([synced, unsynced]);
+
+        // Next load: remote only has the other, already-synced row --
+        // exactly what an aborted upload of `unsynced` would look like.
+        jest.spyOn(supabase, 'from').mockImplementation((table: string) => {
+            if (table === 'transactions') {
+                return {
+                    select: () => ({
+                        eq: () => ({
+                            order: () => Promise.resolve({ data: [{ data: synced }], error: null }),
+                        }),
+                    }),
+                } as any;
+            }
+            return { upsert: jest.fn(async () => ({ error: null })) } as any;
+        });
+        const loaded = await loadTransactions();
+
+        expect(loaded!.map(t => t.id).sort()).toEqual(['already-synced', 'never-reached-remote']);
+    });
+
+    // Companion case: a row missing from remote because it was deleted on
+    // ANOTHER device (not because it's pending upload) must NOT be
+    // resurrected just for being locally present and absent from remote --
+    // only rows this device itself marked pending get merged back.
+    it('does NOT resurrect a local-only row that was never marked pending (e.g. deleted elsewhere)', async () => {
+        mockSession('me-1');
+        const remoteOnly = makeTx({ id: 'remote-row', amount: 1000 });
+        const deletedElsewhere = makeTx({ id: 'deleted-on-other-device', amount: 500 });
+
+        await AsyncStorage.setItem('@quad360/transactions', JSON.stringify([remoteOnly, deletedElsewhere]));
+
+        jest.spyOn(supabase, 'from').mockImplementation((table: string) => {
+            if (table === 'transactions') {
+                return {
+                    select: () => ({
+                        eq: () => ({
+                            order: () => Promise.resolve({ data: [{ data: remoteOnly }], error: null }),
+                        }),
+                    }),
+                } as any;
+            }
+            return { upsert: jest.fn(async () => ({ error: null })) } as any;
+        });
+        const loaded = await loadTransactions();
+
+        expect(loaded!.map(t => t.id)).toEqual(['remote-row']);
+    });
 });
 
 // ─── Goals ────────────────────────────────────────────────────────────────────

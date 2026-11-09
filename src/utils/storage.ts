@@ -126,6 +126,33 @@ export async function clearWorkspaceOwner(): Promise<void> {
 // loaded yet for one the user had deleted. See deleteTransactionRemote()
 // below for how an actual deletion is now synced instead: explicitly, by
 // id, at the moment it happens -- never inferred from a diff.
+// Persisted (survives a reload, unlike the in-memory delta-sync cache
+// above) record of which transaction ids this device has attempted to
+// upload but not yet confirmed as synced. Written just before the network
+// call below, cleared just after a confirmed success. loadTransactions()
+// consults this to tell "this local-only row hasn't synced yet" (keep it)
+// apart from "this row was deleted on another device and I just haven't
+// heard about it" (don't resurrect it) when remote turns out to be
+// missing a row the local cache still has -- see its own comment for why
+// that distinction matters and can't be inferred from the rows alone.
+const PENDING_TX_SYNC_KEY = '@quad360/pendingTransactionSync';
+
+async function markTransactionsPendingSync(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const raw = await AsyncStorage.getItem(PENDING_TX_SYNC_KEY);
+    const pending = new Set(safeParse<string[]>(raw) ?? []);
+    ids.forEach(id => pending.add(id));
+    await AsyncStorage.setItem(PENDING_TX_SYNC_KEY, JSON.stringify([...pending]));
+}
+
+async function clearTransactionsPendingSync(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const raw = await AsyncStorage.getItem(PENDING_TX_SYNC_KEY);
+    const pending = new Set(safeParse<string[]>(raw) ?? []);
+    ids.forEach(id => pending.delete(id));
+    await AsyncStorage.setItem(PENDING_TX_SYNC_KEY, JSON.stringify([...pending]));
+}
+
 export async function saveTransactions(t: Transaction[]): Promise<void> {
     // Always save locally first — works offline instantly
     await AsyncStorage.setItem(KEYS.transactions, JSON.stringify(t));
@@ -135,6 +162,13 @@ export async function saveTransactions(t: Transaction[]): Promise<void> {
     // encrypted and sent — see the "Delta-sync cache" note above.
     const changed = diffChangedRows('transactions', t);
     if (changed.length === 0) return;
+    const changedIds = changed.map(tx => tx.id);
+    // Marked BEFORE the network call so a reload that lands while the
+    // upsert below is still in flight -- and therefore aborts it, with no
+    // chance for the catch block to run and queue a retry -- doesn't
+    // silently lose these rows: loadTransactions() will still know to keep
+    // them even though remote never actually received them.
+    await markTransactionsPendingSync(changedIds);
     try {
         const encKey = await resolveFieldEncryptionKeyForOwner(ownerId);
         const rows = changed.map(tx => ({
@@ -169,8 +203,11 @@ export async function saveTransactions(t: Transaction[]): Promise<void> {
         // a genuinely-unsynced record could get recorded as synced and
         // then silently never retried.
         recordSyncedRows('transactions', t);
+        await clearTransactionsPendingSync(changedIds);
     } catch (e) {
-        // Network error — queue for when internet returns
+        // Network error — queue for when internet returns. Pending-sync
+        // marker deliberately left in place (not cleared) -- the rows
+        // genuinely haven't synced yet.
         logSyncError('transactions', 'sync', e);
         if (t.length > 0) {
             const rows = t.map(tx => ({ id: tx.id, user_id: ownerId, data: tx, updated_at: new Date().toISOString() }));
@@ -211,8 +248,38 @@ export async function loadTransactions(): Promise<Transaction[] | null> {
                     const raw = r.data as Record<string, any>;
                     return (encKey && raw?.encrypted ? decryptTransaction(raw as any, encKey) : raw) as Transaction;
                 });
-                await AsyncStorage.setItem(KEYS.transactions, JSON.stringify(txs));
-                return txs;
+                // Remote is authoritative for every row it DOES have, but a
+                // row that exists only in the local cache isn't necessarily
+                // stale -- it can be a write whose upload never reached
+                // Supabase (e.g. the page was reloaded while the upsert in
+                // saveTransactions was still in flight, aborting it before
+                // its own catch block could even queue a retry). Blindly
+                // overwriting the local cache with remote here used to
+                // silently destroy that write with no recovery path. Only
+                // rows saveTransactions itself marked pending are merged
+                // back in (not every local-only row) -- a row missing from
+                // remote because it was deleted on another device must NOT
+                // be resurrected just for being absent here, and the
+                // pending-sync marker is exactly what distinguishes the two
+                // (see markTransactionsPendingSync's own comment above).
+                const remoteIds = new Set(txs.map(t => t.id));
+                const pendingRaw = await AsyncStorage.getItem(PENDING_TX_SYNC_KEY);
+                const pendingIds = new Set(safeParse<string[]>(pendingRaw) ?? []);
+                let merged = txs;
+                if (pendingIds.size > 0) {
+                    const localRaw = await AsyncStorage.getItem(KEYS.transactions);
+                    const local = safeParse<Transaction[]>(localRaw) ?? [];
+                    const unsynced = local.filter(t => pendingIds.has(t.id) && !remoteIds.has(t.id));
+                    if (unsynced.length > 0) merged = [...txs, ...unsynced];
+                    // Prune any pending id remote now confirms it has --
+                    // keeps this marker from growing stale/unbounded.
+                    const stillPending = [...pendingIds].filter(id => !remoteIds.has(id));
+                    if (stillPending.length !== pendingIds.size) {
+                        await AsyncStorage.setItem(PENDING_TX_SYNC_KEY, JSON.stringify(stillPending));
+                    }
+                }
+                await AsyncStorage.setItem(KEYS.transactions, JSON.stringify(merged));
+                return merged;
             }
         } catch (e) {
             logSyncError('transactions', 'load', e);
