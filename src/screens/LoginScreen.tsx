@@ -934,7 +934,7 @@ export default function LoginScreen() {
             await savePin(resetNewPin).catch(() => {});
             await saveAuthSecret(newAuthSecret).catch(() => {});
             await saveProfile({ email, businessName: activeProfile?.businessName ?? '' }).catch(() => {});
-            showAlert('PIN Reset Successful', 'Your new PIN is set. You are now logged in.', [
+            showAlert('PIN Reset Successful', 'Your new PIN is set.', [
                 { text: 'Continue', onPress: async () => {
                     try {
                         await supabase.auth.signInWithPassword({ email, password: newAuthSecret });
@@ -1011,7 +1011,7 @@ export default function LoginScreen() {
             await savePin(resetNewPin).catch(() => {});
             await saveAuthSecret(newAuthSecret).catch(() => {});
             await saveProfile({ email, businessName: '' }).catch(() => {});
-            showAlert('PIN Reset Successful', 'Your new PIN is set. You are now logged in.', [
+            showAlert('PIN Reset Successful', 'Your new PIN is set.', [
                 { text: 'Continue', onPress: async () => {
                     try { await recoverAccount(email, resetNewPin); } catch {}
                     setResetStep('request'); setResetOtp(''); setResetNewPin(''); setResetConfirmPin('');

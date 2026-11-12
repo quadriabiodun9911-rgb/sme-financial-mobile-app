@@ -2521,6 +2521,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await registerLocalAccount(profile.email, profile.businessName, pin, recoveredAuthSecret, profile.createdAt).catch(() => {});
         }
         setIsFirstLaunch(false);
+        // Every caller into recoverAccount (email-login's cached-secret fast
+        // path, every "forgot PIN" reset flow) already has a live Supabase
+        // session by this point, same precondition login()'s own 2FA check
+        // relies on -- without this, 2FA was only ever enforced on the
+        // "type your PIN on this exact device" path, and every one of these
+        // other, more commonly-used login paths granted the dashboard
+        // straight away with no second factor at all.
+        const twoFactorStatus = await getTwoFactorStatus().catch(() => 'disabled' as const);
+        if (twoFactorStatus === 'enabled') {
+          setPendingTwoFactorProfile({ email: profile.email, businessName: profile.businessName, phone: profile.phone, createdAt: profile.createdAt });
+          setCurrentScreenState('two-factor-verify');
+          await refreshLocalAccounts();
+          return;
+        }
         writeTabIdentity(profile.email);
         const role = await resolveWorkspaceRole();
         setUser({ email: profile.email, businessName: profile.businessName, phone: profile.phone, role, createdAt: profile.createdAt });
