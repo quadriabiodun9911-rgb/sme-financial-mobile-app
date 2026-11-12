@@ -25,6 +25,7 @@ import { fetchAdminMacroRates, AdminMacroRate } from '../utils/adminMacroRates';
 import { loadFxSnapshots, saveFxSnapshots } from '../utils/storage';
 import { MacroDriver } from '../types';
 import { computeSupplierIntelligence } from '../utils/supplierIntelligence';
+import { computeTransactionAnomalies } from '../utils/transactionAnomalyDetection';
 import { localDateStr } from '../utils/localDate';
 import MacroShieldSimulator from '../components/MacroShieldSimulator';
 import { DEFAULT_THRESHOLDS } from '../utils/alertEngine';
@@ -117,6 +118,7 @@ export default function RiskManagementScreen() {
     const customerConc  = useMemo(() => computeCustomerConcentration(transactions), [transactions]);
     const supplierConc  = useMemo(() => computeSupplierConcentration(transactions), [transactions]);
     const supplierIntel = useMemo(() => computeSupplierIntelligence(transactions, inventory, currency), [transactions, inventory, currency]);
+    const anomalies     = useMemo(() => computeTransactionAnomalies(transactions, currency), [transactions, currency]);
     const lenderConc    = useMemo(() => computeLenderConcentration(loans), [loans]);
     const seasonal      = useMemo(() => computeSeasonalRisk(transactions), [transactions]);
     const expenseSeasonality = useMemo(() => computeExpenseSeasonalityPattern(transactions), [transactions]);
@@ -262,6 +264,36 @@ export default function RiskManagementScreen() {
                                 </View>
                             ))}
                             <NextStepLink text="Debt Coverage detail, Interest Rate Shock & repayment strategy → Loans" onPress={() => navigate('loans')} />
+                        </View>
+
+                        <Text style={s.sectionTitle}>Transaction Anomalies</Text>
+                        <View style={s.card}>
+                            <Text style={s.cardSub}>Patterns worth a second look, found automatically in your own recorded transactions — a possible duplicate payment, a charge far outside a vendor's usual range, or a sudden burst of entries on one day. Nothing here is blocked or changed; it's just flagged for you to check.</Text>
+                            {!anomalies.available ? (
+                                <Text style={s.empty}>{anomalies.reason}</Text>
+                            ) : anomalies.flags.length === 0 ? (
+                                <Text style={s.empty}>{anomalies.summary}</Text>
+                            ) : anomalies.flags.slice(0, 8).map((flag, i) => {
+                                const meta = flag.severity === 'warning' ? RISK_LEVEL_META.high : RISK_LEVEL_META.medium;
+                                const inner = (
+                                    <>
+                                        <RiskDot color={meta.color} icon={meta.icon} />
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={s.radarSummary}>{flag.message}</Text>
+                                        </View>
+                                        {flag.searchHint && <Icon name="chevron-right" size={14} color={Colors.textMuted} />}
+                                    </>
+                                );
+                                return flag.searchHint ? (
+                                    <TouchableOpacity key={i} style={s.radarRow} activeOpacity={0.7} onPress={() => navigate('transactions', { search: flag.searchHint })}>
+                                        {inner}
+                                    </TouchableOpacity>
+                                ) : (
+                                    <View key={i} style={s.radarRow}>
+                                        {inner}
+                                    </View>
+                                );
+                            })}
                         </View>
                     </>
                 )}
