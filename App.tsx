@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, ActivityIndicator, Platform, BackHandler, Alert, useWindowDimensions, StyleSheet } from 'react-native';
 import { useFonts, PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold } from '@expo-google-fonts/plus-jakarta-sans';
 import { Colors } from './src/theme/colors';
@@ -13,6 +13,7 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 import AlertHost from './src/components/AlertHost';
 import SyncStatusBanner from './src/components/SyncStatusBanner';
 import { startOfflineSyncWatcher } from './src/utils/offlineSync';
+import { registerNotificationTapHandler } from './src/utils/notifications';
 import LandingScreen from './src/screens/LandingScreen';
 import ContactScreen from './src/screens/ContactScreen';
 import BlogScreen from './src/screens/BlogScreen';
@@ -74,7 +75,7 @@ import { isScreenAllowedForRole } from './src/utils/rolePermissions';
 import { UserRole, Screen } from './src/types';
 
 function NavigatorContent() {
-    const { user, currentScreen, navParams, setCurrentScreen, goBack, isLenderSession } = useAuth();
+    const { user, currentScreen, navParams, setCurrentScreen, navigate, goBack, isLenderSession } = useAuth();
     // Covers the whole boot, not just the auth/session check -- see
     // useAppReady's own comment for why a screen rendering before
     // Finance/Goal/Invoice/Settings finish their own async load matters
@@ -116,6 +117,40 @@ function NavigatorContent() {
     useEffect(() => {
         setSentryUser(user?.email ?? null);
     }, [user?.email]);
+
+    // Tapping a notification should land exactly where its own "Tap to..."
+    // copy promises (e.g. Invoices' reminder run), not just open the app
+    // to whatever screen it would otherwise land on -- see
+    // registerNotificationTapHandler's own comment for the full mechanism.
+    // `navigate`/`user` are fresh closures/objects on most renders (see
+    // OptimizedContexts' navigate), so both are read through refs kept
+    // current every render rather than as this effect's own dependencies
+    // -- deps here would re-run the registration (and tear down/rebuild
+    // the underlying native listener) on nearly every render.
+    const navigateRef = useRef(navigate);
+    useEffect(() => { navigateRef.current = navigate; });
+    const userRef = useRef(user);
+    useEffect(() => { userRef.current = user; });
+    // A notification that COLD-STARTS the app (see
+    // registerNotificationTapHandler) arrives before the owner has even
+    // entered their PIN -- queued here instead of acting immediately, and
+    // applied once `user` actually becomes truthy below.
+    const pendingDeepLinkRef = useRef<{ screen: string; params?: Record<string, any> } | null>(null);
+    useEffect(() => {
+        return registerNotificationTapHandler(link => {
+            if (userRef.current) {
+                navigateRef.current(link.screen as Screen, link.params);
+            } else {
+                pendingDeepLinkRef.current = link;
+            }
+        });
+    }, []);
+    useEffect(() => {
+        if (!user || !pendingDeepLinkRef.current) return;
+        const link = pendingDeepLinkRef.current;
+        pendingDeepLinkRef.current = null;
+        navigateRef.current(link.screen as Screen, link.params);
+    }, [user]);
 
     useEffect(() => {
         if (Platform.OS !== 'android') return;

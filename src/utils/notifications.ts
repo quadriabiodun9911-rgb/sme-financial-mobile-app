@@ -17,6 +17,40 @@ Notifications.setNotificationHandler({
     }),
 });
 
+export interface NotificationDeepLink {
+    screen: string;
+    params?: Record<string, any>;
+}
+
+// Every local notification's copy here says "Tap to..." (send reminders,
+// view a report, review goals), but until this existed, tapping any of
+// them just opened the app to wherever it would normally land -- not the
+// screen or action the copy promised. A notification's `content.data`
+// (set by the caller, e.g. notifyOverdueRemindersDue's `screen`/`params`
+// above) is read here and handed to `onDeepLink`, which the app wires to
+// its own navigate() once a user is signed in. Covers both a tap while
+// the app is already running/backgrounded (the live listener) and a tap
+// that COLD-STARTS the app (getLastNotificationResponseAsync, which only
+// ever reports the single response that caused this launch) -- Android
+// and iOS deliver these through two different APIs, so both have to be
+// checked. Returns an unsubscribe function; safe to call unconditionally,
+// since it's a no-op on web (consistent with every other function here).
+export function registerNotificationTapHandler(onDeepLink: (link: NotificationDeepLink) => void): () => void {
+    if (Platform.OS === 'web') return () => {};
+
+    const handleResponse = (response: Notifications.NotificationResponse) => {
+        const data = response.notification.request.content.data as NotificationDeepLink | undefined;
+        if (data?.screen) onDeepLink({ screen: data.screen, params: data.params });
+    };
+
+    Notifications.getLastNotificationResponseAsync().then(response => {
+        if (response) handleResponse(response);
+    }).catch(() => {});
+
+    const sub = Notifications.addNotificationResponseReceivedListener(handleResponse);
+    return () => sub.remove();
+}
+
 const KEYS = {
     dailyId:  '@quad360/notif_daily_id',
     weeklyId: '@quad360/notif_weekly_id',
@@ -110,6 +144,12 @@ export async function notifyOverdueRemindersDue(count: number): Promise<void> {
             content: {
                 title: `${count} invoice${count === 1 ? '' : 's'} need${count === 1 ? 's' : ''} a reminder 📬`,
                 body: 'Tap to send WhatsApp payment reminders to your customers.',
+                // Makes the "Tap to send..." copy above literally true --
+                // see registerNotificationTapHandler below, which reads
+                // this and routes the tap straight into Invoices' own
+                // reminder-run flow instead of just opening the app to
+                // wherever it would otherwise land.
+                data: { screen: 'invoices', params: { startReminderRun: true } },
             },
             trigger: null,
         });

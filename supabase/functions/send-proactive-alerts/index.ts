@@ -180,7 +180,7 @@ function isFresh(updatedAt: string): boolean {
 // already uses, minus anything the server never has: loanPayment doesn't
 // name a lender (loans.lenderName is field-encrypted) and payroll doesn't
 // name staff -- both stay generic here on purpose.
-function buildMessage(kind: AlertKind, row: SummaryRow): { title: string; body: string } | null {
+function buildMessage(kind: AlertKind, row: SummaryRow): { title: string; body: string; data?: Record<string, unknown> } | null {
   const currency = row.currency ?? '₦';
   switch (kind) {
     case 'lowCash':
@@ -201,6 +201,12 @@ function buildMessage(kind: AlertKind, row: SummaryRow): { title: string; body: 
       return {
         title: `${count} invoice${count === 1 ? '' : 's'} need${count === 1 ? 's' : ''} a reminder 📬`,
         body: 'Customers are overdue for a payment nudge — open the app to send reminders.',
+        // Same deep-link contract as the local notification's own
+        // (notifyOverdueRemindersDue, notifications.ts) -- registerNotificationTapHandler
+        // reads this on the client regardless of whether the tap came
+        // from a local or a push notification, so a tap here lands
+        // straight in Invoices' reminder run too, not just the app.
+        data: { screen: 'invoices', params: { startReminderRun: true } },
       };
     }
     case 'loanPayment': {
@@ -309,9 +315,9 @@ function buildMessage(kind: AlertKind, row: SummaryRow): { title: string; body: 
   }
 }
 
-async function sendExpoPush(tokens: string[], title: string, body: string): Promise<void> {
+async function sendExpoPush(tokens: string[], title: string, body: string, data?: Record<string, unknown>): Promise<void> {
   if (tokens.length === 0) return;
-  const messages = tokens.map(to => ({ to, title, body, sound: 'default' }));
+  const messages = tokens.map(to => ({ to, title, body, sound: 'default', ...(data ? { data } : {}) }));
   // Expo caps a single push request at 100 messages -- chunk defensively,
   // even though no single business's device count is likely to hit that.
   for (let i = 0; i < messages.length; i += 100) {
@@ -436,7 +442,7 @@ Deno.serve(async (req: Request) => {
         if (!row) continue;
         const message = buildMessage(kind, row);
         if (!message) continue;
-        await sendExpoPush(tokens, message.title, message.body);
+        await sendExpoPush(tokens, message.title, message.body, message.data);
         throttleUpdate[THROTTLE_COLUMN[kind]] = new Date().toISOString();
         sentCounts[kind]++;
       }

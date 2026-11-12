@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
     SafeAreaView, ScrollView, View, Text, TextInput,
     TouchableOpacity, StyleSheet, Alert, Modal, Share, Linking, Platform, useWindowDimensions,
@@ -137,7 +137,7 @@ ${inv.notes ? `<div class="notes" style="clear:both;margin-top:60px"><b>Notes:</
 
 
 export default function InvoicesScreen() {
-    const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, updateSettings, user, navigate, language, transactions, updateTransaction, canViewFinancials } = useApp();
+    const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, updateSettings, user, navigate, navParams, language, transactions, updateTransaction, canViewFinancials } = useApp();
     const currency = settings.currency;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -241,6 +241,26 @@ export default function InvoicesScreen() {
         setReminderQueue(remindersDue);
         setReminderIdx(0);
     };
+
+    // Tapping the "N invoices need a reminder" notification (local or
+    // push -- see registerNotificationTapHandler in notifications.ts and
+    // send-proactive-alerts) lands here with navParams.startReminderRun
+    // set, so the reminder run starts itself instead of just opening this
+    // screen's ordinary list view and leaving the owner to find the Send
+    // Reminders button themselves. Waits on remindersDue rather than
+    // firing on the very first render, since reminderState is still
+    // loading asynchronously at mount (see the loadReminderState effect
+    // above) and would otherwise read as "nothing due" prematurely.
+    // autoStartedRef guards against re-firing on every remindersDue
+    // recompute once the run has already been started once.
+    const autoStartedRef = useRef(false);
+    useEffect(() => {
+        if (!navParams?.startReminderRun || autoStartedRef.current) return;
+        if (remindersDue.length === 0) return;
+        autoStartedRef.current = true;
+        startReminderRun();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [navParams?.startReminderRun, remindersDue]);
 
     const sendCurrentReminder = async () => {
         const current = reminderQueue?.[reminderIdx];
