@@ -637,6 +637,14 @@ export interface InventoryItem {
     // implied, actualQuantity is a real count the owner just took, so
     // neither side is guessed.
     stockCountHistory?: StockCountEntry[];
+    // Stock that's been ORDERED but hasn't arrived yet -- deliberately
+    // separate from Stock In (which only ever logs stock already physically
+    // received). Without this, "a supplier delivery is late" was invisible
+    // to Quad360 until the owner happened to notice the shelf was still
+    // empty; see deliveryTracking.ts for the overdue/upcoming detection
+    // this enables. Kept even once fulfilled (receivedAt set) as a history
+    // record, same convention as stockCountHistory/priceHistory above.
+    pendingDeliveries?: PendingDelivery[];
     // Food Service only -- when this stock is no longer safe/sellable.
     // Perishability is THE defining operational risk for a food business
     // in a way it isn't for durable retail/manufacturing stock: "slow
@@ -683,6 +691,25 @@ export interface StockCountEntry {
     actualQuantity: number;   // what the owner physically counted
     differenceUnits: number;  // actualQuantity - expectedQuantity, signed (negative = fewer on the shelf than records suggest)
     note?: string;
+}
+
+// An order placed with a supplier that hasn't physically arrived yet --
+// see InventoryItem.pendingDeliveries. Deliberately decoupled from Stock
+// In: recording an order and recording its actual arrival are two
+// different real-world events (and the arrival's real quantity/cost can
+// differ from what was ordered), so marking one received never implies
+// the other.
+export interface PendingDelivery {
+    id: string;
+    quantity: number;             // quantity ordered, not yet necessarily what arrives
+    supplier?: string;
+    orderedDate: string;          // YYYY-MM-DD, when the order was placed
+    expectedDeliveryDate: string; // YYYY-MM-DD
+    note?: string;
+    // Set once the owner confirms it arrived (via Mark Received) -- kept
+    // as a timestamped history entry rather than deleted, same reasoning
+    // as every other *History field on InventoryItem.
+    receivedAt?: string;
 }
 
 export interface TeamMember {

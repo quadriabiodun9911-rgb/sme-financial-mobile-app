@@ -25,10 +25,11 @@ import { computeInventoryPace, computeSlowMovingValue } from '../utils/inventory
 import { computeInventoryHealth } from '../utils/inventoryHealth';
 import { computeWorkingCapitalMetrics, computeUnlinkedInventoryCostPurchases } from '../utils/finance';
 import { computeStockReconciliation } from '../utils/stockReconciliation';
+import { computeDeliveryTracking } from '../utils/deliveryTracking';
 import RecipeCostCalculator from '../components/RecipeCostCalculator';
 import ProductionCostCalculator from '../components/ProductionCostCalculator';
 import DateInput from '../components/DateInput';
-import { InventoryItem, InventoryWriteDown } from '../types';
+import { InventoryItem, InventoryWriteDown, PendingDelivery } from '../types';
 import { showAlert, confirmAction } from '../utils/webAlert';
 import InventoryPricingTab from '../components/InventoryPricingTab';
 import { localDateStr } from '../utils/localDate';
@@ -87,6 +88,20 @@ const emptyStockInForm = (item: InventoryItem): StockInForm => ({
     purchaseDate: localDateStr(),
     expiryDate: '',
     recordCashPurchase: true,
+});
+
+type OrderForm = {
+    quantity: string;
+    supplier: string;
+    expectedDeliveryDate: string;
+    note: string;
+};
+
+const emptyOrderForm = (item: InventoryItem): OrderForm => ({
+    quantity: '',
+    supplier: item.supplier ?? '',
+    expectedDeliveryDate: '',
+    note: '',
 });
 
 type PriceChangeForm = {
@@ -179,6 +194,8 @@ export default function InventoryScreen() {
     const [discountValue, setDiscountValue] = useState('');
     const [stockInModal, setStockInModal] = useState<{ item: InventoryItem } | null>(null);
     const [stockInForm, setStockInForm] = useState<StockInForm | null>(null);
+    const [orderModal, setOrderModal] = useState<{ item: InventoryItem } | null>(null);
+    const [orderForm, setOrderForm] = useState<OrderForm | null>(null);
     const [priceModal, setPriceModal] = useState<{ item: InventoryItem } | null>(null);
     const [priceForm, setPriceForm] = useState<PriceChangeForm | null>(null);
     const [writeDownModal, setWriteDownModal] = useState<{ item: InventoryItem } | null>(null);
@@ -213,6 +230,7 @@ export default function InventoryScreen() {
     const totalStockValue = useMemo(() => computeInventoryValue(inventory), [inventory]);
     const totalItems = inventory.length;
     const lowStockItems = useMemo(() => inventory.filter(item => item.quantity <= item.lowStockThreshold), [inventory]);
+    const deliveryTracking = useMemo(() => computeDeliveryTracking(inventory), [inventory]);
     const stockReconciliation = useMemo(
         () => computeStockReconciliation(transactions, inventory.length > 0, currency),
         [transactions, inventory.length, currency]
@@ -550,6 +568,43 @@ export default function InventoryScreen() {
         showAlert('Stock In Recorded', `${qtyAdded} ${item.unit} added to ${item.name}.`);
     };
 
+    const openOrder = (item: InventoryItem) => {
+        setOrderModal({ item });
+        setOrderForm(emptyOrderForm(item));
+    };
+
+    const confirmOrder = () => {
+        if (!orderModal || !orderForm) return;
+        const { item } = orderModal;
+        const qty = parseFloat(orderForm.quantity);
+        if (isNaN(qty) || qty <= 0) { showAlert('Validation', 'Enter a valid quantity ordered.'); return; }
+        if (!orderForm.expectedDeliveryDate.trim()) { showAlert('Validation', 'Enter the expected delivery date.'); return; }
+        const entry: PendingDelivery = {
+            id: `delivery-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            quantity: qty,
+            supplier: orderForm.supplier.trim() || undefined,
+            orderedDate: localDateStr(),
+            expectedDeliveryDate: orderForm.expectedDeliveryDate.trim(),
+            note: orderForm.note.trim() || undefined,
+        };
+        updateInventoryItem(item.id, { pendingDeliveries: [...(item.pendingDeliveries ?? []), entry] });
+        setOrderModal(null);
+        setOrderForm(null);
+        showAlert('Order Recorded', `Expecting ${qty} ${item.unit} of ${item.name} by ${entry.expectedDeliveryDate}.`);
+    };
+
+    // Deliberately decoupled from Stock In -- confirming an order arrived
+    // is a different real-world event from logging what was physically
+    // received (and the real quantity/cost can differ from the order), so
+    // this never touches quantity/batches itself. The owner still does a
+    // separate Stock In once they've checked what actually showed up.
+    const markDeliveryReceived = (item: InventoryItem, deliveryId: string) => {
+        const updated = (item.pendingDeliveries ?? []).map(d =>
+            d.id === deliveryId ? { ...d, receivedAt: new Date().toISOString() } : d
+        );
+        updateInventoryItem(item.id, { pendingDeliveries: updated });
+    };
+
     const openPriceChange = (item: InventoryItem) => {
         setPriceModal({ item });
         setPriceForm(emptyPriceChangeForm(item));
@@ -773,6 +828,57 @@ export default function InventoryScreen() {
                             </View>
                         )}
 
+                        {/* Overdue / upcoming deliveries -- see deliveryTracking.ts.
+                            Shown to every role, not just canSeeMargins, since
+                            "did the order show up" is an operational question,
+                            not a margin one. */}
+                        {deliveryTracking.overdue.length > 0 && (
+                            <View style={[styles.lowStockBanner, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
+                                <Icon name="truck" size={14} color={Colors.expense} />
+                                <Text style={[styles.lowStockBannerText, { color: Colors.expense }]}>
+                                    {deliveryTracking.overdue.length} {deliveryTracking.overdue.length === 1 ? 'delivery is' : 'deliveries are'} overdue
+                                </Text>
+                            </View>
+                        )}
+                        {(deliveryTracking.overdue.length > 0 || deliveryTracking.upcoming.length > 0) && (
+                            <View style={styles.analyticsCard}>
+                                <Text style={styles.analyticsCardTitle}>Incoming Deliveries</Text>
+                                <Text style={styles.cardSubtitle}>Orders you've recorded as on the way -- tap Mark Received once the goods actually arrive, then use Stock In to log what you got.</Text>
+                                {deliveryTracking.overdue.map(f => (
+                                    <View key={f.delivery.id} style={[styles.insightBanner, { borderColor: Colors.expense }]}>
+                                        <Text style={[styles.insightTitle, { color: Colors.expense }]}>
+                                            {f.itemName} — {f.daysOverdue} day{f.daysOverdue === 1 ? '' : 's'} overdue
+                                        </Text>
+                                        <Text style={styles.insightDetail}>
+                                            {f.delivery.quantity} {inventory.find(i => i.id === f.itemId)?.unit ?? 'units'}{f.delivery.supplier ? ` from ${f.delivery.supplier}` : ''} · expected {f.delivery.expectedDeliveryDate}
+                                        </Text>
+                                        <TouchableOpacity
+                                            style={styles.markReceivedBtn}
+                                            onPress={() => { const item = inventory.find(i => i.id === f.itemId); if (item) markDeliveryReceived(item, f.delivery.id); }}
+                                        >
+                                            <Text style={styles.markReceivedBtnText}>Mark Received</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
+                                {deliveryTracking.upcoming.map(f => (
+                                    <View key={f.delivery.id} style={[styles.insightBanner, { borderColor: Colors.warning }]}>
+                                        <Text style={[styles.insightTitle, { color: Colors.warning }]}>
+                                            {f.itemName} — due {f.daysUntil === 0 ? 'today' : `in ${f.daysUntil} day${f.daysUntil === 1 ? '' : 's'}`}
+                                        </Text>
+                                        <Text style={styles.insightDetail}>
+                                            {f.delivery.quantity} {inventory.find(i => i.id === f.itemId)?.unit ?? 'units'}{f.delivery.supplier ? ` from ${f.delivery.supplier}` : ''} · expected {f.delivery.expectedDeliveryDate}
+                                        </Text>
+                                        <TouchableOpacity
+                                            style={styles.markReceivedBtn}
+                                            onPress={() => { const item = inventory.find(i => i.id === f.itemId); if (item) markDeliveryReceived(item, f.delivery.id); }}
+                                        >
+                                            <Text style={styles.markReceivedBtnText}>Mark Received</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
+
                         {/* Unlinked stock purchases -- same "found in your
                             transaction history" pattern as Assets' unregistered-
                             purchase nudge. Deliberately doesn't auto-apply: a
@@ -834,6 +940,9 @@ export default function InventoryScreen() {
                                         <View style={styles.itemActions}>
                                             <TouchableOpacity style={styles.actionBtn} onPress={() => openStockIn(item)}>
                                                 <Icon name="download" size={14} color={Colors.textPrimary} />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={styles.actionBtn} onPress={() => openOrder(item)}>
+                                                <Icon name="truck" size={14} color={Colors.textPrimary} />
                                             </TouchableOpacity>
                                             <TouchableOpacity style={[styles.actionBtn, { backgroundColor: Colors.income }]} onPress={() => openSell(item)}>
                                                 <Text style={[styles.actionBtnText, { color: '#fff' }]}>Sell</Text>
@@ -1663,6 +1772,58 @@ export default function InventoryScreen() {
                 </KeyboardAvoidingView>
             </Modal>
 
+            {/* ── Record Order Modal ───────────────────────────────────────────────
+                Deliberately NOT the same modal as Stock In: this records an
+                order that hasn't arrived yet (see PendingDelivery), so it
+                never touches quantity/cost/batches -- only Stock In does
+                that, once the goods are actually in hand. */}
+            <Modal visible={!!orderModal} transparent animationType="slide" onRequestClose={() => { setOrderModal(null); setOrderForm(null); }}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => { setOrderModal(null); setOrderForm(null); }} />
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
+                    <View style={styles.modalHandle} />
+                    <Text style={styles.modalTitle}>Record Order</Text>
+                    {orderModal && orderForm && (
+                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                            <Text style={{ color: Colors.textSecondary, marginBottom: 8 }}>
+                                {orderModal.item.name} — {orderModal.item.quantity} {orderModal.item.unit} currently in stock
+                            </Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder={`Quantity ordered (${orderModal.item.unit})`}
+                                placeholderTextColor={Colors.textMuted}
+                                keyboardType="decimal-pad"
+                                value={orderForm.quantity}
+                                onChangeText={v => setOrderForm(f => f && ({ ...f, quantity: v }))}
+                            />
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Supplier (optional)"
+                                placeholderTextColor={Colors.textMuted}
+                                value={orderForm.supplier}
+                                onChangeText={v => setOrderForm(f => f && ({ ...f, supplier: v }))}
+                            />
+                            <Text style={{ color: Colors.textSecondary, marginTop: 4, marginBottom: 4 }}>
+                                Expected delivery date
+                            </Text>
+                            <DateInput value={orderForm.expectedDeliveryDate} onChange={v => setOrderForm(f => f && ({ ...f, expectedDeliveryDate: v }))} />
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Note (optional)"
+                                placeholderTextColor={Colors.textMuted}
+                                value={orderForm.note}
+                                onChangeText={v => setOrderForm(f => f && ({ ...f, note: v }))}
+                            />
+                            <TouchableOpacity style={styles.submitBtn} onPress={confirmOrder}>
+                                <Text style={styles.submitBtnText}>Save Order</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.cancelBtn} onPress={() => { setOrderModal(null); setOrderForm(null); }}>
+                                <Text style={styles.cancelBtnText}>Cancel</Text>
+                            </TouchableOpacity>
+                        </ScrollView>
+                    )}
+                </KeyboardAvoidingView>
+            </Modal>
+
             {/* ── Link Purchase to Item Modal ──────────────────────────────────────
                 For an unlinked cost-category transaction (see
                 computeUnlinkedInventoryCostPurchases): a bank line has a
@@ -2220,6 +2381,8 @@ const styles = StyleSheet.create({
     insightBanner: { borderWidth: 1, borderRadius: 10, padding: Spacing.md, marginTop: Spacing.sm },
     insightTitle:  { fontSize: 13, fontWeight: '700', marginBottom: 3 },
     insightDetail: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+    markReceivedBtn: { alignSelf: 'flex-start', marginTop: Spacing.sm, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.sm, backgroundColor: Colors.primary },
+    markReceivedBtnText: { fontSize: 11.5, fontWeight: '700', color: '#fff' },
 
     categoryRow:  { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: Colors.border },
     categoryName: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
