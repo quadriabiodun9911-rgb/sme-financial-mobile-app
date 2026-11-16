@@ -60,7 +60,14 @@ export function computeDeliveryTracking(inventory: InventoryItem[], today: Date 
     for (const item of inventory) {
         for (const delivery of item.pendingDeliveries ?? []) {
             if (delivery.receivedAt) continue; // already fulfilled -- history only now
-            const expected = new Date(delivery.expectedDeliveryDate);
+            // A bare "YYYY-MM-DD" parses as UTC midnight, but daysBetween
+            // reads it back through LOCAL getters (getFullYear/Month/Date)
+            // -- in any negative-UTC-offset timezone that silently shifts
+            // the expected date back a day. Anchoring to local midnight
+            // explicitly keeps both sides of daysBetween on the same clock;
+            // same fix invoiceReminders.ts already applies to this exact
+            // bug class.
+            const expected = new Date(delivery.expectedDeliveryDate + 'T00:00:00');
             if (isNaN(expected.getTime())) continue;
             const diff = daysBetween(today, expected); // > 0 once today is past expected
             if (diff > 0) {

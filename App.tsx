@@ -124,18 +124,31 @@ function NavigatorContent() {
     // registerNotificationTapHandler's own comment for the full mechanism.
     // `navigate`/`user` are fresh closures/objects on most renders (see
     // OptimizedContexts' navigate), so both are read through refs kept
-    // current every render rather than as this effect's own dependencies
-    // -- deps here would re-run the registration (and tear down/rebuild
-    // the underlying native listener) on nearly every render.
+    // current every render rather than as the registration effect's own
+    // dependencies -- deps there would re-run the registration (and tear
+    // down/rebuild the underlying native listener) on nearly every render.
     const navigateRef = useRef(navigate);
-    useEffect(() => { navigateRef.current = navigate; });
     const userRef = useRef(user);
-    useEffect(() => { userRef.current = user; });
+    const pendingDeepLinkRef = useRef<{ screen: string; params?: Record<string, any> } | null>(null);
+    // One effect, no deps, runs every render: keeps both refs current AND
+    // flushes a still-queued deep link the moment a user becomes truthy.
+    // Safe to run on every render -- the flush is idempotent (it clears
+    // pendingDeepLinkRef itself once applied), so there's no "only on this
+    // exact transition" semantics to preserve by splitting it into its own
+    // [user]-keyed effect.
+    useEffect(() => {
+        navigateRef.current = navigate;
+        userRef.current = user;
+        if (user && pendingDeepLinkRef.current) {
+            const link = pendingDeepLinkRef.current;
+            pendingDeepLinkRef.current = null;
+            navigateRef.current(link.screen as Screen, link.params);
+        }
+    });
     // A notification that COLD-STARTS the app (see
     // registerNotificationTapHandler) arrives before the owner has even
-    // entered their PIN -- queued here instead of acting immediately, and
-    // applied once `user` actually becomes truthy below.
-    const pendingDeepLinkRef = useRef<{ screen: string; params?: Record<string, any> } | null>(null);
+    // entered their PIN -- queued into the ref above instead of acting
+    // immediately, and flushed by the effect above once `user` is truthy.
     useEffect(() => {
         return registerNotificationTapHandler(link => {
             if (userRef.current) {
@@ -145,12 +158,6 @@ function NavigatorContent() {
             }
         });
     }, []);
-    useEffect(() => {
-        if (!user || !pendingDeepLinkRef.current) return;
-        const link = pendingDeepLinkRef.current;
-        pendingDeepLinkRef.current = null;
-        navigateRef.current(link.screen as Screen, link.params);
-    }, [user]);
 
     useEffect(() => {
         if (Platform.OS !== 'android') return;

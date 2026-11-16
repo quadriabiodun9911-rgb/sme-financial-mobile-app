@@ -137,7 +137,7 @@ ${inv.notes ? `<div class="notes" style="clear:both;margin-top:60px"><b>Notes:</
 
 
 export default function InvoicesScreen() {
-    const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, updateSettings, user, navigate, navParams, language, transactions, updateTransaction, canViewFinancials } = useApp();
+    const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, updateSettings, user, navigate, navParams, clearNavParamsFlag, language, transactions, updateTransaction, canViewFinancials } = useApp();
     const currency = settings.currency;
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
@@ -259,6 +259,14 @@ export default function InvoicesScreen() {
         if (remindersDue.length === 0) return;
         autoStartedRef.current = true;
         startReminderRun();
+        // Consumes the flag in place (not via navigate/setCurrentScreen,
+        // which would push THIS still-true flag onto the back stack) --
+        // without this, navigating away from Invoices before finishing the
+        // run and then pressing back restores startReminderRun:true,
+        // re-mounting this screen with autoStartedRef reset and silently
+        // reopening the reminder-send flow on a screen the owner only
+        // reached by going back, not by a fresh notification tap.
+        clearNavParamsFlag('startReminderRun');
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [navParams?.startReminderRun, remindersDue]);
 

@@ -35,6 +35,15 @@ export interface NotificationDeepLink {
 // and iOS deliver these through two different APIs, so both have to be
 // checked. Returns an unsubscribe function; safe to call unconditionally,
 // since it's a no-op on web (consistent with every other function here).
+// getLastNotificationResponseAsync's own doc: it keeps returning the SAME
+// response on every subsequent cold start until a new notification is
+// interacted with -- there's no clearLastNotificationResponseAsync in the
+// installed expo-notifications version to dismiss it after handling. Without
+// this dedupe, an ordinary app launch days later (not caused by a tap at
+// all) would still "see" that old response and re-fire its deep link,
+// yanking the owner to whatever screen it named out of nowhere.
+const LAST_HANDLED_COLD_START_ID_KEY = '@quad360/notif_last_handled_cold_start_id';
+
 export function registerNotificationTapHandler(onDeepLink: (link: NotificationDeepLink) => void): () => void {
     if (Platform.OS === 'web') return () => {};
 
@@ -43,9 +52,19 @@ export function registerNotificationTapHandler(onDeepLink: (link: NotificationDe
         if (data?.screen) onDeepLink({ screen: data.screen, params: data.params });
     };
 
-    Notifications.getLastNotificationResponseAsync().then(response => {
-        if (response) handleResponse(response);
-    }).catch(() => {});
+    (async () => {
+        try {
+            const response = await Notifications.getLastNotificationResponseAsync();
+            if (!response) return;
+            const id = response.notification.request.identifier;
+            const lastHandledId = await AsyncStorage.getItem(LAST_HANDLED_COLD_START_ID_KEY);
+            if (id && id === lastHandledId) return; // already handled this exact tap on a prior launch
+            if (id) await AsyncStorage.setItem(LAST_HANDLED_COLD_START_ID_KEY, id);
+            handleResponse(response);
+        } catch {
+            // Fail silently -- worst case a deep link is missed once, not repeated forever.
+        }
+    })();
 
     const sub = Notifications.addNotificationResponseReceivedListener(handleResponse);
     return () => sub.remove();

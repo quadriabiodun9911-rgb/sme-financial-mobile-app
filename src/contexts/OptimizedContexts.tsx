@@ -1775,6 +1775,14 @@ interface AuthContextValue {
   navigate: (screen: Screen, params?: any) => void;
   goBack: () => boolean;
   navParams: any;
+  // Consumes a one-shot navParams flag (e.g. a deep-link instruction like
+  // startReminderRun) in place, without pushing a back-stack entry the way
+  // navigate()/setCurrentScreen() do. Without this, a flag that's still
+  // true when the user navigates away gets carried onto THAT back-stack
+  // entry verbatim -- so pressing back later restores it and re-triggers
+  // whatever one-shot action it named, on a screen the user only reached
+  // by going back, not by a fresh deep link.
+  clearNavParamsFlag: (key: string) => void;
   login: (pin: string) => Promise<boolean>;
   // Step-up re-check for a high-risk action within an already-authenticated
   // session -- see verifyPin in storage.ts for why this is deliberately
@@ -2062,6 +2070,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // path in LoginScreen.tsx, just unguarded here.
     if (!profile || profile.email.trim().toLowerCase() !== email.trim().toLowerCase()) return 'not-found';
     setIsFirstLaunch(false);
+    // Same gate login()/recoverAccount() apply, at the one chokepoint both
+    // switchAccount (PIN-checked) AND switchAccountDirect (no PIN at all --
+    // the in-app Header switcher) funnel through. Without this, a 2FA-
+    // protected account could be switched into with nothing but a correct
+    // PIN typed once before, or with switchAccountDirect, nothing at all --
+    // the same "second factor never actually checked" bug login()'s own
+    // fix closed, just reachable through a different entry point into the
+    // exact same account data.
+    const twoFactorStatus = await getTwoFactorStatus().catch(() => 'disabled' as const);
+    if (twoFactorStatus === 'enabled') {
+      setPendingTwoFactorProfile({ email: profile.email, businessName: profile.businessName, phone: profile.phone, createdAt: profile.createdAt });
+      setCurrentScreenState('two-factor-verify');
+      return 'ok';
+    }
     writeTabIdentity(profile.email);
     // clearWorkspaceOwner() above means this starts pointed at the
     // account's own business, but resolve it properly anyway rather than
@@ -2257,6 +2279,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (Platform.OS === 'web' && typeof window !== 'undefined') window.history.pushState({}, '');
         setNavParams(params ?? null);
         setCurrentScreenState(screen);
+      },
+      clearNavParamsFlag: (key: string) => {
+        setNavParams((prev: any) => {
+          if (!prev || !(key in prev)) return prev;
+          const { [key]: _omit, ...rest } = prev;
+          return Object.keys(rest).length > 0 ? rest : null;
+        });
       },
       goBack: () => {
         if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -3397,6 +3426,7 @@ export function useApp() {
 
     // Other missing properties
     navParams: auth.navParams ?? EMPTY_NAV_PARAMS,
+    clearNavParamsFlag: auth.clearNavParamsFlag,
     isFirstLaunch: auth.isFirstLaunch,
     pendingSyncCount: 0,
     lockoutUntil: auth.lockoutUntil,

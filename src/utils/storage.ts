@@ -1704,6 +1704,12 @@ export async function saveInventory(items: InventoryItem[]): Promise<void> {
             item_type: item.itemType ?? null,
             stock_count_history: item.stockCountHistory ?? [],
             batches: item.batches ?? [],
+            // Same gap the comment above already describes for the other
+            // four fields, reopened by pendingDeliveries (deliveryTracking.ts) --
+            // see migration 053. Without this, a "Record Order"/"Mark
+            // Received" action is lost the moment this device's cache is
+            // rebuilt from Supabase (next launch, or a second device).
+            pending_deliveries: item.pendingDeliveries ?? [],
             created_at: item.createdAt,
             updated_at: item.updatedAt,
         }));
@@ -1763,6 +1769,7 @@ export async function loadInventory(): Promise<InventoryItem[] | null> {
                     itemType: row.item_type ?? undefined,
                     stockCountHistory: row.stock_count_history && row.stock_count_history.length > 0 ? row.stock_count_history : undefined,
                     batches: row.batches && row.batches.length > 0 ? row.batches : undefined,
+                    pendingDeliveries: row.pending_deliveries && row.pending_deliveries.length > 0 ? row.pending_deliveries : undefined,
                     createdAt: row.created_at,
                     updatedAt: row.updated_at,
                 } as InventoryItem));
@@ -1811,6 +1818,7 @@ export async function loadInventoryForOwner(ownerId: string): Promise<InventoryI
             itemType: row.item_type ?? undefined,
             stockCountHistory: row.stock_count_history && row.stock_count_history.length > 0 ? row.stock_count_history : undefined,
             batches: row.batches && row.batches.length > 0 ? row.batches : undefined,
+            pendingDeliveries: row.pending_deliveries && row.pending_deliveries.length > 0 ? row.pending_deliveries : undefined,
             createdAt: row.created_at,
             updatedAt: row.updated_at,
         } as InventoryItem));

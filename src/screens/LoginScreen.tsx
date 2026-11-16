@@ -937,7 +937,20 @@ export default function LoginScreen() {
             showAlert('PIN Reset Successful', 'Your new PIN is set.', [
                 { text: 'Continue', onPress: async () => {
                     try {
-                        await supabase.auth.signInWithPassword({ email, password: newAuthSecret });
+                        // recoverAccount's own 2FA check reads the CURRENT
+                        // session's identity -- if this sign-in silently
+                        // fails (offline, a token race) there is no
+                        // session, getTwoFactorStatus() fails open to
+                        // 'disabled', and recoverAccount grants the
+                        // dashboard with the second factor never checked.
+                        // Same guard handleResetVerify/handleDeviceVerifyComplete
+                        // already apply to their own re-sign-in.
+                        const { error: resignError } = await supabase.auth.signInWithPassword({ email, password: newAuthSecret });
+                        if (resignError) {
+                            showAlert('Error', 'Your PIN was reset, but reconnecting this device failed: ' + resignError.message + '. Please try signing in again.');
+                            setResetStep('request'); setResetNewPin(''); setResetConfirmPin('');
+                            return;
+                        }
                         await recoverAccount(email, resetNewPin);
                     } catch {}
                     setResetStep('request'); setResetNewPin(''); setResetConfirmPin('');

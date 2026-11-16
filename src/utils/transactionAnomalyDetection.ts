@@ -118,10 +118,17 @@ export function computeTransactionAnomalies(transactions: Transaction[], currenc
         byVendor.get(mapKey)!.push(t);
     }
 
+    // Sorted once per vendor, here, and reused by both signal 1 and signal
+    // 2 below -- each used to re-sort the same vendor's transactions
+    // independently, a redundant second O(n log n) pass over data signal 1
+    // had already ordered.
+    const sortedByVendor = new Map<string, Transaction[]>(
+        Array.from(byVendor.entries()).map(([key, txs]) => [key, [...txs].sort((a, b) => a.date.localeCompare(b.date))])
+    );
+
     // --- Signal 1: duplicate payment risk ---
-    for (const txs of byVendor.values()) {
-        if (txs.length < 2) continue;
-        const sorted = [...txs].sort((a, b) => a.date.localeCompare(b.date));
+    for (const sorted of sortedByVendor.values()) {
+        if (sorted.length < 2) continue;
         for (let i = 1; i < sorted.length; i++) {
             const prev = sorted[i - 1];
             const curr = sorted[i];
@@ -142,13 +149,19 @@ export function computeTransactionAnomalies(transactions: Transaction[], currenc
     }
 
     // --- Signal 2: amount outlier vs this vendor's own history ---
-    for (const txs of byVendor.values()) {
-        if (txs.length <= OUTLIER_MIN_HISTORY) continue;
-        const sorted = [...txs].sort((a, b) => a.date.localeCompare(b.date));
+    for (const sorted of sortedByVendor.values()) {
+        if (sorted.length <= OUTLIER_MIN_HISTORY) continue;
+        // Running sum instead of re-slicing + re-reducing the whole prefix
+        // on every iteration -- re-deriving the average from scratch each
+        // time made this O(k^2) per vendor (slices and allocations alike)
+        // for a vendor with k transactions, which is a real cost for an
+        // account with years of history concentrated on a few vendors.
+        let runningSum = 0;
+        for (let i = 0; i < OUTLIER_MIN_HISTORY; i++) runningSum += sorted[i].amount;
         for (let i = OUTLIER_MIN_HISTORY; i < sorted.length; i++) {
-            const prior = sorted.slice(0, i);
-            const avg = mean(prior.map(t => t.amount));
+            const avg = runningSum / i;
             const curr = sorted[i];
+            runningSum += curr.amount;
             if (avg <= 0 || curr.amount <= avg * OUTLIER_MULTIPLIER) continue;
             const name = entityDisplayName(curr.vendorCustomer) || curr.description || 'this vendor';
             const pct = Math.round(((curr.amount - avg) / avg) * 100);

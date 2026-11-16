@@ -27,6 +27,7 @@ import { MacroDriver } from '../types';
 import { computeSupplierIntelligence } from '../utils/supplierIntelligence';
 import { computeTransactionAnomalies } from '../utils/transactionAnomalyDetection';
 import { computeSupplierPaymentHistory } from '../utils/supplierPaymentBehavior';
+import { entityKey } from '../utils/entityName';
 import { buildSupplierPaymentSnapshotExport } from '../utils/partnerSnapshotExport';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { showAlert } from '../utils/webAlert';
@@ -128,11 +129,17 @@ export default function RiskManagementScreen() {
     // Shares ONLY this one supplier's own purchase/payment history --
     // never the business's broader financials -- see
     // buildSupplierPaymentSnapshotExport's own comment for why that scope
-    // matters. Matched by display name since that's all supplierIntel's
-    // own rows carry; supplierPayments is keyed the same way
-    // (entityDisplayName), so the two always agree on the same business.
+    // matters. Matched by entityKey, not by display name: supplierIntel's
+    // row picks its display name from the FIRST transaction seen for a
+    // vendor, computeSupplierPaymentHistory picks its from the LAST --
+    // the same real supplier can carry different casing/spelling across
+    // those two transactions (hand-typed vs. bank-statement import), which
+    // made a strict display-name match miss a supplier that genuinely has
+    // history. entityKey is the same case-insensitive identity both
+    // functions already group by internally, so it always agrees.
     const shareSupplierPaymentSnapshot = async (supplierName: string) => {
-        const history = supplierPayments.find(h => h.supplierName === supplierName);
+        const key = entityKey(supplierName);
+        const history = supplierPayments.find(h => h.supplierKey === key);
         if (!history) { showAlert('Not Available', 'No purchase history found for this supplier yet.'); return; }
         try {
             const exportData = buildSupplierPaymentSnapshotExport(user?.businessName ?? 'My Business', history, currency);
