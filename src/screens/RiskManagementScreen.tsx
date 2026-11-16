@@ -26,6 +26,10 @@ import { loadFxSnapshots, saveFxSnapshots } from '../utils/storage';
 import { MacroDriver } from '../types';
 import { computeSupplierIntelligence } from '../utils/supplierIntelligence';
 import { computeTransactionAnomalies } from '../utils/transactionAnomalyDetection';
+import { computeSupplierPaymentHistory } from '../utils/supplierPaymentBehavior';
+import { buildSupplierPaymentSnapshotExport } from '../utils/partnerSnapshotExport';
+import { generatePDF, sharePDF } from '../utils/pdfExport';
+import { showAlert } from '../utils/webAlert';
 import { localDateStr } from '../utils/localDate';
 import MacroShieldSimulator from '../components/MacroShieldSimulator';
 import { DEFAULT_THRESHOLDS } from '../utils/alertEngine';
@@ -106,7 +110,7 @@ function MiniBar({ pct, color }: { pct: number; color: string }) {
  * (DSCR detail, Interest Rate Shock, Debt Optimizer) now live there.
  */
 export default function RiskManagementScreen() {
-    const { transactions, loans, finance, inventory, settings, navigate, setCurrentScreen, navParams, assets, staff } = useApp();
+    const { transactions, loans, finance, inventory, settings, navigate, setCurrentScreen, navParams, assets, staff, user } = useApp();
     const currency = settings.currency || '₦';
 
     const [tab, setTab] = useState<Tab>(
@@ -119,6 +123,25 @@ export default function RiskManagementScreen() {
     const supplierConc  = useMemo(() => computeSupplierConcentration(transactions), [transactions]);
     const supplierIntel = useMemo(() => computeSupplierIntelligence(transactions, inventory, currency), [transactions, inventory, currency]);
     const anomalies     = useMemo(() => computeTransactionAnomalies(transactions, currency), [transactions, currency]);
+    const supplierPayments = useMemo(() => computeSupplierPaymentHistory(transactions), [transactions]);
+
+    // Shares ONLY this one supplier's own purchase/payment history --
+    // never the business's broader financials -- see
+    // buildSupplierPaymentSnapshotExport's own comment for why that scope
+    // matters. Matched by display name since that's all supplierIntel's
+    // own rows carry; supplierPayments is keyed the same way
+    // (entityDisplayName), so the two always agree on the same business.
+    const shareSupplierPaymentSnapshot = async (supplierName: string) => {
+        const history = supplierPayments.find(h => h.supplierName === supplierName);
+        if (!history) { showAlert('Not Available', 'No purchase history found for this supplier yet.'); return; }
+        try {
+            const exportData = buildSupplierPaymentSnapshotExport(user?.businessName ?? 'My Business', history, currency);
+            const filePath = await generatePDF(exportData);
+            await sharePDF(filePath, exportData.title);
+        } catch (e) {
+            showAlert('Error', 'Failed to generate the payment snapshot. Please try again.');
+        }
+    };
     const lenderConc    = useMemo(() => computeLenderConcentration(loans), [loans]);
     const seasonal      = useMemo(() => computeSeasonalRisk(transactions), [transactions]);
     const expenseSeasonality = useMemo(() => computeExpenseSeasonalityPattern(transactions), [transactions]);
@@ -400,6 +423,12 @@ export default function RiskManagementScreen() {
                                         {sp.priceCreep && (
                                             <Text style={[s.cardSub, { color: Colors.warning }]}>⚠ {sp.priceCreep.message}</Text>
                                         )}
+                                        <Text
+                                            style={[s.cardSub, { color: Colors.primary, marginTop: 4 }]}
+                                            onPress={() => shareSupplierPaymentSnapshot(sp.supplier)}
+                                        >
+                                            Share payment snapshot with {sp.supplier} →
+                                        </Text>
                                     </View>
                                 ))}
                                 <Text style={[s.cardSub, { marginTop: 8 }]}>

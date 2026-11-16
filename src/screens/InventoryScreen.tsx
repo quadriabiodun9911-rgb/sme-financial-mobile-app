@@ -26,6 +26,8 @@ import { computeInventoryHealth } from '../utils/inventoryHealth';
 import { computeWorkingCapitalMetrics, computeUnlinkedInventoryCostPurchases } from '../utils/finance';
 import { computeStockReconciliation } from '../utils/stockReconciliation';
 import { computeDeliveryTracking } from '../utils/deliveryTracking';
+import { buildBuyerFulfillmentSnapshotExport, BuyerFulfillmentItem } from '../utils/partnerSnapshotExport';
+import { generatePDF, sharePDF } from '../utils/pdfExport';
 import RecipeCostCalculator from '../components/RecipeCostCalculator';
 import ProductionCostCalculator from '../components/ProductionCostCalculator';
 import DateInput from '../components/DateInput';
@@ -155,7 +157,7 @@ function StockBar({ quantity, threshold, color }: { quantity: number; threshold:
 }
 
 export default function InventoryScreen() {
-    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, linkInventoryCostTransaction, settings, navigate, addTransaction, transactions, finance, navParams, canViewFinancials, inventoryWriteDowns, addInventoryWriteDown, reverseInventoryWriteDown, stockAdjustments, addStockAdjustment, invoices } = useApp();
+    const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, stockInInventory, linkInventoryCostTransaction, settings, navigate, addTransaction, transactions, finance, navParams, canViewFinancials, inventoryWriteDowns, addInventoryWriteDown, reverseInventoryWriteDown, stockAdjustments, addStockAdjustment, invoices, user } = useApp();
     // 'staff' can open Inventory (STAFF_ALLOWED_SCREENS in rolePermissions.ts
     // -- "manage stock" is explicitly their job) but is documented app-wide
     // as having "no visibility into P&L, cash balance, bank/loan details"
@@ -196,6 +198,8 @@ export default function InventoryScreen() {
     const [stockInForm, setStockInForm] = useState<StockInForm | null>(null);
     const [orderModal, setOrderModal] = useState<{ item: InventoryItem } | null>(null);
     const [orderForm, setOrderForm] = useState<OrderForm | null>(null);
+    const [buyerSnapshotOpen, setBuyerSnapshotOpen] = useState(false);
+    const [buyerSnapshotItemIds, setBuyerSnapshotItemIds] = useState<Set<string>>(new Set());
     const [priceModal, setPriceModal] = useState<{ item: InventoryItem } | null>(null);
     const [priceForm, setPriceForm] = useState<PriceChangeForm | null>(null);
     const [writeDownModal, setWriteDownModal] = useState<{ item: InventoryItem } | null>(null);
@@ -605,6 +609,50 @@ export default function InventoryScreen() {
         updateInventoryItem(item.id, { pendingDeliveries: updated });
     };
 
+    const toggleBuyerSnapshotItem = (id: string) => {
+        setBuyerSnapshotItemIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    };
+
+    // Scoped to only the item(s) the owner picks -- never the whole
+    // catalog, and never pricing/cost/margin, see
+    // buildBuyerFulfillmentSnapshotExport's own comment for why. A buyer
+    // asking "can you fulfil my order" only needs stock + sales track
+    // record for the specific product(s) in question.
+    const confirmBuyerSnapshot = async () => {
+        const picked = inventory.filter(i => buyerSnapshotItemIds.has(i.id));
+        if (picked.length === 0) { showAlert('Validation', 'Select at least one item to share.'); return; }
+        try {
+            const items: BuyerFulfillmentItem[] = picked.map(item => {
+                const velocity = computeStockVelocity(item, transactions);
+                const saleDescription = `Sale: ${item.name}`;
+                const totalUnitsSoldAllTime = transactions
+                    .filter(t => t.type === 'income' && t.transactionCategory === 'sale'
+                        && (t.inventoryItemId ? t.inventoryItemId === item.id : t.description === saleDescription))
+                    .reduce((s, t) => s + (t.unitsSold ?? 0), 0);
+                return {
+                    name: item.name,
+                    unit: item.unit,
+                    currentStock: item.quantity,
+                    avgDailyUnitsSold: velocity.avgDailyUnitsSold,
+                    daysOfStockLeft: velocity.daysOfStockLeft,
+                    velocityTier: velocity.tier,
+                    totalUnitsSoldAllTime,
+                };
+            });
+            const exportData = buildBuyerFulfillmentSnapshotExport(user?.businessName ?? 'My Business', user?.daysActive ?? 0, items);
+            const filePath = await generatePDF(exportData);
+            await sharePDF(filePath, exportData.title);
+            setBuyerSnapshotOpen(false);
+            setBuyerSnapshotItemIds(new Set());
+        } catch (e) {
+            showAlert('Error', 'Failed to generate the fulfillment snapshot. Please try again.');
+        }
+    };
+
     const openPriceChange = (item: InventoryItem) => {
         setPriceModal({ item });
         setPriceForm(emptyPriceChangeForm(item));
@@ -777,6 +825,9 @@ export default function InventoryScreen() {
                     <View style={styles.titleActions}>
                         <TouchableOpacity style={styles.scanBtn} onPress={() => setRestockScannerOpen(true)}>
                             <Icon name="camera" size={15} color={Colors.primary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.scanBtn} onPress={() => setBuyerSnapshotOpen(true)}>
+                            <Icon name="share-2" size={15} color={Colors.primary} />
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
                             <Text style={styles.addBtnText}>+ Add Item</Text>
@@ -1821,6 +1872,45 @@ export default function InventoryScreen() {
                             </TouchableOpacity>
                         </ScrollView>
                     )}
+                </KeyboardAvoidingView>
+            </Modal>
+
+            {/* ── Buyer Fulfillment Snapshot Modal ─────────────────────────────────
+                Shares ONLY the item(s) picked here -- current stock and
+                sales track record, never pricing/cost/margin -- see
+                buildBuyerFulfillmentSnapshotExport's own comment. */}
+            <Modal visible={buyerSnapshotOpen} transparent animationType="slide" onRequestClose={() => { setBuyerSnapshotOpen(false); setBuyerSnapshotItemIds(new Set()); }}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => { setBuyerSnapshotOpen(false); setBuyerSnapshotItemIds(new Set()); }} />
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalSheet, constrainSheetWidth && styles.modalSheetWide]}>
+                    <View style={styles.modalHandle} />
+                    <Text style={styles.modalTitle}>Share Fulfillment Snapshot</Text>
+                    <Text style={{ color: Colors.textSecondary, marginBottom: 8 }}>
+                        Pick the item(s) a buyer is asking about. Shares only current stock and sales history for these -- no pricing or cost data.
+                    </Text>
+                    <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 320 }}>
+                        {inventory.map(item => (
+                            <TouchableOpacity
+                                key={item.id}
+                                style={styles.cashPurchaseToggleRow}
+                                onPress={() => toggleBuyerSnapshotItem(item.id)}
+                                activeOpacity={0.7}
+                            >
+                                <View style={[styles.checkbox, buyerSnapshotItemIds.has(item.id) && styles.checkboxChecked]}>
+                                    {buyerSnapshotItemIds.has(item.id) && <Icon name="check" size={13} color="#fff" />}
+                                </View>
+                                <View style={styles.flex}>
+                                    <Text style={styles.cashPurchaseToggleLabel}>{item.name}</Text>
+                                    <Text style={styles.cashPurchaseToggleHint}>{item.quantity} {item.unit} in stock</Text>
+                                </View>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                    <TouchableOpacity style={styles.submitBtn} onPress={confirmBuyerSnapshot}>
+                        <Text style={styles.submitBtnText}>Share Snapshot</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.cancelBtn} onPress={() => { setBuyerSnapshotOpen(false); setBuyerSnapshotItemIds(new Set()); }}>
+                        <Text style={styles.cancelBtnText}>Cancel</Text>
+                    </TouchableOpacity>
                 </KeyboardAvoidingView>
             </Modal>
 
