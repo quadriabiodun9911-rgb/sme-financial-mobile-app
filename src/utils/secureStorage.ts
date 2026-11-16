@@ -7,6 +7,7 @@ const SECURE_KEYS = {
     sessionToken: '@quad360/secure/session',
     authSecret: '@quad360/secure/auth-secret',
     localAccounts: '@quad360/secure/local-accounts',
+    biometricPin: '@quad360/secure/biometric-pin',
 };
 
 // expo-secure-store has no web support — skip it entirely on web
@@ -139,12 +140,106 @@ export async function clearAuthSecretSecurely(): Promise<void> {
     }
 }
 
+// Face ID / fingerprint sign-in. The raw PIN -- not its hash -- gated
+// behind the device's own biometric/passcode check via SecureStore's
+// requireAuthentication, so reading it back always re-proves identity the
+// same way typing the PIN does. This is the only place the raw PIN is
+// ever stored; everywhere else (savePin/loadPin, storage.ts) stores only
+// its hash, deliberately, so plaintext never otherwise sits in storage.
+// It exists purely so login() can be called with this value exactly as if
+// the owner had typed it, reusing every check login() already does
+// (lockout, 2FA) instead of a separate "biometric path" duplicating any
+// of them. No web fallback -- a browser has no OS biometric prompt to gate
+// this on, so this feature simply doesn't apply there.
+const BIOMETRIC_AUTH_PROMPT = 'Confirm to sign in to Quad360';
+
+export async function saveBiometricPinSecurely(pin: string): Promise<void> {
+    if (!isNative) return;
+    await SecureStore.setItemAsync(SECURE_KEYS.biometricPin, pin, {
+        requireAuthentication: true,
+        authenticationPrompt: BIOMETRIC_AUTH_PROMPT,
+        keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    });
+}
+
+// Every call prompts Face ID/fingerprint -- that's the whole point. Never
+// call this just to check whether biometric sign-in is enabled; see
+// isBiometricLoginEnabledFlag for that.
+export async function loadBiometricPinSecurely(): Promise<string | null> {
+    if (!isNative) return null;
+    try {
+        return await SecureStore.getItemAsync(SECURE_KEYS.biometricPin, {
+            requireAuthentication: true,
+            authenticationPrompt: BIOMETRIC_AUTH_PROMPT,
+        });
+    } catch {
+        // Cancelled, no biometric/passcode enrolled on this device, or the
+        // key was invalidated (fingerprints/face changed since enabling) --
+        // any of these fall back to manual PIN entry, not an error dialog.
+        return null;
+    }
+}
+
+export async function clearBiometricPinSecurely(): Promise<void> {
+    if (!isNative) return;
+    try {
+        await SecureStore.deleteItemAsync(SECURE_KEYS.biometricPin);
+    } catch { /* nothing to remove */ }
+}
+
+// A plain, non-authenticated flag so the login screen can decide whether
+// to show the "Sign in with Face ID" button WITHOUT itself triggering a
+// biometric prompt just to render -- only tapping the button should ever
+// prompt.
+const BIOMETRIC_ENABLED_FLAG_KEY = '@quad360/biometric_login_enabled';
+
+export async function isBiometricLoginEnabledFlag(): Promise<boolean> {
+    if (!isNative) return false;
+    try {
+        return (await AsyncStorage.getItem(BIOMETRIC_ENABLED_FLAG_KEY)) === 'true';
+    } catch {
+        return false;
+    }
+}
+
+export async function setBiometricLoginEnabledFlag(enabled: boolean): Promise<void> {
+    try {
+        if (enabled) await AsyncStorage.setItem(BIOMETRIC_ENABLED_FLAG_KEY, 'true');
+        else await AsyncStorage.removeItem(BIOMETRIC_ENABLED_FLAG_KEY);
+    } catch { /* best-effort -- worst case the button is offered again next launch */ }
+}
+
+// Whether the owner has already been offered (and answered, either way)
+// the one-time "enable Face ID?" prompt after a manual PIN login -- without
+// this, declining once would just mean being asked again on every single
+// future login, which is the opposite of "easy sign-in." Separate from the
+// enabled flag above: declining leaves biometricEnabled false but this
+// true, so the prompt stays gone while the feature remains available
+// (via Settings) for whenever they change their mind.
+const BIOMETRIC_PROMPT_ASKED_KEY = '@quad360/biometric_login_prompt_asked';
+
+export async function hasAskedAboutBiometricLogin(): Promise<boolean> {
+    try {
+        return (await AsyncStorage.getItem(BIOMETRIC_PROMPT_ASKED_KEY)) === 'true';
+    } catch {
+        return false;
+    }
+}
+
+export async function setAskedAboutBiometricLogin(): Promise<void> {
+    try {
+        await AsyncStorage.setItem(BIOMETRIC_PROMPT_ASKED_KEY, 'true');
+    } catch { /* best-effort -- worst case the prompt is offered again once */ }
+}
+
 export async function clearAllSecureData(): Promise<void> {
     await Promise.all([
         clearPinSecurely(),
         clearSessionTokenSecurely(),
         clearAuthSecretSecurely(),
+        clearBiometricPinSecurely(),
     ]);
+    await setBiometricLoginEnabledFlag(false);
 }
 
 // ─── Multiple accounts on one device ───────────────────────────────────────

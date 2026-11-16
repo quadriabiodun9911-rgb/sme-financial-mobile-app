@@ -156,7 +156,7 @@ const PRIORITY_KIND_META: Record<PriorityKind, { icon: IconName; screen: Screen;
 };
 
 export default function DashboardScreen() {
-    const { finance, settings, goals, transactions, invoices, assets, loans, staff, payrollRuns, navigate, setCurrentScreen, navParams, language: rawLanguage, isLoading, addTransaction, isDemoMode, demoBusinessId, cashPockets, addGoal, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory, healthScoreHistory, markInvoiceStatus, userRole, bills } = useApp();
+    const { finance, settings, goals, transactions, invoices, assets, loans, staff, payrollRuns, navigate, setCurrentScreen, navParams, clearNavParamsFlag, language: rawLanguage, isLoading, addTransaction, isDemoMode, demoBusinessId, cashPockets, addGoal, deleteGoal, updateGoal, budgets, inventory, user, financing, canViewFinancials, readinessHistory, healthScoreHistory, markInvoiceStatus, userRole, bills } = useApp();
     // 'viewer'/'external_accountant' can open the dashboard but are
     // documented (rolePermissions.ts) as never writing anywhere -- Quick
     // Add had no role check at all before this, on any of its several
@@ -340,6 +340,20 @@ export default function DashboardScreen() {
         if (navParams?.openMonthlyReview) setShowMonthlyReview(true);
         if (navParams?.openDailyReport) setShowDailyReport(true);
     }, [navParams]);
+
+    // Deep-link from FooterNav's own Quick Add FAB, shown on every OTHER
+    // screen so logging a transaction never first requires navigating back
+    // here. Cleared once consumed (clearNavParamsFlag), not left sitting
+    // in navParams -- otherwise navigating away before closing the modal
+    // and then pressing back would restore openQuickAdd:true and silently
+    // reopen it, the same back-stack replay bug Invoices' own
+    // startReminderRun flag had before it was fixed the same way.
+    useEffect(() => {
+        if (!navParams?.openQuickAdd) return;
+        openFab();
+        clearNavParamsFlag('openQuickAdd');
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [navParams?.openQuickAdd]);
 
     useEffect(() => {
         if (isDemoMode) return;

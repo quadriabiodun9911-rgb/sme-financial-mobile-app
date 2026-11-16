@@ -30,7 +30,7 @@ import {
     fetchAndReconcileAccountingTransactions, categorizeAccountingRows, saveCategoryMapping, UnmappedExternalCategory,
 } from '../utils/accountingSync';
 import { ExistingSyncedTransaction } from '../utils/transactionDedup';
-import { joinBusinessInviteWithCode } from '../utils/storage';
+import { joinBusinessInviteWithCode, isBiometricLoginEnabled, enableBiometricLogin, disableBiometricLogin, loadPin, hashPinValue } from '../utils/storage';
 import { MonoConnectionInfo, getMonoConnectionStatus, connectMonoAccount, disconnectMonoAccount, fetchAndReconcileMonoTransactions } from '../utils/monoConnect';
 import { setBackupPassword, deleteBackupPassword, getBackupPasswordStatus } from '../utils/backupPassword';
 import { WhatsAppLinkStatus, WHATSAPP_BOT_NUMBER, getWhatsAppLinkStatus, createWhatsAppLinkRequest, disconnectWhatsApp } from '../utils/whatsappTransactions';
@@ -227,6 +227,17 @@ export default function SettingsScreen() {
     const [newPin, setNewPin]         = useState('');
     const [confirmPin, setConfirmPin] = useState('');
 
+    // Face ID / fingerprint sign-in -- see storage.ts's enableBiometricLogin.
+    // Enabling it here needs the CURRENT PIN re-typed (this screen never
+    // has it in memory otherwise), same confirmation cost as Change PIN
+    // above asks for.
+    const [biometricEnabled, setBiometricEnabled] = useState(false);
+    const [biometricPinInput, setBiometricPinInput] = useState('');
+    useEffect(() => {
+        if (Platform.OS === 'web') return;
+        isBiometricLoginEnabled().then(setBiometricEnabled).catch(() => {});
+    }, []);
+
     // Import modal
     const [importModal, setImportModal] = useState(false);
     const [importJson, setImportJson]   = useState('');
@@ -345,6 +356,36 @@ export default function SettingsScreen() {
         }
         setCurrentPin(''); setNewPin(''); setConfirmPin('');
         showAlert('✅ PIN Changed', 'Your PIN has been updated on this device. Other devices you\'re signed in on keep using their own PIN — set a new one there separately, or use "Forgot PIN?" if you need to.');
+    };
+
+    // Re-verifies the typed PIN the same way changePin above does (same
+    // hash, same loadPin()) before trusting it enough to hand to
+    // enableBiometricLogin -- this screen has no other proof the owner
+    // actually knows the current PIN.
+    const handleEnableBiometric = async () => {
+        if (!/^\d{6}$/.test(biometricPinInput)) {
+            showAlert('Invalid PIN', 'Enter your current 6-digit PIN to confirm.');
+            return;
+        }
+        const stored = await loadPin();
+        if (stored && stored !== hashPinValue(biometricPinInput)) {
+            showAlert('Incorrect PIN', 'That\'s not your current PIN.');
+            return;
+        }
+        const enabled = await enableBiometricLogin(biometricPinInput);
+        setBiometricPinInput('');
+        if (enabled) {
+            setBiometricEnabled(true);
+            showAlert('Enabled', 'You can now sign in with Face ID or your fingerprint.');
+        } else {
+            showAlert('Error', "Couldn't enable this on your device. Make sure Face ID, fingerprint, or a device passcode is set up.");
+        }
+    };
+
+    const handleDisableBiometric = async () => {
+        await disableBiometricLogin();
+        setBiometricEnabled(false);
+        showAlert('Disabled', 'Face ID / fingerprint sign-in has been turned off. Your PIN still works as before.');
     };
 
     const handleExport = async () => {
@@ -774,6 +815,30 @@ export default function SettingsScreen() {
                                 <Text style={styles.saveBtnText}>Update PIN</Text>
                             </TouchableOpacity>
                         </Section>
+
+                        {Platform.OS !== 'web' && (
+                            <Section title="Face ID / Fingerprint Sign-In">
+                                {biometricEnabled ? (
+                                    <>
+                                        <Text style={styles.hint}>Enabled on this device. You can sign in with Face ID or your fingerprint instead of typing your PIN.</Text>
+                                        <TouchableOpacity style={styles.dataBtn} onPress={handleDisableBiometric}>
+                                            <Text style={styles.dataBtnText}>Turn Off</Text>
+                                        </TouchableOpacity>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Text style={styles.hint}>Enter your current PIN once to turn this on for next time.</Text>
+                                        <TextInput style={styles.input} value={biometricPinInput}
+                                            onChangeText={setBiometricPinInput}
+                                            secureTextEntry keyboardType="number-pad" maxLength={6}
+                                            placeholder="Current PIN" placeholderTextColor={Colors.muted} />
+                                        <TouchableOpacity style={[styles.saveBtn, { marginTop: 12, marginBottom: 0 }]} onPress={handleEnableBiometric}>
+                                            <Text style={styles.saveBtnText}>Enable Face ID / Fingerprint</Text>
+                                        </TouchableOpacity>
+                                    </>
+                                )}
+                            </Section>
+                        )}
 
                         <BackupPasswordSection />
 

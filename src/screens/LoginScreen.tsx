@@ -11,7 +11,7 @@ import { t, LANGUAGES, Language } from '../utils/i18n';
 import { DEMO_BUSINESSES } from '../utils/demoData';
 import { trackUserLoggedIn, identifyUser } from '../utils/analytics';
 import { supabase, createEphemeralAuthClient } from '../utils/supabase';
-import { savePin, saveProfile, generateAuthSecret, saveAuthSecret, loadAuthSecret, loadProfile, localProfileMatchesEmail, syncFieldEncryptionKey, registerLocalAccount, usernameToLoginEmail, loginIdentifierToEmail, isUsernameAccountEmail, accountDisplayName } from '../utils/storage';
+import { savePin, saveProfile, generateAuthSecret, saveAuthSecret, loadAuthSecret, loadProfile, localProfileMatchesEmail, syncFieldEncryptionKey, registerLocalAccount, usernameToLoginEmail, loginIdentifierToEmail, isUsernameAccountEmail, accountDisplayName, enableBiometricLogin, disableBiometricLogin, isBiometricLoginEnabled, tryBiometricPin, shouldOfferBiometricLogin, markBiometricLoginPromptShown } from '../utils/storage';
 import { verifyBackupPassword, setBackupPassword } from '../utils/backupPassword';
 import { Industry, BusinessSettings } from '../types';
 import { buildQuickCheckSeedTransactions } from '../utils/quickHealthCheck';
@@ -299,6 +299,16 @@ export default function LoginScreen() {
     const [showReturnPin, setShowReturnPin] = useState(false);
     const [showEmailLoginPin, setShowEmailLoginPin] = useState(false);
 
+    // Face ID / fingerprint sign-in -- see storage.ts's enableBiometricLogin
+    // for the full mechanism. Checked once on mount, not re-checked on
+    // every render, since enabling/disabling it only ever happens via an
+    // explicit action elsewhere on this same screen.
+    const [biometricEnabled, setBiometricEnabled] = useState(false);
+    useEffect(() => {
+        if (Platform.OS === 'web') return;
+        isBiometricLoginEnabled().then(setBiometricEnabled).catch(() => {});
+    }, []);
+
     // Switch Account — which of this device's other known accounts (if any)
     // is currently being switched to, and its inline PIN prompt. See
     // localAccounts/switchAccount (OptimizedContexts.tsx) for why this
@@ -577,10 +587,62 @@ export default function LoginScreen() {
         // going to be correct -- validate the shape first, same as the
         // signup form already does, so only a real guess counts.
         if (!/^\d{6}$/.test(returnPin)) { showAlert(t(language, 'error'), 'Please enter your 6-digit PIN.'); return; }
-        const ok = await login(returnPin);
+        const typedPin = returnPin;
+        const ok = await login(typedPin);
         if (!ok) {
             showAlert(t(language, 'error'), 'Incorrect PIN. Please try again.');
             setReturnPin('');
+            return;
+        }
+        await offerBiometricEnrollment(typedPin);
+    };
+
+    // One-time, after a successful MANUAL PIN login -- never after a
+    // biometric one (nothing new to enable there) and never again once the
+    // owner has answered, either way (shouldOfferBiometricLogin checks
+    // both). `typedPin` is the PIN login() just verified; biometric sign-in
+    // stores exactly that, never re-prompting for it separately.
+    const offerBiometricEnrollment = async (typedPin: string) => {
+        if (Platform.OS === 'web') return;
+        if (!(await shouldOfferBiometricLogin().catch(() => false))) return;
+        await markBiometricLoginPromptShown();
+        showAlert(
+            'Sign In Faster Next Time',
+            'Use Face ID or your fingerprint to sign in instead of typing your PIN?',
+            [
+                { text: 'Not Now', style: 'cancel' },
+                { text: 'Enable', onPress: async () => {
+                    const enabled = await enableBiometricLogin(typedPin);
+                    if (enabled) { setBiometricEnabled(true); }
+                    else { showAlert(t(language, 'error'), "Couldn't enable this on your device. Make sure Face ID, fingerprint, or a device passcode is set up."); }
+                } },
+            ],
+        );
+    };
+
+    const handleBiometricLogin = async () => {
+        if (isLockedOut && timeRemaining !== null && timeRemaining > 0) {
+            showAlert(
+                'Account Locked',
+                `Too many failed login attempts. Please try again in ${Math.ceil(timeRemaining / 60)} minute${Math.ceil(timeRemaining / 60) !== 1 ? 's' : ''}.`,
+            );
+            return;
+        }
+        // Prompts Face ID/fingerprint; null means cancelled or failed --
+        // nothing to show for that, the owner can just use the PIN pad.
+        const pin = await tryBiometricPin();
+        if (!pin) return;
+        const ok = await login(pin);
+        if (!ok) {
+            // The stored PIN no longer matches login()'s own hash check --
+            // only reachable if the PIN was changed through some path that
+            // didn't go through storage.ts's savePin (which keeps this in
+            // sync), or the local account record itself was reset. Either
+            // way, re-offering a biometric unlock that will never succeed
+            // again is worse than turning it off and saying why.
+            await disableBiometricLogin();
+            setBiometricEnabled(false);
+            showAlert(t(language, 'error'), 'Face ID / fingerprint sign-in is out of date for this account. Please enter your PIN, then re-enable it if you\'d like.');
         }
     };
 
@@ -2182,6 +2244,14 @@ export default function LoginScreen() {
                     <TouchableOpacity style={styles.btn} onPress={handleLogin}>
                         <Text style={styles.btnText}>{t(language, 'unlock')}</Text>
                     </TouchableOpacity>
+                    {biometricEnabled && (
+                        <TouchableOpacity
+                            style={[styles.btn, { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.primary, marginTop: 10 }]}
+                            onPress={handleBiometricLogin}
+                        >
+                            <Text style={[styles.btnText, { color: Colors.primary }]}>Sign in with Face ID / Fingerprint</Text>
+                        </TouchableOpacity>
+                    )}
                     <Text style={{ textAlign: 'center', color: Colors.muted, fontSize: 12, marginTop: 8 }}>
                         New device or browser? Use the <Text style={{ color: Colors.primary }} onPress={() => setLoginMethod('email')}>Email tab</Text> instead.
                     </Text>

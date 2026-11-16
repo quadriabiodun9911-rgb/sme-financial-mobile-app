@@ -50,7 +50,7 @@
       }
     },
     "plugins": [
-      "expo-secure-store",
+      ["expo-secure-store", { "faceIDPermission": "Quad360 uses Face ID to let you sign in without typing your PIN." }],
       "expo-font",
       "expo-updates",
       "expo-document-picker",

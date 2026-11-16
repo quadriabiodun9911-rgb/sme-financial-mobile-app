@@ -366,6 +366,28 @@ export default function FooterNav() {
 
     return (
         <>
+            {/* ── Quick Add FAB ───────────────────────────────────────────
+                Dashboard already renders its own copy of this (its FAB
+                opens the full Quick Add modal in place, with no
+                navigation) -- shown here, instead, on every OTHER screen,
+                so logging a sale while looking at Inventory or Invoices
+                doesn't first require finding your way back to Dashboard.
+                Reuses Dashboard's own modal rather than a second
+                implementation: this just deep-links there with
+                openQuickAdd, which DashboardScreen's own effect consumes
+                and clears (see its own comment for why clearing matters --
+                same reasoning as Invoices' startReminderRun flag). */}
+            {currentScreen !== 'dashboard' && (
+                <TouchableOpacity
+                    style={styles.quickAddFab}
+                    onPress={() => navigate('dashboard', { openQuickAdd: true })}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add transaction"
+                >
+                    <Text style={styles.quickAddFabText}>+</Text>
+                </TouchableOpacity>
+            )}
+
             {/* ── Bottom tab bar ─────────────────────────────────────────── */}
             <View style={styles.footer}>
                 {visibleTabs.map(tab => {
@@ -666,6 +688,17 @@ export default function FooterNav() {
 }
 
 const styles = StyleSheet.create({
+    // Same position/size/shadow as Dashboard's own FAB (styles.fab there)
+    // so it reads as the same control everywhere, not two different ones
+    // depending which screen happens to be open.
+    quickAddFab: {
+        position: 'absolute', right: 20, bottom: 80, width: 56, height: 56, borderRadius: 28,
+        backgroundColor: Colors.income, alignItems: 'center', justifyContent: 'center',
+        shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 8,
+        zIndex: 10,
+    },
+    quickAddFabText: { fontSize: 30, color: Colors.textPrimary, lineHeight: 34 },
+
     // ── Footer tab bar ──────────────────────────────────────────────────────
     footer: {
         flexDirection: 'row',

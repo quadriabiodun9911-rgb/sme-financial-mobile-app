@@ -56,6 +56,17 @@ jest.mock('../src/utils/secureStorage', () => {
         saveLocalAccountsSecurely: jest.fn(async (json: string) => { secureStore.localAccounts = json; }),
         clearLocalAccountsSecurely: jest.fn(async () => { delete secureStore.localAccounts; }),
         clearAllSecureData: jest.fn(async () => { secureStore = {}; }),
+        // Face ID / fingerprint sign-in -- not exercised by any test in
+        // this file, same reasoning as the other always-no-op mocks above;
+        // savePin() (storage.ts) now calls isBiometricLoginEnabledFlag()
+        // unconditionally, so it needs a mock here regardless.
+        saveBiometricPinSecurely: jest.fn(async () => {}),
+        loadBiometricPinSecurely: jest.fn(async () => null),
+        clearBiometricPinSecurely: jest.fn(async () => {}),
+        isBiometricLoginEnabledFlag: jest.fn(async () => false),
+        setBiometricLoginEnabledFlag: jest.fn(async () => {}),
+        hasAskedAboutBiometricLogin: jest.fn(async () => false),
+        setAskedAboutBiometricLogin: jest.fn(async () => {}),
     };
 });
 

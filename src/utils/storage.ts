@@ -5,6 +5,8 @@ import { supabase } from './supabase';
 import {
     savePinSecurely, loadPinSecurely, clearPinSecurely, clearAllSecureData, saveAuthSecretSecurely, loadAuthSecretSecurely, clearAuthSecretSecurely,
     loadLocalAccountsSecurely, saveLocalAccountsSecurely, clearLocalAccountsSecurely,
+    saveBiometricPinSecurely, loadBiometricPinSecurely, clearBiometricPinSecurely, isBiometricLoginEnabledFlag, setBiometricLoginEnabledFlag,
+    hasAskedAboutBiometricLogin, setAskedAboutBiometricLogin,
 } from './secureStorage';
 import { enqueue } from './syncQueue';
 import {
@@ -2013,9 +2015,67 @@ export function hashPinValue(pin: string): string {
 export async function savePin(pin: string): Promise<void> {
     // Store hash not raw PIN so plaintext never sits in storage
     await savePinSecurely(hashPinValue(pin));
+    // Every path that changes the PIN (initial setup, Change PIN, a reset)
+    // funnels through this one function -- keeping Face ID/fingerprint
+    // sign-in's own stored copy in sync here, once, means none of those
+    // callers has to remember to do it separately. Without this, changing
+    // the PIN would leave biometric sign-in quietly submitting the OLD
+    // PIN forever, which login()'s hash check would then just as quietly
+    // reject every time.
+    if (await isBiometricLoginEnabledFlag()) {
+        await saveBiometricPinSecurely(pin).catch(() => {});
+    }
 }
 export async function loadPin(): Promise<string | null> {
     return loadPinSecurely();
+}
+
+// Face ID / fingerprint sign-in -- see secureStorage.ts's own comment for
+// why the raw PIN (not a hash) is what's stored here, and only there.
+// `pin` must be the CURRENT, already-verified PIN (the caller has just
+// confirmed it, e.g. by successfully logging in with it) -- this never
+// re-checks it, it only decides whether to let biometrics stand in for
+// typing it next time.
+export async function enableBiometricLogin(pin: string): Promise<boolean> {
+    try {
+        await saveBiometricPinSecurely(pin);
+        await setBiometricLoginEnabledFlag(true);
+        return true;
+    } catch {
+        // No biometric/passcode enrolled on this device, or the OS
+        // declined -- nothing to turn on.
+        return false;
+    }
+}
+
+export async function disableBiometricLogin(): Promise<void> {
+    await clearBiometricPinSecurely();
+    await setBiometricLoginEnabledFlag(false);
+}
+
+export async function isBiometricLoginEnabled(): Promise<boolean> {
+    return isBiometricLoginEnabledFlag();
+}
+
+// Prompts Face ID/fingerprint and returns the stored PIN on success, or
+// null on cancel/failure -- the caller passes this straight into login(pin)
+// exactly as if it had been typed, so every check login() already does
+// (lockout, 2FA) applies unchanged rather than a separate "biometric path"
+// re-implementing any of them.
+export async function tryBiometricPin(): Promise<string | null> {
+    return loadBiometricPinSecurely();
+}
+
+// The one-time "enable Face ID?" prompt after a manual PIN login checks
+// this first, so declining once doesn't mean being asked on every future
+// login -- see hasAskedAboutBiometricLogin's own comment.
+export async function shouldOfferBiometricLogin(): Promise<boolean> {
+    if (await isBiometricLoginEnabledFlag()) return false;
+    return !(await hasAskedAboutBiometricLogin());
+}
+
+export async function markBiometricLoginPromptShown(): Promise<void> {
+    await setAskedAboutBiometricLogin();
 }
 
 // Step-up re-check for a high-risk action within an already-authenticated
