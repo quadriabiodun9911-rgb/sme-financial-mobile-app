@@ -18,5 +18,28 @@
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "/icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
     { "src": "/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/wide-dashboard.png",
+      "sizes": "2560x1600",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Business health score, cash position and vital signs on the Quad360 dashboard"
+    },
+    {
+      "src": "/screenshots/narrow-dashboard.png",
+      "sizes": "828x1792",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Quad360 dashboard on mobile: profit, cash, runway and business health score"
+    },
+    {
+      "src": "/screenshots/narrow-invoices.png",
+      "sizes": "828x1792",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Invoices on mobile: send, share, collect payment and track overdue"
+    }
   ]
 }
