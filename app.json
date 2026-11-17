@@ -29,7 +29,7 @@
     },
     "android": {
       "package": "com.quad360.sme",
-      "versionCode": 7,
+      "versionCode": 8,
       "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
