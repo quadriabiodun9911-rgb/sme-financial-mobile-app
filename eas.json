@@ -1,8 +1,7 @@
 {
   "cli": {
     "version": ">= 7.0.0",
-    "promptToConfigurePushNotifications": false,
-    "telemetry": true
+    "promptToConfigurePushNotifications": false
   },
   "build": {
     "development": {
@@ -34,18 +33,12 @@
       "ios": {
         "ascAppId": "CONFIGURE_IN_APPLE_CONNECT",
         "appleTeamId": "CONFIGURE_IN_APPLE_CONNECT",
-        "appleId": "CONFIGURE_BEFORE_SUBMIT",
-        "appleIdPassword": "@appleidpassword",
-        "ascProvider": "OPTIONAL"
+        "appleId": "CONFIGURE_BEFORE_SUBMIT"
       },
       "android": {
         "serviceAccountKeyPath": "./google-play-key.json",
         "track": "internal"
       }
     }
-  },
-  "resourceClass": {
-    "ios": "large",
-    "android": "default"
   }
 }

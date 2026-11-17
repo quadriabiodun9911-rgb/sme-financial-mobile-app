@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "owner": "quadriabiodun9911",
+    "owner": "songhao",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -29,7 +29,7 @@
     },
     "android": {
       "package": "com.quad360.sme",
-      "versionCode": 1,
+      "versionCode": 2,
       "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -50,7 +50,12 @@
       }
     },
     "plugins": [
-      ["expo-secure-store", { "faceIDPermission": "Quad360 uses Face ID to let you sign in without typing your PIN." }],
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "Quad360 uses Face ID to let you sign in without typing your PIN."
+        }
+      ],
       "expo-font",
       "expo-updates",
       "expo-document-picker",
