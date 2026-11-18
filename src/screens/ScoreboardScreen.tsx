@@ -16,6 +16,7 @@ import { computeRiskRadar, RiskLevel } from '../utils/riskRadar';
 import { computeReadinessDelta } from '../utils/readinessHistory';
 import { computeHealthScoreDelta } from '../utils/healthScoreHistory';
 import { computeBusinessExposure, computeBusinessResilience, describeHealthResilienceGap, ExposureLevel } from '../utils/businessExposure';
+import { computeEconomicRiskAssessment, EconomicRiskBand } from '../utils/economicRiskAssessment';
 import { performFinancialDiagnosis, computeRevenueRecurringPct } from '../utils/financialDiagnosisEngine';
 import { computeFinancialHealthPillars, diagnoseFinancialHealth, PillarStatus } from '../utils/financialHealthPillars';
 import { computeFinancialResilience, ResilienceStatus } from '../utils/cashReservePlanning';
@@ -81,6 +82,14 @@ const RESILIENCE_BAND_COLOR: Record<string, string> = {
     Weak: Colors.expense,
 };
 
+const ECONOMIC_RISK_BAND_COLOR: Record<EconomicRiskBand, string> = {
+    Low: Colors.income,
+    Moderate: Colors.warning,
+    Elevated: '#fb923c',
+    High: Colors.expense,
+    Unknown: Colors.textMuted,
+};
+
 const READINESS_BAND_COLORS: Record<GoalRiskAssessment['readinessBand'], string> = {
     Strong: Colors.income,
     Moderate: Colors.warning,
@@ -129,7 +138,7 @@ function GoalBar({ pct, color }: { pct: number; color: string }) {
 }
 
 export default function ScoreboardScreen() {
-    const { transactions, invoices, loans, inventory, finance, settings, goals, readinessHistory, healthScoreHistory, navigate, setCurrentScreen, assets, navParams, budgets, user } = useApp();
+    const { transactions, invoices, loans, inventory, finance, settings, goals, readinessHistory, healthScoreHistory, navigate, setCurrentScreen, assets, navParams, budgets, user, receivableWriteOffs } = useApp();
     const { currency } = settings;
 
     // Every colored dot on this screen already carries a real, computed
@@ -232,6 +241,18 @@ export default function ScoreboardScreen() {
     );
     const resilience = useMemo(() => computeBusinessResilience(exposure), [exposure]);
     const resilienceGap = useMemo(() => describeHealthResilienceGap(risk.score, resilience), [risk.score, resilience]);
+
+    // Economic Risk Assessment -- quantifies (not just labels) exposure to
+    // the specific economic shocks SMEs face: cost/inflation pressure,
+    // demand, liquidity, inventory, debt, supplier concentration and
+    // customer credit risk, each as a 0-100 score built from a real,
+    // standardized shock rather than a guess. Complements Shock Resilience
+    // above (which asks "how much would ANY bad event hurt") with specific,
+    // named economic categories and a ₦ stress-impact figure for each.
+    const economicRisk = useMemo(
+        () => computeEconomicRiskAssessment(transactions, loans, inventory, invoices, receivableWriteOffs, finance, settings?.macroAssumptions ?? [], currency),
+        [transactions, loans, inventory, invoices, receivableWriteOffs, finance, settings?.macroAssumptions, currency],
+    );
 
     // Financial Health Score, regrouped into the product-vision document's
     // 8-pillar taxonomy -- see financialHealthPillars.ts's own doc comment
@@ -817,6 +838,56 @@ export default function ScoreboardScreen() {
                         <Text style={s.cardBodyText}>
                             <Text style={{ fontWeight: '700', color: Colors.textPrimary }}>Biggest exposure: </Text>
                             {resilience.topConcerns[0].detail}
+                        </Text>
+                    )}
+                </View>
+
+                {/* Economic Risk Assessment -- quantifies, per named economic
+                    category, how exposed the business is (Exposure), how
+                    hard a standardized shock would hit it (Sensitivity), and
+                    the resulting ₦ effect (Impact), rather than only a
+                    low/medium/high label. Shock Resilience above answers
+                    "how much would ANY bad event hurt" across a broader set
+                    of signals; this answers "which SPECIFIC economic risk,
+                    and how big", with the category-level math shown in each
+                    chip's explanation. */}
+                <View style={[s.card, isWideScoreboard && s.scoreboardGridItem]}>
+                    <View style={s.cardHeaderRow}>
+                        <Icon name="trending-up" size={14} color={Colors.textMuted} />
+                        <Text style={s.cardTitle}>Economic Risk Assessment</Text>
+                        {economicRisk.available && (
+                            <View style={[s.bandBadge, { backgroundColor: ECONOMIC_RISK_BAND_COLOR[economicRisk.overallBand] + '22', marginLeft: 'auto' }]}>
+                                <Text style={[s.bandBadgeText, { color: ECONOMIC_RISK_BAND_COLOR[economicRisk.overallBand] }]}>
+                                    {economicRisk.overallScore}/100 · {economicRisk.overallBand}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                    <Text style={s.cardBodyText}>{economicRisk.headline}</Text>
+                    <View style={[s.factorChipsRow, { marginTop: Spacing.sm }]}>
+                        {economicRisk.categories.map(c => {
+                            const key = `econrisk:${c.key}`;
+                            const isOpen = expandedChip === key;
+                            return (
+                                <TouchableOpacity
+                                    key={c.key}
+                                    style={[s.factorChip, isOpen && s.factorChipOpen]}
+                                    onPress={() => toggleChip(key)}
+                                    activeOpacity={0.7}
+                                >
+                                    <View style={[s.factorDot, { backgroundColor: ECONOMIC_RISK_BAND_COLOR[c.band] }]} />
+                                    <Text style={s.factorChipText}>{c.label}{c.available ? ` · ${c.score}` : ''}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                    {economicRisk.categories.map(c => expandedChip === `econrisk:${c.key}` && (
+                        <Text key={c.key} style={s.chipExplanation}>{c.narrative}</Text>
+                    ))}
+                    {economicRisk.available && (
+                        <Text style={s.cardBodyText}>
+                            <Text style={{ fontWeight: '700', color: Colors.textPrimary }}>Recommended action: </Text>
+                            {economicRisk.recommendedAction}
                         </Text>
                     )}
                 </View>
