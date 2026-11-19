@@ -36,6 +36,7 @@ import AccrualCashFlow from '../components/AccrualCashFlow';
 import ProfitAndLossStatement from '../components/ProfitAndLossStatement';
 import { computeRevenueByPaymentMethod } from '../utils/revenueByPaymentMethod';
 import BalanceSheetStatement from '../components/BalanceSheetStatement';
+import LiabilitiesWorklistCard from '../components/LiabilitiesWorklistCard';
 import ChangesInEquityStatement from '../components/ChangesInEquityStatement';
 import { computeChangesInEquity } from '../utils/changesInEquity';
 import CashFlowFormalStatement from '../components/CashFlowFormalStatement';
@@ -669,6 +670,13 @@ export default function ReportsScreen() {
                                 currency={currency}
                                 bizSize={bizSize}
                             />
+
+                            {/* The itemized who/what/when-due detail underneath
+                                the Liabilities total shown above -- see
+                                liabilitiesWorklist.ts for why bills still
+                                awaiting review and unremitted tax are called
+                                out as not yet reflected in that total. */}
+                            <LiabilitiesWorklistCard />
                         </View>
                     )}
 
