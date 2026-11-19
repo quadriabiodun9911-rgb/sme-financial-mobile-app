@@ -138,6 +138,10 @@ export function allowanceForDoubtfulDebtsAsOf(provisions: BadDebtProvision[], en
         .reduce((sum, p) => sum + (p.amount ?? 0), 0);
 }
 
+// Scans only Transaction[], never Bill[] -- same split liabilitiesWorklist.ts
+// relies on to treat a Bill still 'needs_review' as a real, not-yet-counted
+// obligation. If Bill[] is ever wired into this figure, that file's own
+// bills-needing-review total needs the same change or it will double-count.
 function accountsPayableAsOf(transactions: Transaction[], endDate: string): number {
     return transactions
         .filter(t => t.type === 'expense' && t.date && t.date <= endDate && (t.status === 'pending' || t.status === 'overdue'))

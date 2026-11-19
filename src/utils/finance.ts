@@ -298,6 +298,13 @@ export function computeWorkingCapitalMetrics(
     const ar = transactions.concat(unlinkedInvoiceReceivables(transactions, invoices))
         .filter(t => t.type === 'income' && (t.status === 'pending' || t.status === 'overdue') && !writtenOffIds.has(t.id))
         .reduce((s, t) => s + (t.amount ?? 0), 0);
+    // Scans only Transaction[], never Bill[] -- a Bill still 'needs_review'
+    // hasn't become a Transaction yet, so it's real money owed that this
+    // figure doesn't include (see liabilitiesWorklist.ts, which relies on
+    // that split to avoid double-counting once a Bill is reviewed and
+    // recorded as the Transaction this filter then picks up). If Bill[]
+    // is ever wired in here, liabilitiesWorklist.ts's own bills-needing-
+    // review total needs to stay in sync or it will double-count.
     const ap = transactions.filter(t => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue')).reduce((s, t) => s + (t.amount ?? 0), 0);
 
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90);
@@ -980,9 +987,9 @@ function getOutstandingReceivables(transactions: Transaction[], invoices: Invoic
 // calendar date back a day for negative UTC offsets, moving an item into
 // the wrong aging bucket near a 30/60/90-day boundary. `today` must already
 // be local midnight (`.setHours(0,0,0,0)`). Shared by computeAgingBuckets,
-// the customer ranking and the periodic report so none of them can
-// disagree about how many days overdue the same item is.
-function daysOverdueAsOf(dueDate: string, today: Date): number {
+// the customer ranking, the periodic report and liabilitiesWorklist.ts so
+// none of them can disagree about how many days overdue the same item is.
+export function daysOverdueAsOf(dueDate: string, today: Date): number {
     const [dy, dm, dd] = dueDate.split('-').map(Number);
     const due = new Date(dy, (dm || 1) - 1, dd || 1);
     return Math.floor((today.getTime() - due.getTime()) / 86400000);

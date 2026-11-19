@@ -7,10 +7,10 @@
  * tax are called out as the HIDDEN half -- real money owed that isn't yet
  * reflected in the Balance Sheet's own Accounts Payable line.
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useApp } from '../contexts/AppContext';
-import { computeLiabilitiesWorklist, LiabilityKind } from '../utils/liabilitiesWorklist';
+import { computeLiabilitiesWorklist, LiabilityItem, LiabilityKind } from '../utils/liabilitiesWorklist';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
 
@@ -21,11 +21,36 @@ const KIND_LABEL: Record<LiabilityKind, string> = {
     tax: 'Tax owed',
 };
 
+// Extracted as a pure function (rather than inlined in the render body) so
+// the overdue/hidden/on-schedule status logic is unit-testable without
+// rendering a React Native component -- this repo has no component-render
+// test infrastructure set up anywhere yet, so a plain function is the
+// testable surface for this one piece of real logic in an otherwise
+// presentational component.
+export function liabilityStatusMeta(item: Pick<LiabilityItem, 'kind' | 'daysOverdue'>): { dotColor: string; statusText: string } {
+    const isHidden = item.kind === 'billNeedsReview' || item.kind === 'tax';
+    if (item.daysOverdue) {
+        return { dotColor: Colors.expense, statusText: `${item.daysOverdue}d overdue` };
+    }
+    if (isHidden) {
+        return { dotColor: Colors.warning, statusText: 'not yet in ledger' };
+    }
+    return { dotColor: Colors.textMuted, statusText: 'on schedule' };
+}
+
 export default function LiabilitiesWorklistCard() {
     const { loans, transactions, bills, finance, settings } = useApp();
     const { currency } = settings;
 
-    const worklist = computeLiabilitiesWorklist(loans, transactions, bills, finance, currency);
+    // Same memoization convention every comparable calculator-backed card
+    // in this app uses (AgingReport's computeAgingBuckets, ScoreboardScreen's
+    // exposure/economicRisk, ...) -- computeLiabilitiesWorklist itself loops
+    // over loans, scans every transaction via computeAgingBuckets, and loops
+    // over bills, so it shouldn't re-run on every unrelated re-render.
+    const worklist = useMemo(
+        () => computeLiabilitiesWorklist(loans, transactions, bills, finance, currency),
+        [loans, transactions, bills, finance, currency],
+    );
 
     return (
         <View style={styles.container}>
@@ -42,8 +67,7 @@ export default function LiabilitiesWorklistCard() {
                 </View>
             ) : (
                 worklist.items.map((item, i) => {
-                    const isHidden = item.kind === 'billNeedsReview' || item.kind === 'tax';
-                    const dotColor = item.daysOverdue ? Colors.expense : isHidden ? Colors.warning : Colors.textMuted;
+                    const { dotColor, statusText } = liabilityStatusMeta(item);
                     return (
                         <View key={`${item.kind}-${item.label}-${i}`} style={styles.row}>
                             <View style={styles.rowInfo}>
@@ -52,9 +76,7 @@ export default function LiabilitiesWorklistCard() {
                                     <Text style={styles.metaText}>{KIND_LABEL[item.kind]}</Text>
                                     {item.dueDate ? <Text style={styles.metaText}>Due: {item.dueDate}</Text> : null}
                                     <View style={[styles.statusDot, { backgroundColor: dotColor }]} />
-                                    <Text style={[styles.statusText, { color: dotColor }]}>
-                                        {item.daysOverdue ? `${item.daysOverdue}d overdue` : isHidden ? 'not yet in ledger' : 'on schedule'}
-                                    </Text>
+                                    <Text style={[styles.statusText, { color: dotColor }]}>{statusText}</Text>
                                 </View>
                             </View>
                             <Text style={styles.rowAmount}>{currency}{item.amount.toLocaleString()}</Text>

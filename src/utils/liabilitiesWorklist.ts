@@ -19,11 +19,12 @@
  */
 
 import { Transaction, Loan, Bill, FinanceData } from '../types';
-import { computeAgingBuckets } from './finance';
+import { computeAgingBuckets, daysOverdueAsOf } from './finance';
 import { outstandingLoanBalance, nextLoanPaymentDueDate, daysUntilLoanPaymentDue } from './loanMath';
 import { computeTaxAbilityToPay } from './taxFilingReadiness';
 import { formatMoney } from './cashFlowHealth';
-import { entityDisplayName } from './entityName';
+import { entityKey, entityDisplayName } from './entityName';
+import { localDateStr } from './localDate';
 
 export type LiabilityKind = 'loan' | 'accountsPayable' | 'billNeedsReview' | 'tax';
 
@@ -60,49 +61,105 @@ export function computeLiabilitiesWorklist(
 ): LiabilitiesWorklist {
     const items: LiabilityItem[] = [];
 
+    // Local midnight, not the live time-of-day -- daysOverdueAsOf's own
+    // contract requires this, and using raw `now` instead would let the
+    // overdue-day count creep up by one every afternoon/evening as the
+    // fractional day grows, purely from what time it happens to be.
+    const todayMidnight = new Date(now);
+    todayMidnight.setHours(0, 0, 0, 0);
+
     // 1. Active loans — one line per loan, not just the portfolio total,
     // using the exact same outstanding-balance and next-due-date math the
-    // Loans screen itself shows.
+    // Loans screen itself shows. A loan with a missing/malformed startDate
+    // (the same "arrives undefined at runtime despite the type" risk
+    // loanMath.ts's own comment documents for interestRate) still lists
+    // its balance, just without a due date, rather than throwing out of
+    // the whole card -- nextLoanPaymentDueDate(loan).toISOString() would
+    // throw a RangeError on an Invalid Date built from a bad startDate.
     let totalLoans = 0;
     for (const loan of loans) {
         if (loan.status !== 'active') continue;
         const balance = outstandingLoanBalance(loan);
         if (balance <= 0) continue;
         totalLoans += balance;
-        const daysUntilDue = daysUntilLoanPaymentDue(loan, now);
-        const dueDate = nextLoanPaymentDueDate(loan).toISOString().slice(0, 10);
-        const daysOverdue = daysUntilDue < 0 ? -daysUntilDue : null;
+
+        const hasValidStartDate = typeof loan.startDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(loan.startDate);
+        let dueDate: string | null = null;
+        let daysOverdue: number | null = null;
+        if (hasValidStartDate) {
+            // localDateStr, not toISOString() -- toISOString() converts a
+            // local-midnight Date to UTC first, showing the PREVIOUS
+            // calendar day in any positive-UTC-offset timezone (the exact
+            // bug localDate.ts's own doc comment warns about), which would
+            // disagree with what LoansScreen.tsx shows for the same loan.
+            dueDate = localDateStr(nextLoanPaymentDueDate(loan));
+            const daysUntilDue = daysUntilLoanPaymentDue(loan, now);
+            daysOverdue = daysUntilDue < 0 ? -daysUntilDue : null;
+        }
+
         items.push({
             kind: 'loan',
             label: loan.lenderName || 'Loan',
             amount: balance,
             dueDate,
             daysOverdue,
-            detail: `${formatMoney(balance, currency)} outstanding, next payment due ${dueDate}.`,
+            detail: dueDate
+                ? `${formatMoney(balance, currency)} outstanding, next payment due ${dueDate}.`
+                : `${formatMoney(balance, currency)} outstanding.`,
         });
     }
 
     // 2. Accounts payable already in the ledger — same source
     // AgingReport.tsx's AP tab and balanceSheetTrend.ts's accountsPayable
     // figure both read, so this list's AP lines always sum to the same
-    // total those already show for the same transactions.
+    // total those already show for the same transactions. Transactions
+    // with no supplier tagged are combined into one line (same grouping
+    // computeSupplierConcentration already applies to untagged spend)
+    // rather than each showing up as its own row literally labeled
+    // "Supplier" -- several untagged payables would otherwise look like
+    // several different vendor relationships instead of one data-quality
+    // gap to fix.
     let totalAccountsPayable = 0;
+    let untaggedTotal = 0;
+    let untaggedCount = 0;
+    let untaggedEarliestDueDate: string | null = null;
+    let untaggedDaysOverdue: number | null = null;
     const apBuckets = computeAgingBuckets(transactions, 'expense');
     for (const bucket of apBuckets) {
         for (const tx of bucket.transactions) {
             const amount = tx.amount ?? 0;
             totalAccountsPayable += amount;
             const dueDate = tx.dueDate ?? null;
-            const rawDaysOverdue = dueDate ? Math.round((now.getTime() - new Date(dueDate + 'T00:00:00').getTime()) / 86400000) : null;
+            const rawDaysOverdue = dueDate ? daysOverdueAsOf(dueDate, todayMidnight) : null;
+            const daysOverdue = rawDaysOverdue !== null && rawDaysOverdue > 0 ? rawDaysOverdue : null;
+
+            if (entityKey(tx.vendorCustomer) === null) {
+                untaggedTotal += amount;
+                untaggedCount++;
+                if (dueDate && (untaggedEarliestDueDate === null || dueDate < untaggedEarliestDueDate)) untaggedEarliestDueDate = dueDate;
+                if (daysOverdue !== null) untaggedDaysOverdue = Math.max(untaggedDaysOverdue ?? 0, daysOverdue);
+                continue;
+            }
+
             items.push({
                 kind: 'accountsPayable',
                 label: entityDisplayName(tx.vendorCustomer) || 'Supplier',
                 amount,
                 dueDate,
-                daysOverdue: rawDaysOverdue && rawDaysOverdue > 0 ? rawDaysOverdue : null,
+                daysOverdue,
                 detail: `${formatMoney(amount, currency)} owed${dueDate ? `, due ${dueDate}` : ''} (${bucket.label}).`,
             });
         }
+    }
+    if (untaggedCount > 0) {
+        items.push({
+            kind: 'accountsPayable',
+            label: `Uncategorized (${untaggedCount} payable${untaggedCount === 1 ? '' : 's'})`,
+            amount: untaggedTotal,
+            dueDate: untaggedEarliestDueDate,
+            daysOverdue: untaggedDaysOverdue,
+            detail: `${formatMoney(untaggedTotal, currency)} owed across ${untaggedCount} payable${untaggedCount === 1 ? '' : 's'} with no supplier tagged -- tag these to see them individually.`,
+        });
     }
 
     // 3. Bills still awaiting review — real money owed, not yet in the
@@ -112,13 +169,13 @@ export function computeLiabilitiesWorklist(
         if (bill.status !== 'needs_review') continue;
         totalBillsNeedingReview += bill.total;
         const dueDate = bill.dueDate ?? null;
-        const rawDaysOverdue = dueDate ? Math.round((now.getTime() - new Date(dueDate + 'T00:00:00').getTime()) / 86400000) : null;
+        const rawDaysOverdue = dueDate ? daysOverdueAsOf(dueDate, todayMidnight) : null;
         items.push({
             kind: 'billNeedsReview',
             label: bill.vendorName || 'Vendor bill',
             amount: bill.total,
             dueDate,
-            daysOverdue: rawDaysOverdue && rawDaysOverdue > 0 ? rawDaysOverdue : null,
+            daysOverdue: rawDaysOverdue !== null && rawDaysOverdue > 0 ? rawDaysOverdue : null,
             detail: `${formatMoney(bill.total, currency)} owed — captured but not yet reviewed, so not yet counted in your Accounts Payable total.`,
         });
     }
