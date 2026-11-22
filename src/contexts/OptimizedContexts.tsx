@@ -881,7 +881,24 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         // persistence (saveTransactions etc. all skip while isDemoMode).
         if (!isDemoMode) trackTransactionAdded(tx.type, tx.amount, settingsForFinance?.settings?.currency ?? '₦');
         const resolved = { ...tx, id: tx.id || genId() } as Transaction;
-        setTransactions((prev) => [...prev, resolved]);
+        // Captured from the SAME functional updater that sets state, not
+        // the outer `transactions` closure -- that closure is stale the
+        // instant this function is called more than once in the same
+        // synchronous burst (every bulk-add path: statement import, Mono
+        // sync, incoming-payment/WhatsApp claiming all loop over
+        // addTransaction with no render in between). React chains each
+        // updater's `prev` from the one before it regardless, so reading
+        // `transactions` directly here gave every call in the burst the
+        // SAME pre-burst array, and since saveTransactions below fully
+        // overwrites storage rather than merging, every save but the one
+        // that happened to finish last wrote over the previous calls'
+        // rows entirely -- confirmed to leave only one row out of an
+        // entire import surviving a reload.
+        let nextTransactions: Transaction[] = [];
+        setTransactions((prev) => {
+          nextTransactions = [...prev, resolved];
+          return nextTransactions;
+        });
         // Fired here, immediately, in the SAME call as the state update --
         // not left to the save-effect below (which only runs once React
         // has committed the re-render and scheduled it, a real delay a
@@ -891,7 +908,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         // harmless (idempotent) when it does. Confirmed real: a user hit
         // exactly this window -- added a transaction, reloaded immediately,
         // and it was gone, because nothing had been written to disk yet.
-        if (!isDemoMode && hydrated) saveTransactions([...transactions, resolved]).catch(() => {});
+        if (!isDemoMode && hydrated) saveTransactions(nextTransactions).catch(() => {});
         // Posts regardless of isDemoMode -- postEntry is purely in-memory
         // (saveJournalEntries' own effect already skips persisting while
         // isDemoMode), and bad debt provisions/manual journal entries
@@ -918,13 +935,19 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         const patch = tx.status === 'paid' && tx.paidAt === undefined
           ? { ...tx, paidAt: new Date().toISOString() }
           : tx;
-        setTransactions((prev) =>
-          prev.map((t) => (t.id === id ? { ...t, ...patch } : t))
-        );
+        // Captured from the functional updater's own result, not the outer
+        // `transactions` closure -- see addTransaction's comment for why
+        // that closure goes stale across multiple calls in one synchronous
+        // burst (e.g. a bulk "mark all as paid" action).
+        let nextTransactions: Transaction[] = [];
+        setTransactions((prev) => {
+          nextTransactions = prev.map((t) => (t.id === id ? { ...t, ...patch } : t));
+          return nextTransactions;
+        });
         // Same immediate-persist reasoning as addTransaction above -- don't
         // leave the edit's durability to the save-effect's own scheduling.
         if (!isDemoMode && hydrated) {
-          saveTransactions(transactions.map((t) => (t.id === id ? { ...t, ...patch } : t))).catch(() => {});
+          saveTransactions(nextTransactions).catch(() => {});
         }
         // Reverses and re-posts from the transaction's new state on any
         // financially-relevant change -- not just a pending -> paid
@@ -950,12 +973,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         }
       },
       deleteTransaction: (id) => {
-        setTransactions((prev) => prev.filter((t) => t.id !== id));
+        // Captured from the functional updater's own result, not the outer
+        // `transactions` closure -- see addTransaction's comment for why
+        // that closure goes stale across multiple calls in one synchronous
+        // burst (e.g. a bulk-delete action).
+        let nextTransactions: Transaction[] = [];
+        setTransactions((prev) => {
+          nextTransactions = prev.filter((t) => t.id !== id);
+          return nextTransactions;
+        });
         // Same immediate-persist reasoning as addTransaction above, for the
         // local cache specifically -- deleteTransactionRemote below already
         // handles the remote side immediately.
         if (!isDemoMode && hydrated) {
-          saveTransactions(transactions.filter((t) => t.id !== id)).catch(() => {});
+          saveTransactions(nextTransactions).catch(() => {});
         }
         // Reverse any still-open journal entry this transaction posted --
         // without this, the General Ledger kept the entry forever after the
