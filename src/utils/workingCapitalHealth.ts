@@ -191,7 +191,7 @@ export function computeWorkingCapitalHealth(
         const dso = bs && q.revenue > 0 ? (bs.accountsReceivable / q.revenue) * daysInQuarter : null;
         const dpo = bs && q.expense > 0 ? (bs.accountsPayable / q.expense) * daysInQuarter : null;
         const ccc = dso !== null && dpo !== null ? dso - dpo : null;
-        return { quarter: q.quarter, label: q.label, revenue: q.revenue, dso, dpo, ccc };
+        return { quarter: q.quarter, label: q.label, revenue: q.revenue, dso, dpo, ccc, monthsWithData: q.monthsWithData };
     });
 
     const latest = quarterFigures[quarterFigures.length - 1];
@@ -202,7 +202,17 @@ export function computeWorkingCapitalHealth(
     const points: WorkingCapitalTrendPoint[] = cccPoints.map(q => ({ label: q.label, ccc: q.ccc }));
     let direction: WorkingCapitalTrendDirection = 'insufficient-data';
     let trendNarrative = "Not enough quarters of data yet to judge a trend — one quarter alone can't show whether the cash conversion cycle is improving or lengthening.";
-    if (cccPoints.length >= 3) {
+    // A quarter with fewer populated months than its neighbors here isn't
+    // comparable to them -- relative, not an absolute floor, so a business
+    // that genuinely logs data evenly (even just once a month) still gets a
+    // real verdict; see cashFlowHealth.ts's own trajectory check for the
+    // full reasoning.
+    const maxMonths = cccPoints.length > 0 ? Math.max(...cccPoints.map(q => q.monthsWithData)) : 0;
+    const incompleteQuarters = cccPoints.filter(q => q.monthsWithData < maxMonths);
+    if (cccPoints.length >= 2 && incompleteQuarters.length > 0) {
+        const names = incompleteQuarters.map(q => `${q.label} (${q.monthsWithData}/3 months of data)`).join(', ');
+        trendNarrative = `Can't call a reliable trend yet — ${names} has incomplete transaction history, so any apparent swing between quarters may just reflect that gap rather than a real change in the cash conversion cycle.`;
+    } else if (cccPoints.length >= 3) {
         const diffs: number[] = [];
         for (let i = 1; i < cccPoints.length; i++) diffs.push(cccPoints[i].ccc - cccPoints[i - 1].ccc);
         const allShrinking = diffs.every(d => d < 0);

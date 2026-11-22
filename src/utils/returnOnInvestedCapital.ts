@@ -38,6 +38,7 @@ export interface ROICQuarterPoint {
     quarter: string;
     label: string;
     roicPct: number | null; // null when that quarter's invested capital was <= 0
+    monthsWithData: number; // calendar months within this quarter with any transaction, out of 3
 }
 
 export type ROICTrendDirection = 'improving' | 'weakening' | 'volatile' | 'flat' | 'insufficient-data';
@@ -96,13 +97,23 @@ export function computeReturnOnInvestedCapital(
         const qNopat = qEbit * (1 - rate / 100);
         const qInvestedCapital = bs ? bs.loansOutstanding + bs.netWorth : null;
         const qRoicPct = qInvestedCapital !== null && qInvestedCapital > 0 ? (qNopat / qInvestedCapital) * 100 : null;
-        return { quarter: q.quarter, label: q.label, roicPct: qRoicPct };
+        return { quarter: q.quarter, label: q.label, roicPct: qRoicPct, monthsWithData: q.monthsWithData };
     });
 
     let direction: ROICTrendDirection = 'insufficient-data';
     let narrative = "Not enough quarters of data yet to judge a trend — one quarter alone can't show whether return on invested capital is improving or weakening.";
     const scored = points.filter((p): p is ROICQuarterPoint & { roicPct: number } => p.roicPct !== null);
-    if (scored.length >= 3) {
+    // A quarter with fewer populated months than its neighbors here isn't
+    // comparable to them -- relative, not an absolute floor, so a business
+    // that genuinely logs data evenly (even just once a month) still gets a
+    // real verdict; see cashFlowHealth.ts's own trajectory check for the
+    // full reasoning.
+    const maxMonths = scored.length > 0 ? Math.max(...scored.map(p => p.monthsWithData)) : 0;
+    const incompleteQuarters = scored.filter(p => p.monthsWithData < maxMonths);
+    if (scored.length >= 2 && incompleteQuarters.length > 0) {
+        const names = incompleteQuarters.map(p => `${p.label} (${p.monthsWithData}/3 months of data)`).join(', ');
+        narrative = `Can't call a reliable trend yet — ${names} has incomplete transaction history, so any apparent swing between quarters may just reflect that gap rather than a real change in return on invested capital.`;
+    } else if (scored.length >= 3) {
         const diffs: number[] = [];
         for (let i = 1; i < scored.length; i++) diffs.push(scored[i].roicPct - scored[i - 1].roicPct);
         const allImproving = diffs.every(d => d > 0);

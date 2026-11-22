@@ -193,6 +193,33 @@ describe('computeCashFlowHealth', () => {
         expect(result.riskFlags.some(f => f.message.match(/weakened/i))).toBe(true);
     });
 
+    it('does not call a quarter "volatile" when the apparent swing is just a data gap (a quarter with far fewer populated months than its neighbors)', () => {
+        const txs = [
+            // Q1 2025: spread across all 3 months -- a real, fully-reported quarter.
+            makeTx({ date: '2025-01-10', type: 'income', amount: 400000, status: 'paid' }),
+            makeTx({ date: '2025-02-10', type: 'income', amount: 400000, status: 'paid' }),
+            makeTx({ date: '2025-03-10', type: 'income', amount: 400000, status: 'paid' }),
+            makeTx({ date: '2025-01-15', type: 'expense', category: 'Rent', amount: 150000, status: 'paid' }),
+            makeTx({ date: '2025-02-15', type: 'expense', category: 'Rent', amount: 150000, status: 'paid' }),
+            makeTx({ date: '2025-03-15', type: 'expense', category: 'Rent', amount: 150000, status: 'paid' }),
+            // Q2 2025: only one of its three months has any transaction --
+            // a data gap, not a real near-collapse in cash flow.
+            makeTx({ date: '2025-04-10', type: 'income', amount: 5000, status: 'paid' }),
+            // Q3 2025: back to all 3 months populated, similar to Q1.
+            makeTx({ date: '2025-07-10', type: 'income', amount: 420000, status: 'paid' }),
+            makeTx({ date: '2025-08-10', type: 'income', amount: 420000, status: 'paid' }),
+            makeTx({ date: '2025-09-10', type: 'income', amount: 420000, status: 'paid' }),
+            makeTx({ date: '2025-07-15', type: 'expense', category: 'Rent', amount: 150000, status: 'paid' }),
+            makeTx({ date: '2025-08-15', type: 'expense', category: 'Rent', amount: 150000, status: 'paid' }),
+            makeTx({ date: '2025-09-15', type: 'expense', category: 'Rent', amount: 150000, status: 'paid' }),
+        ];
+        const result = computeCashFlowHealth(txs, NO_ASSETS, NO_INVENTORY);
+        expect(result.trajectory.direction).toBe('insufficient-data');
+        expect(result.trajectory.narrative).toMatch(/incomplete transaction history/i);
+        expect(result.trajectory.narrative).not.toMatch(/swung/i);
+        expect(result.riskFlags.some(f => f.message.match(/swung sharply/i))).toBe(false);
+    });
+
     it('never leaks the literal string "undefined" into the headline when no risk flags fire', () => {
         // A moderate-score, single-quarter scenario with no risk flags at
         // all exercises the headline's "adequate but watch X" branch with

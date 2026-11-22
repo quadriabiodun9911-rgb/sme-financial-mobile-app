@@ -228,6 +228,14 @@ export function computeCashFlowHealth(
             capex: capexInQuarter(start, end),
             accountsReceivable: bs?.accountsReceivable ?? null,
             accountsPayable: bs?.accountsPayable ?? null,
+            // Distinct calendar months within this quarter that actually
+            // have a transaction -- computeAllTimeMonthlyBuckets skips
+            // months with none rather than zero-filling them, so a quarter
+            // below 3 reports only a fraction of real activity and isn't
+            // comparable to a full quarter. Carried through so the
+            // trajectory/risk-flag logic below can tell a genuine swing
+            // from a data gap instead of mistaking one for the other.
+            monthsWithData: q.monthsWithData,
             // Runway "as of" this quarter's end, using cash actually on
             // hand then (bs.cashOnHand, dated-transaction-based, same
             // reconstruction qualityOfGrowth.ts's receivables signal
@@ -299,7 +307,21 @@ export function computeCashFlowHealth(
     const points: TrajectoryPoint[] = quarterFigures.map(q => ({ label: q.label, operatingCF: q.operatingCF }));
     let direction: TrajectoryDirection = 'insufficient-data';
     let trajectoryNarrative = "Not enough quarters of data yet to judge a trend — one quarter alone can't show whether cash generation is improving or weakening.";
-    if (quarterFigures.length >= 3) {
+    // A quarter with fewer populated months than its neighbors in this same
+    // comparison isn't comparable to them -- its operatingCF is an
+    // undercount relative to the others, not a genuine dip or spike, so
+    // treating it as "volatile" (or even "improving"/"weakening") would be
+    // reading a data gap as a real change. Relative, not an absolute "< 3"
+    // floor: a business that genuinely logs one transaction a month is
+    // comparing like with like and gets a real verdict; the disparity only
+    // matters when some quarters in the window have noticeably richer data
+    // than others.
+    const maxMonths = Math.max(...quarterFigures.map(q => q.monthsWithData));
+    const incompleteQuarters = quarterFigures.filter(q => q.monthsWithData < maxMonths);
+    if (quarterFigures.length >= 2 && incompleteQuarters.length > 0) {
+        const names = incompleteQuarters.map(q => `${q.label} (${q.monthsWithData}/3 months of data)`).join(', ');
+        trajectoryNarrative = `Can't call a reliable trend yet — ${names} has incomplete transaction history, so any apparent swing between quarters may just reflect that gap rather than a real change in cash generation.`;
+    } else if (quarterFigures.length >= 3) {
         const diffs: number[] = [];
         for (let i = 1; i < quarterFigures.length; i++) diffs.push(quarterFigures[i].operatingCF - quarterFigures[i - 1].operatingCF);
         const allImproving = diffs.every(d => d > 0);
