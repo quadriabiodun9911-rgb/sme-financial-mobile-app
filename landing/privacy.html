@@ -63,7 +63,7 @@
 <div class="container">
   <div class="badge">Legal</div>
   <h1>Privacy Policy</h1>
-  <p class="updated">Last updated: June 2026 &nbsp;·&nbsp; Effective immediately</p>
+  <p class="updated">Last updated: November 2026 &nbsp;·&nbsp; Effective immediately</p>
 
   <div class="highlight">
     <p>🔒 <strong>Plain English summary:</strong> Your business data belongs to you. We don't sell it, share it, or read it. It is encrypted at rest and in transit. You can delete it at any time.</p>
@@ -79,6 +79,7 @@
     <li><strong>Financial data</strong> — transactions, invoices, assets, loans, and inventory that you enter into the app</li>
     <li><strong>Settings</strong> — your currency preference, language, and business settings</li>
     <li><strong>PIN</strong> — stored in encrypted form on your device only; we never see your PIN</li>
+    <li><strong>Bank/transaction data (optional)</strong> — if you choose to connect a bank account via Mono, or use income verification via Pngme, the resulting account and transaction data is added to your records</li>
   </ul>
   <p>We do <strong>not</strong> collect: payment card details, government ID, location data, contacts, or any data from other apps on your device.</p>
 
@@ -127,11 +128,15 @@
   </div>
 
   <h2>5. Who We Share Data With</h2>
-  <p>We share data with no one except the following essential service providers:</p>
+  <p>We do not sell your data or share it for advertising. Your data is shared only with the following service providers, each handling only what their specific function requires:</p>
   <ul>
-    <li><strong>Supabase</strong> (supabase.com) — cloud database and authentication infrastructure. Your data is stored on their servers under our account and is not accessible to them for any other purpose.</li>
+    <li><strong>Supabase</strong> (supabase.com) — our cloud database and authentication infrastructure. Your data is stored on their servers under our account and is not accessible to them for any other purpose.</li>
+    <li><strong>Mono</strong> (mono.co) — only if you choose to connect a bank account. Mono provides direct, consent-based, read-only bank account linking; Quad360 never writes back to your bank account through Mono.</li>
+    <li><strong>Pngme</strong> (pngme.com) — only if you choose to use income/transaction verification. Pngme supplies alternative transaction data to support that feature.</li>
+    <li><strong>Sentry</strong> (sentry.io, hosted in the United States) — crash and error reporting for the web version of the app. Sentry receives your email address (so a crash can be matched to a support conversation) and technical crash details — never your financial data.</li>
+    <li><strong>Anthropic</strong> (anthropic.com) — only if you use the AI Advisor feature. We send a summary of figures already computed by the app (health score, cash position, top risks, goals) — never your raw transaction list — so that Claude, Anthropic's model, can answer your question. This only happens when you actively use the AI Advisor; it does not run in the background. Anthropic processes this data under its own privacy policy.</li>
   </ul>
-  <p>We do not use Google Analytics, Facebook Pixel, advertising networks, or any other tracking services.</p>
+  <p>We do not use Google Analytics, Facebook Pixel, advertising networks, or any other tracking or advertising services.</p>
 
   <h2>6. Data Retention</h2>
   <p>Your data is retained for as long as your account is active. You can permanently delete all your data at any time by going to <strong>Settings → Danger Zone → Clear All Data</strong> in the app. This action is irreversible.</p>
