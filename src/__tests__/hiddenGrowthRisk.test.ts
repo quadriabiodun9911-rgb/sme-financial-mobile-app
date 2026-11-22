@@ -67,4 +67,28 @@ describe('computeHiddenGrowthRisk', () => {
         expect(result.flagged).toBe(true);
         expect(result.headline).toMatch(/inventory level|replacement cost/);
     });
+
+    it('does not flip "cash burn worsening" purely on what day of the month `now` happens to be', () => {
+        // Regression: cashBurnWorsening compared two computeCashRunway
+        // snapshots 31 days apart, each using its own narrow 30-day
+        // trailing window. A single regular monthly payment that isn't
+        // flagged isRecurring (e.g. rent on the 1st) could land inside one
+        // window and outside the other purely depending on what day of the
+        // month `now` fell on -- confirmed to flip this signal true/false
+        // for literally identical underlying spending. Fixed, complete
+        // calendar-month totals don't have that sensitivity.
+        const txs: Transaction[] = [];
+        const incomeMonths = ['2026-04', '2026-05', '2026-06', '2026-07', '2026-08'];
+        let revenue = 100_000;
+        for (const m of incomeMonths) {
+            txs.push(tx({ type: 'income', amount: revenue, date: `${m}-15`, status: 'paid' }));
+            revenue += 5_000;
+        }
+        for (const m of incomeMonths) {
+            txs.push(tx({ type: 'expense', amount: 100_000, date: `${m}-01`, status: 'paid' })); // flat monthly rent, not flagged recurring
+        }
+        const earlyInMonth = computeHiddenGrowthRisk(txs, [], 500_000, new Date('2026-08-02T12:00:00.000Z'));
+        const lateInMonth = computeHiddenGrowthRisk(txs, [], 500_000, new Date('2026-08-29T12:00:00.000Z'));
+        expect(earlyInMonth.flaggedSignals.includes('cashBurn')).toBe(lateInMonth.flaggedSignals.includes('cashBurn'));
+    });
 });

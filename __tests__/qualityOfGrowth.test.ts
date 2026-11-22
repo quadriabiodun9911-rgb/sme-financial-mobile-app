@@ -191,4 +191,23 @@ describe('computeQualityOfGrowth', () => {
         expect(result.available).toBe(true);
         expect(result.verdict).toMatch(/resilience check/i);
     });
+
+    it('does not call genuinely new revenue (zero prior-period base) "held flat"', () => {
+        // Regression: pctChange(current, 0) correctly returns null (no base
+        // to rate a % change against), but the verdict previously coerced
+        // that null to 0 via `rg = revenueGrowth ?? 0` and then described
+        // rg === 0 as "held flat" -- indistinguishable from genuinely flat
+        // revenue, when this business actually went from no revenue at all
+        // to a real 80000.
+        const txs = [
+            makeTx({ id: '2024-exp', date: '2024-06-01', type: 'expense', amount: 20000, status: 'paid' }),
+            makeTx({ id: '2025-inc', date: '2025-06-01', type: 'income', amount: 80000, status: 'paid' }),
+            makeTx({ id: '2025-exp', date: '2025-06-01', type: 'expense', amount: 65000, status: 'paid' }),
+        ];
+        const result = computeQualityOfGrowth(txs, NO_ASSETS, []);
+        expect(result.available).toBe(true);
+        expect(result.signals.find(s => s.key === 'revenue')?.growthPct).toBeNull();
+        expect(result.verdict).not.toMatch(/held flat/i);
+        expect(result.verdict).toMatch(/no prior revenue/i);
+    });
 });

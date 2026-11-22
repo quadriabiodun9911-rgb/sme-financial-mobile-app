@@ -264,7 +264,12 @@ function scoreQualityOfGrowth(current: PeriodAggregate, prior: PeriodAggregate, 
     );
     const band = bandForScore(score);
 
-    const verdict = rg <= 0
+    const verdict = revenueGrowth === null
+        // prior.revenue was 0 but current.revenue isn't -- genuinely new
+        // revenue, not "flat". pctChange() can't rate a % against a zero
+        // base, so there's nothing to call a growth rate here at all.
+        ? `There's no prior revenue ${comparisonNoun} to measure growth against — revenue went from nothing to something, so this reads as a resilience check, not a growth-quality one.`
+        : rg <= 0
         ? `Revenue ${rg === 0 ? 'held flat' : `fell ${Math.abs(rg).toFixed(0)}%`} ${comparisonNoun} — this reads as a resilience check, not a growth-quality one.`
         : score >= 70
             ? `Revenue grew ${rg.toFixed(0)}% and the business grew with it — profit, cash and debt moved in a healthy direction alongside it.`

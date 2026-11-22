@@ -449,25 +449,34 @@ export class ForecastEngine {
       });
     }
 
-    // Seasonal opportunity
-    const q1Avg =
-      recMonths
-        .slice(0, 3)
-        .reduce((sum, m) => sum + m.projectedIncome, 0) / Math.min(3, recMonths.length);
-    const q3Avg =
-      recMonths
-        .slice(6, 9)
-        .reduce((sum, m) => sum + m.projectedIncome, 0) / Math.min(3, recMonths.length);
+    // Seasonal opportunity -- needs a real second 3-month window to compare
+    // against the first. At the default 6-month forecast horizon,
+    // recMonths.slice(6, 9) used to be empty, silently forcing the later
+    // average to 0 and making this recommendation unable to ever fire, with
+    // nothing disclosing that the comparison hadn't actually run. These are
+    // also just "months 1-3" vs "months 7-9" of the forecast, not real
+    // calendar Q1/Q3 unless the forecast happens to start in January --
+    // labeled and dated from the months' own real dates instead of
+    // assuming that, including the hardcoded "June" target.
+    if (recMonths.length >= 9) {
+      const earlyWindow = recMonths.slice(0, 3);
+      const laterWindow = recMonths.slice(6, 9);
+      const earlyAvg = earlyWindow.reduce((sum, m) => sum + m.projectedIncome, 0) / earlyWindow.length;
+      const laterAvg = laterWindow.reduce((sum, m) => sum + m.projectedIncome, 0) / laterWindow.length;
 
-    if (q3Avg > q1Avg * 1.3) {
-      recommendations.push({
-        id: `rec-${id++}`,
-        priority: 'medium',
-        title: 'Prepare for Seasonal Peak',
-        description: `Q3 shows ${Math.round(((q3Avg / q1Avg - 1) * 100))}% higher revenue. Build cash reserves before the peak.`,
-        actionType: 'optimize_timing',
-        targetMonth: `${new Date().getFullYear()}-06`, // June before Q3
-      });
+      if (earlyAvg > 0 && laterAvg > earlyAvg * 1.3) {
+        const monthName = (m: MonthlyProjection) => m.date.toLocaleDateString('en-US', { month: 'short' });
+        const earlyLabel = `${monthName(earlyWindow[0])}-${monthName(earlyWindow[earlyWindow.length - 1])}`;
+        const laterLabel = `${monthName(laterWindow[0])}-${monthName(laterWindow[laterWindow.length - 1])}`;
+        recommendations.push({
+          id: `rec-${id++}`,
+          priority: 'medium',
+          title: 'Prepare for Seasonal Peak',
+          description: `${laterLabel} shows ${Math.round(((laterAvg / earlyAvg - 1) * 100))}% higher projected revenue than ${earlyLabel}. Build cash reserves before the peak.`,
+          actionType: 'optimize_timing',
+          targetMonth: earlyWindow[earlyWindow.length - 1].month, // the month right before the higher window begins
+        });
+      }
     }
 
     return recommendations.slice(0, 5); // Return top 5 recommendations

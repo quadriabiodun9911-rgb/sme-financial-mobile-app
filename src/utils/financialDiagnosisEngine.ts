@@ -60,6 +60,18 @@ export interface FinancialMetrics {
   expensesByCategory: Record<string, number>;
   revenueRecurringPct: number;
   expenseGrowthPct: number;
+  // True when there's no comparable prior-month expense figure to rate
+  // growth against (last month genuinely had zero recorded expenses, or
+  // this is a brand-new business) -- the same distinction profitTrend's
+  // 'insufficient-history' state draws for revenue below. expenseGrowthPct
+  // itself stays a plain number (defaulting to 0) for every other reader;
+  // only diagnoseEfficiency's "expenses outgrowing revenue" check needs to
+  // know not to treat that default as a real, measured 0% growth. Optional
+  // for the same reason monthOverMonthDeclineLooksSeasonal is above --
+  // every FinancialMetrics literal built directly (every test fixture that
+  // predates this field) still typechecks unchanged; undefined reads
+  // exactly like false below.
+  expenseGrowthInsufficientHistory?: boolean;
 
   // Trends
   monthOverMonthGrowth: number;
@@ -403,6 +415,7 @@ export function calculateFinancialMetrics(
     .filter(t => t.date.startsWith(lastMonth) && parseInt(t.date.slice(8, 10), 10) <= dayCap)
     .reduce((sum, t) => sum + (t.amount ?? 0) - (t.principalPortion || 0), 0);
 
+  const expenseGrowthInsufficientHistory = lastMonthExpensesComparable <= 0;
   const expenseGrowthPct =
     lastMonthExpensesComparable > 0 ? ((thisMonthExpenses - lastMonthExpensesComparable) / lastMonthExpensesComparable) * 100 : 0;
 
@@ -570,6 +583,7 @@ export function calculateFinancialMetrics(
     expensesByCategory,
     revenueRecurringPct,
     expenseGrowthPct,
+    expenseGrowthInsufficientHistory,
     monthOverMonthGrowth,
     monthOverMonthDeclineLooksSeasonal,
     profitTrend,
@@ -1100,33 +1114,55 @@ export function diagnoseEfficiency(
   // Are expenses growing faster than revenue? A business can look
   // profitable this month and still be getting structurally less
   // efficient — margin alone doesn't surface that until it's already gone.
-  const growthGap = metrics.expenseGrowthPct - metrics.monthOverMonthGrowth;
-  if (growthGap > 10) {
-    diagnoses.push({
-      id: 'expenses-outgrowing-revenue',
-      problem: `Expenses growing faster than revenue (${metrics.expenseGrowthPct >= 0 ? '+' : ''}${metrics.expenseGrowthPct.toFixed(1)}% vs ${metrics.monthOverMonthGrowth >= 0 ? '+' : ''}${metrics.monthOverMonthGrowth.toFixed(1)}%)`,
-      severity: growthGap > 25 ? 'critical' : 'warning',
-      rootCause: 'Cost growth is outrunning revenue growth',
-      impact: 'Margins will keep compressing month over month if this continues',
-      financialImpact: metrics.totalExpenses * (growthGap / 100),
-      opportunity: 'Freeze discretionary spend increases until revenue growth catches up',
-      suggestedGoalType: 'cost_reduction',
-      dimension: 'efficiency',
-      trigger: growthGap > 25
-        ? 'Resolves once expense growth is back within 10 points of revenue growth.'
-        : 'Becomes critical if expenses outgrow revenue by more than 25 points.',
-      metrics: [
-        { label: 'Expenses', value: `${metrics.expenseGrowthPct >= 0 ? '↑' : '↓'} ${Math.abs(metrics.expenseGrowthPct).toFixed(0)}%`, compareLabel: 'Compared with prior period', tone: 'negative' },
-        { label: 'Revenue', value: `${metrics.monthOverMonthGrowth >= 0 ? '↑' : '↓'} ${Math.abs(metrics.monthOverMonthGrowth).toFixed(0)}%`, compareLabel: 'Compared with prior period', tone: metrics.monthOverMonthGrowth >= 0 ? 'neutral' : 'negative' },
-      ],
-      investigate: [
-        'Which expense category grew the fastest this period, and is that growth tied to more sales or just higher unit cost?',
-        'Can current selling prices still cover today\'s costs, or has margin quietly eroded underneath them?',
-        'Are customers paying late, making cash feel tighter than the numbers above already show?',
-        'Would consolidating orders, renegotiating a supplier, or changing a delivery/operating arrangement reduce this cost?',
-        'Is this a one-period spike or a sustained trend — check Cost Exposure for the category-by-category breakdown.',
-      ],
-    });
+  // With no comparable prior month, expenseGrowthPct defaults to 0 --
+  // reading that as a real "flat" growth rate would silently miss a
+  // genuinely new or fast-growing cost (no prior baseline to flag it
+  // against), the exact false negative this diagnosis existed to catch.
+  // Say so plainly instead, and point at Cost Exposure's own
+  // category-level view, which already handles a brand-new category
+  // correctly.
+  if (metrics.expenseGrowthInsufficientHistory) {
+    if (metrics.totalExpenses > 0) {
+      diagnoses.push({
+        id: 'expense-growth-insufficient-history',
+        problem: `${currency}${Math.round(metrics.totalExpenses).toLocaleString()} in expenses this period with no prior month to measure growth against`,
+        severity: 'info',
+        rootCause: 'Not enough expense history yet to tell whether spending is rising faster than revenue',
+        impact: 'A real new or fast-growing cost could be invisible here until next period',
+        financialImpact: 0,
+        opportunity: 'Check Cost Exposure for a category-by-category view, which can flag a brand-new cost category directly',
+        dimension: 'efficiency',
+      });
+    }
+  } else {
+    const growthGap = metrics.expenseGrowthPct - metrics.monthOverMonthGrowth;
+    if (growthGap > 10) {
+      diagnoses.push({
+        id: 'expenses-outgrowing-revenue',
+        problem: `Expenses growing faster than revenue (${metrics.expenseGrowthPct >= 0 ? '+' : ''}${metrics.expenseGrowthPct.toFixed(1)}% vs ${metrics.monthOverMonthGrowth >= 0 ? '+' : ''}${metrics.monthOverMonthGrowth.toFixed(1)}%)`,
+        severity: growthGap > 25 ? 'critical' : 'warning',
+        rootCause: 'Cost growth is outrunning revenue growth',
+        impact: 'Margins will keep compressing month over month if this continues',
+        financialImpact: metrics.totalExpenses * (growthGap / 100),
+        opportunity: 'Freeze discretionary spend increases until revenue growth catches up',
+        suggestedGoalType: 'cost_reduction',
+        dimension: 'efficiency',
+        trigger: growthGap > 25
+          ? 'Resolves once expense growth is back within 10 points of revenue growth.'
+          : 'Becomes critical if expenses outgrow revenue by more than 25 points.',
+        metrics: [
+          { label: 'Expenses', value: `${metrics.expenseGrowthPct >= 0 ? '↑' : '↓'} ${Math.abs(metrics.expenseGrowthPct).toFixed(0)}%`, compareLabel: 'Compared with prior period', tone: 'negative' },
+          { label: 'Revenue', value: `${metrics.monthOverMonthGrowth >= 0 ? '↑' : '↓'} ${Math.abs(metrics.monthOverMonthGrowth).toFixed(0)}%`, compareLabel: 'Compared with prior period', tone: metrics.monthOverMonthGrowth >= 0 ? 'neutral' : 'negative' },
+        ],
+        investigate: [
+          'Which expense category grew the fastest this period, and is that growth tied to more sales or just higher unit cost?',
+          'Can current selling prices still cover today\'s costs, or has margin quietly eroded underneath them?',
+          'Are customers paying late, making cash feel tighter than the numbers above already show?',
+          'Would consolidating orders, renegotiating a supplier, or changing a delivery/operating arrangement reduce this cost?',
+          'Is this a one-period spike or a sustained trend — check Cost Exposure for the category-by-category breakdown.',
+        ],
+      });
+    }
   }
 
   // Find highest expense category

@@ -65,7 +65,13 @@ describe('computeDecisionCentre', () => {
         const actNowTitles = new Set(result.actNow.map(i => i.title));
         const watchTitles = result.watch.map(i => i.title);
         expect(watchTitles.every(t => !actNowTitles.has(t))).toBe(true);
-        expect(result.actNow.length + result.watch.length).toBe(diagnosis.diagnoses.length);
+        // computeDecisionCentre only buckets critical -> act-now and
+        // warning -> watch by design (see decisionCentre.ts:80-81) -- an
+        // 'info'-severity diagnosis (e.g. "not enough expense history yet
+        // to measure growth") is correctly excluded from both, not a sign
+        // it landed in neither bucket by mistake.
+        const actionableDiagnoses = diagnosis.diagnoses.filter(d => d.severity !== 'info');
+        expect(result.actNow.length + result.watch.length).toBe(actionableDiagnoses.length);
     });
 
     it('populates Improving only from rows genuinely trending "improving", with real evidence, not a fabricated one', () => {

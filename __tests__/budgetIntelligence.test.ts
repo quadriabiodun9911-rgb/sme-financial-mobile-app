@@ -117,6 +117,25 @@ describe('computeBudgetIntelligence', () => {
             const result = computeBudgetIntelligence(txs, budgets, PERIOD, 1000000, '₦');
             expect(result.explanations.find(e => e.category === 'Rent')).toBeUndefined();
         });
+
+        it('flags "insufficient-data", not "review needed", when there is no comparable prior-month revenue to judge an overspend against at all', () => {
+            // Regression: revenueGrowthPct === null (no revenue at all last
+            // month) previously fell into the same 'review-needed' verdict
+            // as "revenue didn't keep pace with this spend", asserting a
+            // comparison that was never actually possible.
+            const budgets: Budget[] = [{ id: 'b1', category: 'Marketing', monthlyAmount: 200000, period: PERIOD }];
+            const txs: Transaction[] = [
+                // Prior month (Feb): some marketing spend, but genuinely no revenue at all.
+                makeTx({ type: 'expense', category: 'Marketing', amount: 200000, date: '2026-02-05' }),
+                // Current month (Mar): marketing overspends, revenue exists.
+                makeTx({ type: 'income', amount: 900000, date: '2026-03-10' }),
+                makeTx({ type: 'expense', category: 'Marketing', amount: 300000, date: '2026-03-05' }),
+            ];
+            const result = computeBudgetIntelligence(txs, budgets, PERIOD, 1000000, '₦');
+            const explanation = result.explanations.find(e => e.category === 'Marketing')!;
+            expect(explanation.verdict).toBe('insufficient-data');
+            expect(explanation.message).not.toMatch(/review whether this spend is delivering results/i);
+        });
     });
 
     it('never disagrees with computeBudgetVsActual\'s own per-category variance', () => {

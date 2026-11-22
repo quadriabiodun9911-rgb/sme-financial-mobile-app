@@ -127,4 +127,27 @@ describe('evaluateProgressTracker', () => {
         const result = evaluateProgressTracker(tracker, '2024-01-01'); // targetDate === startDate -> timelineMs <= 0
         expect(result.progressTrend).not.toBe('accelerating');
     });
+
+    it('averages overall progress across ALL completed tactics, not just the ones that happened to succeed', () => {
+        // Regression: completedOutcomes = outcomes.filter(o =>
+        // o.impactPercentage > 0) silently dropped every failed/neutral
+        // tactic from both the sum and the denominator before averaging --
+        // 4 failures at 0% plus 1 success at 200% reported "Overall
+        // Progress: 200%", not the real 40%, with zero visibility into the
+        // 4 failures. Every entry in tracker.outcomes is already a
+        // completed tactic by construction (recordTacticOutcome only adds
+        // one once a tactic is done), so the honest average is a plain
+        // mean over all of them.
+        const makeOutcome = (impactPercentage: number) => ({
+            tacticId: `t-${impactPercentage}-${Math.random()}`, tacticTitle: 'Tactic', expectedImpact: 100,
+            actualImpact: impactPercentage, impactPercentage, succeeded: impactPercentage >= 60,
+            metricsAchieved: [], learnings: [], nextSteps: [], completionDate: '2024-01-10',
+        });
+        const tracker = {
+            ...baseTracker,
+            outcomes: [makeOutcome(0), makeOutcome(0), makeOutcome(0), makeOutcome(0), makeOutcome(200)],
+        };
+        const result = evaluateProgressTracker(tracker);
+        expect(result.overallProgress).toBe(40);
+    });
 });

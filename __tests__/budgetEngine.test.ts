@@ -49,6 +49,23 @@ describe('computeTrailingCategoryAverages', () => {
         const avg = computeTrailingCategoryAverages(txs, 3);
         expect(avg['Old Stuff']).toBeUndefined();
     });
+
+    it('accepts a referenceDate to anchor the trailing window against, instead of only the real device clock', () => {
+        // Regression: this had no reference-date parameter at all, anchoring
+        // the trailing window to real "now" unconditionally -- a stale or
+        // imported dataset whose own latest activity is months behind real
+        // today found nothing in that window even though its own recent
+        // history (relative to itself) is real and current.
+        const txs = [
+            makeTx({ category: 'Rent', amount: 5000, date: '2024-01-15' }),
+            makeTx({ category: 'Rent', amount: 5000, date: '2024-02-15' }),
+        ];
+        const anchoredToRealToday = computeTrailingCategoryAverages(txs);
+        expect(anchoredToRealToday['Rent']).toBeUndefined();
+
+        const anchoredToData = computeTrailingCategoryAverages(txs, 3, new Date('2024-02-20'));
+        expect(anchoredToData['Rent']).toBe(5000);
+    });
 });
 
 describe('generateAutoBudget', () => {
@@ -103,6 +120,25 @@ describe('generateAutoBudget', () => {
     it('returns no suggestions when there is no expense history', () => {
         const result = generateAutoBudget([], makeFinance(), []);
         expect(result.suggestions).toHaveLength(0);
+    });
+
+    it('still suggests a real budget for a stale/imported dataset whose latest activity is months behind real "today"', () => {
+        // Regression: computeTrailingCategoryAverages anchored only to the
+        // real device clock, so a dataset (demo, imported, or simply
+        // untouched recently) whose own latest transaction is months old
+        // found nothing in the trailing window and silently suggested an
+        // EMPTY budget (zero for every category), despite real expense
+        // history and real revenue elsewhere in the same result.
+        const txs = [
+            makeTx({ category: 'Rent', amount: 5000, date: '2024-01-15' }),
+            makeTx({ category: 'Rent', amount: 5000, date: '2024-02-15' }),
+            makeTx({ type: 'income', category: 'Sales', amount: 50000, date: '2024-01-15' }),
+            makeTx({ type: 'income', category: 'Sales', amount: 50000, date: '2024-02-15' }),
+        ];
+        const result = generateAutoBudget(txs, makeFinance({ income: 50000 }), []);
+        const rent = result.suggestions.find(s => s.category === 'Rent');
+        expect(rent).toBeDefined();
+        expect(rent!.rawAverage).toBeGreaterThan(0);
     });
 
     describe('revenueOverride', () => {

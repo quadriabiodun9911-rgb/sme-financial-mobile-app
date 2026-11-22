@@ -107,6 +107,33 @@ describe('computeExternalRiskInsights', () => {
         expect(insight.riskCreated).toMatch(/Transport/);
     });
 
+    it('does not claim a brand-new linked category is "climbing at this pace" when it has no prior spend to measure a rate from at all', () => {
+        // Regression: a category with zero spend in the prior window has
+        // signal.spendGrowthPct === null (no base to rate a % against),
+        // so projectedImpact is always null for it too -- but the fallback
+        // copy previously said "if it keeps climbing at this pace" / "if
+        // the trend continues" regardless, asserting a pace that was never
+        // actually computed.
+        const txs: Transaction[] = [];
+        for (const m of ['2026-01', '2026-02', '2026-03']) {
+            txs.push(makeTx({ date: `${m}-01`, type: 'income', amount: 100000 }));
+            txs.push(makeTx({ date: `${m}-01`, type: 'expense', category: 'Rent', amount: 20000 }));
+        }
+        for (const m of ['2026-04', '2026-05', '2026-06']) {
+            txs.push(makeTx({ date: `${m}-01`, type: 'income', amount: 100000 }));
+            txs.push(makeTx({ date: `${m}-01`, type: 'expense', category: 'Rent', amount: 20000 }));
+            txs.push(makeTx({ date: `${m}-01`, type: 'expense', category: 'Utilities', amount: 10000 })); // brand new this window
+        }
+        const result = computeExternalRiskInsights(txs, [makeAssumption({ driver: 'energy', linkedCategories: ['Utilities'] })]);
+        expect(result.insights.length).toBe(1);
+        const insight = result.insights[0];
+        expect(insight.category).toBe('Utilities');
+        expect(insight.projectedImpact).toBeNull();
+        expect(insight.riskCreated).toMatch(/new cost category/i);
+        expect(insight.riskCreated).not.toMatch(/at this pace/i);
+        expect(insight.whatCouldHappenNext).not.toMatch(/if the trend continues/i);
+    });
+
     it('produces one insight per matched assumption, skipping unmatched ones', () => {
         const result = computeExternalRiskInsights(txsWithRisingUtilities(), [
             makeAssumption({ id: 'a1', driver: 'energy', linkedCategories: ['Utilities'] }),

@@ -300,30 +300,41 @@ export function computeFinancialRatiosDashboard(
     if (hasGrowthData) {
         const first = trend3[0];
         const last = trend3[trend3.length - 1];
-        const revenueGrowthPct = first.income > 0 ? ((last.income - first.income) / first.income) * 100 : 0;
-        const expenseGrowthPct = first.expense > 0 ? ((last.expense - first.expense) / first.expense) * 100 : 0;
+        // null, not 0, when the earliest month's own figure was exactly
+        // zero -- there's no base to rate a % change against (going from
+        // nothing to something isn't "flat"), so each reading below falls
+        // back to its own "not enough data" entry rather than asserting a
+        // growth rate that was never actually computed.
+        const revenueGrowthPct = first.income > 0 ? ((last.income - first.income) / first.income) * 100 : null;
+        const expenseGrowthPct = first.expense > 0 ? ((last.expense - first.expense) / first.expense) * 100 : null;
         const firstProfit = first.income - first.expense;
         const lastProfit = last.income - last.expense;
-        const profitGrowthPct = firstProfit !== 0 ? ((lastProfit - firstProfit) / Math.abs(firstProfit)) * 100 : (lastProfit > 0 ? 100 : 0);
+        const profitGrowthPct = firstProfit !== 0 ? ((lastProfit - firstProfit) / Math.abs(firstProfit)) * 100 : null;
 
-        growth.push({
-            key: 'revenueGrowth', label: 'Revenue Growth', value: revenueGrowthPct, displayValue: `${revenueGrowthPct >= 0 ? '+' : ''}${revenueGrowthPct.toFixed(0)}%`,
-            tier: revenueGrowthPct >= 5 ? 'strong' : revenueGrowthPct >= -5 ? 'moderate' : 'weak',
-            tierLabel: revenueGrowthPct >= 5 ? 'Growing' : revenueGrowthPct >= -5 ? 'Stable' : 'Declining',
-            plainLanguage: `Revenue is ${revenueGrowthPct >= 5 ? 'growing' : revenueGrowthPct >= -5 ? 'roughly flat' : 'declining'} (${revenueGrowthPct >= 0 ? '+' : ''}${revenueGrowthPct.toFixed(0)}% over the last 3 months).`,
-        });
-        growth.push({
-            key: 'expenseGrowth', label: 'Expense Growth', value: expenseGrowthPct, displayValue: `${expenseGrowthPct >= 0 ? '+' : ''}${expenseGrowthPct.toFixed(0)}%`,
-            tier: expenseGrowthPct <= 0 ? 'strong' : expenseGrowthPct <= 15 ? 'moderate' : 'weak',
-            tierLabel: expenseGrowthPct <= 0 ? 'Controlled' : expenseGrowthPct <= 15 ? 'Rising' : 'Fast-Rising',
-            plainLanguage: `Expenses are ${expenseGrowthPct <= 0 ? 'flat or falling' : 'rising'} (${expenseGrowthPct >= 0 ? '+' : ''}${expenseGrowthPct.toFixed(0)}% over the last 3 months)${revenueGrowthPct < expenseGrowthPct ? ' -- faster than revenue is growing.' : '.'}`,
-        });
-        growth.push({
-            key: 'profitGrowth', label: 'Profit Growth', value: profitGrowthPct, displayValue: `${profitGrowthPct >= 0 ? '+' : ''}${profitGrowthPct.toFixed(0)}%`,
-            tier: profitGrowthPct >= 10 ? 'strong' : profitGrowthPct >= -10 ? 'moderate' : 'weak',
-            tierLabel: profitGrowthPct >= 10 ? 'Improving' : profitGrowthPct >= -10 ? 'Stable' : 'Declining',
-            plainLanguage: `Profit is ${profitGrowthPct >= 10 ? 'improving' : profitGrowthPct >= -10 ? 'roughly stable' : 'declining'} over the last 3 months (${profitGrowthPct >= 0 ? '+' : ''}${profitGrowthPct.toFixed(0)}%).`,
-        });
+        growth.push(revenueGrowthPct === null
+            ? UNAVAILABLE('revenueGrowth', 'Revenue Growth', 'No revenue recorded at the start of this 3-month window to measure growth against.')
+            : {
+                key: 'revenueGrowth', label: 'Revenue Growth', value: revenueGrowthPct, displayValue: `${revenueGrowthPct >= 0 ? '+' : ''}${revenueGrowthPct.toFixed(0)}%`,
+                tier: revenueGrowthPct >= 5 ? 'strong' : revenueGrowthPct >= -5 ? 'moderate' : 'weak',
+                tierLabel: revenueGrowthPct >= 5 ? 'Growing' : revenueGrowthPct >= -5 ? 'Stable' : 'Declining',
+                plainLanguage: `Revenue is ${revenueGrowthPct >= 5 ? 'growing' : revenueGrowthPct >= -5 ? 'roughly flat' : 'declining'} (${revenueGrowthPct >= 0 ? '+' : ''}${revenueGrowthPct.toFixed(0)}% over the last 3 months).`,
+            });
+        growth.push(expenseGrowthPct === null
+            ? UNAVAILABLE('expenseGrowth', 'Expense Growth', 'No expenses recorded at the start of this 3-month window to measure growth against.')
+            : {
+                key: 'expenseGrowth', label: 'Expense Growth', value: expenseGrowthPct, displayValue: `${expenseGrowthPct >= 0 ? '+' : ''}${expenseGrowthPct.toFixed(0)}%`,
+                tier: expenseGrowthPct <= 0 ? 'strong' : expenseGrowthPct <= 15 ? 'moderate' : 'weak',
+                tierLabel: expenseGrowthPct <= 0 ? 'Controlled' : expenseGrowthPct <= 15 ? 'Rising' : 'Fast-Rising',
+                plainLanguage: `Expenses are ${expenseGrowthPct <= 0 ? 'flat or falling' : 'rising'} (${expenseGrowthPct >= 0 ? '+' : ''}${expenseGrowthPct.toFixed(0)}% over the last 3 months)${revenueGrowthPct !== null && revenueGrowthPct < expenseGrowthPct ? ' -- faster than revenue is growing.' : '.'}`,
+            });
+        growth.push(profitGrowthPct === null
+            ? UNAVAILABLE('profitGrowth', 'Profit Growth', 'Profit was exactly zero at the start of this 3-month window, so there is no base to measure growth against.')
+            : {
+                key: 'profitGrowth', label: 'Profit Growth', value: profitGrowthPct, displayValue: `${profitGrowthPct >= 0 ? '+' : ''}${profitGrowthPct.toFixed(0)}%`,
+                tier: profitGrowthPct >= 10 ? 'strong' : profitGrowthPct >= -10 ? 'moderate' : 'weak',
+                tierLabel: profitGrowthPct >= 10 ? 'Improving' : profitGrowthPct >= -10 ? 'Stable' : 'Declining',
+                plainLanguage: `Profit is ${profitGrowthPct >= 10 ? 'improving' : profitGrowthPct >= -10 ? 'roughly stable' : 'declining'} over the last 3 months (${profitGrowthPct >= 0 ? '+' : ''}${profitGrowthPct.toFixed(0)}%).`,
+            });
     } else {
         growth.push(UNAVAILABLE('revenueGrowth', 'Revenue Growth', 'Not enough monthly history yet to measure growth.'));
         growth.push(UNAVAILABLE('expenseGrowth', 'Expense Growth', 'Not enough monthly history yet to measure growth.'));

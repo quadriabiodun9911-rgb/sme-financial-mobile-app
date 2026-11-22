@@ -94,6 +94,28 @@ describe('computeExpenseIntelligence', () => {
         expect(legal.narrative).toMatch(/new or newly-active expense category/i);
     });
 
+    it('does not flag a category as a concern just because there is no comparable prior-period revenue to compare against', () => {
+        // Regression: concern = spendGrowthPct > 0 && (revenueGrowthPct ===
+        // null || ...) -- the OR made concern default to true for ANY
+        // category with positive spend growth whenever revenue growth
+        // couldn't be computed (e.g. no revenue at all in the prior
+        // window), firing "growing meaningfully faster than revenue" for a
+        // comparison that was never actually made.
+        const txs = [
+            ...monthlyCategorySpend('Rent', Array(6).fill(100000), '2025-07'),
+            ...monthlyCategorySpend('Rent', Array(6).fill(150000), '2026-01'),
+            // Revenue only exists in the CURRENT window -- prior revenue is
+            // genuinely 0, so revenueGrowthPct must be null.
+            ...monthlyCategorySpend('Sales', Array(6).fill(1000000), '2026-01').map(t => ({ ...t, type: 'income' as const })),
+        ];
+        const result = computeExpenseIntelligence(txs, '₦', 6);
+        expect(result.revenueGrowthPct).toBeNull();
+        const rent = result.categories.find(c => c.category === 'Rent')!;
+        expect(rent.spendGrowthPct).toBeCloseTo(50, 0);
+        expect(rent.concern).toBe(false);
+        expect(rent.tierReason).not.toMatch(/growing meaningfully faster than revenue/i);
+    });
+
     describe('expense tier classification', () => {
         // Same vendor key per category (vendorCustomer), distinct across
         // categories, so computeExpenseLeaks' vendor grouping never

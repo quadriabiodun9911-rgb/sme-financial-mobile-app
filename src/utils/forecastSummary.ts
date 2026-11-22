@@ -16,7 +16,7 @@
 import { Transaction, Loan, FinanceData, StaffMember, MacroAssumption, InventoryItem, FutureEvent } from '../types';
 import { buildFutureFinancialStatements, ForecastAdjustments, NO_ADJUSTMENTS, FutureFinancialStatements } from './futureFinancialStatements';
 import { computeAllTimeMonthlyBuckets } from './trendAnalysis';
-import { classifyExpenseLine, computeWorkingCapitalMetrics } from './finance';
+import { classifyExpenseLine, computeWorkingCapitalMetrics, latestTransactionDate } from './finance';
 import { computeDiscountTrend, computeMarginRiskWarning, DiscountTrend, MarginRiskWarning } from './discountForecast';
 import { computeInventoryForecast, InventoryForecast } from './inventoryForecast';
 import { computeFinancialHealthForecast, FinancialHealthForecast } from './financialHealthForecast';
@@ -341,7 +341,13 @@ export function computeForecastSummary(
 
     const cashFlowMonths = computeCashFlowForecastMonths(stmts, adjustments);
 
-    const discountTrend = computeDiscountTrend(transactions);
+    // Anchored to the latest transaction actually present in the data, not
+    // the real device clock -- unlike every sibling trailing-window module
+    // already fixed for this (cashFlowHealth.ts, cashRunway.ts, this file's
+    // own getHistoricalMonthlyBaseline above). Without it, an account whose
+    // data isn't current with real-world today finds zero sales in both
+    // windows and Margin Risk detection goes silently inert.
+    const discountTrend = computeDiscountTrend(transactions, latestTransactionDate(transactions) ?? new Date());
     const marginRisk = computeMarginRiskWarning(discountTrend, expectedRevenue);
     const inventoryForecast = computeInventoryForecast(inventory, transactions, cogs, monthsInPeriod);
 

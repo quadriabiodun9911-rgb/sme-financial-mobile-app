@@ -296,12 +296,18 @@ export function evaluateProgressTracker(
     expectedProgressPercentage = timelineMs > 0 ? (elapsedMs / timelineMs) * 100 : 100;
   }
 
-  // Calculate actual progress (average of completed tactics)
-  const completedOutcomes = tracker.outcomes.filter(o => o.impactPercentage > 0);
+  // Calculate actual progress (average of completed tactics). Every entry
+  // in tracker.outcomes is ALREADY a completed tactic by construction --
+  // recordTacticOutcome only adds one once a tactic is done -- so
+  // averaging all of them is what "completed tactics" already means here.
+  // Previously this filtered to impactPercentage > 0 first, silently
+  // dropping every failed or neutral tactic from both the sum and the
+  // denominator: 4 failures (0%) plus 1 success at 200% averaged to a
+  // reported 200%, not the real 40%, with no visibility into the failures.
   const actualProgressPercentage =
-    completedOutcomes.length > 0
-      ? completedOutcomes.reduce((sum, o) => sum + o.impactPercentage, 0) /
-        completedOutcomes.length
+    tracker.outcomes.length > 0
+      ? tracker.outcomes.reduce((sum, o) => sum + o.impactPercentage, 0) /
+        tracker.outcomes.length
       : 0;
 
   // Determine trend

@@ -12,12 +12,19 @@ const TRAILING_MONTHS = 3;
 export function computeTrailingCategoryAverages(
     transactions: Transaction[],
     monthsWindow = TRAILING_MONTHS,
+    // Anchored to the latest transaction date by generateAutoBudget below
+    // (see its own comment) -- real device "now" here would read a stale
+    // or imported dataset as having spent nothing in the trailing window,
+    // silently suggesting an empty budget for a business with real expense
+    // history. Defaults to real "now" only for a caller with no
+    // transaction-dated anchor of its own.
+    referenceDate: Date = new Date(),
 ): Record<string, number> {
     // addMonthsClamped -- plain setMonth on today's actual date could roll
     // into the month after the intended cutoff (e.g. Aug 31 minus 3 months
     // landing in June instead of May), silently narrowing this "trailing
     // 3 months" window to 2 months of real data on several days a year.
-    const cutoffStr = localMonthStr(addMonthsClamped(new Date(), -monthsWindow));
+    const cutoffStr = localMonthStr(addMonthsClamped(referenceDate, -monthsWindow));
 
     const acc: Record<string, { total: number; months: Set<string> }> = {};
     transactions
@@ -72,14 +79,16 @@ export function generateAutoBudget(
     // forecast-only behavior.
     revenueOverride?: number,
 ): AutoBudgetResult {
-    const categoryAverages = computeTrailingCategoryAverages(transactions);
+    // Anchored to the latest transaction date, not real-world "now" -- see
+    // latestTransactionDate's comment. Shared with the revenue forecast
+    // just below so both halves of this budget are anchored the same way.
+    const anchorDate = latestTransactionDate(transactions) ?? new Date();
+    const categoryAverages = computeTrailingCategoryAverages(transactions, TRAILING_MONTHS, anchorDate);
 
     // Forward-looking revenue: next month's forecast (trend-adjusted) rather
     // than a flat trailing figure, so the budget anticipates where the
     // business is heading, not just where it's been.
-    // Anchored to the latest transaction date, not real-world "now" -- see
-    // latestTransactionDate's comment.
-    const forecast = computeRevenueForecast(transactions, 3, latestTransactionDate(transactions) ?? undefined);
+    const forecast = computeRevenueForecast(transactions, 3, anchorDate);
     const projectedRevenue = revenueOverride !== undefined && revenueOverride > 0
         ? revenueOverride
         : forecast.length > 0 && forecast[0].projected > 0

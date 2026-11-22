@@ -382,6 +382,37 @@ describe('diagnose* functions — suggestedGoalType', () => {
         const found = diagnoses.find(d => d.problem.includes('Rent'));
         expect(found?.suggestedGoalType).toBe('cost_reduction');
     });
+
+    it('does not claim expenses are "outgrowing revenue" by +0%/-0% when there is no comparable prior-month expense figure at all', () => {
+        // Regression: expenseGrowthPct defaults to 0 with no prior-month
+        // expense base to rate a % change against (lastMonthExpensesComparable
+        // === 0) -- previously that silent 0 was read as real "flat" growth,
+        // so a genuinely new or fast-growing cost with no prior baseline
+        // could never trip this diagnosis at all, a false negative with no
+        // disclosure.
+        const diagnoses = diagnoseEfficiency({
+            ...healthyMetrics,
+            expenseGrowthInsufficientHistory: true,
+            expenseGrowthPct: 0,
+            monthOverMonthGrowth: 5,
+            totalExpenses: 60000,
+        });
+        expect(diagnoses.some(d => d.id === 'expenses-outgrowing-revenue')).toBe(false);
+        const insufficientHistory = diagnoses.find(d => d.id === 'expense-growth-insufficient-history');
+        expect(insufficientHistory).toBeDefined();
+        expect(insufficientHistory?.severity).toBe('info');
+    });
+
+    it('does not fire the insufficient-history note when there genuinely are no expenses this period either', () => {
+        const diagnoses = diagnoseEfficiency({
+            ...healthyMetrics,
+            expenseGrowthInsufficientHistory: true,
+            expenseGrowthPct: 0,
+            monthOverMonthGrowth: 5,
+            totalExpenses: 0,
+        });
+        expect(diagnoses.some(d => d.id === 'expense-growth-insufficient-history')).toBe(false);
+    });
 });
 
 // A raw month-over-month drop alone can't tell real customer loss apart

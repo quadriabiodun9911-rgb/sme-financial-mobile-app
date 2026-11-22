@@ -134,9 +134,17 @@ export function computeExpenseIntelligence(
             const narrative = s.spendGrowthPct === null
                 ? `${s.category} is a new or newly-active expense category over the last ${windowMonths} months, at ${currency}${Math.round(monthlyRate).toLocaleString()}/month.`
                 : `${s.category} ${s.spendGrowthPct >= 0 ? 'increased' : 'decreased'} ${Math.abs(s.spendGrowthPct).toFixed(0)}% over ${windowMonths} months while ${revenueDesc}.`;
+            // revenueGrowthPct === null means there's no comparable revenue
+            // base in the prior window (e.g. a pre-revenue period) -- that's
+            // "can't compare", not "automatically concerning". Previously
+            // the OR below made concern default to true for ANY category
+            // with positive spend growth whenever revenue growth couldn't
+            // be computed, firing "growing meaningfully faster than
+            // revenue" for a comparison that was never actually made.
             const concern = s.spendGrowthPct !== null
                 && s.spendGrowthPct > 0
-                && (revenueGrowthPct === null || s.spendGrowthPct - revenueGrowthPct >= CONCERN_GAP_PCT_POINTS);
+                && revenueGrowthPct !== null
+                && s.spendGrowthPct - revenueGrowthPct >= CONCERN_GAP_PCT_POINTS;
 
             const { tier, tierReason } = classifyExpenseTier(
                 s.category, s.spendGrowthPct, revenueGrowthPct, concern,

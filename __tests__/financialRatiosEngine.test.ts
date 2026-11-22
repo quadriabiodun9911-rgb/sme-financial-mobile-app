@@ -126,6 +126,45 @@ describe('computeFinancialRatiosDashboard', () => {
         expect(expenseGrowth.tier).toBe('strong');
     });
 
+    it('marks Revenue Growth unavailable (not "+0%, roughly flat") when the earliest month in the window had zero revenue', () => {
+        // Regression: first.income > 0 ? ... : 0 forced revenueGrowthPct to
+        // a literal 0 when there was no revenue to rate a % change against
+        // at all, read by the plain-language sentence as "roughly flat" --
+        // indistinguishable from genuinely flat revenue.
+        const now = new Date();
+        const monthKey = (monthsAgo: number) => {
+            const d = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 10);
+            return d.toISOString().slice(0, 10);
+        };
+        const txs = [
+            makeTx({ type: 'expense', category: 'Rent', amount: 50000, date: monthKey(2) }),
+            makeTx({ type: 'income', amount: 150000, date: monthKey(0) }),
+        ];
+        const dashboard = computeFinancialRatiosDashboard(finance, [], txs, []);
+        const revenueGrowth = findReading(dashboard, 'growth', 'revenueGrowth');
+        expect(revenueGrowth.tier).toBe('unavailable');
+        expect(revenueGrowth.value).toBeNull();
+        expect(revenueGrowth.plainLanguage).not.toMatch(/flat/i);
+    });
+
+    it('marks Profit Growth unavailable (not a guessed +100%/0%) when the earliest month broke exactly even', () => {
+        const now = new Date();
+        const monthKey = (monthsAgo: number) => {
+            const d = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 10);
+            return d.toISOString().slice(0, 10);
+        };
+        const txs = [
+            makeTx({ type: 'income', amount: 50000, date: monthKey(2) }),
+            makeTx({ type: 'expense', category: 'Rent', amount: 50000, date: monthKey(2) }),
+            makeTx({ type: 'income', amount: 150000, date: monthKey(0) }),
+            makeTx({ type: 'expense', category: 'Rent', amount: 40000, date: monthKey(0) }),
+        ];
+        const dashboard = computeFinancialRatiosDashboard(finance, [], txs, []);
+        const profitGrowth = findReading(dashboard, 'growth', 'profitGrowth');
+        expect(profitGrowth.tier).toBe('unavailable');
+        expect(profitGrowth.value).toBeNull();
+    });
+
     it('marks Inventory Days unavailable with no inventory recorded, even with real transaction history', () => {
         const txs = [
             makeTx({ type: 'income', amount: 100000, date: new Date().toISOString().slice(0, 10) }),

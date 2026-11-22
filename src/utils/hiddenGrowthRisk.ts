@@ -35,6 +35,7 @@ import { Transaction, InventoryItem } from '../types';
 import { computeFlowSignals } from './fundingGapDiagnosis';
 import { computeInventoryPace } from './inventoryIntelligence';
 import { computeCashRunway } from './cashRunway';
+import { localMonthStr } from './localDate';
 
 export type HiddenRiskSignal = 'inventoryCost' | 'expenses' | 'margin' | 'cashBurn';
 
@@ -77,16 +78,29 @@ export function computeHiddenGrowthRisk(
     const marginDeclining = flow.marginDeclinePts != null && flow.marginDeclinePts >= MARGIN_DECLINE_PP_THRESHOLD;
 
     const runwayNow = computeCashRunway(transactions, cashBalance, now);
-    // computeCashRunway's own trailing window is [referenceDate - 30,
-    // referenceDate] inclusive on both ends -- shifting the reference date
-    // back by exactly 30 days would make that window's END (day -30)
-    // collide with runwayNow's window's START (also day -30), double
-    // -counting that one day's expenses in both burn figures. -31 keeps
-    // the two windows adjacent and non-overlapping, the same discipline
-    // computeFlowSignals' own current/prior windows already follow.
-    const priorNow = new Date(now); priorNow.setDate(priorNow.getDate() - 31);
-    const runwayPrior = computeCashRunway(transactions, cashBalance, priorNow);
-    const cashBurnWorsening = runwayNow.dailyBurn > 0 && runwayNow.dailyBurn > runwayPrior.dailyBurn;
+
+    // Burn-rate trend: PAID expenses across the two most recent COMPLETE
+    // calendar months (excluding whichever month `now` falls in, which is
+    // very likely still in progress), not two computeCashRunway snapshots
+    // 31 days apart. That sliding-30-day-window comparison could straddle
+    // a single, regular monthly payment that isn't flagged isRecurring
+    // (e.g. rent paid on the 1st) differently purely depending on what day
+    // of the month `now` happens to be -- confirmed to flip
+    // "cash burn worsening" true/false with literally identical underlying
+    // spending, just evaluated on a different day of the same month. Fixed,
+    // complete calendar-month boundaries don't have that sensitivity.
+    const nowMonthKey = localMonthStr(now);
+    const paidExpenseByMonth = new Map<string, number>();
+    for (const t of transactions) {
+        if (t.type !== 'expense' || t.status !== 'paid') continue;
+        const month = (t.date || '').slice(0, 7);
+        if (month.length !== 7 || month >= nowMonthKey) continue;
+        paidExpenseByMonth.set(month, (paidExpenseByMonth.get(month) ?? 0) + (t.amount ?? 0));
+    }
+    const recentCompleteMonths = Array.from(paidExpenseByMonth.keys()).sort().slice(-2);
+    const cashBurnWorsening = recentCompleteMonths.length === 2
+        && paidExpenseByMonth.get(recentCompleteMonths[0])! > 0
+        && paidExpenseByMonth.get(recentCompleteMonths[1])! > paidExpenseByMonth.get(recentCompleteMonths[0])!;
 
     const flaggedSignals: HiddenRiskSignal[] = [];
     if (inventoryCostOutrunning) flaggedSignals.push('inventoryCost');

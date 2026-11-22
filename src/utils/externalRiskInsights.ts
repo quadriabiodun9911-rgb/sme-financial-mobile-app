@@ -132,12 +132,24 @@ function buildInsight(assumption: MacroAssumption, signal: CostCategorySignal, w
         whyItMatters:
             `${driverLabel} pressure isn't just a headline for this business — it's already showing up in your ` +
             `own numbers: ${signal.category} is taking a bigger share of every revenue unit than it did before.`,
+        // signal.spendGrowthPct === null means this category had zero spend
+        // in the prior window (brand new this period) -- there's no base to
+        // rate a growth % against at all, which is a different, more
+        // specific case than simply not being the single overall top-ranked
+        // category (the other reason projectedImpact can be null below).
+        // Previously both cases fell through to the same "keeps climbing at
+        // this pace" / "if the trend continues" copy, asserting a pace that
+        // was never computed for a brand-new category.
         riskCreated: projectedImpact
             ? `${signal.category} spend grew ${projectedImpact.observedGrowthPct.toFixed(0)}% over the last ${windowMonths} months. At that pace, the next ${windowMonths} months would keep cutting into monthly profit.`
-            : `If ${signal.category} keeps climbing at this pace, it will keep taking a larger bite out of profit even if revenue holds steady.`,
+            : signal.spendGrowthPct === null
+                ? `${signal.category} is a new cost category this period, with no prior spend to measure a growth rate against yet.`
+                : `If ${signal.category} keeps climbing at this pace, it will keep taking a larger bite out of profit even if revenue holds steady.`,
         whatCouldHappenNext: projectedImpact
             ? `Based on your current cash position and operating expenses, continued ${driverLabel.toLowerCase()} increases could put pressure on your cash flow within the next few months.`
-            : `Keep watching ${signal.category} against revenue — if the trend continues for another ${windowMonths}-month window, it will likely start showing up as a real profit hit.`,
+            : signal.spendGrowthPct === null
+                ? `There's not yet enough history to project how fast ${signal.category} will keep rising — check back next period once a real trend emerges.`
+                : `Keep watching ${signal.category} against revenue — if the trend continues for another ${windowMonths}-month window, it will likely start showing up as a real profit hit.`,
         projectedImpact,
         recommendedActions: DRIVER_ACTIONS[assumption.driver],
         creditReadinessImpact:

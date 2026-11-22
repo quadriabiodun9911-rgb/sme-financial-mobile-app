@@ -41,7 +41,11 @@ export interface BudgetLineVariance {
 
 export interface VarianceExplanation {
     category: string;
-    verdict: 'revenue-aligned' | 'review-needed';
+    // 'insufficient-data' is distinct from 'review-needed' -- there's no
+    // comparable prior-month revenue figure to judge this spend against at
+    // all (e.g. a pre-revenue period), which is a different claim from
+    // "revenue didn't keep pace with this spend."
+    verdict: 'revenue-aligned' | 'review-needed' | 'insufficient-data';
     message: string;
 }
 
@@ -174,8 +178,18 @@ export function computeBudgetIntelligence(
                     message: `${l.metric} spending changed ${spendGrowthStr} vs last month, alongside ${revenueGrowthPct.toFixed(0)}% revenue growth over the same period -- worth confirming the spend is what's driving it, but the pattern isn't concerning on its own.`,
                 };
             }
-            const revenueDesc = revenueGrowthPct === null ? 'no comparable revenue base last month'
-                : revenueGrowthPct >= 0 ? `revenue only grew ${revenueGrowthPct.toFixed(0)}%` : `revenue declined ${Math.abs(revenueGrowthPct).toFixed(0)}%`;
+            if (revenueGrowthPct === null) {
+                // No comparable prior-month revenue to judge this spend
+                // against at all -- previously this fell into the same
+                // 'review-needed' verdict as "revenue didn't keep pace",
+                // asserting a comparison that was never actually possible.
+                return {
+                    category: l.metric,
+                    verdict: 'insufficient-data' as const,
+                    message: `${l.metric} spending changed ${spendGrowthStr} vs last month, but there's no comparable revenue figure from last month to judge it against yet.`,
+                };
+            }
+            const revenueDesc = revenueGrowthPct >= 0 ? `revenue only grew ${revenueGrowthPct.toFixed(0)}%` : `revenue declined ${Math.abs(revenueGrowthPct).toFixed(0)}%`;
             return {
                 category: l.metric,
                 verdict: 'review-needed' as const,

@@ -106,6 +106,25 @@ describe('computeForecastSummary', () => {
         expect(withDiscount.headline.expectedRevenue).toBeCloseTo(baseline.headline.expectedRevenue * 0.9, 0);
     });
 
+    it('detects a real discounting trend (Margin Risk) even when the data is months behind the real device clock', () => {
+        // Regression: computeDiscountTrend defaulted its `now` to the real
+        // device clock instead of the latest transaction date, unlike every
+        // sibling trailing-window module already fixed for this. For a
+        // dataset whose latest activity is months old (common for a
+        // stale/imported account, or simply not today), both 30-day windows
+        // anchored to real "now" found zero sales and Margin Risk went
+        // silently inert, even with a real, sizeable discount-rate increase
+        // sitting right there in the data.
+        const txs: Transaction[] = [
+            makeTx({ date: '2026-05-10', type: 'income', category: 'Sales', transactionCategory: 'sale', amount: 9500, discountAmount: 500 }), // 5% discount rate
+            makeTx({ date: '2026-06-10', type: 'income', category: 'Sales', transactionCategory: 'sale', amount: 8500, discountAmount: 1500 }), // 15% discount rate
+            makeTx({ date: '2026-06-11', type: 'expense', category: 'Rent', amount: 1000 }), // latest transaction overall, anchors "now" one day after the recent sale
+        ];
+        const result = computeForecastSummary(txs, [], finance, '30d');
+        expect(result.discountTrend.hasEnoughData).toBe(true);
+        expect(result.marginRisk.show).toBe(true);
+    });
+
     it('gives higher confidence with more backing history, lower for a longer horizon', () => {
         const threeMonthHistory = computeForecastSummary(flatMonths(), [], finance, '30d');
         const oneMonthHistory = computeForecastSummary(flatMonths().slice(0, 3), [], finance, '30d');

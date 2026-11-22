@@ -138,3 +138,51 @@ describe('generateCashFlowForecast — month sequencing across short months', ()
         }
     });
 });
+
+describe('generateCashFlowForecast — "Prepare for Seasonal Peak" recommendation', () => {
+    it('never fires at the default 6-month horizon (months 7-9 do not exist), rather than silently comparing against an empty slice', () => {
+        // Regression: recMonths.slice(6, 9) was [] at the default
+        // forecastMonths=6, forcing the "Q3" average to 0 / 3 = 0 and this
+        // recommendation to be structurally unable to ever fire, with
+        // nothing disclosing that the comparison hadn't actually run.
+        jest.useFakeTimers().setSystemTime(new Date(2025, 0, 15));
+        try {
+            const transactions: ForecastInput['transactions'] = [];
+            for (let d = 0; d < 90; d += 3) {
+                transactions.push({ date: daysAgo(d), amount: 20000, type: 'income', status: 'paid', isRecurring: false });
+            }
+            const forecast = generateCashFlowForecast(baseInput({
+                transactions,
+                forecastMonths: 6,
+                assumptions: { revenueGrowthRate: 0.1 },
+            }));
+            expect(forecast.recommendations.some(r => r.title === 'Prepare for Seasonal Peak')).toBe(false);
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
+    it('fires with a real calendar-month label and target when given a genuine 9-month horizon with revenue ramping up', () => {
+        jest.useFakeTimers().setSystemTime(new Date(2025, 0, 15)); // Jan 15, 2025
+        try {
+            const transactions: ForecastInput['transactions'] = [];
+            for (let d = 0; d < 90; d += 3) {
+                transactions.push({ date: daysAgo(d), amount: 20000, type: 'income', status: 'paid', isRecurring: false });
+            }
+            const forecast = generateCashFlowForecast(baseInput({
+                transactions,
+                forecastMonths: 9,
+                assumptions: { revenueGrowthRate: 0.1 }, // 10%/month compounding -> months 7-9 comfortably exceed 1.3x months 1-3
+            }));
+            const rec = forecast.recommendations.find(r => r.title === 'Prepare for Seasonal Peak');
+            expect(rec).toBeDefined();
+            // Forecast starts Jan 2025 -- months 1-3 are Jan-Mar, months 7-9 are Jul-Sep.
+            expect(rec!.description).toMatch(/Jul-Sep/);
+            expect(rec!.description).toMatch(/Jan-Mar/);
+            expect(rec!.description).not.toMatch(/Q3/i);
+            expect(rec!.targetMonth).toBe('2025-03'); // the month right before the higher window begins, not a hardcoded June
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+});
