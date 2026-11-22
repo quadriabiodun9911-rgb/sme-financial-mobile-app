@@ -72,6 +72,29 @@ describe('computeCashRunway', () => {
         // Counted once via the recurring projection, not again via burn30.
         expect(r.dailyBurn).toBeCloseTo((3650 * 12) / 365, 5);
     });
+
+    it('falls back to a trailing 3-month average of paid expenses instead of a false 0 burn when none fall in the 30-day window or are flagged recurring', () => {
+        // Regression: a business that pays real, ongoing bills via one-off
+        // (non-recurring) entries logged outside the 30 days before its own
+        // latest transaction used to report dailyBurn 0 / "5+ years" runway
+        // here, while the same expenses were correctly averaged into a real
+        // monthly cost by burnRateAnalysis.ts's grossBurn on the same screen.
+        const txs = [
+            makeTx({ amount: 150000, date: '2023-11-05' }), // outside the 30-day window, not recurring
+            makeTx({ amount: 150000, date: '2023-12-05' }), // outside the 30-day window, not recurring
+            makeTx({ amount: 400000, date: '2024-01-20', type: 'income' }), // latest transaction, anchors "today"
+        ];
+        const r = computeCashRunway(txs, 5_000_000, REF);
+        expect(r.dailyBurn).toBeCloseTo(150000 / 30, 5);
+        expect(Number.isFinite(r.runwayDays)).toBe(true);
+    });
+
+    it('still reports genuinely no burn when there is truly no expense history at all', () => {
+        const txs = [makeTx({ amount: 400000, date: '2024-01-20', type: 'income' })];
+        const r = computeCashRunway(txs, 5_000_000, REF);
+        expect(r.dailyBurn).toBe(0);
+        expect(r.runwayDays).toBe(Infinity);
+    });
 });
 
 describe('describeRunwayForDisplay', () => {

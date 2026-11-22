@@ -97,4 +97,34 @@ describe('computeCostExposureForecast', () => {
             expect(month.score).toBeLessThanOrEqual(100);
         }
     });
+
+    it('holds a brand-new category (zero spend last window) flat instead of claiming a growth rate that was never computed', () => {
+        // Regression: "Other Expense" jumping from 0% to 8% of revenue has
+        // no prior spend to rate a % growth against (pctChange returns
+        // null), so monthlyGrowthRate was silently forced to 0 -- but the
+        // verdict text still said "X is rising... at this pace", and the
+        // per-driver UI label still said "Projected from its own recent
+        // trend", both false for a driver with no trend at all.
+        const txs: Transaction[] = [];
+        for (const m of ['2026-01', '2026-02', '2026-03']) {
+            txs.push(makeTx({ date: `${m}-01`, type: 'income', amount: 100000 }));
+            txs.push(makeTx({ date: `${m}-01`, type: 'expense', category: 'Rent', amount: 20000 }));
+        }
+        for (const m of ['2026-04', '2026-05', '2026-06']) {
+            txs.push(makeTx({ date: `${m}-01`, type: 'income', amount: 100000 }));
+            txs.push(makeTx({ date: `${m}-01`, type: 'expense', category: 'Rent', amount: 20000 }));
+            txs.push(makeTx({ date: `${m}-01`, type: 'expense', category: 'Other Expense', amount: 8000 })); // 0% -> 8% of revenue, brand new
+        }
+        const result = computeCostExposureForecast(txs, [], 6);
+        expect(result.drivers.length).toBe(1);
+        expect(result.drivers[0].category).toBe('Other Expense');
+        expect(result.drivers[0].hasExtrapolatedTrend).toBe(false);
+        expect(result.drivers[0].monthlyGrowthRate).toBe(0);
+        // Held flat -- every projected month's spend equals today's.
+        for (const month of result.months) {
+            expect(month.extraCostVsToday).toBeCloseTo(0, 5);
+        }
+        expect(result.verdict).toMatch(/new cost/i);
+        expect(result.verdict).not.toMatch(/at this pace/i);
+    });
 });

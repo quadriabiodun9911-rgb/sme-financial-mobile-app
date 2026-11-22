@@ -80,6 +80,29 @@ function recurringDailyAmount(amount: number, frequency: Transaction['recurringF
     }
 }
 
+// Fallback used only when burn30 + the recurring projection together find
+// literally nothing -- averages ALL paid expenses (recurring or not) over
+// the trailing 3 calendar months that actually have data. Without this, a
+// business that simply didn't log a NEW non-recurring expense in the 30
+// days before its own latest transaction (e.g. rent paid on the 1st via a
+// one-off entry, latest recorded transaction a sale three weeks later)
+// reports a false ₦0 burn / "5+ years" runway, even while the exact same
+// paid expenses are correctly averaged into a real, nonzero monthly cost
+// elsewhere on the same screen (burnRateAnalysis.ts's grossBurn).
+function trailingPaidExpenseDailyAvg(transactions: Transaction[]): number {
+    const byMonth = new Map<string, number>();
+    for (const t of transactions) {
+        if (t.type !== 'expense' || t.status !== 'paid') continue;
+        const month = (t.date || '').slice(0, 7);
+        if (month.length !== 7) continue;
+        byMonth.set(month, (byMonth.get(month) ?? 0) + (t.amount ?? 0));
+    }
+    const months = Array.from(byMonth.keys()).sort().slice(-3);
+    if (months.length === 0) return 0;
+    const total = months.reduce((s, m) => s + (byMonth.get(m) ?? 0), 0);
+    return total / months.length / 30;
+}
+
 export function computeCashRunway(
     transactions: Transaction[],
     cashBalance: number,
@@ -110,7 +133,7 @@ export function computeCashRunway(
         .filter(t => t.type === 'expense' && t.status === 'paid' && t.isRecurring && t.recurringFrequency)
         .reduce((s, t) => s + recurringDailyAmount(t.amount ?? 0, t.recurringFrequency), 0);
 
-    const dailyBurn = burn30 / 30 + recurringDailyBurn;
+    const dailyBurn = (burn30 / 30 + recurringDailyBurn) || trailingPaidExpenseDailyAvg(transactions);
     const runwayDays = dailyBurn > 0 ? Math.floor(cashBalance / dailyBurn) : Infinity;
 
     return { runwayDays, dailyBurn, cashBalance };

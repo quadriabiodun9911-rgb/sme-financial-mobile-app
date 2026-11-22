@@ -154,7 +154,9 @@ export default function CostExposureTab() {
                                 <Text style={s.driverSource}>
                                     {d.source === 'external'
                                         ? `Projected from your "${d.externalLabel}" assumption`
-                                        : 'Projected from its own recent trend'}
+                                        : d.hasExtrapolatedTrend
+                                            ? 'Projected from its own recent trend'
+                                            : 'New this period — no prior spend yet to project a trend, held flat'}
                                 </Text>
                             </View>
                             <View style={[s.driverBadge, { backgroundColor: d.source === 'external' ? Colors.primary + '20' : Colors.textMuted + '20' }]}>

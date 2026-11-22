@@ -35,6 +35,13 @@ export interface CategoryDriver {
     currentMonthlySpend: number;
     currentPctOfRevenue: number;
     externalLabel?: string; // the MacroAssumption's own label, when source === 'external'
+    // False only for an internal driver whose category had zero spend in
+    // the PRIOR window -- pctChange() can't rate a "% growth" against a
+    // zero base, so monthlyGrowthRate above is forced to 0 (held flat),
+    // not because the category's trend is genuinely flat. Always true for
+    // an external driver: a linked MacroAssumption always states its own
+    // forward-looking rate directly, nothing to extrapolate.
+    hasExtrapolatedTrend: boolean;
 }
 
 export interface ForecastMonth {
@@ -117,12 +124,16 @@ export function computeCostExposureForecast(
                 currentMonthlySpend,
                 currentPctOfRevenue: sig.currentPctOfRevenue,
                 externalLabel: matchingAssumption.label,
+                hasExtrapolatedTrend: true,
             };
         }
         // Internal fallback: the category's own observed growth over the
         // comparison window, converted to an equivalent monthly rate. A
-        // null spendGrowthPct (no prior-window spend to rate a % against)
-        // has nothing to extrapolate from, so it's held flat.
+        // null spendGrowthPct (no prior-window spend to rate a % against --
+        // this category had zero spend last window, i.e. it's brand new)
+        // has nothing to extrapolate from, so it's held flat -- the verdict
+        // below says so explicitly rather than claiming a "pace" that was
+        // never actually computed.
         const rate = sig.spendGrowthPct !== null ? monthlyRateFrom(sig.spendGrowthPct, windowMonths) : 0;
         return {
             category: sig.category,
@@ -130,6 +141,7 @@ export function computeCostExposureForecast(
             monthlyGrowthRate: rate,
             currentMonthlySpend,
             currentPctOfRevenue: sig.currentPctOfRevenue,
+            hasExtrapolatedTrend: sig.spendGrowthPct !== null,
         };
     });
 
@@ -171,10 +183,31 @@ export function computeCostExposureForecast(
     const totalProfitErosion = Math.max(0, exposure.currentMonthlyProfit - lastMonth.projectedMonthlyProfit);
 
     const externalCount = drivers.filter(d => d.source === 'external').length;
-    const driverList = drivers.map(d => d.category).join(', ');
-    const verdict = totalProfitErosion <= 0
-        ? `${driverList} ${drivers.length === 1 ? 'is' : 'are'} rising but not enough, at this pace, to visibly dent monthly profit over the next ${horizonMonths} months.`
-        : `If ${driverList} keep${drivers.length === 1 ? 's' : ''} rising at ${externalCount > 0 ? 'the pace you\'ve told Quad360 to expect' : 'their own observed pace'}, monthly profit could fall by roughly ${Math.round(totalProfitErosion).toLocaleString()} over the next ${horizonMonths} months — from ${Math.round(exposure.currentMonthlyProfit).toLocaleString()} to ${Math.round(lastMonth.projectedMonthlyProfit).toLocaleString()}.`;
+    // Split out drivers that are only in this chart because they're brand
+    // new (zero spend last window, so there's no base to rate a growth %
+    // against) -- their monthlyGrowthRate is forced to 0 above, so the
+    // "rising at this pace" framing below would be describing a pace that
+    // was never actually computed for them.
+    const trendingDrivers = drivers.filter(d => d.hasExtrapolatedTrend);
+    const flatDrivers = drivers.filter(d => !d.hasExtrapolatedTrend);
+    const flatList = flatDrivers.map(d => d.category).join(', ');
+    const flatNote = flatDrivers.length === 0
+        ? ''
+        : ` ${flatList} ${flatDrivers.length === 1 ? 'is' : 'are'} new this period with no prior spend to measure a growth rate against, so ${flatDrivers.length === 1 ? 'it is' : 'they are'} held flat at today's level below rather than projected to keep rising.`;
+
+    let verdict: string;
+    if (trendingDrivers.length === 0) {
+        // Every flagged category is brand new -- there's no "pace" to
+        // report at all, so say that plainly instead of the generic
+        // "rising but not enough to dent profit" line.
+        verdict = `${flatList} ${flatDrivers.length === 1 ? 'is a new cost' : 'are new costs'} that just appeared this period, with no prior spend to measure a growth rate against — there's not yet enough history to project how fast ${flatDrivers.length === 1 ? 'it' : 'they'} will keep rising, so the chart below holds ${flatDrivers.length === 1 ? 'it' : 'them'} flat at today's level. Watch next period's numbers for a real trend.`;
+    } else {
+        const trendingList = trendingDrivers.map(d => d.category).join(', ');
+        verdict = (totalProfitErosion <= 0
+            ? `${trendingList} ${trendingDrivers.length === 1 ? 'is' : 'are'} rising but not enough, at this pace, to visibly dent monthly profit over the next ${horizonMonths} months.`
+            : `If ${trendingList} keep${trendingDrivers.length === 1 ? 's' : ''} rising at ${externalCount > 0 ? 'the pace you\'ve told Quad360 to expect' : 'their own observed pace'}, monthly profit could fall by roughly ${Math.round(totalProfitErosion).toLocaleString()} over the next ${horizonMonths} months — from ${Math.round(exposure.currentMonthlyProfit).toLocaleString()} to ${Math.round(lastMonth.projectedMonthlyProfit).toLocaleString()}.`
+        ) + flatNote;
+    }
 
     return {
         available: true,
