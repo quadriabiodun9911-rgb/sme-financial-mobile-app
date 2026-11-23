@@ -31,6 +31,7 @@ import CashConversionCycleVisual from './CashConversionCycleVisual';
 import { computeRevenueStressTest, StressRiskTier } from '../utils/revenueStressTest';
 import { computeCustomerLossScenario } from '../utils/customerLossScenario';
 import { computeSupplierTermsShock } from '../utils/supplierTermsShock';
+import { computeBadDebtShock } from '../utils/badDebtShock';
 import { localDateStr } from '../utils/localDate';
 
 // Same 4-color gradient this app's other Band-style scores already use
@@ -73,7 +74,7 @@ export default function CFOQuestionsTab() {
     const {
         transactions, loans, inventory, finance, settings, navigate, goals, invoices,
         capitalCommitments, addCommitment, updateCommitment, deleteCommitment,
-        assets, user, readinessHistory, staff, cashPockets,
+        assets, user, readinessHistory, staff, cashPockets, receivableWriteOffs,
     } = useApp();
     const { currency } = settings;
 
@@ -240,6 +241,14 @@ export default function CFOQuestionsTab() {
     const supplierShock = useMemo(
         () => computeSupplierTermsShock(transactions, totalLiquidCash, currency, supplierNewTermsDays),
         [transactions, totalLiquidCash, currency, supplierNewTermsDays],
+    );
+
+    // The AR-side mirror of Customer Loss: not lost future revenue, but
+    // money already owed by the single biggest outstanding customer that
+    // never actually gets collected.
+    const badDebtShock = useMemo(
+        () => computeBadDebtShock(transactions, invoices, inventory, totalLiquidCash, receivableWriteOffs, currency),
+        [transactions, invoices, inventory, totalLiquidCash, receivableWriteOffs, currency],
     );
 
     const resetForm = () => {
@@ -472,6 +481,36 @@ export default function CFOQuestionsTab() {
             ) : supplierShock.reason ? (
                 <Collapsible title="What if a supplier suddenly tightened credit terms?">
                     <Text style={s.qNote}>{supplierShock.reason}</Text>
+                </Collapsible>
+            ) : null}
+
+            {/* Bad Debt Shock -- the AR-side mirror of the Customer Loss
+                Scenario above: not lost future revenue, but money already
+                owed by the single biggest outstanding customer that never
+                gets collected. Hands the amount at risk to the same
+                funding-gap diagnosis upcomingLoanPaymentRisk.ts already
+                reuses, rather than a cash-drop model that doesn't apply
+                here (AR was never cash to begin with). */}
+            {badDebtShock.available && badDebtShock.customer ? (
+                <Collapsible title="What if your largest unpaid invoice is never collected?">
+                    <View style={s.statRow}>
+                        <Stat label="Customer" value={badDebtShock.customer.customer !== 'Unknown' ? badDebtShock.customer.customer : 'Untagged'} />
+                        <Stat label="Amount at Risk" value={fmt(currency, badDebtShock.customer.totalOutstanding)} highlight />
+                    </View>
+                    <View style={s.statRow}>
+                        <Stat label="Share of Outstanding AR" value={`${badDebtShock.customer.percentageOfTotal.toFixed(0)}%`} />
+                        <Stat label="Funding Gap If Lost" value={badDebtShock.diagnosis ? fmt(currency, badDebtShock.diagnosis.gapAmount) : 'None'} />
+                    </View>
+                    <View style={[s.verdictBox, { borderColor: badDebtShock.diagnosis ? Colors.warning : Colors.income }]}>
+                        <Text style={s.verdictText}>{badDebtShock.narrative}</Text>
+                    </View>
+                    {badDebtShock.diagnosis?.signals.filter(sig => sig.flagged).map(sig => (
+                        <Text key={sig.cause} style={s.qNote}>• {sig.detail}</Text>
+                    ))}
+                </Collapsible>
+            ) : badDebtShock.reason ? (
+                <Collapsible title="What if your largest unpaid invoice is never collected?">
+                    <Text style={s.qNote}>{badDebtShock.reason}</Text>
                 </Collapsible>
             ) : null}
 
