@@ -14,6 +14,7 @@ import { computeDataQuality, DataQuality } from './dataQuality';
 import { computeTaxFilingReadiness } from './taxFilingReadiness';
 import { performFinancialDiagnosis, factorNamesForDimensions, ActionImpact } from './financialDiagnosisEngine';
 import { localDateStr } from './localDate';
+import { buildDebtServiceCoverageSummary, DebtServiceCoverageSummary } from './covenantTracking';
 
 export interface FundingReadinessProfile {
     revenue: number;
@@ -71,6 +72,11 @@ export interface FundingReadinessPack {
     // its own to project). Null with too little history for a diagnosis, or
     // no actions to target.
     improvementProjection: FundingImprovementProjection | null;
+    // Current DSCR plus any negotiated minimum-DSCR covenant per active
+    // loan and whether it's being met -- see covenantTracking.ts's own
+    // buildDebtServiceCoverageSummary for why this belongs in a document a
+    // lender actually reads, not just the Loans screen the owner alone sees.
+    debtServiceCoverage: DebtServiceCoverageSummary;
 }
 
 /**
@@ -222,5 +228,6 @@ export function buildFundingReadinessPack(
         topActions,
         topActionImpacts,
         improvementProjection,
+        debtServiceCoverage: buildDebtServiceCoverageSummary(transactions, loans),
     };
 }

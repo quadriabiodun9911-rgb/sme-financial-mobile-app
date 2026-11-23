@@ -250,3 +250,51 @@ export function computeCovenantTracking(
         points, direction, narrative, severity, quartersUntilBreach, projectedBreachLabel,
     };
 }
+
+// ─── Lender-facing summary ──────────────────────────────────────────────
+//
+// Every lender-facing export (lenderSummaryExport.ts) previously folded
+// DSCR into a 0-100 Debt factor score/status and never showed the actual
+// ratio or covenant status a lender would want to see directly -- this is
+// the one place that reconstructs it, reused verbatim by every document
+// that needs it rather than each building its own.
+export interface LenderLoanCovenantSummary {
+    lenderName: string;
+    covenantMinDSCR: number;
+    inBreach: boolean;
+    headroomMultiple: number;
+    direction: CovenantTrendDirection;
+    narrative: string;
+}
+
+export interface DebtServiceCoverageSummary {
+    hasActiveDebt: boolean;
+    currentDSCR: number; // meaningless when hasActiveDebt is false
+    // One entry per active loan that has a minimum-DSCR covenant recorded
+    // (Loan.covenantMinDSCR) -- empty when none do, which is itself a real
+    // (if unremarkable) fact a lender-facing document should say plainly
+    // rather than silently omitting the section.
+    covenants: LenderLoanCovenantSummary[];
+}
+
+export function buildDebtServiceCoverageSummary(
+    transactions: Transaction[],
+    loans: Loan[],
+    now: Date = new Date(),
+): DebtServiceCoverageSummary {
+    const dscr = computeDSCR(transactions, loans);
+    const covenants: LenderLoanCovenantSummary[] = loans
+        .filter(l => l.status === 'active' && (l.covenantMinDSCR ?? 0) > 0)
+        .map(l => {
+            const tracking = computeCovenantTracking(l, transactions, loans, now);
+            return {
+                lenderName: l.lenderName || 'Lender',
+                covenantMinDSCR: l.covenantMinDSCR!,
+                inBreach: tracking.inBreach,
+                headroomMultiple: tracking.headroomMultiple,
+                direction: tracking.direction,
+                narrative: tracking.narrative,
+            };
+        });
+    return { hasActiveDebt: dscr.totalDebtService > 0, currentDSCR: dscr.dscr, covenants };
+}

@@ -14,6 +14,7 @@ import NextStepLink from '../components/NextStepLink';
 import Collapsible from '../components/Collapsible';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { buildLenderSummaryExport, buildFundingReadinessPackExport } from '../utils/lenderSummaryExport';
+import { buildDebtServiceCoverageSummary } from '../utils/covenantTracking';
 import { computeDSCR, computeRiskScore, computeFinancingReadinessScore, computeAssetCurrentValue, computeWorkingCapitalMetrics, RiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage } from '../utils/finance';
 import { computeLendingCapacityEstimate } from '../utils/lendingCapacity';
 import { computeReadinessDelta } from '../utils/readinessHistory';
@@ -398,6 +399,11 @@ export default function CreditWorthinessScreen() {
     // from the credit score itself, same "unscored vs. actually poor"
     // distinction used throughout the credit factors above.
     const dscrResult = useMemo(() => computeDSCR(transactions, loans), [transactions, loans]);
+    // For the exported Lender-Ready Summary's own Debt Service Coverage
+    // section -- see covenantTracking.ts's own doc comment on why a
+    // lender-facing document should show this directly, not just the
+    // Debt factor's abstracted score.
+    const debtServiceCoverage = useMemo(() => buildDebtServiceCoverageSummary(transactions, loans), [transactions, loans]);
     const inventoryValue = useMemo(() => computeInventoryValue(inventory), [inventory]);
     // Forward-Looking Financing Readiness -- "here's what's likely to
     // happen" alongside the trailing figures above. Built on the same
@@ -565,6 +571,7 @@ export default function CreditWorthinessScreen() {
                 reconciliationSummary: settings.lastReconciledAt
                     ? `Bank statement reconciled ${settings.lastReconciledAt}${settings.lastReconciliationMatchedPct !== undefined ? ` — ${settings.lastReconciliationMatchedPct}% of statement lines matched to recorded transactions` : ''}`
                     : undefined,
+                debtServiceCoverage,
             });
             const filePath = await generatePDF(exportData);
             await sharePDF(filePath, exportData.title);

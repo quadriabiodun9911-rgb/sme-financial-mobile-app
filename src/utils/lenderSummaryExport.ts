@@ -4,6 +4,47 @@ import { BusinessPassport } from './businessPassport';
 import { Loan } from '../types';
 import { PostFinancingMonitor } from './postFinancingMonitor';
 import { LENDING_DECISION_DISCLAIMER } from './legalDisclaimers';
+import { DebtServiceCoverageSummary, CovenantTrendDirection } from './covenantTracking';
+
+const COVENANT_DIRECTION_LABEL: Record<CovenantTrendDirection, string> = {
+    improving: 'improving',
+    weakening: 'weakening',
+    volatile: 'volatile',
+    flat: 'stable',
+    'insufficient-data': 'not enough history yet to call a trend',
+};
+
+// Debt Service Coverage — the one metric every document in this file
+// previously left out. computeRiskScore's Debt factor already folds DSCR
+// into a 0-100 score/status (see the "Debt Ratio" checkpoint and "Debt"
+// factor rows elsewhere in these documents), but a lender reading this
+// document never saw the actual ratio, let alone whether the business has
+// a negotiated covenant on a specific loan and whether it's currently
+// being met -- exactly the forward-looking signal covenantTracking.ts
+// exists to surface, which otherwise never left the Loans screen the
+// owner alone sees. summary comes from covenantTracking.ts's own
+// buildDebtServiceCoverageSummary, never a second, independently-tuned
+// DSCR figure for the exported document to disagree with the one shown
+// everywhere else in the app.
+function debtServiceCoverageSection(summary: DebtServiceCoverageSummary): { name: string; data: { label: string; value: string }[] } {
+    const data: { label: string; value: string }[] = [
+        {
+            label: 'Current DSCR (operating income ÷ total scheduled debt service)',
+            value: summary.hasActiveDebt ? `${summary.currentDSCR >= 900 ? '∞' : summary.currentDSCR.toFixed(2)}x` : 'No active debt',
+        },
+    ];
+    if (summary.covenants.length === 0) {
+        data.push({ label: 'Minimum-DSCR covenant', value: 'None recorded on any active loan' });
+    } else {
+        for (const c of summary.covenants) {
+            data.push({
+                label: `${c.lenderName} — minimum ${c.covenantMinDSCR.toFixed(2)}x covenant`,
+                value: `${c.inBreach ? 'In breach' : `${c.headroomMultiple.toFixed(2)}x headroom`} — trend: ${COVENANT_DIRECTION_LABEL[c.direction]}`,
+            });
+        }
+    }
+    return { name: 'Debt Service Coverage', data };
+}
 
 export interface LenderSummaryFactor {
     name: string;
@@ -44,6 +85,10 @@ export interface LenderSummaryInput {
     // the one signal that answers "was this checked against a real bank
     // statement," never fabricated when no reconciliation has happened yet.
     reconciliationSummary?: string;
+    // Optional -- callers that don't have transactions/loans in scope to
+    // build it (none currently) simply omit the section rather than
+    // showing a blank or fabricated one.
+    debtServiceCoverage?: DebtServiceCoverageSummary;
 }
 
 function fmtCurrency(currency: string, n: number): string {
@@ -59,7 +104,7 @@ export function buildLenderSummaryExport(input: LenderSummaryInput): ExportData 
     const {
         businessName, currency, overallCreditScore, creditRatingLabel,
         factors, checkpoints, runwayDays, avgMonthlyRevenue, daysActive, generatedAt,
-        dataConfidenceSummary, reconciliationSummary,
+        dataConfidenceSummary, reconciliationSummary, debtServiceCoverage,
     } = input;
 
     return {
@@ -91,6 +136,7 @@ export function buildLenderSummaryExport(input: LenderSummaryInput): ExportData 
                     value: c.met ? 'Met' : 'Not yet met',
                 })),
             },
+            ...(debtServiceCoverage ? [debtServiceCoverageSection(debtServiceCoverage)] : []),
         ],
     };
 }
@@ -255,6 +301,7 @@ export function buildFundingReadinessPackExport(pack: FundingReadinessPack, curr
                     { label: '  — due after 1 year', value: fmt(pack.profile.debtNonCurrentPortion) },
                 ],
             },
+            debtServiceCoverageSection(pack.debtServiceCoverage),
             {
                 name: 'Financial Performance — Last 12 Months',
                 data: pack.trend.map(m => ({

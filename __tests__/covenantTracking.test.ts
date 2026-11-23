@@ -1,4 +1,4 @@
-import { computeCovenantTracking } from '../src/utils/covenantTracking';
+import { computeCovenantTracking, buildDebtServiceCoverageSummary } from '../src/utils/covenantTracking';
 import { loanMonthlyPayment } from '../src/utils/finance';
 import { Transaction, Loan } from '../src/types';
 
@@ -196,5 +196,44 @@ describe('computeCovenantTracking', () => {
         expect(result.available).toBe(true);
         expect(result.headroomAsRevenuePct).not.toBeNull();
         expect(result.headroomAsRevenuePct!).toBeGreaterThan(0);
+    });
+});
+
+describe('buildDebtServiceCoverageSummary', () => {
+    it('reports no active debt when there are no loans', () => {
+        const result = buildDebtServiceCoverageSummary([], []);
+        expect(result.hasActiveDebt).toBe(false);
+        expect(result.covenants).toEqual([]);
+    });
+
+    it('reports the current DSCR and an empty covenant list when no loan has a covenant set', () => {
+        const loan = makeLoan({ covenantMinDSCR: undefined, interestRate: 0, startDate: '2024-01-01' });
+        const txs = [makeTx({ date: '2026-06-10', amount: 200000 }), makeTx({ date: '2026-06-15', type: 'expense', amount: 50000 })];
+        const now = new Date('2026-06-20T00:00:00');
+        const result = buildDebtServiceCoverageSummary(txs, [loan], now);
+        expect(result.hasActiveDebt).toBe(true);
+        expect(result.covenants).toEqual([]);
+    });
+
+    it('includes one entry per active loan with a covenant, reflecting the real breach status', () => {
+        const loanWithCovenant = makeLoan({ id: 'A', lenderName: 'First Bank', covenantMinDSCR: 1.25, interestRate: 0, startDate: '2024-01-01' });
+        const loanWithoutCovenant = makeLoan({ id: 'B', lenderName: 'Second Bank', covenantMinDSCR: undefined, interestRate: 0, startDate: '2024-01-01', principal: 100000, termMonths: 24 });
+        const annualDebtService = loanMonthlyPayment(loanWithCovenant.principal, loanWithCovenant.interestRate, loanWithCovenant.termMonths) * 12
+            + loanMonthlyPayment(loanWithoutCovenant.principal, loanWithoutCovenant.interestRate, loanWithoutCovenant.termMonths) * 12;
+        // Low NOI relative to combined debt service -- well below the 1.25x covenant.
+        const months = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12'];
+        const txs: Transaction[] = [];
+        for (const m of months) {
+            txs.push(makeTx({ date: `${m}-10`, type: 'income', amount: 500000 }));
+            txs.push(makeTx({ date: `${m}-15`, type: 'expense', category: 'Rent', amount: 500000 - (0.5 * annualDebtService) / 12 }));
+        }
+        const now = new Date('2026-12-20T00:00:00');
+        const result = buildDebtServiceCoverageSummary(txs, [loanWithCovenant, loanWithoutCovenant], now);
+
+        expect(result.hasActiveDebt).toBe(true);
+        expect(result.covenants).toHaveLength(1); // only the loan WITH a covenant gets an entry
+        expect(result.covenants[0].lenderName).toBe('First Bank');
+        expect(result.covenants[0].covenantMinDSCR).toBe(1.25);
+        expect(result.covenants[0].inBreach).toBe(true);
     });
 });

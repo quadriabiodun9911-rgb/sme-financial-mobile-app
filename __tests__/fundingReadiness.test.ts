@@ -151,4 +151,22 @@ describe('buildFundingReadinessPack', () => {
         const pack = buildFundingReadinessPack(transactions, [], [], [], [], finance, settings, 'Test Co');
         expect(pack.trend.length).toBeLessThanOrEqual(12);
     });
+
+    it('includes debtServiceCoverage, reflecting a real covenant on an active loan', () => {
+        const loan: Loan = {
+            id: 'l1', lenderName: 'First Bank', purpose: 'Working capital', covenantMinDSCR: 1.25,
+            principal: 1000000, interestRate: 0, termMonths: 24, startDate: daysAgo(400),
+            status: 'active', payments: [], createdAt: daysAgo(400),
+        };
+        // Thin income relative to debt service -- well under the 1.25x covenant.
+        const transactions: Transaction[] = [
+            makeTx({ type: 'income', amount: 10000, date: daysAgo(10) }),
+            makeTx({ type: 'expense', category: 'Rent', amount: 5000, date: daysAgo(10) }),
+        ];
+        const pack = buildFundingReadinessPack(transactions, [], [loan], [], [], finance, settings, 'Test Co');
+        expect(pack.debtServiceCoverage.hasActiveDebt).toBe(true);
+        expect(pack.debtServiceCoverage.covenants).toHaveLength(1);
+        expect(pack.debtServiceCoverage.covenants[0].lenderName).toBe('First Bank');
+        expect(pack.debtServiceCoverage.covenants[0].inBreach).toBe(true);
+    });
 });
