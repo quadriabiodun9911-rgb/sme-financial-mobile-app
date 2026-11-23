@@ -1115,6 +1115,15 @@ export interface Loan {
     // (merchant financing, unsecured working-capital loans) have neither.
     collateralPledged?: string;  // what's pledged as security, e.g. "Delivery van, shop inventory"
     covenants?: string;          // restrictions/conditions attached to the facility, e.g. "No further borrowing without lender consent"
+    // The one covenant term structured enough to actually monitor against
+    // real numbers, distinct from the free text above -- the minimum Debt
+    // Service Coverage Ratio the facility letter requires (e.g. 1.25 for
+    // "DSCR must stay at or above 1.25x"), when the lender set one. Only
+    // DSCR is modeled (not a leverage ratio, minimum liquidity, etc.)
+    // because it's the one ratio Quad360 already computes from real
+    // transaction history (computeDSCR, finance.ts) -- see
+    // covenantTracking.ts for the quarter-by-quarter trend this enables.
+    covenantMinDSCR?: number;
     // Set only when this Loan was created from a funded MerchantFinancingApplication
     // (see confirmMerchantFinancingFunded) -- lets the Loans screen and history
     // tell "applied for through Quad360" apart from a loan the owner just typed

@@ -34,6 +34,7 @@ import { analyzeOngoingFinancingToLease, LeaseRefinanceCheck } from '../utils/on
 import { computeDSCRIntelligence } from '../utils/metricIntelligence';
 import { generateId } from '../utils/uuid';
 import { computePostFinancingMonitor, PostFinancingStatus } from '../utils/postFinancingMonitor';
+import { computeCovenantTracking } from '../utils/covenantTracking';
 import { buildPostFinancingShareExport } from '../utils/lenderSummaryExport';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
 import { loadActiveLenderOrganizations, LenderDirectoryEntry } from '../utils/lenderDirectory';
@@ -170,6 +171,7 @@ export default function LoansScreen() {
     const [fromMarketplace, setFromMarketplace] = useState(false);
     const [collateralPledged, setCollateralPledged] = useState('');
     const [covenants, setCovenants] = useState('');
+    const [covenantMinDSCR, setCovenantMinDSCR] = useState('');
     // Which of the business's own pipeline listings (financingPipeline.ts)
     // this loan resulted from, if any -- only ever shown/settable while
     // fromMarketplace is checked, and only for an unmatched listing
@@ -190,7 +192,7 @@ export default function LoansScreen() {
         setLender(''); setPurpose(''); setPrincipal(''); setRate(''); setArrangementFeePct('');
         setTerm(''); setStart(localDateStr());
         setStatus('active'); setFromMarketplace(false); setEditingId(null);
-        setCollateralPledged(''); setCovenants(''); setSelectedListingId(null);
+        setCollateralPledged(''); setCovenants(''); setCovenantMinDSCR(''); setSelectedListingId(null);
         setQaText('');
     };
 
@@ -224,6 +226,7 @@ export default function LoansScreen() {
         setTerm(String(l.termMonths)); setStart(l.startDate);
         setStatus(l.status); setFromMarketplace(!!l.fromMarketplace); setEditingId(l.id); setShowForm(true);
         setCollateralPledged(l.collateralPledged ?? ''); setCovenants(l.covenants ?? '');
+        setCovenantMinDSCR(l.covenantMinDSCR != null ? String(l.covenantMinDSCR) : '');
         setSelectedListingId(l.listingId ?? null);
     }, []);
 
@@ -246,6 +249,7 @@ export default function LoansScreen() {
             startDate, status, fromMarketplace,
             collateralPledged: collateralPledged.trim() || undefined,
             covenants: covenants.trim() || undefined,
+            covenantMinDSCR: covenantMinDSCR.trim() && !isNaN(parseFloat(covenantMinDSCR)) ? parseFloat(covenantMinDSCR) : undefined,
             listingId: selectedListingId ?? undefined,
             ...(closingNow ? { closedAt: new Date().toISOString() } : {}),
         };
@@ -903,6 +907,11 @@ export default function LoansScreen() {
                             <TextInput style={s.input} value={covenants} onChangeText={setCovenants}
                                 placeholder="e.g. No further borrowing without lender consent" placeholderTextColor={Colors.muted} />
 
+                            <FieldLabel text="Minimum DSCR Covenant (optional)" />
+                            <TextInput style={s.input} value={covenantMinDSCR} onChangeText={setCovenantMinDSCR}
+                                placeholder="e.g. 1.25 — leave blank if the facility sets no DSCR requirement" placeholderTextColor={Colors.muted} keyboardType="decimal-pad" />
+                            <Text style={{ fontSize: 11, color: Colors.textMuted, marginTop: -8, marginBottom: 10 }}>Set this to track your DSCR trend against this facility's own requirement, with an early warning before it's breached.</Text>
+
                             <TouchableOpacity style={s.marketplaceToggleRow} onPress={() => setFromMarketplace(v => !v)} activeOpacity={0.7}>
                                 <View style={[s.checkbox, fromMarketplace && s.checkboxChecked]}>
                                     {fromMarketplace && <Icon name="check-circle" size={13} color="#fff" />}
@@ -1212,6 +1221,14 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
         () => computeUpcomingLoanPaymentRisk(loan, allLoans, transactions, invoices, inventory, cashBalance, currency),
         [loan, allLoans, transactions, invoices, inventory, cashBalance, currency],
     );
+    // Only meaningful once the loan has a DSCR covenant set (covenantMinDSCR)
+    // -- see covenantTracking.ts's own header comment for why this needs its
+    // own quarter-by-quarter reconstruction rather than reusing the `dscr`
+    // prop above, which only ever reports the current moment.
+    const covenantTracking = useMemo(
+        () => computeCovenantTracking(loan, transactions, allLoans),
+        [loan, transactions, allLoans],
+    );
     const progress = Math.min(100, (paid / loan.principal) * 100);
     const overdue = isOverdue(loan);
     const statusColor = loan.status === 'paid_off' ? Colors.income : loan.status === 'defaulted' ? Colors.expense : overdue ? Colors.warning : Colors.textMuted;
@@ -1366,6 +1383,37 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
                             )}
                             {loan.covenants && (
                                 <Text style={s.securityBoxLine}><Text style={s.securityBoxLabel}>Covenants: </Text>{loan.covenants}</Text>
+                            )}
+                        </View>
+                    )}
+                    {covenantTracking.available && (
+                        <View style={[s.securityBox, { borderColor: covenantTracking.severity === 'critical' ? Colors.expense : covenantTracking.severity === 'warning' ? Colors.warning : Colors.border }]}>
+                            <Text style={s.securityBoxTitle}>
+                                {covenantTracking.inBreach ? '🚨' : covenantTracking.severity === 'warning' ? '⚠️' : '📐'} DSCR Covenant ({covenantTracking.covenantMinDSCR.toFixed(2)}x minimum)
+                            </Text>
+                            <Text style={[s.securityBoxLine, { fontWeight: '700', color: covenantTracking.inBreach ? Colors.expense : Colors.textPrimary }]}>
+                                Current: {covenantTracking.currentDSCR >= 900 ? '∞' : covenantTracking.currentDSCR.toFixed(2)}x
+                                {' '}({covenantTracking.inBreach ? 'in breach' : `${covenantTracking.headroomMultiple.toFixed(2)}x headroom`})
+                            </Text>
+                            {covenantTracking.headroomAsRevenuePct !== null && !covenantTracking.inBreach && (
+                                <Text style={s.securityBoxLine}>
+                                    Revenue could fall about {Math.max(0, covenantTracking.headroomAsRevenuePct).toFixed(1)}% (holding costs flat) before this covenant is tested.
+                                </Text>
+                            )}
+                            {covenantTracking.points.length > 0 && (
+                                <View style={{ flexDirection: 'row', gap: 10, marginTop: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+                                    {covenantTracking.points.map(p => (
+                                        <Text key={p.quarter} style={{ fontSize: 11, color: Colors.textMuted }}>
+                                            {p.label}: <Text style={{ fontWeight: '700', color: Colors.textSecondary }}>{p.dscr === null ? '—' : `${p.dscr.toFixed(2)}x`}</Text>
+                                        </Text>
+                                    ))}
+                                </View>
+                            )}
+                            <Text style={s.securityBoxLine}>{covenantTracking.narrative}</Text>
+                            {covenantTracking.quartersUntilBreach !== null && (
+                                <Text style={[s.securityBoxLine, { fontWeight: '700', color: Colors.warning }]}>
+                                    At this pace, projected to breach around {covenantTracking.projectedBreachLabel} (~{covenantTracking.quartersUntilBreach} quarter{covenantTracking.quartersUntilBreach === 1 ? '' : 's'} from now) — a simple projection from the trend, not a guarantee.
+                                </Text>
                             )}
                         </View>
                     )}
