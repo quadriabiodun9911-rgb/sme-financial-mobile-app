@@ -29,6 +29,8 @@ import AIAdvisorCard from './AIAdvisorCard';
 import Collapsible from './Collapsible';
 import CashConversionCycleVisual from './CashConversionCycleVisual';
 import { computeRevenueStressTest, StressRiskTier } from '../utils/revenueStressTest';
+import { computeCustomerLossScenario } from '../utils/customerLossScenario';
+import { computeSupplierTermsShock } from '../utils/supplierTermsShock';
 import { localDateStr } from '../utils/localDate';
 
 // Same 4-color gradient this app's other Band-style scores already use
@@ -222,6 +224,24 @@ export default function CFOQuestionsTab() {
         [transactions, totalLiquidCash, currency],
     );
 
+    // Named companion to the Stress Test above -- not a generic %, but
+    // specifically "what if the customer the Concentration Alert already
+    // flags actually left," reusing that alert's own windowed read.
+    const customerLoss = useMemo(
+        () => computeCustomerLossScenario(transactions, totalLiquidCash, currency),
+        [transactions, totalLiquidCash, currency],
+    );
+
+    // Another named "what if" scenario, this time on the expense side --
+    // supplierPaymentPressure.ts only diagnoses whether the business is
+    // ALREADY behind on what it owes; this answers the forward question
+    // of what a sudden tightening to cash-on-delivery would cost in cash.
+    const [supplierNewTermsDays, setSupplierNewTermsDays] = useState(0);
+    const supplierShock = useMemo(
+        () => computeSupplierTermsShock(transactions, totalLiquidCash, currency, supplierNewTermsDays),
+        [transactions, totalLiquidCash, currency, supplierNewTermsDays],
+    );
+
     const resetForm = () => {
         setForm(EMPTY_COMMITMENT_FORM);
         setShowAddCommitment(false);
@@ -402,6 +422,58 @@ export default function CFOQuestionsTab() {
                     </View>
                 </Collapsible>
             )}
+
+            {/* Customer Loss Scenario -- the named companion to the Stress
+                Test above: not an arbitrary % drop, but specifically what
+                happens if the exact customer the Concentration Alert
+                already flags actually walks away. */}
+            {customerLoss.available && customerLoss.scenario && (
+                <Collapsible title={`What if ${customerLoss.customerName ?? 'your top customer'} left?`}>
+                    <View style={s.statRow}>
+                        <Stat label="Customer's Share of Revenue" value={`${customerLoss.customerSharePct.toFixed(0)}%`} />
+                        <Stat label="Cash After Loss" value={fmt(currency, customerLoss.scenario.cashPosition)} highlight />
+                    </View>
+                    <View style={s.statRow}>
+                        <Stat label="Projected Runway" value={Number.isFinite(customerLoss.scenario.runwayMonths) ? `${customerLoss.scenario.runwayMonths.toFixed(1)}mo` : '∞'} />
+                        <Stat label="Risk" value={`${STRESS_RISK_META[customerLoss.scenario.risk].dot} ${customerLoss.scenario.risk}`} />
+                    </View>
+                    <View style={[s.verdictBox, { borderColor: STRESS_RISK_META[customerLoss.scenario.risk].color }]}>
+                        <Text style={s.verdictText}>{customerLoss.narrative}</Text>
+                    </View>
+                </Collapsible>
+            )}
+
+            {/* Supplier Terms Shock -- the forward "what if" companion to
+                Working Capital's Supplier Payment Pressure diagnostic:
+                not whether you're already behind, but what a sudden
+                tightening in credit terms would cost in cash. */}
+            {supplierShock.available ? (
+                <Collapsible title="What if a supplier suddenly tightened credit terms?">
+                    <Text style={s.qNote}>Suppliers currently give about {Math.round(supplierShock.currentDpoDays)} days of credit on average. Model a tighter term:</Text>
+                    <View style={s.chipRow}>
+                        {[0, 15, 30, 45].map(days => (
+                            <TouchableOpacity key={days} style={[s.chip, supplierNewTermsDays === days && s.chipSelected]} onPress={() => setSupplierNewTermsDays(days)}>
+                                <Text style={[s.chipText, supplierNewTermsDays === days && s.chipTextSelected]}>{days === 0 ? 'COD' : `${days}d`}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                    <View style={s.statRow}>
+                        <Stat label="One-Time Cash Impact" value={fmt(currency, supplierShock.oneTimeCashImpact)} />
+                        <Stat label="Cash After Shock" value={fmt(currency, supplierShock.cashAfterShock)} highlight />
+                    </View>
+                    <View style={s.statRow}>
+                        <Stat label="Runway After Shock" value={Number.isFinite(supplierShock.runwayDaysAfterShock) ? `${Math.round(supplierShock.runwayDaysAfterShock)}d` : '∞'} />
+                        <Stat label="Risk" value={`${STRESS_RISK_META[supplierShock.risk].dot} ${supplierShock.risk}`} />
+                    </View>
+                    <View style={[s.verdictBox, { borderColor: STRESS_RISK_META[supplierShock.risk].color }]}>
+                        <Text style={s.verdictText}>{supplierShock.narrative}</Text>
+                    </View>
+                </Collapsible>
+            ) : supplierShock.reason ? (
+                <Collapsible title="What if a supplier suddenly tightened credit terms?">
+                    <Text style={s.qNote}>{supplierShock.reason}</Text>
+                </Collapsible>
+            ) : null}
 
             {/* Q7 -- the most detail-heavy card on this page (full commitment
                 list, per-KPI rows, a multi-field add form), and the least

@@ -61,7 +61,12 @@ const EMPTY_RESULT = (reason: string): RevenueStressTestResult => ({
     insight: '',
 });
 
-function riskTierForRunway(runwayMonths: number): StressRiskTier {
+// Exported so a caller that needs a SPECIFIC, named revenue-drop scenario
+// (customerLossScenario.ts's "if this one customer left") can reuse the
+// exact same cash-projection math as the generic -10/-20/-30% table below,
+// rather than a second, independently-tuned formula for what is
+// mechanically the same calculation with a different drop percentage.
+export function riskTierForRunway(runwayMonths: number): StressRiskTier {
     if (!Number.isFinite(runwayMonths)) return 'safe';
     if (runwayMonths > 6) return 'safe';
     if (runwayMonths > 3) return 'caution';
@@ -69,7 +74,7 @@ function riskTierForRunway(runwayMonths: number): StressRiskTier {
     return 'critical';
 }
 
-function buildScenario(
+export function buildScenario(
     dropPct: number,
     label: string,
     monthlyRevenue: number,
