@@ -316,3 +316,55 @@ describe('buildFutureFinancialStatements — seasonality', () => {
         expect(result.months[0].revenue).toBeCloseTo(result.baselineMonthlyRevenue, 0);
     });
 });
+
+// Rent is a fixed-cost category (profitability.ts's isFixedCost); Stock is
+// not -- matches neither keyword, so it's classified variable.
+function txsWithFixedAndVariableCosts(): Transaction[] {
+    const txs: Transaction[] = [];
+    for (const m of ['2026-01', '2026-02', '2026-03']) {
+        txs.push(makeTx({ date: `${m}-05`, type: 'income', amount: 100000 }));
+        txs.push(makeTx({ date: `${m}-10`, type: 'expense', category: 'Stock', amount: 45000 }));
+        txs.push(makeTx({ date: `${m}-15`, type: 'expense', category: 'Rent', amount: 35000 }));
+    }
+    return txs;
+}
+
+describe('buildFutureFinancialStatements — fixed vs. variable cost split', () => {
+    it('splits the baseline into fixed and variable expense exactly, summing back to baselineMonthlyExpense', () => {
+        const result = buildFutureFinancialStatements(txsWithFixedAndVariableCosts(), [], finance, NO_ADJUSTMENTS, 1);
+        expect(result.baselineMonthlyExpense).toBeCloseTo(80000, 0);
+        expect(result.baselineMonthlyFixedExpense).toBeCloseTo(35000, 0);
+        expect(result.baselineMonthlyVariableExpense).toBeCloseTo(45000, 0);
+        expect(result.baselineMonthlyFixedExpense + result.baselineMonthlyVariableExpense).toBeCloseTo(result.baselineMonthlyExpense, 5);
+    });
+
+    it('leaves fixed and variable costs moving together at expenseGrowthPctPerMonth when fixedCostGrowthPctPerMonth is unset — identical to today', () => {
+        const withSplit = buildFutureFinancialStatements(txsWithFixedAndVariableCosts(), [], finance, { ...NO_ADJUSTMENTS, expenseGrowthPctPerMonth: -10 }, 1);
+        const withoutSplitField = buildFutureFinancialStatements(txsWithFixedAndVariableCosts(), [], finance, { ...NO_ADJUSTMENTS, expenseGrowthPctPerMonth: -10, fixedCostGrowthPctPerMonth: undefined }, 1);
+        expect(withSplit.months[0].operatingExpenses).toBeCloseTo(withoutSplitField.months[0].operatingExpenses, 5);
+        expect(withSplit.months[0].operatingExpenses).toBeCloseTo(80000 * 0.9, 0);
+    });
+
+    it('reproduces a stagflation scenario: variable costs fall while fixed costs rise, decoupled by fixedCostGrowthPctPerMonth', () => {
+        // Matches the illustrative article scenario: $100,000 revenue,
+        // $45,000 variable (stock) and $35,000 fixed (rent) pre-crisis.
+        // Crisis: revenue -35% ($65,000); variable costs -19.1%
+        // ($36,400 -- demand falls faster than per-unit inflation rises
+        // costs); fixed costs +10% ($38,500 -- a lease/rate escalation
+        // that doesn't care that volume dropped).
+        const txs = txsWithFixedAndVariableCosts();
+        const variableChangePct = ((36400 - 45000) / 45000) * 100; // -19.111...%
+        const fixedChangePct = ((38500 - 35000) / 35000) * 100;    // +10%
+
+        const result = buildFutureFinancialStatements(
+            txs, [], finance,
+            { ...NO_ADJUSTMENTS, revenueGrowthPctPerMonth: -35, expenseGrowthPctPerMonth: variableChangePct, fixedCostGrowthPctPerMonth: fixedChangePct },
+            1,
+        );
+
+        const m1 = result.months[0];
+        expect(m1.revenue).toBeCloseTo(65000, 0);
+        expect(m1.operatingExpenses).toBeCloseTo(36400 + 38500, 0); // 74,900 total — matches the scenario's own blended total exactly
+        expect(m1.profit).toBeCloseTo(65000 - 74900, 0); // -9,900
+    });
+});

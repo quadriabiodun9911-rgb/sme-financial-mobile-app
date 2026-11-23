@@ -31,10 +31,20 @@ import { monthlySalaryCost } from './structuralSnapshot';
 import { computeCostExposure } from './costExposure';
 import { computeExternalRiskInsights, ExternalRiskInsight } from './externalRiskInsights';
 import { computeSeasonalityPattern, seasonalIndexForCalendarMonth, calendarMonthForOffset, SeasonalityResult } from './seasonality';
+import { isFixedCost } from './profitability';
 
 export interface ForecastAdjustments {
     revenueGrowthPctPerMonth: number;  // compounding, can be negative — from a price change, volume change, or new-customer push
-    expenseGrowthPctPerMonth: number;  // compounding, can be negative — general cost inflation or a cost-cutting effort
+    expenseGrowthPctPerMonth: number;  // compounding, can be negative — general cost inflation or a cost-cutting effort. Applied to VARIABLE costs (isFixedCost, profitability.ts) whenever fixedCostGrowthPctPerMonth is set; applied to the whole expense base unchanged when it isn't.
+    // Optional, separate compounding rate for costs profitability.ts's
+    // isFixedCost already classifies as fixed (rent, salaries, insurance,
+    // utilities...) -- a stagflation-style scenario where supply/variable
+    // costs ease (or even fall, as volume drops) while a lease or payroll
+    // commitment keeps rising can't be expressed by one blended rate.
+    // undefined (the default) means "move together with expenseGrowthPctPerMonth",
+    // identical to this field not existing -- every existing caller that
+    // never sets it keeps today's exact behavior.
+    fixedCostGrowthPctPerMonth?: number;
     oneOffMonthlyCostAdd: number;      // a flat new monthly cost from month 1 onward, e.g. a new hire's salary
     newLoanAmount: number;             // drawn at month 1, 0 to skip
     newLoanAnnualRatePct: number;
@@ -85,6 +95,14 @@ export interface ProjectedMonth {
 export interface FutureFinancialStatements {
     baselineMonthlyRevenue: number;
     baselineMonthlyExpense: number;
+    // baselineMonthlyFixedExpense + baselineMonthlyVariableExpense ===
+    // baselineMonthlyExpense exactly -- same isFixedCost split
+    // profitability.ts's breakeven engine uses, over the same trailing
+    // window, so a caller (e.g. the What If? planner's "Fixed cost
+    // change" lever) can show the owner what each rate would actually
+    // apply to in real money, not just an abstract percentage.
+    baselineMonthlyFixedExpense: number;
+    baselineMonthlyVariableExpense: number;
     baselineMonthsUsed: number; // how many recent months fed the baseline — fewer = less reliable
     startingCash: number;
     startingLoanBalance: number;
@@ -168,6 +186,21 @@ export function buildFutureFinancialStatements(
         ? recentMonths.reduce((s, m) => s + m.expense, 0) / baselineMonthsUsed
         : 0;
 
+    // Only computed (and only matters) when fixedCostGrowthPctPerMonth is
+    // actually set below -- same transaction-level categorization
+    // (isFixedCost, profitability.ts) and the same exclusions
+    // (equityMovement, principalPortion) computeAllTimeMonthlyBuckets'
+    // own expense bucket already applies, so fixedBaseline + variableBaseline
+    // always sums back to baselineMonthlyExpense exactly, never a second,
+    // independently-rounded split that could silently disagree with it.
+    const recentMonthKeys = new Set(recentMonths.map(m => m.month));
+    const baselineMonthlyFixedExpense = baselineMonthsUsed > 0
+        ? transactions
+            .filter(t => t.type === 'expense' && !t.equityMovement && isFixedCost(t) && recentMonthKeys.has((t.date || '').slice(0, 7)))
+            .reduce((s, t) => s + (t.amount ?? 0) - (t.principalPortion || 0), 0) / baselineMonthsUsed
+        : 0;
+    const baselineMonthlyVariableExpense = Math.max(0, baselineMonthlyExpense - baselineMonthlyFixedExpense);
+
     // Running payroll doesn't post a transaction until it's actually run —
     // so a staff member added this week (or a raise not yet paid out) is
     // invisible to the trailing-expense baseline above until the first
@@ -238,6 +271,17 @@ export function buildFutureFinancialStatements(
     const riskAdjustedCategoryMonthlySpend = riskImpact?.currentMonthlySpend ?? 0;
     const riskAdjustedCategoryGrowthPct = riskImpact?.observedGrowthPct ?? 0;
     const restOfExpenseBaseline = Math.max(0, baselineMonthlyExpense - riskAdjustedCategoryMonthlySpend);
+    // Same fixed/variable split as baselineMonthlyFixedExpense above, minus
+    // whatever share of it the risk-adjusted category itself contributes --
+    // keeps restOfVariableBase + restOfFixedBase === restOfExpenseBaseline
+    // exactly, the same identity the un-adjusted baseline split holds.
+    const riskAdjustedCategoryFixedSpend = riskAdjustedCategory && baselineMonthsUsed > 0
+        ? transactions
+            .filter(t => t.type === 'expense' && !t.equityMovement && isFixedCost(t) && t.category === riskAdjustedCategory && recentMonthKeys.has((t.date || '').slice(0, 7)))
+            .reduce((s, t) => s + (t.amount ?? 0) - (t.principalPortion || 0), 0) / baselineMonthsUsed
+        : 0;
+    const restOfFixedBase = Math.max(0, baselineMonthlyFixedExpense - riskAdjustedCategoryFixedSpend);
+    const restOfVariableBase = Math.max(0, restOfExpenseBaseline - restOfFixedBase);
     const riskAdjustedCategoryInsight = riskImpact
         ? computeExternalRiskInsights(transactions, macroAssumptions).insights.find(i => i.category === riskImpact.category) ?? null
         : null;
@@ -261,6 +305,14 @@ export function buildFutureFinancialStatements(
     // growth does. Clamped so an entered discount swing can't push revenue
     // negative.
     const discountMultiplier = Math.max(0, 1 - adjustments.discountPctChange / 100);
+
+    // Fixed costs compound at their own rate when the caller sets one;
+    // otherwise they move together with variable costs at
+    // expenseGrowthPctPerMonth, identical to this lever not existing.
+    const fixedGrowthPct = adjustments.fixedCostGrowthPctPerMonth ?? adjustments.expenseGrowthPctPerMonth;
+    const growExpenseBase = (variableBase: number, fixedBase: number, month: number) =>
+        variableBase * Math.pow(1 + adjustments.expenseGrowthPctPerMonth / 100, month)
+        + fixedBase * Math.pow(1 + fixedGrowthPct / 100, month);
 
     for (let m = 1; m <= horizonMonths; m++) {
         // Known Future Events active this month -- a recurring event
@@ -292,10 +344,10 @@ export function buildFutureFinancialStatements(
         // the rest of the business's expenses here the same way it does on
         // the Cost Exposure tab.
         const operatingExpenses = (riskAdjustedCategory && includeRiskAdjustedCategoryTrend)
-            ? restOfExpenseBaseline * Math.pow(1 + adjustments.expenseGrowthPctPerMonth / 100, m)
+            ? growExpenseBase(restOfVariableBase, restOfFixedBase, m)
                 + riskAdjustedCategoryMonthlySpend * Math.pow(1 + riskAdjustedCategoryGrowthPct / 100, m / costExposureWindowMonths)
                 + adjustments.oneOffMonthlyCostAdd + payrollGapIncluded + eventExpense
-            : baselineMonthlyExpense * Math.pow(1 + adjustments.expenseGrowthPctPerMonth / 100, m)
+            : growExpenseBase(baselineMonthlyVariableExpense, baselineMonthlyFixedExpense, m)
                 + adjustments.oneOffMonthlyCostAdd + payrollGapIncluded + eventExpense;
         const profit = revenue - operatingExpenses;
         const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
@@ -370,7 +422,7 @@ export function buildFutureFinancialStatements(
     const existingLoanMonthlyPayment = loanStates.reduce((s, l) => s + l.payment, 0);
 
     return {
-        baselineMonthlyRevenue, baselineMonthlyExpense, baselineMonthsUsed, startingCash, startingLoanBalance,
+        baselineMonthlyRevenue, baselineMonthlyExpense, baselineMonthlyFixedExpense, baselineMonthlyVariableExpense, baselineMonthsUsed, startingCash, startingLoanBalance,
         activePayrollMonthlyCost, payrollGapIncluded, unpaidInventoryPurchases,
         knownPayables: wc.accountsPayable, knownReceivables: wc.accountsReceivable, existingLoanMonthlyPayment,
         riskAdjustedCategory, riskAdjustedCategoryMonthlySpend, riskAdjustedCategoryGrowthPct,

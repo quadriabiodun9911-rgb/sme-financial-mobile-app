@@ -16,7 +16,7 @@ import { computeAllTimeMonthlyBuckets } from '../utils/trendAnalysis';
 import { DEFAULT_THRESHOLDS } from '../utils/alertEngine';
 import { getEconomicReference } from '../utils/economicContext';
 import { DRIVER_LABEL } from '../utils/externalRiskInsights';
-import { RiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage } from '../utils/finance';
+import { RiskScore, RISK_BAND_STYLE, getMonthlyExpenseAverage, DSCR_THRESHOLDS } from '../utils/finance';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { scenarioAdjustments, summarizeScenario, SCENARIO_SWING, ScenarioName } from '../utils/scenarioForecast';
@@ -90,6 +90,13 @@ export default function FutureFinancialStatementsScreen() {
 
     const [revenueGrowth, setRevenueGrowth] = useState('0');
     const [expenseGrowth, setExpenseGrowth] = useState('0');
+    // Off by default -- fixed costs move together with "Expense change"
+    // above, identical to this lever not existing. Only when the owner
+    // explicitly says fixed costs behave differently (a lease/payroll
+    // commitment that keeps rising while supply costs ease, for example)
+    // does the separate rate below actually apply.
+    const [splitFixedCosts, setSplitFixedCosts] = useState(false);
+    const [fixedCostGrowth, setFixedCostGrowth] = useState('0');
     const [extraMonthlyCost, setExtraMonthlyCost] = useState('0');
     const [newLoanAmount, setNewLoanAmount] = useState('0');
     const [newLoanRate, setNewLoanRate] = useState('0');
@@ -102,6 +109,7 @@ export default function FutureFinancialStatementsScreen() {
     const adjustments: ForecastAdjustments = useMemo(() => ({
         revenueGrowthPctPerMonth: parseFloat(revenueGrowth) || 0,
         expenseGrowthPctPerMonth: parseFloat(expenseGrowth) || 0,
+        fixedCostGrowthPctPerMonth: splitFixedCosts ? (parseFloat(fixedCostGrowth) || 0) : undefined,
         oneOffMonthlyCostAdd: parseFloat(extraMonthlyCost) || 0,
         newLoanAmount: parseFloat(newLoanAmount) || 0,
         newLoanAnnualRatePct: parseFloat(newLoanRate) || 0,
@@ -110,7 +118,7 @@ export default function FutureFinancialStatementsScreen() {
         receivableDelayDays: parseFloat(receivableDelay) || 0,
         oneOffInventoryPurchase: parseFloat(inventoryPurchase) || 0,
         applySeasonality,
-    }), [revenueGrowth, expenseGrowth, extraMonthlyCost, newLoanAmount, newLoanRate, newLoanTerm, discountChange, receivableDelay, inventoryPurchase, applySeasonality]);
+    }), [revenueGrowth, expenseGrowth, splitFixedCosts, fixedCostGrowth, extraMonthlyCost, newLoanAmount, newLoanRate, newLoanTerm, discountChange, receivableDelay, inventoryPurchase, applySeasonality]);
 
     const hasAdjustments = JSON.stringify(adjustments) !== JSON.stringify(NO_ADJUSTMENTS);
 
@@ -188,6 +196,27 @@ export default function FutureFinancialStatementsScreen() {
             adjusted: adjustedAnnualDebtService > 0 ? adjustedAnnualProfit / adjustedAnnualDebtService : null,
         };
     }, [adjustments.newLoanAmount, adjustments.newLoanAnnualRatePct, adjustments.newLoanTermMonths, forecast.existingLoanMonthlyPayment, noAdjustmentsSummary, forecastSummary]);
+    // Spells out what the DSCR number above actually means for the new
+    // loan being modeled -- the same thresholds computeDSCR itself uses
+    // (DSCR_THRESHOLDS, finance.ts), worded as what a lender would
+    // realistically do with that number, not left as a bare ratio the
+    // owner has to interpret alone. Only shown when a new loan is
+    // actually being modeled -- an existing loan's own DSCR is already
+    // covered by the Loans screen's Covenant Tracking, not this card.
+    const loanAffordabilityVerdict: string | null = useMemo(() => {
+        if (adjustments.newLoanAmount <= 0 || whatIfDscr.adjusted === null) return null;
+        const dscr = whatIfDscr.adjusted;
+        if (dscr < 0) {
+            return `At this projected DSCR (${dscr.toFixed(2)}x -- negative, meaning operating income is itself negative), a lender would almost certainly decline this loan: there's no income to point to that covers even the existing obligations, let alone a new one.`;
+        }
+        if (dscr < DSCR_THRESHOLDS.warning) {
+            return `At this projected DSCR (${dscr.toFixed(2)}x, below the ${DSCR_THRESHOLDS.warning.toFixed(2)}x floor most lenders treat as a hard minimum), this loan would likely be declined, or offered only against hard collateral rather than cash flow.`;
+        }
+        if (dscr < DSCR_THRESHOLDS.healthy) {
+            return `At this projected DSCR (${dscr.toFixed(2)}x, below the ${DSCR_THRESHOLDS.healthy.toFixed(2)}x most lenders look for), this loan sits in a gray zone -- approvable at some lenders, but likely with a higher rate, tighter covenants, or a request for collateral.`;
+        }
+        return null; // Healthy DSCR -- the plain numbers above already say enough, no extra verdict needed.
+    }, [adjustments.newLoanAmount, whatIfDscr.adjusted]);
     // Runway under the What If? plan -- projected ending cash divided by
     // the scenario's own average monthly expense, so a hire, a loan draw,
     // or an inventory buy all show up in the one number an owner actually
@@ -986,6 +1015,17 @@ export default function FutureFinancialStatementsScreen() {
                             />
                             <AdjustmentInput label="Sales change" value={revenueGrowth} onChange={setRevenueGrowth} suffix="%/mo" />
                             <AdjustmentInput label="Expense change" value={expenseGrowth} onChange={setExpenseGrowth} suffix="%/mo" />
+                            <TouchableOpacity style={s.seasonalityToggleRow} onPress={() => setSplitFixedCosts(v => !v)}>
+                                <View style={[s.checkbox, splitFixedCosts && s.checkboxActive]}>
+                                    {splitFixedCosts && <Icon name="check" size={12} color="#fff" />}
+                                </View>
+                                <Text style={s.checkboxLabel}>
+                                    Fixed costs (rent, salaries, insurance, utilities — currently {fmt(forecast.baselineMonthlyFixedExpense)}/mo) change at their own rate, separate from the expense change above (currently {fmt(forecast.baselineMonthlyVariableExpense)}/mo)
+                                </Text>
+                            </TouchableOpacity>
+                            {splitFixedCosts && (
+                                <AdjustmentInput label="Fixed cost change" value={fixedCostGrowth} onChange={setFixedCostGrowth} suffix="%/mo" />
+                            )}
                             <AdjustmentInput label="Discount change" value={discountChange} onChange={setDiscountChange} suffix="pp" />
                             <AdjustmentInput label="Extra new hire(s), beyond current staff" value={extraMonthlyCost} onChange={setExtraMonthlyCost} suffix={currency} />
                             <AdjustmentInput label="Buy more inventory now" value={inventoryPurchase} onChange={setInventoryPurchase} suffix={currency} />
@@ -1037,6 +1077,15 @@ export default function FutureFinancialStatementsScreen() {
                                     <Text style={s.impactLine}>
                                         Debt capacity (Debt Service Coverage Ratio -- income ÷ debt payments, 1.0x+ means income covers them): {whatIfDscr.base !== null ? `${whatIfDscr.base.toFixed(2)}x` : 'No debt'} → {whatIfDscr.adjusted !== null ? `${whatIfDscr.adjusted.toFixed(2)}x` : 'No debt'}
                                     </Text>
+                                )}
+                                {loanAffordabilityVerdict && (
+                                    <View style={[s.riskCard, { marginTop: 6, marginBottom: 0 }]}>
+                                        <View style={s.riskTitleRow}>
+                                            <Icon name="alert-triangle" size={14} color={Colors.expense} />
+                                            <Text style={[s.riskTitle, s.riskTitleInRow]}>Would a lender approve this?</Text>
+                                        </View>
+                                        <Text style={s.riskText}>{loanAffordabilityVerdict}</Text>
+                                    </View>
                                 )}
                                 <Text style={s.impactLine}>
                                     Financial health: {RISK_BAND_STYLE[noAdjustmentsSummary.healthForecast.projectedScore.band].emoji} {noAdjustmentsSummary.healthForecast.projectedScore.score} → {RISK_BAND_STYLE[forecastSummary.healthForecast.projectedScore.band].emoji} {forecastSummary.healthForecast.projectedScore.score}
