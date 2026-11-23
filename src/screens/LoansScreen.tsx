@@ -1229,6 +1229,14 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
         () => computeCovenantTracking(loan, transactions, allLoans),
         [loan, transactions, allLoans],
     );
+    // The DSCR shown is always total debt service across every active loan
+    // (matching computeDSCR's own convention), not just this one -- only
+    // worth saying out loud when there's more than one active loan to be
+    // confused with.
+    const otherActiveLoanCount = useMemo(
+        () => allLoans.filter(l => l.status === 'active' && l.id !== loan.id).length,
+        [allLoans, loan.id],
+    );
     const progress = Math.min(100, (paid / loan.principal) * 100);
     const overdue = isOverdue(loan);
     const statusColor = loan.status === 'paid_off' ? Colors.income : loan.status === 'defaulted' ? Colors.expense : overdue ? Colors.warning : Colors.textMuted;
@@ -1395,6 +1403,11 @@ const LoanCard = React.memo(function LoanCard({ loan, currency, expanded, transa
                                 Current: {covenantTracking.currentDSCR >= 900 ? '∞' : covenantTracking.currentDSCR.toFixed(2)}x
                                 {' '}({covenantTracking.inBreach ? 'in breach' : `${covenantTracking.headroomMultiple.toFixed(2)}x headroom`})
                             </Text>
+                            {otherActiveLoanCount > 0 && (
+                                <Text style={[s.securityBoxLine, { fontStyle: 'italic', color: Colors.textMuted }]}>
+                                    This DSCR covers your total debt service across all {otherActiveLoanCount + 1} active loans, not just this one — only the {covenantTracking.covenantMinDSCR.toFixed(2)}x minimum above is specific to this facility.
+                                </Text>
+                            )}
                             {covenantTracking.headroomAsRevenuePct !== null && !covenantTracking.inBreach && (
                                 <Text style={s.securityBoxLine}>
                                     Revenue could fall about {Math.max(0, covenantTracking.headroomAsRevenuePct).toFixed(1)}% (holding costs flat) before this covenant is tested.

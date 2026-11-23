@@ -127,6 +127,65 @@ describe('computeCovenantTracking', () => {
         expect(result.narrative).toMatch(/incomplete transaction history/i);
     });
 
+    it('combines debt service from multiple active loans for the shared DSCR figure', () => {
+        const loanA = makeLoan({ id: 'A', covenantMinDSCR: 1.25, interestRate: 0, startDate: '2024-01-01', principal: 1000000, termMonths: 24 });
+        const loanB = makeLoan({ id: 'B', covenantMinDSCR: 1.10, interestRate: 0, startDate: '2024-01-01', principal: 500000, termMonths: 24 });
+        const allLoans = [loanA, loanB];
+        const annualDebtServiceA = loanMonthlyPayment(loanA.principal, loanA.interestRate, loanA.termMonths) * 12;
+        const annualDebtServiceB = loanMonthlyPayment(loanB.principal, loanB.interestRate, loanB.termMonths) * 12;
+        const combinedAnnual = annualDebtServiceA + annualDebtServiceB;
+
+        const months = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12'];
+        const txs = quarterTxs(months, 1.40 * combinedAnnual);
+        const now = new Date('2026-12-20T00:00:00');
+
+        const resultA = computeCovenantTracking(loanA, txs, allLoans, now);
+        const resultB = computeCovenantTracking(loanB, txs, allLoans, now);
+
+        // Both cards share the same combined DSCR...
+        expect(resultA.currentDSCR).toBeCloseTo(resultB.currentDSCR, 5);
+        expect(resultA.points.map(p => p.dscr)).toEqual(resultB.points.map(p => p.dscr));
+        // ...but each is checked against its own covenant.
+        expect(resultA.covenantMinDSCR).toBe(1.25);
+        expect(resultB.covenantMinDSCR).toBe(1.10);
+    });
+
+    it('excludes a loan from quarters before its own startDate', () => {
+        const loanA = makeLoan({ id: 'A', covenantMinDSCR: 1.25, interestRate: 0, startDate: '2020-01-01', principal: 1000000, termMonths: 60 });
+        const loanB = makeLoan({ id: 'B', covenantMinDSCR: 1.10, interestRate: 0, startDate: '2026-07-01', principal: 500000, termMonths: 24 });
+        const allLoans = [loanA, loanB];
+        const annualDebtServiceA = loanMonthlyPayment(loanA.principal, loanA.interestRate, loanA.termMonths) * 12;
+
+        const months = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12'];
+        const flatNOIPerQuarter = 1.40 * annualDebtServiceA;
+        const txs = quarterTxs(months, flatNOIPerQuarter);
+        const now = new Date('2026-12-20T00:00:00');
+
+        const resultA = computeCovenantTracking(loanA, txs, allLoans, now);
+        const q1 = resultA.points[0].dscr!; // before loan B started
+        const q3 = resultA.points[2].dscr!; // after loan B's debt service joined
+        expect(q1).toBeGreaterThan(q3);
+    });
+
+    it('does not count a closed loan without closedAt as still active debt service historically', () => {
+        const loanA = makeLoan({ id: 'A', covenantMinDSCR: 1.25, interestRate: 0, startDate: '2020-01-01', principal: 1000000, termMonths: 60 });
+        // Already paid off, but closedAt was never recorded (e.g. a legacy
+        // record) -- must not be read as still-active debt service.
+        const loanB = makeLoan({ id: 'B', covenantMinDSCR: 1.10, interestRate: 0, startDate: '2020-01-01', principal: 500000, termMonths: 60, status: 'paid_off', closedAt: undefined });
+        const annualDebtServiceA = loanMonthlyPayment(loanA.principal, loanA.interestRate, loanA.termMonths) * 12;
+
+        const months = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12'];
+        const flatNOIPerQuarter = 1.40 * annualDebtServiceA;
+        const txs = quarterTxs(months, flatNOIPerQuarter);
+        const now = new Date('2026-12-20T00:00:00');
+
+        const resultControl = computeCovenantTracking(loanA, txs, [loanA], now);
+        const resultWithPhantom = computeCovenantTracking(loanA, txs, [loanA, loanB], now);
+
+        expect(resultWithPhantom.currentDSCR).toBeCloseTo(resultControl.currentDSCR, 5);
+        expect(resultWithPhantom.points.map(p => p.dscr)).toEqual(resultControl.points.map(p => p.dscr));
+    });
+
     it('reports headroom as a % of revenue, not just a multiple', () => {
         const loan = makeLoan({ covenantMinDSCR: 1.25, interestRate: 0, startDate: '2024-01-01' });
         const annualDebtService = loanMonthlyPayment(loan.principal, loan.interestRate, loan.termMonths) * 12;

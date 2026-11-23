@@ -97,8 +97,18 @@ function quarterlyNOI(transactions: Transaction[], start: string, end: string): 
 // started and hadn't yet closed -- status/closedAt are current-state
 // fields, not historically tracked, so this is the closest honest proxy
 // this app's data can support for "was this loan on the books then."
+// A loan still active today was necessarily active for every past quarter
+// since it started. A loan that's since closed only counts for quarters
+// before it closed -- and if we don't know exactly when (closedAt unset,
+// e.g. a legacy record), the honest move is to leave it out rather than
+// assume it was still active, the same "don't let a data gap pose as a
+// signal" rule this file's header applies everywhere else.
 function totalDebtServiceAsOf(loans: Loan[], quarterEnd: string): number {
-    const activeThen = loans.filter(l => l.startDate <= quarterEnd && (!l.closedAt || l.closedAt >= quarterEnd));
+    const activeThen = loans.filter(l => {
+        if (l.startDate > quarterEnd) return false;
+        if (l.status === 'active') return true;
+        return l.closedAt != null && l.closedAt >= quarterEnd;
+    });
     const monthly = activeThen.reduce((s, l) => s + loanMonthlyPayment(l.principal, l.interestRate, l.termMonths), 0);
     return monthly * 12;
 }
