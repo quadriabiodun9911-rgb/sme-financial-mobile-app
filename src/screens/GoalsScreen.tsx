@@ -128,6 +128,19 @@ export default function GoalsScreen() {
 
     const PCT_TYPES: GoalType[] = ['revenue_growth', 'cost_reduction', 'margin_improvement'];
 
+    // Drives the Add Goal form's "Target Value (...)" label so it names this
+    // type's real unit instead of assuming currency for every type except
+    // margin_improvement -- that assumption was wrong for customer_concentration
+    // and supplier_concentration (both '%', like margin_improvement) and for
+    // customer_frequency ('orders/customer/mo'), which showed a currency
+    // symbol next to a field whose actual values are a percentage or a small
+    // orders-per-month count. goalDefaults' own `unit` is the single source
+    // of truth GoalCard and the Goal Bridge plan already key off of.
+    const selectedTypeUnit = useMemo(
+        () => selectedType ? goalDefaults(selectedType, finance, settings, transactions, loans).unit ?? currency : currency,
+        [selectedType, finance, settings, transactions, loans, currency]
+    );
+
     const planGoal = useMemo(
         () => goals.find(g => g.id === planGoalId) ?? null,
         [goals, planGoalId]
@@ -528,7 +541,7 @@ export default function GoalsScreen() {
                                 </>
                             )}
 
-                            <FieldLabel>Target Value ({selectedType === 'margin_improvement' ? '%' : currency})</FieldLabel>
+                            <FieldLabel>Target Value ({selectedTypeUnit})</FieldLabel>
                             <TextInput style={styles.input} value={form.targetValue} onChangeText={handleTargetValueChange} keyboardType="numeric" placeholder="e.g. 200000" placeholderTextColor={Colors.muted} />
 
                             <FieldLabel>Deadline</FieldLabel>
