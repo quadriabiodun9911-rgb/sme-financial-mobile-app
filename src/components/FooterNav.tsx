@@ -126,6 +126,7 @@ export const DECIDE_ITEMS: { label: TranslationKey; icon: IconName; screen: Scre
     // breakdown) and were dropped or redistributed. No tab param needed
     // any more -- Q&A is the only thing this screen shows now.
     { label: 'navAdvisor',  icon: 'message-circle',  screen: 'cfo',      color: '#8b5cf6', desc: 'navAdvisorDesc' },
+    { label: 'navProductivity', icon: 'activity', screen: 'productivity', color: '#0ea5e9', desc: 'navProductivityDesc' },
     { label: 'navAnalysisDecisions', icon: 'pie-chart', screen: 'analysis', color: '#14b8a6', desc: 'navAnalysisDecisionsDesc' },
     { label: 'goals',    icon: 'target',          screen: 'goals',    color: '#ef4444', desc: 'navGoalsDesc' },
     { label: 'navBudget',   icon: 'dollar-sign',     screen: 'budget',   color: '#10b981', desc: 'navBudgetDesc' },
@@ -268,11 +269,11 @@ export default function FooterNav() {
     const visibleUnderstandGrid = useMemo(() => visibleUnderstand.filter(i => !OPERATIONS_SCREENS.includes(i.screen)), [visibleUnderstand]);
     const visibleUnderstandOps  = useMemo(() => visibleUnderstand.filter(i => OPERATIONS_SCREENS.includes(i.screen)), [visibleUnderstand]);
 
-    // Decide's five items pair into two rows -- Insights+Advisor both answer
-    // "what needs attention," Analysis/Goals/Budget are the three "decide
-    // and plan" tools.
+    // Decide's six items pair into two rows -- Insights+Advisor both answer
+    // "what needs attention," Analysis/Goals/Budget/Productivity are the
+    // four "decide and plan" tools.
     const visibleDecideAdvisorGroup = useMemo(() => visibleDecide.filter(i => i.screen === 'insights' || i.screen === 'cfo'), [visibleDecide]);
-    const visibleDecideAnalysisGroup = useMemo(() => visibleDecide.filter(i => i.screen === 'analysis' || i.screen === 'goals' || i.screen === 'budget'), [visibleDecide]);
+    const visibleDecideAnalysisGroup = useMemo(() => visibleDecide.filter(i => i.screen === 'analysis' || i.screen === 'goals' || i.screen === 'budget' || i.screen === 'productivity'), [visibleDecide]);
     const visibleImprove = useMemo(() => IMPROVE_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
     const visibleFund = useMemo(() => FUND_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);
     const visibleAdvanced = useMemo(() => ADVANCED_ITEMS.filter(i => isScreenAllowedForRole(i.screen, userRole)), [userRole]);

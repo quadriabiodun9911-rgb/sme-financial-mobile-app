@@ -239,6 +239,7 @@ const T = {
         navRisk: 'Risk', navForecast: 'Forecast',
         navInsightsDesc: 'What actually needs a decision right now',
         navAdvisor: 'Ask Advisor', navAdvisorDesc: 'Ask about your numbers, get a straight answer — CFO-level insight on demand',
+        navProductivity: 'Productivity', navProductivityDesc: 'How much output and profit you get from the money, inventory and time you already have',
         navAnalysisDecisions: 'Analysis & Decisions', navAnalysisDecisionsDesc: 'Why is this happening, what if I..., and pressure-test a real decision',
         navBeforeYouDecide: 'Before You Decide', navBeforeYouDecideDesc: 'Pressure-test a hire, purchase, discount, or loan',
         navGoalsDesc: 'Set the target this decision is aimed at',

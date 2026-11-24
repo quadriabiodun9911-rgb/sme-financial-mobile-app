@@ -38,6 +38,7 @@ import LoansScreen from './src/screens/LoansScreen';
 import InventoryScreen from './src/screens/InventoryScreen';
 import GrowthIntelligenceScreen from './src/screens/GrowthIntelligenceScreen';
 import CFOScreen from './src/screens/CFOScreen';
+import ProductivityAssessmentScreen from './src/screens/ProductivityAssessmentScreen';
 import BudgetScreen from './src/screens/BudgetScreen';
 import AnalysisScreen from './src/screens/AnalysisScreen';
 import FutureFinancialStatementsScreen from './src/screens/FutureFinancialStatementsScreen';
@@ -249,6 +250,7 @@ function NavigatorContent() {
             {currentScreen === 'inventory'    && <InventoryScreen />}
             {currentScreen === 'growth'       && <GrowthIntelligenceScreen />}
             {currentScreen === 'cfo'          && <CFOScreen />}
+            {currentScreen === 'productivity' && <ProductivityAssessmentScreen />}
             {currentScreen === 'budget'       && <BudgetScreen />}
             {currentScreen === 'analysis'     && <AnalysisScreen />}
             {currentScreen === 'future-statements' && (

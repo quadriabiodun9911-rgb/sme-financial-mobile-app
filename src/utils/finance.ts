@@ -1968,6 +1968,18 @@ export function scoreProfitabilityMargin(marginPct: number): number {
 export function scoreLiquidityRunwayMonths(runwayMonths: number): number {
     return runwayMonths >= 6 ? 100 : runwayMonths >= 3 ? 70 : runwayMonths >= 1 ? 40 : 10;
 }
+// Exported so productivityAssessment.ts's Cash Velocity factor reuses the
+// exact same cash-conversion-cycle scale as this score's own Working
+// Capital factor below, rather than a second, independently-tuned one.
+export function scoreCashConversionCycle(ccc: number): number {
+    return ccc <= 15 ? 100 : ccc <= 30 ? 70 : ccc <= 60 ? 40 : 10;
+}
+// Exported so productivityAssessment.ts's Inventory Efficiency factor
+// reuses the exact same slow-moving-stock scale as this score's own
+// Inventory factor below, rather than a second, independently-tuned one.
+export function scoreSlowMovingInventoryPct(slowPct: number): number {
+    return slowPct <= 15 ? 100 : slowPct <= 35 ? 60 : 25;
+}
 
 export function computeRiskScore(
     finance: Pick<FinanceData, 'income' | 'profit' | 'cashBalance'>,
@@ -2047,7 +2059,7 @@ export function computeRiskScore(
     const hasWcData = transactions.some(t => t.status === 'paid');
     factors.push({
         name: 'Working Capital',
-        score: !hasWcData ? 50 : wc.ccc <= 15 ? 100 : wc.ccc <= 30 ? 70 : wc.ccc <= 60 ? 40 : 10,
+        score: !hasWcData ? 50 : scoreCashConversionCycle(wc.ccc),
         weight: 5,
         status: !hasWcData ? 'warning' : wc.ccc <= 30 ? 'good' : wc.ccc <= 60 ? 'warning' : 'danger',
         explanation: !hasWcData
@@ -2120,7 +2132,7 @@ export function computeRiskScore(
             .filter(i => computeStockVelocity(i, transactions).tier === 'slow')
             .reduce((s, i) => s + i.quantity * (i.costPrice ?? 0), 0);
         const slowPct = totalValue > 0 ? (slowValue / totalValue) * 100 : 0;
-        inventoryScore = slowPct <= 15 ? 100 : slowPct <= 35 ? 60 : 25;
+        inventoryScore = scoreSlowMovingInventoryPct(slowPct);
         inventoryStatus = slowPct <= 15 ? 'good' : slowPct <= 35 ? 'warning' : 'danger';
         inventoryExplanation = `${slowPct.toFixed(0)}% of inventory value is sitting in slow-moving stock -- ${
             slowPct <= 15 ? 'a healthy turnover.' :

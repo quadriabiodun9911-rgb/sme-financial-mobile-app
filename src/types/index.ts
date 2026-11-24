@@ -17,6 +17,7 @@ export type Screen =
     | 'inventory'
     | 'growth'
     | 'cfo'
+    | 'productivity'
     | 'budget'
     | 'analysis'
     | 'future-statements'
