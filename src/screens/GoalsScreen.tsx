@@ -305,7 +305,13 @@ export default function GoalsScreen() {
         setForm({
             title: overrides?.title ?? defaults.title ?? meta.label,
             description: overrides?.description ?? defaults.description ?? meta.description,
-            targetValue: overrides?.targetValue != null ? String(overrides.targetValue) : defaults.targetValue ? String(defaults.targetValue) : '',
+            // != null (not truthy) -- a legitimate default target of exactly 0
+            // (reduce_overdue_ar's "eliminate all overdue AR" is always 0;
+            // customer_frequency falls back to 0 when there's no detectable
+            // frequency decline to recover from) was previously falsy and so
+            // always rendered as an empty field, as if there were no default
+            // at all, instead of the real, correct "0".
+            targetValue: overrides?.targetValue != null ? String(overrides.targetValue) : defaults.targetValue != null ? String(defaults.targetValue) : '',
             deadline: overrides?.deadline ?? '',
             percentTarget: defaults.percentTarget != null ? String(defaults.percentTarget) : '',
         });
