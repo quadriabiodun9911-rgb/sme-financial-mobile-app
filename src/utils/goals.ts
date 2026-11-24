@@ -720,7 +720,14 @@ export function goalDefaults(
                 description: 'Define your own financial goal.',
                 targetValue: 0,
                 baselineValue: 0,
-                unit: '%',
+                // The Add Goal form's own Target Value label reads
+                // "Target Value (<currency>)" for every type except
+                // margin_improvement (GoalsScreen.tsx) -- a custom goal's
+                // own unit must match that, not the flat '%' this
+                // previously defaulted to, which rendered every custom
+                // goal's real currency amount with a '%' suffix instead
+                // (e.g. "25000.0%").
+                unit: currency,
             };
     }
 }

@@ -117,6 +117,12 @@ describe('goalDefaults', () => {
         const d = goalDefaults('cash_reserve', finance, settings);
         expect(d.targetValue).toBe(parseFloat(settings.minReserve) * 2);
     });
+
+    it('custom goal unit is the business\'s own currency, matching the Add Goal form\'s "Target Value (currency)" label -- not a flat "%"', () => {
+        const d = goalDefaults('custom', finance, settings);
+        expect(d.unit).toBe(settings.currency);
+        expect(d.unit).not.toBe('%');
+    });
 });
 
 // ─── generateStrategy ─────────────────────────────────────────────────────────
