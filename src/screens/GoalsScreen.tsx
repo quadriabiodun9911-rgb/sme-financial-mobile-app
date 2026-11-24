@@ -102,6 +102,13 @@ export default function GoalsScreen() {
 
     const [addModalOpen, setAddModalOpen] = useState(false);
     const [editGoal, setEditGoal]         = useState<FinancialGoal | null>(null);
+    // "Custom" goals have no formula to compute currentValue from (see
+    // goals.ts's own computeGoalCurrent -- 'custom' just echoes back
+    // whatever's stored), so this is the only way a custom goal's progress
+    // ever actually moves. Every other goal type recomputes live from
+    // transactions on every read and has no need for this.
+    const [progressGoal, setProgressGoal] = useState<FinancialGoal | null>(null);
+    const [progressValue, setProgressValue] = useState('');
     // Plan modal — merges what used to be two separate destinations (a
     // "View Strategy" modal here, and a full navigate-away to GoalBridgeScreen)
     // into one modal with two tabs, since both answered the same underlying
@@ -359,6 +366,19 @@ export default function GoalsScreen() {
         setForm({ title: goal.title, description: goal.description, targetValue: String(goal.targetValue), deadline: goal.deadline, percentTarget: String(goal.percentTarget ?? '') });
     }, []);
 
+    const openUpdateProgress = useCallback((goal: FinancialGoal) => {
+        setProgressGoal(goal);
+        setProgressValue(String(goal.currentValue ?? 0));
+    }, []);
+
+    const handleSaveProgress = () => {
+        if (!progressGoal) return;
+        const v = parseFloat(progressValue);
+        if (isNaN(v)) { showAlert('Please enter a number', 'Type in where this goal actually stands right now.'); return; }
+        updateGoal(progressGoal.id, { currentValue: v });
+        setProgressGoal(null);
+    };
+
     // Stable, list-index-independent handlers passed to every GoalCard — see
     // the matching note on LoanCard in LoansScreen.tsx for why this matters:
     // React.memo only skips re-rendering a card when ALL of its props are
@@ -432,6 +452,7 @@ export default function GoalsScreen() {
                                     onCollect={handleCollect}
                                     onSeeFullPicture={handleSeeFullPicture}
                                     onTurnIntoBudget={goal.type === 'cost_reduction' ? () => navigate('budget', { openAutoGenForGoal: true, budgetGoalTarget: goal.targetValue }) : undefined}
+                                    onUpdateProgress={openUpdateProgress}
                                 />
                             ))}
                             {/* Achieved goals */}
@@ -551,6 +572,41 @@ export default function GoalsScreen() {
                                 </TouchableOpacity>
                                 <TouchableOpacity style={[styles.modalBtn, { backgroundColor: Colors.primary }]} onPress={handleEditSave}>
                                     <Text style={styles.modalBtnText}>Save Changes</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </ScrollView>
+                </View>
+            </Modal>
+
+            {/* Update Progress Modal — custom goals only. Every other goal
+                type recomputes currentValue live from transactions
+                (computeGoalCurrent, goals.ts); 'custom' has no formula to
+                do that with, so this is the only way its progress ever
+                moves. */}
+            <Modal visible={!!progressGoal} animationType="slide" transparent onRequestClose={() => setProgressGoal(null)}>
+                <View style={styles.overlay}>
+                    <ScrollView keyboardShouldPersistTaps="handled">
+                        <View style={[styles.modal, constrainSheetWidth && styles.modalWide]}>
+                            <Text style={styles.modalTitle}>Update Progress</Text>
+                            {progressGoal && (
+                                <Text style={cardStyles.desc}>
+                                    {progressGoal.title} — target {progressGoal.unit === '%' ? `${progressGoal.targetValue}%` : `${currency}${progressGoal.targetValue.toLocaleString()}`}
+                                </Text>
+                            )}
+
+                            <FieldLabel>Where does this stand right now?</FieldLabel>
+                            <TextInput
+                                style={styles.input} value={progressValue} onChangeText={setProgressValue}
+                                keyboardType="numeric" placeholder="e.g. 45000" placeholderTextColor={Colors.muted}
+                            />
+
+                            <View style={styles.modalBtns}>
+                                <TouchableOpacity style={[styles.modalBtn, { backgroundColor: Colors.muted }]} onPress={() => setProgressGoal(null)}>
+                                    <Text style={styles.modalBtnText}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[styles.modalBtn, { backgroundColor: Colors.primary }]} onPress={handleSaveProgress}>
+                                    <Text style={styles.modalBtnText}>Save</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -1026,7 +1082,7 @@ function DailyActionsSection({ goal, transactions, currency }: { goal: Financial
 // the parent means a card whose own goal/feasibility hasn't changed can
 // skip re-rendering entirely when a sibling goal updates or the screen
 // re-renders for an unrelated reason (typing in the add-goal form, etc.).
-const GoalCard = React.memo(function GoalCard({ goal, currency, daysRemaining, feasibility, onPlan, onEdit, onDelete, onExecute, onCollect, onSeeFullPicture, onTurnIntoBudget }: {
+const GoalCard = React.memo(function GoalCard({ goal, currency, daysRemaining, feasibility, onPlan, onEdit, onDelete, onExecute, onCollect, onSeeFullPicture, onTurnIntoBudget, onUpdateProgress }: {
     goal: FinancialGoal;
     currency: string;
     daysRemaining: string;
@@ -1038,6 +1094,7 @@ const GoalCard = React.memo(function GoalCard({ goal, currency, daysRemaining, f
     onCollect?: () => void;
     onSeeFullPicture?: () => void;
     onTurnIntoBudget?: () => void;
+    onUpdateProgress?: (goal: FinancialGoal) => void;
 }) {
     const statusColor = STATUS_COLORS[goal.status];
     const isReduction = goal.type === 'cost_reduction' || goal.type === 'reduce_overdue_ar';
@@ -1168,6 +1225,13 @@ const GoalCard = React.memo(function GoalCard({ goal, currency, daysRemaining, f
                 </View>
             </View>
 
+            {!isAchieved && goal.type === 'custom' && onUpdateProgress && (
+                <TouchableOpacity style={cardStyles.updateProgressBtn} onPress={() => onUpdateProgress(goal)}>
+                    <Icon name="edit-3" size={13} color={Colors.primary} />
+                    <Text style={cardStyles.updateProgressBtnText}>Update Progress</Text>
+                </TouchableOpacity>
+            )}
+
             <View style={cardStyles.actions}>
                 <TouchableOpacity style={cardStyles.strategyBtn} onPress={() => onPlan(goal.id)}>
                     <View style={cardStyles.strategyBtnInner}>
@@ -1229,6 +1293,12 @@ const cardStyles = StyleSheet.create({
     // in LoginScreen/ReportsScreen.
     strategyBtnText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
     deleteText: { color: Colors.expense, fontSize: 12 },
+    updateProgressBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+        borderWidth: 1, borderColor: Colors.primary, borderRadius: Radius.sm,
+        paddingVertical: 8, marginBottom: 12,
+    },
+    updateProgressBtnText: { color: Colors.primary, fontSize: 12.5, fontWeight: '700' },
 });
 
 const styles = StyleSheet.create({

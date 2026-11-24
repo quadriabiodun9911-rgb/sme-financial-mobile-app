@@ -282,3 +282,41 @@ describe('sanitizeStoredGoals', () => {
         expect(cleaned[0].id).toBe('good-1');
     });
 });
+
+// ─── refreshGoal — custom goals ─────────────────────────────────────────────
+//
+// 'custom' has no formula to recompute currentValue from (computeGoalCurrent's
+// 'custom' case just echoes back whatever's stored) -- GoalsScreen's "Update
+// Progress" action is the only thing that ever moves it, by calling
+// updateGoal(id, { currentValue }). This proves that once it IS updated,
+// refreshGoal correctly recomputes progress/status from the new value,
+// rather than staying stuck at whatever it was created with.
+describe('refreshGoal — custom goal progress', () => {
+    const finance = makeFinance();
+
+    it('stays frozen at 0% progress until currentValue is actually updated', () => {
+        const goal = makeGoal({ type: 'custom', baselineValue: 0, targetValue: 50000, currentValue: 0 });
+        const refreshed = refreshGoal(goal, finance, []);
+        expect(refreshed.currentValue).toBe(0);
+        expect(refreshed.progress).toBe(0);
+    });
+
+    it('reflects an updated currentValue (as GoalsScreen\'s Update Progress action sets it) in progress and status', () => {
+        const goal = makeGoal({ type: 'custom', baselineValue: 0, targetValue: 50000, currentValue: 0, deadline: '2099-01-01' });
+        // Simulates updateGoal(id, { currentValue: 25000 }) having been
+        // called, the same partial merge CreditWorthinessScreen/LoansScreen
+        // style update handlers already use elsewhere in this app.
+        const updated = { ...goal, currentValue: 25000 };
+        const refreshed = refreshGoal(updated, finance, []);
+        expect(refreshed.currentValue).toBe(25000);
+        expect(refreshed.progress).toBe(50);
+        expect(refreshed.status).not.toBe('off_track');
+    });
+
+    it('reaches "achieved" once currentValue meets the target, exactly like a computed goal type', () => {
+        const goal = makeGoal({ type: 'custom', baselineValue: 0, targetValue: 50000, currentValue: 50000 });
+        const refreshed = refreshGoal(goal, finance, []);
+        expect(refreshed.progress).toBe(100);
+        expect(refreshed.status).toBe('achieved');
+    });
+});
