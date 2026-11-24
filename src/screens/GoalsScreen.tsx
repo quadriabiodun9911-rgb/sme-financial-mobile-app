@@ -201,14 +201,15 @@ export default function GoalsScreen() {
         () => planGoal ? computeGoalCheckpoints(planGoal) : [],
         [planGoal]
     );
-    // Same unit convention GoalCard's own fmtUnit uses (currency/%/days by
-    // goal.unit), kept in sync with it rather than routed through
-    // formatGoalMetric's narrower bridge-engine goal type.
+    // Same unit convention GoalCard's own fmtUnit uses (currency/%/days/raw
+    // unit text by goal.unit), kept in sync with it rather than routed
+    // through formatGoalMetric's narrower bridge-engine goal type.
     const fmtCheckpointValue = (value: number) => {
         if (!planGoal) return '';
         return planGoal.unit === '%' ? `${value.toFixed(1)}%`
             : planGoal.unit === 'days' ? `${Math.round(value)} days`
-            : `${currency}${Math.round(value).toLocaleString()}`;
+            : planGoal.unit === currency ? `${currency}${Math.round(value).toLocaleString()}`
+            : `${value.toFixed(1)} ${planGoal.unit}`;
     };
 
     // "What could stop me from reaching THIS goal" — filters the same real
@@ -1098,7 +1099,6 @@ const GoalCard = React.memo(function GoalCard({ goal, currency, daysRemaining, f
 }) {
     const statusColor = STATUS_COLORS[goal.status];
     const isReduction = goal.type === 'cost_reduction' || goal.type === 'reduce_overdue_ar';
-    const unit = goal.unit === '%' ? '%' : goal.unit === 'days' ? 'days' : currency;
 
     // Grows the fill in from 0 rather than snapping straight to its final
     // width -- same motion language as Dashboard/Scoreboard's gauges, sized
@@ -1119,9 +1119,16 @@ const GoalCard = React.memo(function GoalCard({ goal, currency, daysRemaining, f
     // (₦64.4) — unit was being prepended unconditionally throughout this
     // card, so every percentage goal (margin_improvement) displayed as
     // "%64.4" instead of "64.4%". 'days' (runway goals saved from the Goal
-    // Bridge screen) needs the same suffix treatment.
+    // Bridge screen) needs the same suffix treatment. Any other unit text
+    // (e.g. customer_frequency's 'orders/customer/mo') was previously
+    // collapsed into currency too -- it's neither '%'/'days' nor the
+    // currency symbol, so it falls through to its own raw-text suffix here
+    // instead of a misleading "₦3" for what is actually "3 orders/customer/mo".
     const fmtUnit = (value: number, decimals: number = 0) =>
-        unit === '%' ? `${value.toFixed(decimals)}%` : unit === 'days' ? `${Math.round(value)} days` : `${unit}${Math.round(value).toLocaleString()}`;
+        goal.unit === '%' ? `${value.toFixed(decimals)}%`
+            : goal.unit === 'days' ? `${Math.round(value)} days`
+            : goal.unit === currency ? `${currency}${Math.round(value).toLocaleString()}`
+            : `${value.toFixed(decimals)} ${goal.unit}`;
 
     const isAchieved = goal.status === 'achieved';
     const feasColor = feasibility?.feasibility === 'easy' ? Colors.income : feasibility?.feasibility === 'medium' ? Colors.warning : Colors.expense;
@@ -1145,7 +1152,7 @@ const GoalCard = React.memo(function GoalCard({ goal, currency, daysRemaining, f
                 <View style={[cardStyles.feasRow, { borderColor: feasColor + '55', backgroundColor: feasColor + '12' }]}>
                     <Text style={[cardStyles.feasBadge, { color: feasColor }]}>{feasibility.feasibility.toUpperCase()}</Text>
                     <Text style={cardStyles.feasText}>
-                        Needs {fmtUnit(Math.abs(feasibility.requiredMonthlyImprovement), 1)}/mo · {(feasibility.successProbability * 100).toFixed(0)}% likely
+                        Needs {fmtUnit(Math.abs(feasibility.requiredMonthlyImprovement), 1)}{goal.unit.endsWith('/mo') ? '' : '/mo'} · {(feasibility.successProbability * 100).toFixed(0)}% likely
                     </Text>
                 </View>
             )}
