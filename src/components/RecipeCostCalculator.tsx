@@ -4,19 +4,11 @@ import { Colors } from '../theme/colors';
 import { Shadow } from '../theme/tokens';
 import { InventoryItem } from '../types';
 import { computeRecipeCost, FoodCostVerdict } from '../utils/recipeCost';
+import { useApp } from '../contexts/AppContext';
 
 interface SelectedIngredient {
     inventoryItemId: string;
     quantity: string;
-}
-
-interface SavedRecipe {
-    id: string;
-    name: string;
-    sellingPrice: number;
-    ingredients: { name: string; quantity: number; costPerUnit: number }[];
-    foodCostPct: number;
-    verdict: FoodCostVerdict;
 }
 
 const MAX_SAVED = 5;
@@ -45,10 +37,16 @@ interface Props {
 // rather than a second, disconnected ingredient list a user would have to
 // keep in sync by hand.
 export default function RecipeCostCalculator({ inventory, currency }: Props) {
+    const { settings, updateSettings } = useApp();
     const [recipeName, setRecipeName] = useState('');
     const [sellingPrice, setSellingPrice] = useState('');
     const [selected, setSelected] = useState<SelectedIngredient[]>([]);
-    const [savedRecipes, setSavedRecipes] = useState<SavedRecipe[]>([]);
+    // Persisted on settings (see BusinessSettings.savedRecipes) rather than
+    // local state -- this used to live only in component state, so it was
+    // silently wiped by switching Inventory's own Stock/Pricing tab and
+    // back, let alone navigating away or reloading, despite the "Save Menu
+    // Item" button implying otherwise.
+    const savedRecipes = settings.savedRecipes ?? [];
 
     const toggleIngredient = (itemId: string) => {
         setSelected(prev =>
@@ -82,19 +80,22 @@ export default function RecipeCostCalculator({ inventory, currency }: Props) {
 
     const saveRecipe = () => {
         if (!hasRecipe || savedRecipes.length >= MAX_SAVED) return;
-        setSavedRecipes(prev => [...prev, {
-            id: `${Date.now()}`,
-            name: recipeName.trim() || `Menu item ${prev.length + 1}`,
-            sellingPrice: parseFloat(sellingPrice) || 0,
-            ingredients: ingredientCosts,
-            foodCostPct: result.foodCostPct,
-            verdict: result.verdict,
-        }]);
+        updateSettings({
+            savedRecipes: [...savedRecipes, {
+                id: `${Date.now()}`,
+                name: recipeName.trim() || `Menu item ${savedRecipes.length + 1}`,
+                sellingPrice: parseFloat(sellingPrice) || 0,
+                ingredients: ingredientCosts,
+                foodCostPct: result.foodCostPct,
+                verdict: result.verdict,
+                createdAt: new Date().toISOString(),
+            }],
+        });
         setRecipeName('');
     };
 
     const removeRecipe = (id: string) => {
-        setSavedRecipes(prev => prev.filter(r => r.id !== id));
+        updateSettings({ savedRecipes: savedRecipes.filter(r => r.id !== id) });
     };
 
     if (inventory.length === 0) {

@@ -439,6 +439,38 @@ export interface CustomerCreditLimit {
     createdAt: string;
 }
 
+// A deliberately-kept recipe/menu-item costing from Inventory's Recipe Cost
+// Calculator (food-service businesses only) -- the owner chose to save
+// this specific result, so it's a point-in-time record, not re-derived
+// from current ingredient costs on every read (those may have moved since
+// this was saved). See RecipeCostCalculator.tsx / recipeCost.ts, whose own
+// FoodCostVerdict this duplicates rather than imports -- types/index.ts
+// takes no dependencies on src/utils, the same reason MacroDriver/
+// CommitmentStatus above are self-contained unions rather than imports.
+export interface SavedRecipe {
+    id: string;
+    name: string;
+    sellingPrice: number;
+    ingredients: { name: string; quantity: number; costPerUnit: number }[];
+    foodCostPct: number;
+    verdict: 'excellent' | 'healthy' | 'caution' | 'high';
+    createdAt: string;
+}
+
+// Same "deliberately saved, point-in-time" reasoning as SavedRecipe above,
+// for Inventory's Production Cost Calculator (manufacturing businesses
+// only). See ProductionCostCalculator.tsx / productionCost.ts.
+export interface SavedProductionBatch {
+    id: string;
+    name: string;
+    unitsProduced: number;
+    sellingPricePerUnit: number;
+    costPerUnit: number;
+    marginPct: number;
+    verdict: 'healthy' | 'caution' | 'high';
+    createdAt: string;
+}
+
 export interface BusinessSettings {
     businessName?: string;
     businessType: 'product' | 'service' | 'both';
@@ -476,6 +508,8 @@ export interface BusinessSettings {
     legalEntityType?: LegalEntityType; // drives the generic compliance-obligations checklist on Tax Filing Readiness
     macroAssumptions?: MacroAssumption[]; // owner-entered external-factor beliefs, see MacroAssumption
     futureEvents?: FutureEvent[]; // owner-entered known future plans, see FutureEvent
+    savedRecipes?: SavedRecipe[]; // owner-saved menu-item costings, see SavedRecipe
+    savedProductionBatches?: SavedProductionBatch[]; // owner-saved batch costings, see SavedProductionBatch
     // Asked once at onboarding (editable later in Settings) — the one thing
     // the owner said matters most right now. Only the values the app can
     // genuinely act on today are offered (see OnboardingChoiceScreen):

@@ -4,20 +4,11 @@ import { Colors } from '../theme/colors';
 import { Shadow } from '../theme/tokens';
 import { InventoryItem } from '../types';
 import { computeProductionCost, ProductionCostVerdict } from '../utils/productionCost';
+import { useApp } from '../contexts/AppContext';
 
 interface SelectedMaterial {
     inventoryItemId: string;
     quantity: string;
-}
-
-interface SavedBatch {
-    id: string;
-    name: string;
-    unitsProduced: number;
-    sellingPricePerUnit: number;
-    costPerUnit: number;
-    marginPct: number;
-    verdict: ProductionCostVerdict;
 }
 
 const MAX_SAVED = 5;
@@ -51,13 +42,17 @@ export default function ProductionCostCalculator({ inventory, currency }: Props)
         () => inventory.filter(i => i.itemType !== 'finished_good'),
         [inventory],
     );
+    const { settings, updateSettings } = useApp();
     const [batchName, setBatchName] = useState('');
     const [unitsProduced, setUnitsProduced] = useState('');
     const [laborCost, setLaborCost] = useState('');
     const [overheadCost, setOverheadCost] = useState('');
     const [sellingPricePerUnit, setSellingPricePerUnit] = useState('');
     const [selected, setSelected] = useState<SelectedMaterial[]>([]);
-    const [savedBatches, setSavedBatches] = useState<SavedBatch[]>([]);
+    // Persisted on settings (see BusinessSettings.savedProductionBatches)
+    // rather than local state -- see RecipeCostCalculator's matching
+    // comment for why local state silently lost every "saved" batch.
+    const savedBatches = settings.savedProductionBatches ?? [];
 
     const toggleMaterial = (itemId: string) => {
         setSelected(prev =>
@@ -97,20 +92,23 @@ export default function ProductionCostCalculator({ inventory, currency }: Props)
 
     const saveBatch = () => {
         if (!hasBatch || savedBatches.length >= MAX_SAVED) return;
-        setSavedBatches(prev => [...prev, {
-            id: `${Date.now()}`,
-            name: batchName.trim() || `Batch ${prev.length + 1}`,
-            unitsProduced: parseFloat(unitsProduced) || 0,
-            sellingPricePerUnit: parseFloat(sellingPricePerUnit) || 0,
-            costPerUnit: result.costPerUnit,
-            marginPct: result.marginPct,
-            verdict: result.verdict,
-        }]);
+        updateSettings({
+            savedProductionBatches: [...savedBatches, {
+                id: `${Date.now()}`,
+                name: batchName.trim() || `Batch ${savedBatches.length + 1}`,
+                unitsProduced: parseFloat(unitsProduced) || 0,
+                sellingPricePerUnit: parseFloat(sellingPricePerUnit) || 0,
+                costPerUnit: result.costPerUnit,
+                marginPct: result.marginPct,
+                verdict: result.verdict,
+                createdAt: new Date().toISOString(),
+            }],
+        });
         setBatchName('');
     };
 
     const removeBatch = (id: string) => {
-        setSavedBatches(prev => prev.filter(b => b.id !== id));
+        updateSettings({ savedProductionBatches: savedBatches.filter(b => b.id !== id) });
     };
 
     if (rawMaterialCandidates.length === 0) {
