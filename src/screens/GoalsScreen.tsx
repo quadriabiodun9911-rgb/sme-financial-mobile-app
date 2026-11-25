@@ -580,7 +580,7 @@ export default function GoalsScreen() {
                                 </>
                             )}
 
-                            <FieldLabel>Target Value</FieldLabel>
+                            <FieldLabel>Target Value ({selectedTypeUnit})</FieldLabel>
                             <TextInput style={styles.input} value={form.targetValue} onChangeText={handleTargetValueChange} keyboardType="numeric" placeholderTextColor={Colors.muted} />
 
                             <FieldLabel>Deadline</FieldLabel>
