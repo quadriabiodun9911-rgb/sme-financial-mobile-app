@@ -475,7 +475,7 @@ export default function PayrollScreen() {
                             </View>
                         ))}
 
-                        <Text style={styles.fieldLabel}>Salary Amount *</Text>
+                        <Text style={styles.fieldLabel}>Salary Amount ({sym}) *</Text>
                         <TextInput
                             style={styles.input}
                             value={form.salary ? String(form.salary) : ''}
