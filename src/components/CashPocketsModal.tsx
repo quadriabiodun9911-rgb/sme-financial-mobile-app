@@ -104,7 +104,7 @@ export default function CashPocketsModal({ visible, onClose }: Props) {
                             ))}
                         </ScrollView>
                         <TextInput style={s.input} value={newName} onChangeText={setNewName} placeholder="Pocket name (e.g. Mobile money)" placeholderTextColor={Colors.textMuted} />
-                        <TextInput style={s.input} value={newAmount} onChangeText={setNewAmount} placeholder="Current amount" placeholderTextColor={Colors.textMuted} keyboardType="numeric" />
+                        <TextInput style={s.input} value={newAmount} onChangeText={setNewAmount} placeholder={`Current amount (${currency})`} placeholderTextColor={Colors.textMuted} keyboardType="numeric" />
                         <TouchableOpacity style={s.addBtn} onPress={handleAdd}>
                             <Text style={s.addBtnText}>+ Add Pocket</Text>
                         </TouchableOpacity>
