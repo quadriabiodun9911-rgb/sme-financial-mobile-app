@@ -759,7 +759,7 @@ export default function InvoicesScreen() {
                                 <FInput value={clientPhone} onChangeText={setClientPhone} placeholder="+44 7700 900000" keyboard="phone-pad" />
                                 <FLabel>{t(language, 'clientAddress')}</FLabel>
                                 <FInput value={clientAddress} onChangeText={setClientAddress} placeholder="123 Main St, City" />
-                                <FLabel>Credit Limit (optional)</FLabel>
+                                <FLabel>Credit Limit (optional, {currency})</FLabel>
                                 <FInput value={creditLimitInput} onChangeText={setCreditLimitInput} keyboard="numeric" placeholder="e.g. 500000" />
                                 <Text style={styles.fieldHint}>Warn me if {clientName.trim() || 'this client'}'s unpaid invoices would exceed this amount.</Text>
                             </Section>
