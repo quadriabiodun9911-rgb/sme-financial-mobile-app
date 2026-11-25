@@ -80,6 +80,13 @@ export default function AssetProductivityAnalysis({ finance, assets, currency, a
 
     // Revenue per asset
     const revenuePerAsset = activeAssets.length > 0 ? finance.income / activeAssets.length : 0;
+    // Same currency-scaling convention as CreditWorthinessScreen's payment-
+    // history and revenue-level thresholds (a ~100x ₦:$ split) -- an
+    // unscaled $10,000/$5,000 band applied to a ₦ business would render
+    // this color meaningless (almost always green, since ₦10,000 revenue
+    // per asset is trivial), not just off by a currency label.
+    const revenuePerAssetHigh = currency === '₦' ? 1000000 : 10000;
+    const revenuePerAssetMid = currency === '₦' ? 500000 : 5000;
 
     // Asset category analysis
     const categoryAnalysis = useMemo(() => {
@@ -198,7 +205,7 @@ export default function AssetProductivityAnalysis({ finance, assets, currency, a
                     label="Revenue per Asset"
                     value={`${currency}${revenuePerAsset.toLocaleString()}`}
                     sublabel="All-time revenue ÷ today's active asset count -- recently added or disposed assets skew this"
-                    color={revenuePerAsset > 10000 ? Colors.income : revenuePerAsset > 5000 ? Colors.warning : Colors.expense}
+                    color={revenuePerAsset > revenuePerAssetHigh ? Colors.income : revenuePerAsset > revenuePerAssetMid ? Colors.warning : Colors.expense}
                 />
                 <MetricRow
                     label="Asset Turnover Ratio"
