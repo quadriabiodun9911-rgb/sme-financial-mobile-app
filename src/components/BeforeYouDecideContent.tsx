@@ -176,12 +176,14 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
     const hireExpandRef = useRef<View>(null);
     const stressTestRef = useRef<View>(null);
     const breakEvenCalcRef = useRef<View>(null);
+    const capitalCommitmentRef = useRef<View>(null);
     const focusRefs: Record<string, React.RefObject<View | null>> = {
         loanAffordability: loanCheckRef,
         newSpend: newSpendRef,
         hireExpand: hireExpandRef,
         stressTest: stressTestRef,
         breakEvenCalc: breakEvenCalcRef,
+        capitalCommitment: capitalCommitmentRef,
     };
     useEffect(() => {
         const target = navParams?.decideFocusTool ? focusRefs[navParams.decideFocusTool] : undefined;
@@ -604,13 +606,15 @@ export default function BeforeYouDecideContent({ scrollRef }: Props) {
                 <Text style={styles.decisionQuestion}>Already committed to something?</Text>
                 <Text style={styles.decisionHelp}>Track whether a past hire, purchase, or investment is actually delivering what you expected — not just what it cost.</Text>
             </View>
-            <Collapsible title="Investment Decision Tracker" forceOpen={commitmentPrefill !== null}>
-                <CapitalCommitmentTracker
-                    currency={currency}
-                    prefill={commitmentPrefill}
-                    onPrefillConsumed={() => setCommitmentPrefill(null)}
-                />
-            </Collapsible>
+            <View ref={capitalCommitmentRef} collapsable={false}>
+                <Collapsible title="Investment Decision Tracker" forceOpen={commitmentPrefill !== null || navParams?.decideFocusTool === 'capitalCommitment'}>
+                    <CapitalCommitmentTracker
+                        currency={currency}
+                        prefill={commitmentPrefill}
+                        onPrefillConsumed={() => setCommitmentPrefill(null)}
+                    />
+                </Collapsible>
+            </View>
         </>
     );
 }

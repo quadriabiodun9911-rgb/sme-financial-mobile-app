@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Shadow } from '../theme/tokens';
@@ -19,7 +19,6 @@ import {
     computeFullCapitalCapacity,
     computeTrailingAccrualFigures,
 } from '../utils/cfoMetrics';
-import { CommitmentStatus, CommitmentKPI } from '../types';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { computeRiskRadar } from '../utils/riskRadar';
 import { buildAdvisorContext } from '../utils/aiAdvisor';
@@ -32,7 +31,6 @@ import { computeRevenueStressTest, StressRiskTier } from '../utils/revenueStress
 import { computeCustomerLossScenario } from '../utils/customerLossScenario';
 import { computeSupplierTermsShock } from '../utils/supplierTermsShock';
 import { computeBadDebtShock } from '../utils/badDebtShock';
-import { localDateStr } from '../utils/localDate';
 
 // Same 4-color gradient this app's other Band-style scores already use
 // (CashFlowHealthBand/WorkingCapitalHealthBand's BAND_COLOR: income ->
@@ -49,31 +47,24 @@ function fmt(currency: string, n: number): string {
     return `${currency}${Math.round(n).toLocaleString()}`;
 }
 
-const STATUS_COLOR: Record<CommitmentStatus, string> = {
-    'on-track': Colors.income,
-    'at-risk': Colors.warning,
-    'off-track': Colors.expense,
-    'not-started': Colors.textMuted,
-};
-const STATUS_LABEL: Record<CommitmentStatus, string> = {
-    'on-track': '🟢 On Track',
-    'at-risk': '🟡 At Risk',
-    'off-track': '🔴 Off Track',
-    'not-started': '⚪ Not Started',
-};
-
 // "7 Questions Every CEO Should Ask Their CFO" — each section composes
 // numbers Quad360 already tracks (cash, AP aging, loans, invoices,
 // inventory) into the specific shape each question asks for, rather than
-// inventing a new metric. Where a question genuinely needs a new kind of
-// record (Q7 — is an investment delivering what it was approved for),
-// this adds one: a Capital Commitment with a few KPIs the owner updates
-// themselves, since Quad360 has no way to auto-detect whether spend on
-// equipment or marketing is "delivering."
+// inventing a new metric. Q7 (is an investment delivering what it was
+// approved for) answers from a Capital Commitment record -- but the add/
+// edit/status UI used to be duplicated here in full, right down to its own
+// copy of the add-commitment form, even though only the Investment
+// Decision Tracker under Analysis & Decisions > Decide can actually update
+// a KPI's progress over time or record a decision (continue/adjust/pause/
+// stop/scale). A commitment created only from here could be tracked but
+// never meaningfully followed up on from here. Q7 now shows a live
+// read-only summary plus a deep link to that one tracker -- the same
+// consolidation CFOScreen's own history already applied to its other four
+// redundant tabs (see CFOScreen.tsx's own header comment).
 export default function CFOQuestionsTab() {
     const {
         transactions, loans, inventory, finance, settings, navigate, goals, invoices,
-        capitalCommitments, addCommitment, updateCommitment, deleteCommitment,
+        capitalCommitments,
         assets, user, readinessHistory, staff, cashPockets, receivableWriteOffs,
     } = useApp();
     const { currency } = settings;
@@ -113,11 +104,6 @@ export default function CFOQuestionsTab() {
     );
 
     const [revenueMissPct, setRevenueMissPct] = useState(15);
-    const [showAddCommitment, setShowAddCommitment] = useState(false);
-    const EMPTY_COMMITMENT_FORM = { name: '', amountApproved: '', purpose: '', kpiName: '', kpiTarget: '', kpiActual: '' };
-    const [form, setForm] = useState(EMPTY_COMMITMENT_FORM);
-    const setField = (field: keyof typeof EMPTY_COMMITMENT_FORM) => (value: string) => setForm(f => ({ ...f, [field]: value }));
-
     const { dailyBurn } = useMemo(() => computeCashRunway(transactions, finance.cashBalance, latestTransactionDate(transactions) ?? new Date()), [transactions, finance.cashBalance]);
 
     const apBuckets = useMemo(() => computeAgingBuckets(transactions, 'expense'), [transactions]);
@@ -250,27 +236,6 @@ export default function CFOQuestionsTab() {
         () => computeBadDebtShock(transactions, invoices, inventory, totalLiquidCash, receivableWriteOffs, currency),
         [transactions, invoices, inventory, totalLiquidCash, receivableWriteOffs, currency],
     );
-
-    const resetForm = () => {
-        setForm(EMPTY_COMMITMENT_FORM);
-        setShowAddCommitment(false);
-    };
-
-    const saveCommitment = () => {
-        if (!form.name.trim() || !(parseFloat(form.amountApproved) > 0)) return;
-        const kpis: CommitmentKPI[] = form.kpiName.trim()
-            ? [{ id: `kpi-${Date.now()}`, name: form.kpiName.trim(), target: parseFloat(form.kpiTarget) || 0, actual: parseFloat(form.kpiActual) || 0 }]
-            : [];
-        addCommitment({
-            name: form.name.trim(),
-            amountApproved: parseFloat(form.amountApproved) || 0,
-            purpose: form.purpose.trim(),
-            approvedDate: localDateStr(),
-            kpis,
-            status: 'not-started',
-        });
-        resetForm();
-    };
 
     return (
         <ScrollView style={s.scroll} contentContainerStyle={s.pad}>
@@ -514,63 +479,31 @@ export default function CFOQuestionsTab() {
                 </Collapsible>
             ) : null}
 
-            {/* Q7 -- the most detail-heavy card on this page (full commitment
-                list, per-KPI rows, a multi-field add form), and the least
-                urgent to see by default: nothing here is a live financial
-                reading, just a self-kept record. */}
-            <Collapsible title="Q7 — Is each investment delivering what we approved it for?" forceOpen={capitalCommitments.length > 0}>
-                <Text style={s.qNote}>Track a capital commitment and check its real numbers against what was approved — no auto-detection, this is a record you keep yourself.</Text>
-
-                {capitalCommitments.map(c => (
-                    <View key={c.id} style={s.commitmentRow}>
-                        <View style={s.commitmentHeader}>
-                            <Text style={s.commitmentName}>{c.name}</Text>
-                            <TouchableOpacity onPress={() => deleteCommitment(c.id)}>
-                                <Text style={s.removeBtn}>✕</Text>
-                            </TouchableOpacity>
-                        </View>
-                        <Text style={s.commitmentMeta}>{fmt(currency, c.amountApproved)} · {c.purpose || 'No purpose noted'}</Text>
-                        {c.kpis.map(k => (
-                            <Text key={k.id} style={s.kpiRow}>
-                                {k.name}: {k.actual.toLocaleString()} / {k.target.toLocaleString()} target
+            {/* Q7 -- a read-only summary plus a deep link to the Investment
+                Decision Tracker (Analysis & Decisions > Decide), which owns
+                adding, updating and deciding on a commitment. See this
+                file's header comment for why the full add/status UI that
+                used to live here was removed rather than duplicated. */}
+            <View style={s.card}>
+                <Text style={s.qLabel}>Q7</Text>
+                <Text style={s.qTitle}>Is each investment delivering what we approved it for?</Text>
+                {capitalCommitments.length > 0 ? (
+                    <>
+                        <Text style={s.qNote}>Tracking {capitalCommitments.length} commitment{capitalCommitments.length === 1 ? '' : 's'}:</Text>
+                        {capitalCommitments.map(c => (
+                            <Text key={c.id} style={s.qNote}>
+                                • {c.name} ({fmt(currency, c.amountApproved)})
+                                {c.kpis[0] ? ` — ${c.kpis[0].name}: ${c.kpis[0].actual.toLocaleString()} / ${c.kpis[0].target.toLocaleString()}` : ''}
                             </Text>
                         ))}
-                        <View style={s.statusRow}>
-                            {(['not-started', 'on-track', 'at-risk', 'off-track'] as CommitmentStatus[]).map(st => (
-                                <TouchableOpacity key={st} style={[s.statusChip, c.status === st && { borderColor: STATUS_COLOR[st], backgroundColor: STATUS_COLOR[st] + '18' }]} onPress={() => updateCommitment(c.id, { status: st })}>
-                                    <Text style={[s.statusChipText, c.status === st && { color: STATUS_COLOR[st] }]}>{STATUS_LABEL[st]}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    </View>
-                ))}
-
-                {!showAddCommitment ? (
-                    <TouchableOpacity style={s.addBtn} onPress={() => setShowAddCommitment(true)}>
-                        <Text style={s.addBtnText}>+ Track a Capital Commitment</Text>
-                    </TouchableOpacity>
+                    </>
                 ) : (
-                    <View style={s.form}>
-                        <TextInput style={s.input} value={form.name} onChangeText={setField('name')} placeholder="e.g. New delivery van" placeholderTextColor={Colors.textMuted} />
-                        <TextInput style={s.input} value={form.amountApproved} onChangeText={setField('amountApproved')} keyboardType="decimal-pad" placeholder={`Amount approved (${currency})`} placeholderTextColor={Colors.textMuted} />
-                        <TextInput style={s.input} value={form.purpose} onChangeText={setField('purpose')} placeholder="Purpose" placeholderTextColor={Colors.textMuted} />
-                        <Text style={s.formSubLabel}>Optional: one KPI to track</Text>
-                        <TextInput style={s.input} value={form.kpiName} onChangeText={setField('kpiName')} placeholder="e.g. Deliveries per week" placeholderTextColor={Colors.textMuted} />
-                        <View style={s.row}>
-                            <TextInput style={[s.input, s.flex]} value={form.kpiTarget} onChangeText={setField('kpiTarget')} keyboardType="decimal-pad" placeholder="Target" placeholderTextColor={Colors.textMuted} />
-                            <TextInput style={[s.input, s.flex]} value={form.kpiActual} onChangeText={setField('kpiActual')} keyboardType="decimal-pad" placeholder="Actual so far" placeholderTextColor={Colors.textMuted} />
-                        </View>
-                        <View style={s.row}>
-                            <TouchableOpacity style={[s.addBtn, s.flex]} onPress={saveCommitment}>
-                                <Text style={s.addBtnText}>Save</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={[s.cancelBtn, s.flex]} onPress={resetForm}>
-                                <Text style={s.cancelBtnText}>Cancel</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
+                    <Text style={s.qNote}>Track a capital commitment and check its real numbers against what was approved — no auto-detection, this is a record you keep yourself.</Text>
                 )}
-            </Collapsible>
+                <TouchableOpacity style={s.linkBtn} onPress={() => navigate('analysis', { tab: 'decide', decideFocusTool: 'capitalCommitment' })}>
+                    <Text style={s.linkBtnText}>Open Investment Decision Tracker →</Text>
+                </TouchableOpacity>
+            </View>
         </ScrollView>
     );
 }
@@ -646,22 +579,4 @@ const s = StyleSheet.create({
     verdictBox: { borderRadius: 10, borderWidth: 1.5, padding: 12, marginTop: 8 },
     verdictText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
 
-    commitmentRow: { backgroundColor: Colors.bg, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, padding: 12, marginTop: 10 },
-    commitmentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    commitmentName: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
-    commitmentMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2, marginBottom: 6 },
-    kpiRow: { fontSize: 11.5, color: Colors.textSecondary, marginBottom: 2 },
-    removeBtn: { color: Colors.expense, fontSize: 13, fontWeight: '700' },
-    statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-    statusChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: Colors.border },
-    statusChipText: { fontSize: 10.5, color: Colors.textMuted, fontWeight: '600' },
-
-    addBtn: { backgroundColor: Colors.primary, borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 10 },
-    addBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-    cancelBtn: { backgroundColor: Colors.bg, borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 10, borderWidth: 1, borderColor: Colors.border },
-    cancelBtnText: { color: Colors.textSecondary, fontWeight: '700', fontSize: 13 },
-    form: { marginTop: 10 },
-    formSubLabel: { fontSize: 11, color: Colors.textMuted, marginTop: 4, marginBottom: 4 },
-    input: { backgroundColor: Colors.bg, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: Colors.textPrimary, marginBottom: 8 },
-    row: { flexDirection: 'row', gap: 8 },
 });
