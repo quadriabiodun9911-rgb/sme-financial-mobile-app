@@ -103,7 +103,7 @@ export default function StockInvestmentPlanner({
 
         const withStock = computeLoanAffordabilityCheck({
             currentCashBalance, monthlyProfit: monthlyProfit + plan.projectedMonthlyProfitContribution,
-            existingMonthlyDebtService, monthlyOperatingBurn, loanAmount, interestRate, termMonths, purpose: 'Buy inventory',
+            existingMonthlyDebtService, monthlyOperatingBurn, loanAmount, interestRate, termMonths, purpose: 'Buy inventory', currency,
         });
         // Same check, but without crediting the new stock's own projected
         // profit -- the "would this loan still be safe if the stock
@@ -112,10 +112,10 @@ export default function StockInvestmentPlanner({
         // flow") is actually asking for.
         const withoutStock = computeLoanAffordabilityCheck({
             currentCashBalance, monthlyProfit,
-            existingMonthlyDebtService, monthlyOperatingBurn, loanAmount, interestRate, termMonths, purpose: 'Buy inventory',
+            existingMonthlyDebtService, monthlyOperatingBurn, loanAmount, interestRate, termMonths, purpose: 'Buy inventory', currency,
         });
         return { withStock, withoutStock };
-    }, [loanAmount, rate, term, currentCashBalance, monthlyProfit, plan.projectedMonthlyProfitContribution, existingMonthlyDebtService, monthlyOperatingBurn]);
+    }, [loanAmount, rate, term, currentCashBalance, monthlyProfit, plan.projectedMonthlyProfitContribution, existingMonthlyDebtService, monthlyOperatingBurn, currency]);
 
     if (candidates.length === 0) {
         return (

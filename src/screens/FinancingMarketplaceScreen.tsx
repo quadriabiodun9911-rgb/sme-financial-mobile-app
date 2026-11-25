@@ -614,11 +614,11 @@ export default function FinancingMarketplaceScreen() {
                 <View style={s.assessmentBox}>
                     <Text style={s.assessmentTitle}>Your financing assessment</Text>
 
-                    <Text style={s.amountLabel}>How much financing do you need? (optional)</Text>
+                    <Text style={s.amountLabel}>How much financing do you need? (optional, {currency})</Text>
                     <TextInput
                         style={s.amountInput}
                         keyboardType="numeric"
-                        placeholder={`e.g. 5000000`}
+                        placeholder={`e.g. ${currency}5,000,000`}
                         placeholderTextColor={Colors.textMuted}
                         value={amountText}
                         onChangeText={setAmountText}

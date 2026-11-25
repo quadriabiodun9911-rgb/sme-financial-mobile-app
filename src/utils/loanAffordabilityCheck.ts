@@ -11,6 +11,7 @@ export interface LoanAffordabilityInput {
     interestRate: number;           // annual %
     termMonths: number;
     purpose: string;                // echoed back for context; no purpose-specific logic yet — see note below
+    currency: string;                // only used to label the amount in `reason` below
 }
 
 export interface LoanAffordabilityResult {
@@ -46,7 +47,7 @@ const CAUTION_BELOW = SAFE_REPAYMENT_CAPACITY_MULTIPLE;
 export function computeLoanAffordabilityCheck(input: LoanAffordabilityInput): LoanAffordabilityResult {
     const {
         currentCashBalance, monthlyProfit, existingMonthlyDebtService, monthlyOperatingBurn,
-        loanAmount, interestRate, termMonths,
+        loanAmount, interestRate, termMonths, currency,
     } = input;
 
     const monthlyRepayment = loanMonthlyPayment(loanAmount, interestRate, termMonths);
@@ -66,7 +67,7 @@ export function computeLoanAffordabilityCheck(input: LoanAffordabilityInput): Lo
 
     if (repaymentCapacityMultiple < HIGH_RISK_BELOW) {
         verdict = 'high-risk';
-        reason = `Monthly repayment of ${Math.round(totalMonthlyDebtService).toLocaleString()} exceeds your average monthly profit — this loan would need revenue to grow just to break even on repayment, not to mention run the business.`;
+        reason = `Monthly repayment of ${currency}${Math.round(totalMonthlyDebtService).toLocaleString()} exceeds your average monthly profit — this loan would need revenue to grow just to break even on repayment, not to mention run the business.`;
     } else if (repaymentCapacityMultiple < CAUTION_BELOW) {
         verdict = 'caution';
         reason = `Your profit covers the repayment, but only just — a ${repaymentCapacityMultiple.toFixed(1)}x buffer leaves little room for a slow month or a late-paying customer.`;

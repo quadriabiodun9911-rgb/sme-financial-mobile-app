@@ -93,9 +93,9 @@ export default function LoanAffordabilityChecker({
         if (loanAmount <= 0 || termMonths <= 0) return null;
         return computeLoanAffordabilityCheck({
             currentCashBalance, monthlyProfit, existingMonthlyDebtService, monthlyOperatingBurn,
-            loanAmount, interestRate, termMonths, purpose,
+            loanAmount, interestRate, termMonths, purpose, currency,
         });
-    }, [amount, rate, term, purpose, currentCashBalance, monthlyProfit, existingMonthlyDebtService, monthlyOperatingBurn]);
+    }, [amount, rate, term, purpose, currentCashBalance, monthlyProfit, existingMonthlyDebtService, monthlyOperatingBurn, currency]);
 
     // Same checks LoansScreen's Add Loan form already runs for a loan
     // actually being recorded -- reused here, not reimplemented, so sizing

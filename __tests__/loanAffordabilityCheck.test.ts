@@ -9,6 +9,7 @@ const base = {
     interestRate: 15,
     termMonths: 12,
     purpose: 'Buy inventory',
+    currency: '₦',
 };
 
 describe('computeLoanAffordabilityCheck', () => {

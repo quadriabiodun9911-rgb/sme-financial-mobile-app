@@ -611,7 +611,7 @@ function ApplyForFinancingModal({ visible, maxLoan, minLoan, monthlyProfit, curr
                                 <View style={s.amountInputContainer}>
                                     <TextInput
                                         style={s.amountInput}
-                                        placeholder={`Enter amount (${minLoan} - ${maxLoan})`}
+                                        placeholder={`Enter amount (${currency}${minLoan.toLocaleString()} - ${currency}${maxLoan.toLocaleString()})`}
                                         placeholderTextColor={Colors.textMuted}
                                         keyboardType="decimal-pad"
                                         value={amount.toString()}
