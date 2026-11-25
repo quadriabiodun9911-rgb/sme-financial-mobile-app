@@ -435,7 +435,12 @@ export default function InventoryScreen() {
         const qty = parseFloat(form.quantity);
         const cost = parseFloat(form.costPrice);
         const sell = parseFloat(form.sellingPrice);
-        const threshold = parseFloat(form.lowStockThreshold) || 5;
+        // Not `|| 5` -- that silently overwrote an explicit, meaningful "0"
+        // (only alert when this item is completely out of stock) back to 5
+        // on every single save, since 0 is falsy. Only an actually blank or
+        // invalid field falls back to the default; a real 0 is honored.
+        const parsedThreshold = parseFloat(form.lowStockThreshold);
+        const threshold = form.lowStockThreshold.trim() !== '' && !isNaN(parsedThreshold) ? parsedThreshold : 5;
 
         if (!form.name.trim()) { showAlert('Validation', 'Item name is required.'); return; }
         if (isNaN(qty) || qty < 0) { showAlert('Validation', 'Enter a valid quantity.'); return; }
