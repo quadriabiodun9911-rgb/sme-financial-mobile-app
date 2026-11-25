@@ -36,105 +36,17 @@ const STATUS_COLOR: Record<InvoiceStatus, string> = {
 
 const EMPTY_LINE: InvoiceLineItem = { description: '', quantity: 1, unitPrice: 0, taxRate: 0 };
 
-// Single source of "line total including tax" -- the PDF export, the
-// WhatsApp message, the View-Invoice modal, and the totals summary used to
-// each reimplement qty * unitPrice * (1 + taxRate/100) independently, which
-// meant a future change (e.g. a line-level discount) could silently diverge
-// between what's shown on screen and what's shared/exported. All four now
-// call this.
+// Single source of "line total including tax" -- the WhatsApp message, the
+// View-Invoice modal, and the totals summary used to each reimplement
+// qty * unitPrice * (1 + taxRate/100) independently, which meant a future
+// change (e.g. a line-level discount) could silently diverge between
+// what's shown on screen and what's shared. All three now call this.
 function lineItemTotal(li: InvoiceLineItem): number {
     const qty = li.quantity ?? 0;
     const unitPrice = li.unitPrice ?? 0;
     const taxRate = li.taxRate ?? 0;
     return qty * unitPrice * (1 + taxRate / 100);
 }
-
-function buildInvoiceHtml(inv: Invoice, businessName: string, currency: string): string {
-    const lineRows = (inv.lineItems ?? []).map(li => {
-        const qty       = li.quantity ?? 0;
-        const unitPrice = li.unitPrice ?? 0;
-        const taxRate   = li.taxRate ?? 0;
-        return `
-        <tr>
-            <td>${li.description ?? ''}</td>
-            <td style="text-align:center">${qty}</td>
-            <td style="text-align:right">${currency}${unitPrice.toFixed(2)}</td>
-            <td style="text-align:center">${taxRate}%</td>
-            <td style="text-align:right">${currency}${lineItemTotal(li).toFixed(2)}</td>
-        </tr>`;
-    }).join('');
-
-    return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<style>
-  body { font-family: Arial, sans-serif; color: #1e293b; padding: 40px; font-size: 13px; }
-  h1 { font-size: 28px; color: #2563eb; margin: 0; }
-  .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
-  .label { color: #64748b; font-size: 11px; text-transform: uppercase; margin-bottom: 2px; }
-  .value { font-weight: 600; }
-  table { width: 100%; border-collapse: collapse; margin-top: 24px; }
-  th { background: #f1f5f9; padding: 10px; text-align: left; font-size: 11px; text-transform: uppercase; }
-  td { padding: 10px; border-bottom: 1px solid #e2e8f0; }
-  .totals { margin-top: 16px; float: right; min-width: 260px; }
-  .totals tr td { border: none; padding: 4px 10px; }
-  .totals .grand { font-size: 16px; font-weight: bold; color: #2563eb; border-top: 2px solid #2563eb; }
-  .notes { margin-top: 60px; color: #64748b; font-size: 11px; }
-  .status { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; background: #dcfce7; color: #16a34a; }
-</style>
-</head>
-<body>
-<div class="header">
-  <div>
-    <h1>${businessName}</h1>
-    <div style="margin-top:8px"><span class="status">${inv.status.toUpperCase()}</span></div>
-  </div>
-  <div style="text-align:right">
-    <div class="label">Invoice Number</div>
-    <div class="value" style="font-size:18px">${inv.invoiceNumber}</div>
-    <div class="label" style="margin-top:12px">Issue Date</div>
-    <div class="value">${inv.issueDate}</div>
-    <div class="label" style="margin-top:8px">Due Date</div>
-    <div class="value">${inv.dueDate}</div>
-  </div>
-</div>
-
-<div>
-  <div class="label">Bill To</div>
-  <div class="value" style="font-size:15px">${inv.clientName || 'Customer'}</div>
-  ${inv.clientEmail ? `<div>${inv.clientEmail}</div>` : ''}
-  ${inv.clientAddress ? `<div style="color:#64748b">${inv.clientAddress}</div>` : ''}
-</div>
-
-<table>
-  <thead>
-    <tr>
-      <th>Description</th>
-      <th style="text-align:center">Qty</th>
-      <th style="text-align:right">Unit Price</th>
-      <th style="text-align:center">Tax</th>
-      <th style="text-align:right">Total</th>
-    </tr>
-  </thead>
-  <tbody>${lineRows}</tbody>
-</table>
-
-<table class="totals">
-  <tr><td>Subtotal</td><td style="text-align:right">${currency}${(inv.subtotal ?? 0).toFixed(2)}</td></tr>
-  <tr><td>Tax</td><td style="text-align:right">${currency}${(inv.taxTotal ?? 0).toFixed(2)}</td></tr>
-  <tr class="grand"><td><b>Total Due</b></td><td style="text-align:right"><b>${currency}${(inv.total ?? 0).toFixed(2)}</b></td></tr>
-</table>
-
-${inv.notes ? `<div class="notes" style="clear:both;margin-top:60px"><b>Notes:</b><br/>${inv.notes}</div>` : ''}
-<div style="clear:both;margin-top:80px;padding-top:20px;border-top:1px solid #e2e8f0;text-align:center;color:#94a3b8;font-size:11px;">
-  <strong style="color:#2563eb;font-size:13px">Powered by Quad360</strong><br/>
-  Free financial management for small businesses &nbsp;·&nbsp; <span style="color:#2563eb">quad360financial.com</span>
-</div>
-</body>
-</html>`;
-}
-
 
 export default function InvoicesScreen() {
     const { invoices, addInvoice, updateInvoice, deleteInvoice, markInvoiceStatus, settings, updateSettings, user, navigate, navParams, clearNavParamsFlag, language, transactions, updateTransaction, canViewFinancials } = useApp();
