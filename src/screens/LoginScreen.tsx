@@ -1939,6 +1939,22 @@ export default function LoginScreen() {
                 <TouchableOpacity style={styles.switchBtn} onPress={() => { setEmailLoginEmail(email); setMode('recover'); }}>
                     <Text style={styles.switchText}>Already have an account? Sign In →</Text>
                 </TouchableOpacity>
+                {/* This screen shows whenever this device has no saved profile
+                    at all (isFirstLaunch), which also happens to a RETURNING
+                    owner whose browser cleared its storage (private browsing,
+                    an in-app browser like WhatsApp's, or a "clear data on
+                    close" setting) -- to them this looks like being asked to
+                    sign up again, not log in. The 'recover' screen above
+                    (email + PIN) can't help them either: it depends on the
+                    exact same wiped local storage. This skips straight to the
+                    one path that doesn't -- an emailed sign-in link, no
+                    password typed anywhere. */}
+                <TouchableOpacity style={styles.switchBtn} onPress={() => {
+                    setResetEmail(email); setResetNewPin(''); setResetConfirmPin(''); setResetOtp('');
+                    setResetStep('request'); setResetIntent('verify-device'); setMode('reset-pin');
+                }}>
+                    <Text style={styles.switchText}>Used Quad360 before? Get a sign-in link by email →</Text>
+                </TouchableOpacity>
                 <TouchableOpacity style={styles.demoBtn} onPress={() => setMode('demo-pick')}>
                     <Icon name="eye" size={13} color={Colors.primary} />
                     <Text style={styles.demoBtnText}>Try Guest Mode (No sign-up needed)</Text>
