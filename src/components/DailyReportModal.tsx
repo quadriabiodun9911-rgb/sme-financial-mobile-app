@@ -76,6 +76,29 @@ export default function DailyReportModal({ visible, onClose, transactions, goals
         verdict = 'Tough day. Don\'t worry — tomorrow is a fresh start. See your action plan below.';
     }
 
+    const fmt = (n: number) => {
+        const v = isNaN(n) ? 0 : n;
+        return `${currency}${Math.round(v).toLocaleString()}`;
+    };
+
+    // `remaining` below is in the GOAL's OWN unit, unlike every other figure
+    // in this component (today's revenue/expenses/profit, overdue invoices),
+    // which are real cash activity and always currency regardless of the
+    // goal's own unit. A margin_improvement goal's remaining is a
+    // percentage-point gap and a custom goal's can be any owner-defined
+    // unit -- same 4-branch currency/%/days/raw-unit convention already
+    // established by GoalCard's fmtUnit and GoalsScreen's fmtGoalUnit/
+    // fmtCheckpointValue, applied here so this independent "action plan"
+    // reimplementation doesn't drift back into the same bug those already
+    // fixed (e.g. "you need ₦15 more" for a 15-percentage-point margin gap).
+    const fmtGoalUnit = (goal: FinancialGoal, value: number) => {
+        const v = isNaN(value) ? 0 : value;
+        return goal.unit === '%' ? `${v.toFixed(1)}%`
+            : goal.unit === 'days' ? `${Math.round(v)} days`
+            : goal.unit === currency ? fmt(v)
+            : `${v.toFixed(1)} ${goal.unit}`;
+    };
+
     // Action plan
     const actions: string[] = [];
 
@@ -104,7 +127,7 @@ export default function DailyReportModal({ visible, onClose, transactions, goals
         const deadline = new Date(activeGoal.deadline);
         const daysLeft = Math.max(1, Math.ceil((deadline.getTime() - today.getTime()) / 86400000));
         const remaining = Math.max(0, activeGoal.targetValue - activeGoal.currentValue);
-        actions.push(`Great day! Keep it up — you need ${currency}${Math.round(isNaN(remaining) ? 0 : remaining).toLocaleString()} more to hit your ${activeGoal.title} by the deadline (${daysLeft} days left)`);
+        actions.push(`Great day! Keep it up — you need ${fmtGoalUnit(activeGoal, remaining)} more to hit your ${activeGoal.title} by the deadline (${daysLeft} days left)`);
     }
 
     if (profitPositive && todayProfit > 0) {
@@ -118,11 +141,6 @@ export default function DailyReportModal({ visible, onClose, transactions, goals
 
     // Keep only 3 actions
     const topActions = actions.slice(0, 3);
-
-    const fmt = (n: number) => {
-        const v = isNaN(n) ? 0 : n;
-        return `${currency}${Math.round(v).toLocaleString()}`;
-    };
 
     const pct = (actual: number, target: number) => {
         if (!target) return '';
