@@ -9,12 +9,14 @@ import { Shadow } from '../theme/tokens';
 import NextStepLink from './NextStepLink';
 import { getTaxRatePercent } from '../utils/finance';
 import { showAlert } from '../utils/webAlert';
+import { generateId } from '../utils/uuid';
 import Icon from './ui/Icon';
 
 export default function TaxPlanningTab() {
-    const { transactions, settings, navigate, finance, user } = useApp();
+    const { transactions, settings, updateSettings, navigate, finance, user } = useApp();
     const { currency } = settings;
     const taxRatePct = getTaxRatePercent(settings.defaultTaxRate);
+    const currentYear = new Date().getFullYear();
 
     // Modal renders via a portal on web, outside App.tsx's width constraint --
     // see FooterNav.tsx for the reference fix. Applied here to the bottom
@@ -26,12 +28,24 @@ export default function TaxPlanningTab() {
     const [selectedQuarter, setSelectedQuarter] = useState<1 | 2 | 3 | 4>(1);
     const [deductionName, setDeductionName] = useState('');
     const [deductionAmount, setDeductionAmount] = useState('');
-    const [deductions, setDeductions] = useState<Array<{ name: string; amount: number; quarter: number }>>([]);
+    // Persisted on settings (see BusinessSettings.taxDeductions) rather than
+    // local state -- this used to live only in component state, so it was
+    // silently wiped by switching Reports' own tabs and back, let alone
+    // navigating away or reloading, despite the "+ Add" button implying
+    // otherwise. Worse than losing a list: it quietly reverted estimated
+    // tax (and the exported tax report) back to the no-deductions figure
+    // with nothing telling the owner anything had changed.
+    const deductions = settings.taxDeductions ?? [];
+    // Same year scoping as quarterlyData's own quarterDeductions filter --
+    // a prior year's deduction already stopped affecting this year's tax
+    // math, so it shouldn't still sit in this list looking active either.
+    const currentYearDeductions = useMemo(
+        () => deductions.filter(d => d.year === currentYear),
+        [deductions, currentYear],
+    );
 
     // Calculate quarterly metrics
     const quarterlyData = useMemo(() => {
-        const today = new Date();
-        const currentYear = today.getFullYear();
         const quarters = [
             { q: 1, months: [1, 2, 3], label: 'Q1 (Jan-Mar)' },
             { q: 2, months: [4, 5, 6], label: 'Q2 (Apr-Jun)' },
@@ -62,8 +76,11 @@ export default function TaxPlanningTab() {
                 .reduce((sum, tx) => sum + (tx.amount ?? 0) - (tx.principalPortion || 0), 0);
 
             const profit = income - expenses;
+            // Year-scoped, not just quarter -- quarter numbers repeat every
+            // year, so without this a deduction logged for Q1 2026 would
+            // still apply to Q1 2027 once these persist across sessions.
             const quarterDeductions = deductions
-                .filter(d => d.quarter === quarter.q)
+                .filter(d => d.quarter === quarter.q && d.year === currentYear)
                 .reduce((sum, d) => sum + d.amount, 0);
 
             // Estimated tax, using the business's configured tax rate (Settings > Tax)
@@ -81,7 +98,7 @@ export default function TaxPlanningTab() {
                 estimatedTax,
             };
         });
-    }, [transactions, deductions, taxRatePct]);
+    }, [transactions, deductions, taxRatePct, currentYear]);
 
     const annualData = useMemo(() => {
         const totalIncome = quarterlyData.reduce((sum, q) => sum + q.income, 0);
@@ -112,10 +129,23 @@ export default function TaxPlanningTab() {
             showAlert('Error', 'Please enter a valid amount');
             return;
         }
-        setDeductions([...deductions, { name: deductionName, amount, quarter: selectedQuarter }]);
+        updateSettings({
+            taxDeductions: [...deductions, {
+                id: generateId(),
+                name: deductionName.trim(),
+                amount,
+                quarter: selectedQuarter,
+                year: currentYear,
+                createdAt: new Date().toISOString(),
+            }],
+        });
         setDeductionName('');
         setDeductionAmount('');
         setShowDeductionModal(false);
+    };
+
+    const handleRemoveDeduction = (id: string) => {
+        updateSettings({ taxDeductions: deductions.filter(d => d.id !== id) });
     };
 
     const handleExportTaxReport = async () => {
@@ -240,16 +270,19 @@ NOTES
                         <Text style={s.addBtnText}>+ Add</Text>
                     </TouchableOpacity>
                 </View>
-                {deductions.length === 0 ? (
+                {currentYearDeductions.length === 0 ? (
                     <Text style={s.emptyText}>No deductions added yet. Tap + to add business deductions.</Text>
                 ) : (
-                    deductions.map((ded, idx) => (
-                        <View key={idx} style={s.deductionItem}>
+                    currentYearDeductions.map(ded => (
+                        <View key={ded.id} style={s.deductionItem}>
                             <View style={{ flex: 1 }}>
                                 <Text style={s.deductionName}>{ded.name}</Text>
                                 <Text style={s.deductionQuarter}>{quarterlyData.find(q => q.quarter === ded.quarter)?.label}</Text>
                             </View>
                             <Text style={s.deductionAmount}>{currency}{ded.amount.toLocaleString()}</Text>
+                            <TouchableOpacity onPress={() => handleRemoveDeduction(ded.id)} style={s.deductionRemoveBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                <Icon name="x" size={14} color={Colors.textMuted} />
+                            </TouchableOpacity>
                         </View>
                     ))
                 )}
@@ -422,7 +455,8 @@ const s = StyleSheet.create({
     quarterCardRowHighlight: { backgroundColor: Colors.muted, paddingHorizontal: 8, paddingVertical: 8, borderRadius: 6, marginTop: 4 },
     quarterCardLabel: { fontSize: 12, color: Colors.textSecondary },
     quarterCardValue: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
-    deductionItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.muted },
+    deductionItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.muted, gap: 8 },
+    deductionRemoveBtn: { padding: 2 },
     deductionName: { fontSize: 13, fontWeight: '500', color: Colors.textPrimary },
     deductionQuarter: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
     deductionAmount: { fontSize: 13, fontWeight: '600', color: Colors.income },

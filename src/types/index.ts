@@ -472,6 +472,22 @@ export interface SavedProductionBatch {
     createdAt: string;
 }
 
+// A deliberately-kept tax deduction entered on Reports' Tax Planning tab --
+// the owner chose to log this against a specific quarter, so it's a real
+// record, not scratch state (see TaxPlanningTab.tsx's own doc comment on
+// why this used to be local-only state that silently reset on every tab
+// switch). `year` matters because quarter numbers repeat every year --
+// without it, a deduction logged in Q1 2026 would still apply to Q1 2027
+// once this carries over sessions.
+export interface TaxDeduction {
+    id: string;
+    name: string;
+    amount: number;
+    quarter: 1 | 2 | 3 | 4;
+    year: number;
+    createdAt: string;
+}
+
 export interface BusinessSettings {
     businessName?: string;
     businessType: 'product' | 'service' | 'both';
@@ -511,6 +527,7 @@ export interface BusinessSettings {
     futureEvents?: FutureEvent[]; // owner-entered known future plans, see FutureEvent
     savedRecipes?: SavedRecipe[]; // owner-saved menu-item costings, see SavedRecipe
     savedProductionBatches?: SavedProductionBatch[]; // owner-saved batch costings, see SavedProductionBatch
+    taxDeductions?: TaxDeduction[]; // owner-logged tax deductions by quarter, see TaxDeduction
     // Asked once at onboarding (editable later in Settings) — the one thing
     // the owner said matters most right now. Only the values the app can
     // genuinely act on today are offered (see OnboardingChoiceScreen):
