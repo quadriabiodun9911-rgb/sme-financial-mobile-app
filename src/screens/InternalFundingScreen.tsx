@@ -19,7 +19,7 @@
  * DSCR, margin, working capital and inventory turnover are shown together.
  */
 import React, { useMemo, useState } from 'react';
-import { SafeAreaView, ScrollView, View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { SafeAreaView, ScrollView, View, Text, StyleSheet, TextInput, TouchableOpacity, Modal, Platform, useWindowDimensions } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../theme/colors';
 import { Radius, Shadow, Spacing } from '../theme/tokens';
@@ -30,6 +30,19 @@ import { computeInternalFundingAssessment, InternalFundingSource } from '../util
 import { computeCashRunway } from '../utils/cashRunway';
 import { computeDSCR, computeWorkingCapitalMetrics, latestTransactionDate } from '../utils/finance';
 import { computeOutcomeMetricsRollup } from '../utils/outcomeMetricsRollup';
+import { computeInsuranceCoverageAssessment } from '../utils/insuranceCoverage';
+import { InsurancePolicy, InsurancePolicyType } from '../types';
+import { generateId } from '../utils/uuid';
+import { showAlert } from '../utils/webAlert';
+
+const POLICY_TYPE_LABEL: Record<InsurancePolicyType, string> = {
+    property: 'Property',
+    'inventory-stock': 'Inventory / Stock',
+    liability: 'Liability',
+    vehicle: 'Vehicle',
+    equipment: 'Equipment',
+    other: 'Other',
+};
 
 function fmt(currency: string, value: number): string {
     const sign = value < 0 ? '-' : '';
@@ -78,11 +91,48 @@ function IndicatorRow({ label, value, hint, color }: { label: string; value: str
 }
 
 export default function InternalFundingScreen() {
-    const { inventory, transactions, finance, settings, loans, bills, invoices, cashPockets, readinessHistory, navigate } = useApp();
+    const { inventory, transactions, finance, settings, updateSettings, loans, bills, invoices, cashPockets, readinessHistory, assets, navigate } = useApp();
     const cur = settings.currency || '';
+
+    const { width: windowWidth } = useWindowDimensions();
+    const constrainSheetWidth = Platform.OS === 'web' && windowWidth >= 720;
 
     const [fundingNeedInput, setFundingNeedInput] = useState('');
     const fundingNeed = fundingNeedInput.trim() ? (parseFloat(fundingNeedInput) || 0) : null;
+
+    const policies = settings.insurancePolicies ?? [];
+    const [showPolicyModal, setShowPolicyModal] = useState(false);
+    const [policyInsurer, setPolicyInsurer] = useState('');
+    const [policyType, setPolicyType] = useState<InsurancePolicyType>('inventory-stock');
+    const [policyCoverage, setPolicyCoverage] = useState('');
+    const [policyPremium, setPolicyPremium] = useState('');
+    const [policyRenewal, setPolicyRenewal] = useState('');
+
+    const insurance = useMemo(
+        () => computeInsuranceCoverageAssessment(policies, inventory, assets),
+        [policies, inventory, assets],
+    );
+
+    const handleAddPolicy = () => {
+        if (!policyInsurer.trim()) { showAlert('Error', 'Please enter the insurer name'); return; }
+        const coverage = parseFloat(policyCoverage);
+        if (isNaN(coverage) || coverage <= 0) { showAlert('Error', 'Please enter a valid coverage amount'); return; }
+        const premium = parseFloat(policyPremium) || 0;
+        if (!policyRenewal.trim() || isNaN(new Date(policyRenewal).getTime())) { showAlert('Error', 'Please enter a valid renewal date (YYYY-MM-DD)'); return; }
+        const newPolicy: InsurancePolicy = {
+            id: generateId(), insurer: policyInsurer.trim(), policyType: policyType,
+            coverageAmount: coverage, premium, renewalDate: policyRenewal.trim(),
+            createdAt: new Date().toISOString(),
+        };
+        updateSettings({ insurancePolicies: [...policies, newPolicy] });
+        setPolicyInsurer(''); setPolicyCoverage(''); setPolicyPremium(''); setPolicyRenewal('');
+        setPolicyType('inventory-stock');
+        setShowPolicyModal(false);
+    };
+
+    const handleRemovePolicy = (id: string) => {
+        updateSettings({ insurancePolicies: policies.filter(p => p.id !== id) });
+    };
 
     const pocketsTotal = useMemo(() => (cashPockets ?? []).reduce((sum, p) => sum + p.amount, 0), [cashPockets]);
     const emergencyBufferTarget = parseFloat(settings?.minReserve || '') || 0;
@@ -215,7 +265,79 @@ export default function InternalFundingScreen() {
                         />
                     </SectionCard>
 
-                    {/* 3. Funding gap + verdict */}
+                    {/* 3. Insurance Coverage */}
+                    <SectionCard
+                        icon="life-buoy"
+                        title="Insurance Coverage"
+                        subtitle="Whether an actual loss would be covered, not just whether a policy exists"
+                    >
+                        <IndicatorRow
+                            label="Insurable value"
+                            value={fmt(cur, insurance.totalInsurableValue)}
+                            hint="Stock on hand plus owned equipment/property at current book value"
+                        />
+                        <IndicatorRow
+                            label="Active coverage"
+                            value={fmt(cur, insurance.totalActiveCoverage)}
+                            hint="Sum of policies still in force today — lapsed policies don't count"
+                            color={insurance.underinsured ? Colors.expense : undefined}
+                        />
+                        <IndicatorRow
+                            label="Coverage ratio"
+                            value={insurance.coverageRatio !== null ? `${Math.round(insurance.coverageRatio * 100)}%` : 'Nothing to insure yet'}
+                            hint="Active coverage against insurable value"
+                            color={insurance.underinsured ? Colors.expense : undefined}
+                        />
+
+                        {insurance.warning && (
+                            <View style={s.warnBox}>
+                                <Icon name="alert-triangle" size={16} color={Colors.warning} />
+                                <Text style={s.warnText}>{insurance.warning}</Text>
+                            </View>
+                        )}
+
+                        <View style={s.sectionHeaderRow}>
+                            <Text style={s.policiesHeading}>Policies</Text>
+                            <TouchableOpacity style={s.addBtn} onPress={() => setShowPolicyModal(true)}>
+                                <Text style={s.addBtnText}>+ Add</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {policies.length === 0 ? (
+                            <Text style={s.footnote}>No policies logged yet. Add one to see whether it actually covers what's at risk.</Text>
+                        ) : (
+                            policies.map(p => {
+                                const expired = insurance.expiredPolicies.some(e => e.policy.id === p.id);
+                                const expiring = insurance.expiringPolicies.some(e => e.policy.id === p.id);
+                                return (
+                                    <View key={p.id} style={s.policyRow}>
+                                        <View style={{ flex: 1 }}>
+                                            <View style={s.sourceHeadRow}>
+                                                <Text style={s.sourceLabel}>{p.insurer} — {POLICY_TYPE_LABEL[p.policyType]}</Text>
+                                                {expired && (
+                                                    <View style={[s.confidenceBadge, { backgroundColor: Colors.expense + '22' }]}>
+                                                        <Text style={[s.confidenceBadgeText, { color: Colors.expense }]}>Lapsed</Text>
+                                                    </View>
+                                                )}
+                                                {!expired && expiring && (
+                                                    <View style={[s.confidenceBadge, { backgroundColor: Colors.warning + '22' }]}>
+                                                        <Text style={[s.confidenceBadgeText, { color: Colors.warning }]}>Renews soon</Text>
+                                                    </View>
+                                                )}
+                                            </View>
+                                            <Text style={s.sourceNote}>Renews {p.renewalDate} · Premium {fmt(cur, p.premium)}</Text>
+                                        </View>
+                                        <Text style={s.sourceValue}>{fmt(cur, p.coverageAmount)}</Text>
+                                        <TouchableOpacity onPress={() => handleRemovePolicy(p.id)} style={{ padding: 4 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                            <Icon name="x" size={14} color={Colors.textMuted} />
+                                        </TouchableOpacity>
+                                    </View>
+                                );
+                            })
+                        )}
+                    </SectionCard>
+
+                    {/* 4. Funding gap + verdict */}
                     <SectionCard
                         icon="target"
                         title="Do You Actually Need External Financing?"
@@ -281,6 +403,74 @@ export default function InternalFundingScreen() {
                 </View>
             </ScrollView>
             <FooterNav />
+
+            <Modal visible={showPolicyModal} animationType="slide" transparent>
+                <View style={s.modalOverlay}>
+                    <View style={[s.modalContent, constrainSheetWidth && s.modalContentWide]}>
+                        <Text style={s.modalTitle}>Add Insurance Policy</Text>
+
+                        <Text style={s.fieldLabel}>Insurer</Text>
+                        <TextInput
+                            style={s.input}
+                            placeholder="e.g. AIICO, Leadway"
+                            value={policyInsurer}
+                            onChangeText={setPolicyInsurer}
+                            placeholderTextColor={Colors.textMuted}
+                        />
+
+                        <Text style={s.fieldLabel}>Policy Type</Text>
+                        <View style={s.typeGrid}>
+                            {(Object.keys(POLICY_TYPE_LABEL) as InsurancePolicyType[]).map(t => (
+                                <TouchableOpacity
+                                    key={t}
+                                    style={[s.typeBtn, policyType === t && s.typeBtnActive]}
+                                    onPress={() => setPolicyType(t)}
+                                >
+                                    <Text style={[s.typeBtnText, policyType === t && s.typeBtnTextActive]}>{POLICY_TYPE_LABEL[t]}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        <Text style={s.fieldLabel}>{`Coverage Amount (${cur})`}</Text>
+                        <TextInput
+                            style={s.input}
+                            placeholder="0"
+                            value={policyCoverage}
+                            onChangeText={setPolicyCoverage}
+                            keyboardType="numeric"
+                            placeholderTextColor={Colors.textMuted}
+                        />
+
+                        <Text style={s.fieldLabel}>{`Premium (${cur})`}</Text>
+                        <TextInput
+                            style={s.input}
+                            placeholder="0"
+                            value={policyPremium}
+                            onChangeText={setPolicyPremium}
+                            keyboardType="numeric"
+                            placeholderTextColor={Colors.textMuted}
+                        />
+
+                        <Text style={s.fieldLabel}>Renewal Date (YYYY-MM-DD)</Text>
+                        <TextInput
+                            style={s.input}
+                            placeholder="2027-01-01"
+                            value={policyRenewal}
+                            onChangeText={setPolicyRenewal}
+                            placeholderTextColor={Colors.textMuted}
+                        />
+
+                        <View style={s.modalButtons}>
+                            <TouchableOpacity style={[s.btn, s.btnSecondary]} onPress={() => setShowPolicyModal(false)}>
+                                <Text style={s.btnSecondaryText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[s.btn, s.btnPrimary]} onPress={handleAddPolicy}>
+                                <Text style={s.btnPrimaryText}>Add Policy</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -341,4 +531,26 @@ const s = StyleSheet.create({
 
     verdictBox: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start', borderWidth: 1, borderColor: Colors.income, backgroundColor: Colors.income + '12', borderRadius: Radius.sm, padding: Spacing.md, marginTop: Spacing.md },
     verdictText: { flex: 1, fontSize: 12.5, color: Colors.textPrimary, lineHeight: 17 },
+
+    sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: Spacing.md, marginBottom: Spacing.xs },
+    policiesHeading: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+    addBtn: { backgroundColor: Colors.primary, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6 },
+    addBtnText: { color: '#fff', fontWeight: '600', fontSize: 12 },
+    policyRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, paddingVertical: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border },
+
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+    modalContent: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
+    modalContentWide: { maxWidth: 480, width: '100%', alignSelf: 'center' },
+    modalTitle: { fontSize: 18, fontWeight: '600', color: Colors.textPrimary, marginBottom: 16 },
+    modalButtons: { flexDirection: 'row', gap: 12, marginTop: 8 },
+    btn: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
+    btnPrimary: { backgroundColor: Colors.primary },
+    btnPrimaryText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+    btnSecondary: { backgroundColor: Colors.border },
+    btnSecondaryText: { color: Colors.textPrimary, fontWeight: '600', fontSize: 14 },
+    typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: Spacing.sm },
+    typeBtn: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, backgroundColor: Colors.bg, borderWidth: 1, borderColor: Colors.border },
+    typeBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    typeBtnText: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
+    typeBtnTextActive: { color: '#fff' },
 });

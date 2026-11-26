@@ -27,6 +27,7 @@ import { MacroDriver } from '../types';
 import { computeSupplierIntelligence } from '../utils/supplierIntelligence';
 import { computeTransactionAnomalies } from '../utils/transactionAnomalyDetection';
 import { computeSupplierPaymentHistory } from '../utils/supplierPaymentBehavior';
+import { computeSupplierContinuityImpact } from '../utils/supplierContinuityImpact';
 import { entityKey } from '../utils/entityName';
 import { buildSupplierPaymentSnapshotExport } from '../utils/partnerSnapshotExport';
 import { generatePDF, sharePDF } from '../utils/pdfExport';
@@ -125,6 +126,7 @@ export default function RiskManagementScreen() {
     const supplierIntel = useMemo(() => computeSupplierIntelligence(transactions, inventory, currency), [transactions, inventory, currency]);
     const anomalies     = useMemo(() => computeTransactionAnomalies(transactions, currency), [transactions, currency]);
     const supplierPayments = useMemo(() => computeSupplierPaymentHistory(transactions), [transactions]);
+    const supplierContinuity = useMemo(() => computeSupplierContinuityImpact(inventory, transactions), [inventory, transactions]);
 
     // Shares ONLY this one supplier's own purchase/payment history --
     // never the business's broader financials -- see
@@ -392,6 +394,19 @@ export default function RiskManagementScreen() {
                                     <RiskBadge risk={c.risk} />
                                 </View>
                             ))}
+                            {supplierContinuity.available && (
+                                <View style={s.continuityBox}>
+                                    <Icon name="alert-triangle" size={14} color={Colors.warning} />
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={s.continuityText}>{supplierContinuity.narrative}</Text>
+                                        {supplierContinuity.minDaysOfStockLeft !== null && (
+                                            <Text style={s.continuitySub}>
+                                                {currency}{Math.round(supplierContinuity.valueAtRisk).toLocaleString()} of stock from this supplier at risk across {supplierContinuity.itemsSupplied.length} item{supplierContinuity.itemsSupplied.length > 1 ? 's' : ''}.
+                                            </Text>
+                                        )}
+                                    </View>
+                                </View>
+                            )}
                             {(() => {
                                 const topRisk = supplierConc.find(c => c.risk === 'high');
                                 if (!topRisk) return null;
@@ -868,6 +883,9 @@ const s = StyleSheet.create({
     concRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: 10 },
     concName: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
     concPct: { fontSize: 11, color: Colors.textMuted, marginLeft: 6 },
+    continuityBox: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', backgroundColor: Colors.warning + '14', borderRadius: Radius.sm, padding: Spacing.md, marginTop: Spacing.sm },
+    continuityText: { fontSize: 12.5, color: Colors.textPrimary, lineHeight: 17 },
+    continuitySub: { fontSize: 11, color: Colors.textMuted, marginTop: 4, lineHeight: 15 },
     riskBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Radius.pill },
     riskBadgeText: { fontSize: 10.5, fontWeight: '700' },
 

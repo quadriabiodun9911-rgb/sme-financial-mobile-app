@@ -488,6 +488,18 @@ export interface TaxDeduction {
     createdAt: string;
 }
 
+export type InsurancePolicyType = 'property' | 'inventory-stock' | 'liability' | 'vehicle' | 'equipment' | 'other';
+
+export interface InsurancePolicy {
+    id: string;
+    insurer: string;
+    policyType: InsurancePolicyType;
+    coverageAmount: number;
+    premium: number;
+    renewalDate: string; // ISO date
+    createdAt: string;
+}
+
 export interface BusinessSettings {
     businessName?: string;
     businessType: 'product' | 'service' | 'both';
@@ -528,6 +540,7 @@ export interface BusinessSettings {
     savedRecipes?: SavedRecipe[]; // owner-saved menu-item costings, see SavedRecipe
     savedProductionBatches?: SavedProductionBatch[]; // owner-saved batch costings, see SavedProductionBatch
     taxDeductions?: TaxDeduction[]; // owner-logged tax deductions by quarter, see TaxDeduction
+    insurancePolicies?: InsurancePolicy[]; // owner-logged insurance policies, see InsurancePolicy
     // Asked once at onboarding (editable later in Settings) — the one thing
     // the owner said matters most right now. Only the values the app can
     // genuinely act on today are offered (see OnboardingChoiceScreen):
