@@ -269,7 +269,17 @@ export default function ProductPerformance({ transactions, inventory, currency }
                     const highMarginProducts = productMetrics.filter(p => p.margin > 40);
                     const lowMarginProducts = productMetrics.filter(p => p.margin < 25);
                     const highRevenueProducts = productMetrics.slice(0, 2);
-                    const slowMovingProducts = productMetrics.filter(p => p.stockValue > 1000 && p.unitsPerDay < 1);
+                    // Relative to this business's own average stock value per
+                    // category, same reasoning as avgRevenue below -- a fixed
+                    // cutoff (this used to be a flat 1000, meaningless in any
+                    // currency without knowing the business's own scale) would
+                    // never trigger for a business whose categories each hold
+                    // modest stock, or flag almost every category for one
+                    // whose stock value runs much higher.
+                    const avgStockValue = productMetrics.length > 0
+                        ? productMetrics.reduce((sum, p) => sum + p.stockValue, 0) / productMetrics.length
+                        : 0;
+                    const slowMovingProducts = productMetrics.filter(p => p.stockValue > avgStockValue && p.unitsPerDay < 1);
                     // A fast seller isn't automatically a profitable one --
                     // this names that gap explicitly instead of leaving it to
                     // be inferred from the margin/revenue columns or the

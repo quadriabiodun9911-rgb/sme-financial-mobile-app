@@ -186,8 +186,13 @@ export default function GrowthOutlook({ finance, transactions, currency, targetM
         const targetRevenue = currentRevenue * Math.pow(1 + targetRate / 100, months / 12);
         const additionalRevenueNeeded = targetRevenue - currentRevenue;
         const monthlyIncreaseNeeded = additionalRevenueNeeded / Math.max(1, months);
-        const profitMargin = finance.margin || 0.25;
-        const additionalCashGenerated = additionalRevenueNeeded * (profitMargin / 100);
+        // finance.margin is already a real number (0 for an exactly
+        // break-even business, never undefined) on the same 0-100 scale
+        // used everywhere else in the app -- a `|| 0.25` fallback here used
+        // to both treat a genuine break-even business as a 25% margin and,
+        // even taken as intended, assume the wrong magnitude for this scale
+        // (0.25 means 0.25%, not 25%, once divided by 100 below).
+        const additionalCashGenerated = additionalRevenueNeeded * (finance.margin / 100);
 
         return {
             targetRevenue: Math.round(targetRevenue),
