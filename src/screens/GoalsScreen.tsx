@@ -14,7 +14,7 @@ import { Radius, Shadow, Spacing } from '../theme/tokens';
 import { GoalType, FinancialGoal, Transaction } from '../types';
 import { generateStrategy, goalDefaults, buildNewGoal, computeGoalCheckpoints, GoalCheckpoint, daysUntilDeadline } from '../utils/goals';
 import NextStepLink from '../components/NextStepLink';
-import { calculateGoalBridge, mapSavedGoalToBridge, formatGoalMetric } from '../utils/goalBridgeEngine';
+import { calculateGoalBridge, mapSavedGoalToBridge } from '../utils/goalBridgeEngine';
 import { performFinancialDiagnosis } from '../utils/financialDiagnosisEngine';
 import { generateActionPlan } from '../utils/actionRecommendationEngine';
 import { suggestSolution, ImpactSource } from '../utils/impactChain';
@@ -215,8 +215,14 @@ export default function GoalsScreen() {
         [planGoal]
     );
     // Same unit convention GoalCard's own fmtUnit uses (currency/%/days/raw
-    // unit text by goal.unit), kept in sync with it rather than routed
-    // through formatGoalMetric's narrower bridge-engine goal type.
+    // unit text by goal.unit) -- used for every value on this Plan modal
+    // (milestones below, and the Bridge tab's Required Pace rows above)
+    // instead of goalBridgeEngine's own formatGoalMetric, whose narrower
+    // 'profit'|'revenue'|'cash'|'margin'|'runway' type union has no case for
+    // most real goal types (customer_frequency, supplier_concentration,
+    // custom, ...) and silently defaulted all of them to a currency prefix --
+    // e.g. "Required Monthly Pace: ₦5" for a goal measured in
+    // orders/customer/mo.
     const fmtCheckpointValue = (value: number) => {
         if (!planGoal) return '';
         return planGoal.unit === '%' ? `${value.toFixed(1)}%`
@@ -611,7 +617,11 @@ export default function GoalsScreen() {
                             <Text style={styles.modalTitle}>Update Progress</Text>
                             {progressGoal && (
                                 <Text style={cardStyles.desc}>
-                                    {progressGoal.title} — target {progressGoal.unit === '%' ? `${progressGoal.targetValue}%` : `${currency}${progressGoal.targetValue.toLocaleString()}`}
+                                    {progressGoal.title} — target{' '}
+                                    {progressGoal.unit === '%' ? `${progressGoal.targetValue}%`
+                                        : progressGoal.unit === 'days' ? `${Math.round(progressGoal.targetValue)} days`
+                                        : progressGoal.unit === currency ? `${currency}${progressGoal.targetValue.toLocaleString()}`
+                                        : `${progressGoal.targetValue} ${progressGoal.unit}`}
                                 </Text>
                             )}
 
@@ -702,17 +712,17 @@ export default function GoalsScreen() {
 
                                                 <View style={styles.assessmentRow}>
                                                     <Text style={styles.assessmentRowLabel}>Required Monthly Pace:</Text>
-                                                    <Text style={styles.assessmentRowValue}>{formatGoalMetric(planBridge.requiredMonthlyImprovement, planBridge.goal.type, currency)}</Text>
+                                                    <Text style={styles.assessmentRowValue}>{fmtCheckpointValue(planBridge.requiredMonthlyImprovement)}</Text>
                                                 </View>
 
                                                 <View style={styles.assessmentRow}>
                                                     <Text style={styles.assessmentRowLabel}>Required Weekly Pace:</Text>
-                                                    <Text style={styles.assessmentRowValue}>{formatGoalMetric(planBridge.requiredWeeklyImprovement, planBridge.goal.type, currency)}</Text>
+                                                    <Text style={styles.assessmentRowValue}>{fmtCheckpointValue(planBridge.requiredWeeklyImprovement)}</Text>
                                                 </View>
 
                                                 <View style={styles.assessmentRow}>
                                                     <Text style={styles.assessmentRowLabel}>Required Daily Pace:</Text>
-                                                    <Text style={styles.assessmentRowValue}>{formatGoalMetric(planBridge.requiredDailyImprovement, planBridge.goal.type, currency)}</Text>
+                                                    <Text style={styles.assessmentRowValue}>{fmtCheckpointValue(planBridge.requiredDailyImprovement)}</Text>
                                                 </View>
 
                                                 <View style={styles.assessmentRow}>
@@ -1056,6 +1066,18 @@ function DailyActionsSection({ goal, transactions, currency }: { goal: Financial
     const overdueCount = transactions.filter(t => t.type === 'income' && t.status === 'overdue').length;
 
     const fmt = (n: number) => `${currency}${Math.round(isNaN(n) ? 0 : n).toLocaleString()}`;
+    // `remaining` below is in the GOAL's OWN unit (could be '%',  'days', or
+    // a raw unit like 'orders/customer/mo'), unlike every other figure in
+    // this component (today's revenue/expenses/profit, overdue invoices),
+    // which are real cash activity and always currency regardless of the
+    // goal's own unit. Same 4-branch logic as GoalCard's own fmtUnit -- see
+    // that component's comment for why a blanket currency prefix here used
+    // to show e.g. "₦15" for what was actually a 15-percentage-point gap.
+    const fmtGoalUnit = (value: number) =>
+        goal.unit === '%' ? `${value.toFixed(1)}%`
+            : goal.unit === 'days' ? `${Math.round(value)} days`
+            : goal.unit === currency ? fmt(value)
+            : `${value.toFixed(1)} ${goal.unit}`;
 
     const actions: { num: number; text: string }[] = [];
 
@@ -1082,7 +1104,7 @@ function DailyActionsSection({ goal, transactions, currency }: { goal: Financial
         actions.push({ num: actions.length + 1, text: `You made ${fmt(todayProfit)} profit today. Well done! Consistency is how goals get achieved.` });
     }
     if (actions.length === 0) {
-        actions.push({ num: 1, text: `You need ${fmt(remaining)} more to hit this goal in ${daysLeft} days. Daily logging keeps you on track.` });
+        actions.push({ num: 1, text: `You need ${fmtGoalUnit(remaining)} more to hit this goal in ${daysLeft} days. Daily logging keeps you on track.` });
     }
 
     return (
