@@ -29,6 +29,7 @@ import GoalsScreen from './src/screens/GoalsScreen';
 import InvoicesScreen from './src/screens/InvoicesScreen';
 import BillsScreen from './src/screens/BillsScreen';
 import MarginWatchScreen from './src/screens/MarginWatchScreen';
+import InternalFundingScreen from './src/screens/InternalFundingScreen';
 import GeneralLedgerScreen from './src/screens/GeneralLedgerScreen';
 import ProductionCycleScreen from './src/screens/ProductionCycleScreen';
 import PortfolioScreen from './src/screens/PortfolioScreen';
@@ -241,6 +242,7 @@ function NavigatorContent() {
             {currentScreen === 'invoices'     && <InvoicesScreen />}
             {currentScreen === 'bills'           && <BillsScreen />}
             {currentScreen === 'margin-watch'    && <MarginWatchScreen />}
+            {currentScreen === 'internal-funding' && <InternalFundingScreen />}
             {currentScreen === 'general-ledger'  && <GeneralLedgerScreen />}
             {currentScreen === 'production-cycles' && <ProductionCycleScreen />}
             {currentScreen === 'portfolio'       && <PortfolioScreen />}

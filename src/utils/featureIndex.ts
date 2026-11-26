@@ -312,6 +312,12 @@ export const FEATURE_INDEX: FeatureEntry[] = [
         screen: 'margin-watch',
     },
     {
+        id: 'internal-funding', label: 'Internal Funding & Financial Stability', icon: '🔓',
+        description: 'How much the business could realistically fund itself before borrowing, plus the stability indicators that say whether using it would weaken the business',
+        keywords: ['internal financing', 'financial stability', 'funding gap', 'should I borrow', 'reserve', 'working capital', 'cash runway', 'debt service coverage', 'inventory turnover', 'before borrowing'],
+        screen: 'internal-funding',
+    },
+    {
         id: 'assets', label: 'Assets', icon: '🏗️',
         description: 'Equipment and property register, with depreciation',
         keywords: ['equipment', 'depreciation', 'property'],

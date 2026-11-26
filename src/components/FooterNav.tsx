@@ -137,6 +137,10 @@ export const IMPROVE_ITEMS: { label: TranslationKey; icon: IconName; screen: Scr
 ];
 
 export const FUND_ITEMS: { label: TranslationKey; icon: IconName; screen: Screen; color: string; desc: TranslationKey }[] = [
+    // Listed before Credit (Financing Readiness) deliberately -- internal
+    // financing first, external financing second. See
+    // internalFundingAssessment.ts's own header comment for why.
+    { label: 'navInternalFunding', icon: 'unlock',    screen: 'internal-funding',  color: '#22c55e', desc: 'navInternalFundingDesc' },
     { label: 'navCredit',      icon: 'credit-card',  screen: 'credit-worthiness', color: '#eab308', desc: 'navCreditDesc' },
 ];
 
